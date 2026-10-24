@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { loadExteriorTypicals } from "@/lib/wizard/exterior-typicals-db";
 import { parseAddressText } from "@/lib/wizard/addressText";
 import { DEFAULT_BOOKING_RULES, speakWithUsFor } from "@/lib/visits/schedule";
+import { paintHomeTier } from "@/lib/wizard/brand";
 import { loadBookingRules } from "@/lib/visits/scheduleDb";
 import { z } from "zod";
 import { attributionSchema } from "@/lib/crm/attribution";
@@ -784,6 +785,8 @@ export async function POST(request: Request) {
   let sourceTag = isCustomerMode ? "customer_intake" : "wizard";
   const baseRow: Record<string, unknown> = {
     title, status: "draft", builder_state: builderState, source: sourceTag,
+    // Paint Home brief §5: the shopfront, from the session's state; the database carries it to the work order and the invoice.
+    ...(state.brand === "painthome" ? { brand: "painthome" } : {}),
     // C15: the property the quote is for, so the fixed price's tree lands on it.
     ...(measuredPropertyId ? { property_id: measuredPropertyId } : {}),
     // Tom, 7 Sep: the estimates list reads total_cents, which only the builder
@@ -1103,13 +1106,18 @@ export async function POST(request: Request) {
     // estimate so the call-request route can check it again (section 8, test 16).
     const bookingRules = await loadBookingRules(db).catch(() => DEFAULT_BOOKING_RULES);
     const speakWithUs = speakWithUsFor(effectiveState.jobType, cp.rangeHiCents, bookingRules);
+    // Paint Home brief §5: the phone-close tier, decided HERE from the top of the range, the policy
+    // ceiling and the same guardrail decision — the browser only draws the door or the hand-off.
+    const paintHome = state.brand === "painthome"
+      ? { ...paintHomeTier({ hiCents: cp.rangeHiCents, capCents: policy.remoteConfirmCapCents, reasons: decision.reasons, requiresSiteCheck: siteCheck }), capCents: policy.remoteConfirmCapCents }
+      : null;
     await db.from("estimates").update({ builder_state: { ...builderState, guideRange: { loCents: cp.rangeLoCents, hiCents: cp.rangeHiCents, jobType: effectiveState.jobType } } }).eq("id", estimateId)
       .then((r) => { if (r.error) reportError(r.error, { where: "wizard.submit.guideRange", bestEffort: true }); });
     // A website chat this visitor opened before the range ("Send a message", R3)
     // now belongs with the estimate, so staff see one conversation per customer.
     await db.from("agent_conversations").update({ estimate_id: estimateId }).eq("created_by", actor.user.id).is("estimate_id", null)
       .then((r) => { if (r.error) reportError(r.error, { where: "wizard.submit.linkChat", bestEffort: true }); });
-    return NextResponse.json({ estimateId, planUrl, speakWithUs, ...cp });
+    return NextResponse.json({ estimateId, planUrl, speakWithUs, ...(paintHome ? { paintHome } : {}), ...cp });
   }
 
   return NextResponse.json({

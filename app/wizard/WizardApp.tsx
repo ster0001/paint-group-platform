@@ -61,6 +61,8 @@ import {
 import type { CustomerOutcome } from "./CustomerResult";
 import { RESUME_KEY, RESTART_KEY, decodeResume, encodeResume, restartedSince, resumeLine, type ResumeRecord, type SafetyAnswered, pickResume } from "@/lib/wizard/resume";
 import Wordmark from "./Wordmark";
+import { allowedForBrand, type WizardBrand } from "@/lib/wizard/brand";
+import { brandFor } from "@/lib/marketing/brand";
 import ChatWidget from "./ChatWidget";
 import WizardHeader from "./WizardHeader";
 import { UI_FLAGS } from "@/lib/wizard/ui-flags";
@@ -171,7 +173,9 @@ const PROC_TIPS = [
   "Nothing is booked and nothing is charged until you say so.",
 ];
 
-export default function WizardApp({ roomTypes, substrates, mode = "internal", prefill, prefillState, logoUrl, companyPhone = null, estimatorName = null, trust = null, intent, resume = null, assisted = null, segments = DEFAULT_SEGMENTS, gateOrder = "details_first", exteriorTypicals = [] }: {
+export default function WizardApp({ roomTypes, substrates, mode = "internal", prefill, prefillState, logoUrl, companyPhone = null, estimatorName = null, trust = null, intent, resume = null, assisted = null, segments = DEFAULT_SEGMENTS, gateOrder = "details_first", exteriorTypicals = [], brand = "paintgroup" }: {
+  /** Paint Home brief §5: the shopfront this session came through — the host or the hand-off decided it (lib/wizard/brandServer.ts). Paint Group by default. */
+  brand?: WizardBrand;
   /** Exterior wizard v2 (S2): the shape typicals (`exterior_typicals`); empty = the built-in list. */
   exteriorTypicals?: ReadonlyArray<ExteriorTypicalRow>;
   /** UI refresh S2 (⚑ 23): the estimator the wizard resolves (`resolveEstimator`), named in "Talk it through". Null names nobody. */
@@ -342,7 +346,9 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
     }
   };
 
-  const setQuick = (patch: Partial<QuickLookAnswers>) => {
+  const setQuick = (raw: Partial<QuickLookAnswers>) => {
+    // Paint Home brief §5: a commercial kind or a "both" job is never accepted on Paint Home, however it arrived.
+    const patch = { ...raw, ...allowedForBrand(brand, raw) };
     const next = { ...quick, ...patch };
     setState((s) => ({
       ...s,
@@ -413,6 +419,8 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
   const [bookOpen, setBookOpen] = useState(false);
   useEffect(() => {
     if (mode === "customer" && !state.gateVersion) setState((s) => ({ ...s, gateVersion: gateOrder }));
+    // Paint Home brief §5: the brand is set ONCE at the start and rides the state (autosave, resume, submit).
+    if (mode === "customer" && brand === "painthome" && state.brand !== "painthome") setState((s) => ({ ...s, brand: "painthome" }));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   /** Visit booking S4: the talk sheet (request a site visit / send a message) and the range screen's "sent" screen. */
@@ -1839,7 +1847,7 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
     return (
       <div className="wz">
         <header className="wz-top">
-          <Wordmark logoUrl={logoUrl} />
+          <Wordmark logoUrl={logoUrl} brand={brand} />
         </header>
         <BriefDone slot={briefDone.slot} emailed={briefDone.emailed} booked={briefDone.booked} bookingProblem={briefDone.bookingProblem} email={briefDone.email} phone={companyPhone}
           address={state.address?.formatted ?? quickAddress ?? null} holdDays={holdDays} />
@@ -1851,7 +1859,8 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
       <div data-ready="1" className="wz-shell">
         {/* UI refresh S3 (brief §7.1): after the details, the rail is the three accuracy steps. */}
         <WizardHeader
-          logo={<Wordmark logoUrl={logoUrl} />}
+          brandName={brandFor(brand === "painthome" ? "painthome" : "home").name}
+          logo={<Wordmark logoUrl={logoUrl} brand={brand} />}
           steps={[]}
           at="gate"
           after={{
@@ -1934,6 +1943,8 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
           onEditor={() => { void recordRangeOption(reveal.estimateId, "tighten"); clearResume(); router.push(`/estimate/scope?id=${reveal.estimateId}`); }}
           onBook={() => { void recordRangeOption(reveal.estimateId, "visit"); clearResume(); router.push(`/estimate/visit?id=${reveal.estimateId}`); }}
           speakWithUs={Boolean((reveal.payload as { speakWithUs?: boolean }).speakWithUs)}
+          brand={brand}
+          paintHome={(reveal.payload as { paintHome?: { tier: "call" | "visit"; capCents: number } }).paintHome ?? null}
           onSpeak={() => { void recordRangeOption(reveal.estimateId, "speak"); setTalk({ mode: "call" }); }}
           onMessage={() => { void recordRangeOption(reveal.estimateId, "message"); setTalk({ mode: "message" }); }}
           contactKnown={contactKnown}
@@ -1957,7 +1968,8 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
         // UI refresh S1: the slim header with the step rail, built from the
         // same `stepsFor()` list the screens walk. ⚑ 10: the chat is its icon.
         <WizardHeader
-          logo={<Wordmark logoUrl={logoUrl} />}
+          brandName={brandFor(brand === "painthome" ? "painthome" : "home").name}
+          logo={<Wordmark logoUrl={logoUrl} brand={brand} />}
           steps={quickSteps}
           at={quickStep}
           done={screen === "processing"}
@@ -1967,7 +1979,7 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
         />
       ) : (
       <header className="wz-top">
-        <Wordmark logoUrl={logoUrl} />
+        <Wordmark logoUrl={logoUrl} brand={brand} />
         {/* UI refresh S9: the old dots are gone (brief §10) — the staff page list says where it is in words. */}
         <span className="wz-pcount" data-testid="pages-count">{screen === "processing" ? "Working it out" : `Step ${page} of ${lastPage}`}</span>
         {/* C8 — Save & book in the header of every screen (prototype: every
@@ -2063,6 +2075,7 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
                 step={quickStep}
                 quick={quick}
                 onQuick={setQuick}
+                brand={brand}
                 exteriorTypicals={exteriorTypicals}
                 planRooms={state.planRooms}
                 planPreviewUrl={state.planPreviewUrl}

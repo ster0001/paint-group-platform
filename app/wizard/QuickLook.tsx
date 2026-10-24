@@ -3,7 +3,7 @@
 import { useEffect, useState, type ReactNode } from "react";
 import dynamic from "next/dynamic";
 import {
-  CHANGING_GROUPS, CONDITION_BANDS, JOB_TYPES, OCCUPIED, PROPERTY_KINDS,
+  CHANGING_GROUPS, CONDITION_BANDS, OCCUPIED,
   ADD_ROOM_TYPES, SCOPE_PRESETS, STOREYS, changingForScope, roomTypeForName, stepCount, toggleChanging, visibleChanging, type Choice, type QuickLook, type QuickLookStep, exclusionOptions, toggleExcluded,
 } from "@/lib/wizard/quick-look";
 import {
@@ -36,6 +36,8 @@ import type { ExteriorSideKey } from "@/lib/wizard/exterior-typicals";
 import { togglePart } from "@/lib/wizard/exterior-model";
 import type { ExteriorTypicalRow } from "@/lib/wizard/exterior-typicals";
 import { WINDOW_DRAWINGS } from "@/app/estimate/scope/StyleTiles";
+import { jobTypesFor, propertyKindsFor, type WizardBrand } from "@/lib/wizard/brand";
+import { brandFor } from "@/lib/marketing/brand";
 
 /** C12: what the commercial screens need from WizardApp. */
 export type CommercialQuickProps = {
@@ -86,8 +88,10 @@ export default function QuickLook({
   step, quick, onQuick, outside, onOutside, addressField, needsWork, error, canContinue, whyNot = null, busy, onBack, onNext,
   onBook, onMessage, onChooseBoth, phone, commercial = null, assumed = [], planUpload = null, gate = null,
   planRooms = null, planPreviewUrl = null, planPending = false, addedRooms = [], onAddRoom = () => undefined, onRemoveAdded = () => undefined,
-  steps = [], address = "", suburb = null, estimatorName = null, onGo = () => undefined, exteriorTypicals = [],
+  steps = [], address = "", suburb = null, estimatorName = null, onGo = () => undefined, exteriorTypicals = [], brand = "paintgroup",
 }: {
+  /** Paint Home brief §5: Paint Home offers no commercial kind and no "both" — the cards are not rendered (lib/wizard/brand.ts). */
+  brand?: WizardBrand;
   /** Exterior wizard v2 (S2): the shape typicals for the home step and the drawn house. */
   exteriorTypicals?: ReadonlyArray<ExteriorTypicalRow>;
   /** UI refresh S2: `stepsFor()` for these answers — "Your job so far" and its Change links read it. */
@@ -196,7 +200,7 @@ export default function QuickLook({
           </p>
           {addressField}
           <p className="wz-qhead">What&rsquo;s being painted?</p>
-          <Cards options={JOB_TYPES} value={quick.jobType} onPick={(jobType) => onQuick({ jobType })} name="jobtype" pics col />
+          <Cards options={jobTypesFor(brand)} value={quick.jobType} onPick={(jobType) => onQuick({ jobType })} name="jobtype" pics col />
           {tag("jobType")}
 
           {/*
@@ -251,7 +255,7 @@ export default function QuickLook({
           <p className="wz-sub">
             Near enough is fine — this seeds the rooms, and you can change any of them later.
           </p>
-          <Cards options={PROPERTY_KINDS} value={quick.propertyKind} onPick={(propertyKind) => onQuick({ propertyKind })} name="kind" pics />
+          <Cards options={propertyKindsFor(brand)} value={quick.propertyKind} onPick={(propertyKind) => onQuick({ propertyKind })} name="kind" pics />
           {tag("propertyKind")}
 
           {/* C8b: an OUTSIDE job has no rooms to seed — no bedrooms here, and
@@ -736,7 +740,7 @@ export default function QuickLook({
           <label className="wz-field"><span>Mobile number</span>
             <input type="tel" inputMode="tel" placeholder="04" value={gate.contact.phone} autoComplete="tel" data-testid="gate-mobile" onChange={(e) => gate.onContact({ ...gate.contact, phone: e.target.value })} /></label>
           <label className="wz-chint wz-consent" data-testid="gate-marketing">
-            <input type="checkbox" checked={gate.marketing} onChange={(e) => gate.onMarketing(e.target.checked)} /> Send me occasional news and offers from Paint Group (optional)
+            <input type="checkbox" checked={gate.marketing} onChange={(e) => gate.onMarketing(e.target.checked)} /> Send me occasional news and offers from {brandFor(brand === "painthome" ? "painthome" : "home").name} (optional)
           </label>
         </>
       )}

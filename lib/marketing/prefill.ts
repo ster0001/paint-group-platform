@@ -24,6 +24,8 @@ export type EstimateIntent = {
   mode: "home" | "business" | null;
   /** Buckets brief §2.1 / §4.2: `homepage_hero | homepage_cta | job_page:<slug> | direct`. Missing = direct. */
   entrySource: string;
+  /** Paint Home brief §5: the shopfront the visitor came through. Only `painthome` is ever carried; Paint Group is the default and has no tag. */
+  brand: "painthome" | null;
 };
 
 const SRC_RE = /^[a-z_]{2,40}(:[a-z0-9-]{1,80})?$/;
@@ -37,7 +39,7 @@ const first = (p: Param): string | undefined => (Array.isArray(p) ? p[0] : p);
 /** Control characters (C0 + DEL) are never part of an address — drop them. */
 const isPrintable = (c: string) => { const n = c.charCodeAt(0); return n >= 32 && n !== 127; };
 
-export function parseEstimateIntent(params: { address?: Param; mode?: Param; scope?: Param; from?: Param; src?: Param }): EstimateIntent {
+export function parseEstimateIntent(params: { address?: Param; mode?: Param; scope?: Param; from?: Param; src?: Param; brand?: Param }): EstimateIntent {
   const raw = first(params.address) ?? "";
   // Strip control characters, collapse whitespace, clamp to the schema cap.
   const cleaned = Array.from(raw)
@@ -46,7 +48,9 @@ export function parseEstimateIntent(params: { address?: Param; mode?: Param; sco
     .replace(/\s+/g, " ")
     .trim()
     .slice(0, ADDRESS_MAX);
-  const mode = first(params.mode);
+  // Paint Home is residential only (brief §5): a business mode on a Paint Home hand-off is refused, never honoured.
+  const brand = first(params.brand) === "painthome" ? "painthome" as const : null;
+  const mode = brand ? "home" : first(params.mode);
   const scope = first(params.scope);
   const from = (first(params.from) ?? "").trim().toLowerCase();
   const src = (first(params.src) ?? "").trim().toLowerCase();
@@ -58,5 +62,6 @@ export function parseEstimateIntent(params: { address?: Param; mode?: Param; sco
     from: fromOk,
     mode: isMode(mode) ? mode : null,
     entrySource: SRC_RE.test(src) ? src : fromOk ? `job_page:${fromOk}` : "direct",
+    brand,
   };
 }

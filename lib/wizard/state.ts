@@ -456,6 +456,8 @@ export const wizardStateShapeSchema = z.object({
   }).default({ name: "", email: "", phone: "" }),
   /** S6 (R6): which gate order this session started under — frozen for the session. */
   gateVersion: z.enum(["details_first", "range_first"]).optional(),
+  /** Paint Home brief §5: which shopfront this session came through — set once at the start, autosaved with the draft, written to the session and the estimate. Absent = Paint Group. */
+  brand: z.enum(["paintgroup", "painthome"]).optional(),
   /** S6: the optional marketing tick on the gate, unticked by default. */
   marketingOptIn: z.boolean().default(false),
 

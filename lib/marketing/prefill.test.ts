@@ -8,7 +8,7 @@ test("a home hand-off keeps the address and leaves the property kind alone", () 
     scope: null,
     from: null,
     mode: "home",
-    entrySource: "direct",
+    brand: null, entrySource: "direct",
   });
 });
 
