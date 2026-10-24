@@ -1,0 +1,258 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Work order UX mockup</title>
+<link href="https://fonts.googleapis.com/css2?family=Martian+Mono:wght@400;600&family=Geist:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --ink:#0f1417; --graphite:#2b3238; --mid:#6b7680; --line:#e3e7ea; --paper:#f6f5f1; --card:#ffffff;
+  --cyan:#0ea5c4; --cyan-soft:#e2f6fa; --warm:#f4b860; --warm-soft:#fdf1dc; --green:#1f9d6b; --green-soft:#e1f5ec;
+  --text:var(--ink); --sub:var(--mid);
+  --mono:'Martian Mono',ui-monospace,monospace; --sans:'Geist',system-ui,sans-serif;
+}
+[data-theme="dark"]{
+  --ink:#eef1f3; --graphite:#c7ced4; --mid:#8c97a1; --line:#2a3238; --paper:#0f1417; --card:#171d22;
+  --cyan:#2cc4e2; --cyan-soft:#0f2b33; --warm:#f4b860; --warm-soft:#33280f; --green:#34c48a; --green-soft:#0f2f22;
+  --text:var(--ink); --sub:var(--mid);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{background:var(--paper);color:var(--text);font-family:var(--sans);-webkit-font-smoothing:antialiased}
+body{padding:14px 12px 60px;max-width:430px;margin:0 auto}
+.topbar{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
+.topbar h1{font-size:13px;font-family:var(--mono);letter-spacing:.04em;color:var(--sub);font-weight:400}
+.theme{font-family:var(--mono);font-size:11px;border:1px solid var(--line);background:var(--card);color:var(--text);border-radius:999px;padding:6px 10px}
+.seg{display:flex;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:3px;margin-bottom:14px}
+.seg button{flex:1;border:0;background:transparent;color:var(--sub);font:600 12px var(--sans);padding:9px 4px;border-radius:9px}
+.seg button.on{background:var(--ink);color:var(--paper)}
+[data-theme="dark"] .seg button.on{background:var(--ink);color:#0f1417}
+.screen{display:none}.screen.on{display:block}
+.note{font-size:12px;color:var(--sub);line-height:1.5;margin:0 2px 12px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:14px;margin-bottom:10px}
+.job{display:flex;justify-content:space-between;align-items:flex-start}
+.job h2{font-size:17px;font-weight:700;line-height:1.2}
+.job .sub{font-size:12px;color:var(--sub);margin-top:3px}
+.pill{font:600 10px var(--mono);letter-spacing:.04em;background:var(--cyan-soft);color:var(--cyan);padding:5px 8px;border-radius:999px;white-space:nowrap}
+.pill.warm{background:var(--warm-soft);color:#a86b0c}
+[data-theme="dark"] .pill.warm{color:var(--warm)}
+.pill.green{background:var(--green-soft);color:var(--green)}
+.toggle{display:flex;gap:6px;margin:12px 0 10px}
+.toggle button{flex:1;border:1px solid var(--line);background:var(--card);color:var(--sub);font:600 12px var(--sans);padding:8px;border-radius:999px}
+.toggle button.on{border-color:var(--cyan);color:var(--cyan);background:var(--cyan-soft)}
+.view{display:none}.view.on{display:block}
+.surf{display:flex;flex-direction:column;gap:8px;padding:12px 0;border-top:1px solid var(--line)}
+.surf:first-child{border-top:0;padding-top:4px}
+.surf .head{display:flex;justify-content:space-between;align-items:center}
+.surf .name{font-weight:600;font-size:15px}
+.surf .rooms{font:400 11px var(--mono);color:var(--sub)}
+.bar{height:6px;background:var(--line);border-radius:3px;overflow:hidden;display:flex}
+.bar i{display:block;height:100%}
+.bar .p{background:var(--warm)} .bar .d{background:var(--green)}
+.acts{display:flex;gap:8px}
+.acts button{flex:1;border:1px solid var(--line);background:var(--card);color:var(--text);font:600 13px var(--sans);padding:11px 6px;border-radius:12px}
+.acts button.done{background:var(--green-soft);border-color:transparent;color:var(--green)}
+.acts button.next{background:var(--ink);color:var(--paper);border-color:transparent}
+[data-theme="dark"] .acts button.next{color:#0f1417}
+.acts button:disabled{opacity:.45}
+.detail{display:none;font-size:12px;color:var(--sub);line-height:1.7;padding-left:2px}
+.surf.open .detail{display:block}
+.detail b{color:var(--text);font-weight:500}
+.chev{font-size:11px;color:var(--sub)}
+.room{padding:12px 0;border-top:1px solid var(--line)}
+.room:first-child{border-top:0;padding-top:4px}
+.room h3{font-size:15px;font-weight:600;margin-bottom:8px}
+.ticks{display:grid;grid-template-columns:1fr auto auto;gap:6px 10px;font-size:13px;align-items:center}
+.ticks .h{font:400 10px var(--mono);color:var(--sub);letter-spacing:.04em}
+.tick{width:26px;height:26px;border-radius:7px;border:1.5px solid var(--line);display:flex;align-items:center;justify-content:center;font-size:13px;margin:auto}
+.tick.y{background:var(--green);border-color:var(--green);color:#fff}
+.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:18px;background:var(--ink);color:var(--paper);padding:12px 14px;border-radius:12px;font-size:13px;display:flex;gap:14px;align-items:center;box-shadow:0 8px 24px rgba(0,0,0,.25);opacity:0;pointer-events:none;transition:opacity .2s;width:calc(100% - 24px);max-width:406px}
+[data-theme="dark"] .toast{color:#0f1417}
+.toast.show{opacity:1;pointer-events:auto}
+.toast b{margin-left:auto;color:var(--cyan);font-weight:700}
+/* updates queue */
+.q{border-left:3px solid var(--cyan);padding-left:11px}
+.q .meta{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px}
+.q .trig{font:400 10px var(--mono);letter-spacing:.04em;color:var(--sub);text-transform:uppercase}
+.q .when{font:400 10px var(--mono);color:var(--sub)}
+.q .to{font-size:12px;color:var(--sub);margin-bottom:6px}
+.q p{font-size:14px;line-height:1.5}
+.q .btns{display:flex;gap:8px;margin-top:10px}
+.q .btns button{border:1px solid var(--line);background:var(--card);color:var(--text);font:600 12px var(--sans);padding:9px 10px;border-radius:10px;flex:1}
+.q .btns button.send{background:var(--ink);color:var(--paper);border-color:transparent;flex:1.4}
+[data-theme="dark"] .q .btns button.send{color:#0f1417}
+.auto{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.auto div{font-size:13px;line-height:1.4}
+.auto small{display:block;color:var(--sub);font-size:11px}
+.sw{width:42px;height:24px;border-radius:12px;background:var(--line);position:relative;flex-shrink:0}
+.sw::after{content:"";position:absolute;top:3px;left:3px;width:18px;height:18px;border-radius:50%;background:var(--card)}
+/* timeline */
+.tl{position:relative;padding-left:22px}
+.tl::before{content:"";position:absolute;left:7px;top:6px;bottom:6px;width:2px;background:var(--line)}
+.ev{position:relative;margin-bottom:16px}
+.ev::before{content:"";position:absolute;left:-19px;top:5px;width:10px;height:10px;border-radius:50%;background:var(--cyan);border:2px solid var(--card)}
+.ev.sys::before{background:var(--line)}
+.ev .d{font:400 10px var(--mono);color:var(--sub);letter-spacing:.04em;margin-bottom:4px}
+.ev p{font-size:14px;line-height:1.5}
+.ev .from{font-size:11px;color:var(--sub);margin-top:4px}
+.replyall{width:100%;margin-top:6px;border:0;background:var(--ink);color:var(--paper);font:600 14px var(--sans);padding:13px;border-radius:12px}
+[data-theme="dark"] .replyall{color:#0f1417}
+.badge{display:inline-block;font:600 9px var(--mono);letter-spacing:.05em;padding:3px 6px;border-radius:5px;background:var(--warm-soft);color:#a86b0c;margin-left:6px;vertical-align:middle}
+[data-theme="dark"] .badge{color:var(--warm)}
+.kicker{font:400 10px var(--mono);letter-spacing:.06em;color:var(--sub);text-transform:uppercase;margin:0 2px 8px}
+</style>
+</head>
+<body>
+<div class="topbar"><h1>WORK ORDER UX · MOCKUP v2</h1><button class="theme" onclick="toggleTheme()">Dark / light</button></div>
+
+<div class="seg">
+  <button class="on" onclick="show(0,this)">Painter</button>
+  <button onclick="show(1,this)">PC Command</button>
+  <button onclick="show(2,this)">Customer</button>
+</div>
+
+<!-- ===== SCREEN 1: PAINTER WORK ORDER ===== -->
+<section class="screen on">
+  <p class="note">Painter portal. Lands on <strong>By surface</strong>. Each button marks that surface across every room. No whole-job button.</p>
+  <div class="card">
+    <div class="job">
+      <div><h2>14 Clarke St, Northcote</h2><div class="sub">Interior · Level 3 · 3 bedrooms + hall</div></div>
+      <span class="pill">DAY 3 OF 6</span>
+    </div>
+    <div class="toggle">
+      <button class="on" onclick="view(0,this)">By surface</button>
+      <button onclick="view(1,this)">By room</button>
+    </div>
+
+    <div class="view on" id="v0">
+      <div class="surf" onclick="this.classList.toggle('open')">
+        <div class="head"><span class="name">Ceilings</span><span class="rooms">3 of 3 painted <span class="chev">▾</span></span></div>
+        <div class="bar"><i class="d" style="width:100%"></i></div>
+        <div class="acts" onclick="event.stopPropagation()"><button class="done">✓ Prepped</button><button class="done">✓ Painted</button></div>
+        <div class="detail">Bed 1 <b>painted</b> · Bed 2 <b>painted</b> · Bed 3 <b>painted</b></div>
+      </div>
+
+      <div class="surf" onclick="this.classList.toggle('open')">
+        <div class="head"><span class="name">Walls</span><span class="rooms">1 of 3 painted <span class="chev">▾</span></span></div>
+        <div class="bar"><i class="d" style="width:33%"></i><i class="p" style="width:67%"></i></div>
+        <div class="acts" onclick="event.stopPropagation()"><button class="done">✓ Prepped</button><button class="next" onclick="bulk(this,'Walls','painted',2)">Mark all painted</button></div>
+        <div class="detail">Bed 1 <b>painted</b> · Bed 2 <b>prepped</b> · Bed 3 <b>prepped</b></div>
+      </div>
+
+      <div class="surf" onclick="this.classList.toggle('open')">
+        <div class="head"><span class="name">Doors, frames &amp; skirting</span><span class="rooms">0 of 4 prepped <span class="chev">▾</span></span></div>
+        <div class="bar"></div>
+        <div class="acts" onclick="event.stopPropagation()"><button class="next" onclick="bulk(this,'Doors, frames & skirting','prepped',4)">Mark all prepped</button><button disabled>Mark all painted</button></div>
+        <div class="detail">Bed 1, Bed 2, Bed 3, Hall — <b>not started</b>. Painted unlocks once prepped.</div>
+      </div>
+
+      <div class="surf" onclick="this.classList.toggle('open')">
+        <div class="head"><span class="name">Windows</span><span class="rooms">0 of 3 prepped <span class="chev">▾</span></span></div>
+        <div class="bar"></div>
+        <div class="acts" onclick="event.stopPropagation()"><button class="next" onclick="bulk(this,'Windows','prepped',3)">Mark all prepped</button><button disabled>Mark all painted</button></div>
+        <div class="detail">Bed 1, Bed 2, Bed 3 — <b>not started</b></div>
+      </div>
+    </div>
+
+    <div class="view" id="v1">
+      <div class="room"><h3>Bed 1</h3>
+        <div class="ticks"><span class="h">SURFACE</span><span class="h">PREP</span><span class="h">PAINT</span>
+          <span>Ceiling</span><span class="tick y">✓</span><span class="tick y">✓</span>
+          <span>Walls</span><span class="tick y">✓</span><span class="tick y">✓</span>
+          <span>Doors, frames &amp; skirting</span><span class="tick"></span><span class="tick"></span>
+          <span>Windows</span><span class="tick"></span><span class="tick"></span></div></div>
+      <div class="room"><h3>Bed 2</h3>
+        <div class="ticks"><span class="h">SURFACE</span><span class="h">PREP</span><span class="h">PAINT</span>
+          <span>Ceiling</span><span class="tick y">✓</span><span class="tick y">✓</span>
+          <span>Walls</span><span class="tick y">✓</span><span class="tick"></span>
+          <span>Doors, frames &amp; skirting</span><span class="tick"></span><span class="tick"></span>
+          <span>Windows</span><span class="tick"></span><span class="tick"></span></div></div>
+      <div class="room"><h3>Bed 3</h3>
+        <div class="ticks"><span class="h">SURFACE</span><span class="h">PREP</span><span class="h">PAINT</span>
+          <span>Ceiling</span><span class="tick y">✓</span><span class="tick y">✓</span>
+          <span>Walls</span><span class="tick y">✓</span><span class="tick"></span>
+          <span>Doors, frames &amp; skirting</span><span class="tick"></span><span class="tick"></span>
+          <span>Windows</span><span class="tick"></span><span class="tick"></span></div></div>
+    </div>
+  </div>
+  <p class="note">Tapping a row expands it to show each room. By room is still there for the odd room that's behind the others — the same ticks, same data.</p>
+</section>
+
+<!-- ===== SCREEN 2: PC COMMAND UPDATES ===== -->
+<section class="screen">
+  <p class="note">PC Command → <strong>Customer updates</strong>. Every message the system writes lands here for Felipe to send, edit or drop. Nothing goes to a customer on its own until the switch is flipped.</p>
+  <div class="card auto">
+    <div>Send customer updates automatically<small>Off. Messages wait here for Felipe until you're happy with the wording.</small></div>
+    <span class="sw"></span>
+  </div>
+
+  <p class="kicker">Waiting to send · 4</p>
+
+  <div class="card q">
+    <div class="meta"><span class="trig">Surface milestone</span><span class="when">14 CLARKE ST · 11:42</span></div>
+    <div class="to">To Amanda Hughes · from Felipe</div>
+    <p>Hi Amanda, all the doors, frames and skirting boards are prepped now so painting on those starts next.</p>
+    <div class="btns"><button class="send">Send to timeline</button><button>Edit</button><button>Drop</button></div>
+  </div>
+
+  <div class="card q">
+    <div class="meta"><span class="trig">40% check-in</span><span class="when">22 BELL ST · 09:00</span></div>
+    <div class="to">To Raj Patel · from Felipe</div>
+    <p>Hi Raj, just touching base to see how you're finding things so far. Happy with the progress? Anything at all, reply here and we'll sort it.</p>
+    <div class="btns"><button class="send">Send to timeline</button><button>Edit</button><button>Drop</button></div>
+  </div>
+
+  <div class="card q">
+    <div class="meta"><span class="trig">Defect day</span><span class="when">7 HIGH ST · 07:30</span></div>
+    <div class="to">To Sophie Lin · from Felipe</div>
+    <p>Hi Sophie, we've started going over the job today marking up anything that needs a touch up before your walkthrough. If you spot anything you want extra attention on just let us know, or stick a bit of tape on it and we'll take care of it.</p>
+    <div class="btns"><button class="send">Send to timeline</button><button>Edit</button><button>Drop</button></div>
+  </div>
+
+  <div class="card q">
+    <div class="meta"><span class="trig">End of day summary</span><span class="when">14 CLARKE ST · 16:00</span></div>
+    <div class="to">To Amanda Hughes · from Felipe</div>
+    <p>Hi Amanda, quick one on today. Ceilings are all done, main bedroom walls painted and the other two bedrooms prepped ready to go. Tomorrow it's the rest of the walls then onto the doors and frames.</p>
+    <div class="btns"><button class="send">Send to timeline</button><button>Edit</button><button>Drop</button></div>
+  </div>
+  <p class="note">Bulk ticks that land within a few minutes are bundled into one message, so six taps never become six messages. Partial progress waits for the end-of-day summary.</p>
+</section>
+
+<!-- ===== SCREEN 3: CUSTOMER TIMELINE ===== -->
+<section class="screen">
+  <p class="note">Customer portal → <strong>Timeline</strong>. What Amanda sees once Felipe sends.</p>
+  <div class="card">
+    <div class="job"><div><h2>Your painting project</h2><div class="sub">14 Clarke St · Day 3 of 6</div></div><span class="pill green">ON TRACK</span></div>
+  </div>
+  <div class="card">
+    <div class="tl">
+      <div class="ev"><div class="d">TODAY · 11:45</div><p>All the doors, frames and skirting boards are prepped now so painting on those starts next.</p><div class="from">Felipe, Paint Group</div></div>
+      <div class="ev"><div class="d">TODAY · 09:00</div><p>Just touching base to see how you're finding things so far. Happy with the progress? Anything at all, reply here and we'll sort it.</p><div class="from">Felipe, Paint Group</div></div>
+      <div class="ev"><div class="d">YESTERDAY · 16:05</div><p>Quick one on today. Ceilings are all done, main bedroom walls painted and the other two bedrooms prepped ready to go. Tomorrow it's the rest of the walls then onto the doors and frames.</p><div class="from">Felipe, Paint Group</div></div>
+      <div class="ev"><div class="d">TUE · 15:30</div><p>Ceilings are painted right through the house. Walls are up next.</p><div class="from">Felipe, Paint Group</div></div>
+      <div class="ev sys"><div class="d">MON · 07:40</div><p>Your painters have arrived and work is under way.</p><div class="from">Paint Group</div></div>
+    </div>
+    <button class="replyall" onclick="alert('Opens a reply to Felipe against the whole job')">Reply to Felipe</button>
+  </div>
+  <p class="note">Later in the job: the defect-day note, then the walkthrough booking. One reply button for the whole timeline; replies land in the CRM inbox against the job.</p>
+</section>
+
+<div class="toast" id="toast"><span id="toastMsg"></span><b onclick="undo()">Undo</b></div>
+
+<script>
+function show(i,btn){document.querySelectorAll('.screen').forEach((s,k)=>s.classList.toggle('on',k===i));document.querySelectorAll('.seg button').forEach(b=>b.classList.remove('on'));btn.classList.add('on');window.scrollTo(0,0)}
+function view(i,btn){document.getElementById('v0').classList.toggle('on',i===0);document.getElementById('v1').classList.toggle('on',i===1);btn.parentNode.querySelectorAll('button').forEach(b=>b.classList.remove('on'));btn.classList.add('on')}
+let last=null,t=null;
+function bulk(btn,name,state,n){
+  last={btn,html:btn.innerHTML,cls:btn.className};
+  btn.className='done';btn.innerHTML='✓ '+(state==='prepped'?'Prepped':'Painted');
+  const sib=btn.parentNode.querySelector('button:disabled');if(sib){sib.disabled=false;sib.className='next';sib.innerHTML='Mark all painted'}
+  document.getElementById('toastMsg').textContent=n+' '+(name.toLowerCase())+' marked '+state;
+  const tt=document.getElementById('toast');tt.classList.add('show');clearTimeout(t);t=setTimeout(()=>tt.classList.remove('show'),6000);
+}
+function undo(){if(last){last.btn.className=last.cls;last.btn.innerHTML=last.html;last=null}document.getElementById('toast').classList.remove('show')}
+function toggleTheme(){const r=document.documentElement;r.setAttribute('data-theme',r.getAttribute('data-theme')==='dark'?'light':'dark')}
+if(matchMedia('(prefers-color-scheme: dark)').matches)document.documentElement.setAttribute('data-theme','dark');
+</script>
+</body>
+</html>
