@@ -3,7 +3,7 @@ feature: paint-home
 role: customer
 title: Paint Home — pricing your home online
 summary: Paint Home is for apartments, units, townhouses and smaller homes; you type your address, answer a few questions, see a price range in about ten minutes, and one short call confirms it. The painters, the guarantee and the insurance are the same ones behind Paint Group, which powers Paint Home.
-sources: app/(marketing)/painthome/page.tsx, app/(marketing)/_sections/Hero.tsx, app/(marketing)/_sections/Footer.tsx
+sources: app/(marketing)/painthome/page.tsx, app/(marketing)/_sections/Hero.tsx, app/(marketing)/_sections/Footer.tsx, app/wizard/Reveal.tsx, lib/wizard/brand.ts
 ---
 
 ## What this is for
@@ -15,16 +15,17 @@ Your address, and a rough idea of what needs painting: which rooms, or the outsi
 ## Steps
 1. Open painthome.com.au and type your address into the box at the top. Choose **Inside** or **Outside** under it.
 2. Press **See my price**. The estimator opens and asks about your home: what is being painted, roughly how big, the condition.
-3. A price range appears on screen. It tightens as you answer. Save it and it is yours to come back to.
-4. When you are ready, ask us to confirm the price. One of our people calls you, checks the details, and the price is then set.
-5. Pick a start date from what is available. You will know who is coming before it is confirmed.
+3. Answer the quick questions: the kind of home, bedrooms, what is being painted, the condition. Nothing about coats or products.
+4. A price range appears on screen. It tightens as you answer. Save it and it is yours to come back to.
+5. Press **Confirm my price. Book a call**. One of our people calls you, checks the details, and the price is then set. There is no site visit for most Paint Home jobs.
+6. Pick a start date from what is available. You will know who is coming before it is confirmed.
 
 ## What the colours and labels mean
 - **powered by Paint Group** — Paint Home is run by Paint Group. The reviews you see are Paint Group's Google reviews, and the two-year guarantee and the public liability insurance are the same documents.
 - **Enlvn Pty Ltd trading as Paint Home** — the legal entity behind both names.
 
 ## If something goes wrong
-- **My job is larger than a few rooms.** Enter the address anyway. If it is more than can be priced online, we will say so and pass you to the right team with everything you have entered carried across.
+- **My job is larger than a few rooms.** Enter the address anyway. If it is more than can be priced from your phone, the price screen says so and offers a site visit instead of a call. Everything you have entered is kept; the Paint Group team, who look after larger jobs, will be in touch.
 - **I would rather talk first.** The phone number is at the top of every page and in the bar at the bottom on a phone. Mon to Fri, 8am to 5pm.
 
 ## Related

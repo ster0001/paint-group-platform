@@ -18,7 +18,9 @@ import { railFor, STEP_LABELS } from "./stepRail";
  * finds it. No backdrop-filter: that would make it the containing block for
  * the chat panel, which is `position: fixed` and lives inside it.
  */
-export default function WizardHeader({ logo, steps, at, done = false, phone, chat, onSaveBook, after }: {
+export default function WizardHeader({ logo, steps, at, done = false, phone, chat, onSaveBook, after, brandName = "Paint Group" }: {
+  /** Paint Home brief §5: whose number this is, for the call button's label. */
+  brandName?: string;
   /** UI refresh S3: after the details, the rail is Guide range → (how it is checked) → Fixed by (estimator). */
   after?: { at: 0 | 1 | 2; labels: [string, string, string] };
   logo: ReactNode;
@@ -69,7 +71,7 @@ export default function WizardHeader({ logo, steps, at, done = false, phone, cha
         </nav>
         <div className="wz-head-r">
           {tel && (
-            <a className="wz-tel" href={tel} aria-label={`Call Paint Group on ${phone}`} data-testid="wz-head-call">
+            <a className="wz-tel" href={tel} aria-label={`Call ${brandName} on ${phone}`} data-testid="wz-head-call">
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4h4l2 5-2.5 1.5a11 11 0 005 5L15 13l5 2v4a2 2 0 01-2 2A16 16 0 013 6a2 2 0 012-2z" /></svg>
               <span>{phone}</span>
             </a>

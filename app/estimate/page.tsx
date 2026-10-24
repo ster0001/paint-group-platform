@@ -23,6 +23,7 @@ import { serverResumeFrom, type ServerDraftRow } from "@/lib/wizard/resume";
 import { ACCOUNT_DRAFT_MAX_AGE_MS, adoptDraft, findOpenDraft } from "@/lib/wizard/draftOwner";
 import { loadSegments } from "@/lib/wizard/segments";
 import { loadExteriorTypicals } from "@/lib/wizard/exterior-typicals-db";
+import { wizardBrand, wizardTitle } from "@/lib/wizard/brandServer";
 
 /**
  * /estimate — Step 8's CUSTOMER wizard.
@@ -35,21 +36,24 @@ import { loadExteriorTypicals } from "@/lib/wizard/exterior-typicals-db";
  */
 
 export const dynamic = "force-dynamic";
-export const metadata = {
-  title: "Get your painting estimate · Paint Group",
-  robots: { index: false, follow: false }, // flipped at Step 10
-};
+// Paint Home brief §5: the title carries the brand the page is served under (the host, or ?brand=).
+export async function generateMetadata({ searchParams }: { searchParams: Promise<{ brand?: string }> }) {
+  const { brand } = await searchParams;
+  return { title: await wizardTitle("Get your painting estimate", brand), robots: { index: false, follow: false } }; // flipped at Step 10
+}
 
 export default async function CustomerWizardPage({
   searchParams,
 }: {
-  searchParams: Promise<{ property?: string; rebook?: string; spec?: string; address?: string; mode?: string; scope?: string; from?: string; src?: string; session?: string }>;
+  searchParams: Promise<{ property?: string; rebook?: string; spec?: string; address?: string; mode?: string; scope?: string; from?: string; src?: string; session?: string; brand?: string }>;
 }) {
-  const { property: propertyParam, rebook: rebookParam, spec: specParam, address: addressParam, mode: modeParam, scope: scopeParam, from: fromParam, src: srcParam, session: sessionParam } = await searchParams;
+  const { property: propertyParam, rebook: rebookParam, spec: specParam, address: addressParam, mode: modeParam, scope: scopeParam, from: fromParam, src: srcParam, session: sessionParam, brand: brandParam } = await searchParams;
+  // Paint Home brief §5: the brand is the host's (painthome.com.au serves the same wizard, ⚑ P5) or the hand-off's.
+  const brand = await wizardBrand(brandParam);
   // Homepage hand-off (homepage brief §4.2): the typed address and the
   // home/business chip arrive on the URL. Intent only — parsed and clamped
   // by lib/marketing/prefill.ts; nothing is created and nothing fires.
-  const intent = parseEstimateIntent({ address: addressParam, mode: modeParam, scope: scopeParam, from: fromParam, src: srcParam });
+  const intent = parseEstimateIntent({ address: addressParam, mode: brand === "painthome" ? "home" : modeParam, scope: scopeParam, from: fromParam, src: srcParam, brand: brand === "painthome" ? "painthome" : brandParam });
   const supabase = await createClient();
   // Independent reads go out together — every one of them is a round trip to
   // Supabase, and run one after another they were most of this page's
@@ -176,7 +180,7 @@ export default async function CustomerWizardPage({
   if (!online.enabled && !isStaff && !memberEmail) {
     return (
       <>
-        <header className="wz-top"><Wordmark logoUrl={company.logoUrlLight} /></header>
+        <header className="wz-top"><Wordmark logoUrl={company.logoUrlLight} brand={brand} /></header>
         <div className="wz-wrap wz-hold" data-testid="holding-page">
           <h1>{online.holdingTitle}</h1>
           <p className="wz-sub" style={{ marginTop: 14 }}>{online.holdingBody}</p>
@@ -294,7 +298,9 @@ export default async function CustomerWizardPage({
   // estimate id itself never appears on the URL. No linked estimate (or a
   // state that fails validation) → the job type alone seeds the draft.
 
-  if (!prefillState && (intent.from || intent.scope)) {
+  // Paint Home brief §5: the Inside / Outside chip is the quick look's first answer (the intent carries
+  // it, WizardApp pre-selects it) — a seeded state would land on the OLD page set and skip the quick look.
+  if (!prefillState && (intent.from || (intent.scope && brand !== "painthome"))) {
     const showcase = intent.from ? await showcaseJobBySlug(intent.from) : null;
     const scope = showcase?.job_type ?? intent.scope;
     if (showcase?.estimate_id && svc) {
@@ -328,6 +334,7 @@ export default async function CustomerWizardPage({
       } : undefined}
       prefillState={prefillState}
       intent={intent}
+      brand={brand}
     />
   );
 }

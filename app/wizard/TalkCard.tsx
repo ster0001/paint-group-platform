@@ -1,6 +1,7 @@
 "use client";
 
 import { initialsOf } from "@/lib/wizard/estimator";
+import type { WizardBrand } from "@/lib/wizard/brand";
 
 /**
  * "Talk it through" (visit booking addendum A, R3; UI refresh S2, brief §7.2)
@@ -16,18 +17,21 @@ import { initialsOf } from "@/lib/wizard/estimator";
  * `resolveEstimator` — Settings → Estimator until an address names a patch);
  * with nobody on record the card names nobody (⚑ 3: initials, no photo).
  */
-export default function TalkCard({ estimatorName, phone, onBook, onMessage }: {
+export default function TalkCard({ estimatorName, phone, onBook, onMessage, brand = "paintgroup" }: {
   estimatorName: string | null;
   phone: string | null;
   onBook: () => void;
   onMessage: () => void;
+  /** Paint Home brief §5: phone-close only — the first button asks for a call, not a site visit, and no company initials show. */
+  brand?: WizardBrand;
 }) {
   const name = estimatorName?.trim() || null;
+  const painthome = brand === "painthome";
   return (
     <div className="wz-talk" data-testid="ql-talk" role="region" aria-label="Would you rather talk it through?">
       <div className="wz-talk-body">
       <div className="wz-talk-who">
-        <span className="wz-talk-av" aria-hidden="true">{name ? initialsOf(name) : "PG"}</span>
+        <span className="wz-talk-av" aria-hidden="true">{name ? initialsOf(name) : painthome ? "PH" : "PG"}</span>
         <p className="wz-talk-head">
           <b>Would you rather talk it through?</b>
           <small>{name ? `${name} is your estimator.` : "One of our estimators will help."}</small>
@@ -36,7 +40,7 @@ export default function TalkCard({ estimatorName, phone, onBook, onMessage }: {
       <div className="wz-talk-row">
         <button type="button" className="wz-btn wz-bs2" onClick={onBook} data-testid="ql-book">
           <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="5" width="16" height="15" rx="2" /><path d="M4 10h16M8 3v4M16 3v4" /></svg>
-          Request a site visit
+          {painthome ? "Request a call" : "Request a site visit"}
         </button>
         {phone && (
           <a className="wz-btn wz-bs2" href={`tel:${phone.replace(/\s+/g, "")}`} data-testid="ql-call">

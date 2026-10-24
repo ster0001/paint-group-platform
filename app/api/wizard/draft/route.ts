@@ -174,6 +174,8 @@ export async function POST(req: Request) {
     ...(estValueCents != null ? { est_value_cents: estValueCents } : {}),
     last_seen_at: now,
     ...(parsed.data.converted ? { converted_at: now, estimate_id: parsed.data.estimateId ?? null } : {}),
+    // Paint Home brief §5: the session's brand, from the state (set once at the start; Paint Group writes nothing).
+    ...((state as { brand?: unknown }).brand === "painthome" ? { brand: "painthome" } : {}),
     // Buckets brief §2.1
     ...(parsed.data.mode ? { mode: parsed.data.mode } : {}),
     ...(parsed.data.entrySource ? { entry_source: parsed.data.entrySource } : {}),
