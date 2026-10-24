@@ -27,7 +27,7 @@ describe("Paint Home copy (brief §1a, §4)", () => {
     const hits = every().filter(({ v }) => v.includes("Paint Group"));
     expect(hits.map((h) => h.id)).toEqual(["faq.a_1"]);
     expect(PAINTHOME_COPY.faq.a_1).toMatch(/Paint Home is powered by Paint Group\. Enlvn Pty Ltd trading as Paint Home\.$/);
-    // the chrome supplies the other three
+    // the chrome supplies the other two (the reviews credit and the footer; Tom, 25 Oct: nothing beside the nav logo)
     expect(BRAND_DEFAULTS.painthome.poweredBy).toBe("Paint Group");
   });
   it("the voice: statements, no exclamation marks, no system words or slang", () => {

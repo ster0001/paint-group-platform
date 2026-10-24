@@ -6,8 +6,10 @@ import { contractorIdForEmail, createLoopFixture, destroyLoopFixture, serviceCli
 import { deleteUserByEmail, magicLinkFor, openMagicLink } from "./fixtures/portal";
 
 /**
- * Work order UX Step 3 — the 40% check-in (Trigger B) and the defect-day note
- * (Trigger C), drafted by the half-hour sweep onto the Customer updates queue.
+ * Work order UX Step 3 — the 40% check-in (Trigger B) and the defect-day
+ * message (Trigger C), drafted by the half-hour sweep onto the Customer updates
+ * queue. The check-in never leaves the timeline; the defect-day message is the
+ * defect-tape text, sent by text and email too (M1, 24 Oct 2026).
  *
  * A five-day job with today as day 3: both notes are due (the check-in at or
  * past 40%, the defect day two working days before the last). A two-day job
@@ -140,9 +142,11 @@ test.describe("customer notes — 40% check-in and defect day", () => {
     expect(body.customerUpdates!.sent).toBeGreaterThanOrEqual(3);
     const rows = await notes(five!.workOrderId);
     expect(rows.every((r) => r.status === "sent" && (r.sender_name ?? "").length > 0)).toBe(true);
-    // The check-in went to the timeline only: no email or text was recorded against the job for it.
-    const { data: msgs } = await db!.from("messages").select("id").eq("work_order_id", five!.workOrderId);
-    expect(msgs ?? []).toEqual([]);
+    // The check-in went to the timeline only: no email or text carries its words. (The
+    // defect-day message does go out by text and email — M1, 24 Oct 2026.)
+    const { data: msgs, error: msgsErr } = await db!.from("messages").select("body").eq("work_order_id", five!.workOrderId);
+    if (msgsErr) throw new Error(msgsErr.message);
+    expect(((msgs ?? []) as { body: string }[]).some((m) => /touching base/i.test(m.body))).toBe(false);
 
     await openMagicLink(page, await magicLinkFor(db!, portalEmail));
     await page.goto("/account/project");

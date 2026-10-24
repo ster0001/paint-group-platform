@@ -30,7 +30,7 @@ export type Brand = {
   hoursLine: string;
   /** The footer's legal entity line. */
   legalLine: string;
-  /** The small-print credit (nav, reviews, footer) — Paint Home only (§1a: four places and nowhere else). */
+  /** The small-print credit (reviews, footer; Tom, 25 Oct: not beside the nav logo) — Paint Home only. */
   poweredBy: string | null;
   /** The painter card's line, with `{year}` for the start year (§4: "painting with us since YYYY"). */
   sinceTemplate: string;

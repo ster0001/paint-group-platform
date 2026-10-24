@@ -1007,7 +1007,7 @@ export const AUTOMATIONS: Automation[] = [
   {
     key: "customer_updates_queue", name: "Customer updates — milestones, check-in, defect day, end-of-day summary", audience: "customer", channels: ["email", "sms"], kind: "automatic",
     defaultChannel: "both", approvable: true, defaultMode: "approve", sendKind: "job_update",
-    trigger: "Work order UX Step 2 (24 Oct 2026): every message the system writes about a job in progress lands on PC Command → Customer updates for the coordinator to send, edit or drop. A surface milestone is drafted the moment a surface (all the walls, all the ceilings…) is 100% prepped or 100% painted across the job — ticks within the bundle window collapse into one draft. The end-of-day summary is the daily update, now rolled up by surface. Step 3 adds the 40% check-in — once, at the check-in time on the first morning at or past the check-in share of booked days, jobs of the minimum days or more, TIMELINE ONLY — and the defect-day note on every job, at the defect-day time on the day the touch-up pass starts (the defect-tape day on 3+ day jobs, the last day on shorter ones), timeline only beside the existing defect-tape text. With this switched to send automatically, drafts go after the bundle window (the summary at 4 pm, skipped on a day a milestone already went; the two notes at once); otherwise they wait for a person. Never on a paused, rectification or signed-off job.",
+    trigger: "Work order UX Step 2 (24 Oct 2026): every message the system writes about a job in progress lands on PC Command → Customer updates for the coordinator to send, edit or drop. A surface milestone is drafted the moment a surface (all the walls, all the ceilings…) is 100% prepped or 100% painted across the job — ticks within the bundle window collapse into one draft. The end-of-day summary is the daily update, now rolled up by surface. Step 3 adds the 40% check-in — once, at the check-in time on the first morning at or past the check-in share of booked days, jobs of the minimum days or more, TIMELINE ONLY — and the defect-day message on every job, at the defect-day time on the day the touch-up pass starts (the defect-tape day on 3+ day jobs, the last day on shorter ones) — text, email and timeline; it replaces the old defect-tape text (M1, 24 Oct 2026). With this switched to send automatically, drafts go after the bundle window (the summary at 4 pm, skipped on a day a milestone already went; the two notes at once); otherwise they wait for a person. Never on a paused, rectification or signed-off job.",
     templates: [
       { field: "customerMilestonePrepped", label: "Milestone — one surface prepped everywhere", kind: "sms", placeholders: P.milestone },
       { field: "customerMilestoneTwoPrepped", label: "Milestone — two surfaces prepped in one go", kind: "sms", placeholders: P.milestoneTwo },
@@ -1018,7 +1018,7 @@ export const AUTOMATIONS: Automation[] = [
       { field: "customerEndOfDayBody", label: "End of day summary", kind: "body", placeholders: P.endOfDay },
       { field: "customerCheckinBody", label: "40% check-in (timeline only)", kind: "sms", placeholders: ["{{first_name}}"] },
       { field: "customerCheckinTime", label: "Check-in time (HH:MM Melbourne)", kind: "subject" },
-      { field: "customerDefectDayBody", label: "Defect day (timeline only)", kind: "sms", placeholders: ["{{first_name}}"] },
+      { field: "customerDefectDayBody", label: "Defect day (text, email and timeline — replaces the defect-tape text)", kind: "sms", placeholders: ["{{first_name}}"] },
       { field: "customerDefectDayTime", label: "Defect-day time (HH:MM Melbourne)", kind: "subject" },
       { field: "customerUpdatesSender", label: "Sender first name (empty = the coordinator in Company profile)", kind: "subject" },
     ],
@@ -1041,6 +1041,7 @@ export const AUTOMATIONS: Automation[] = [
       { field: "defectTapeEmailIntro", label: "Email body", kind: "body", placeholders: P.defectTape },
     ],
     guard: "Each text once per job (automation_claims). Only while the job is booked and under way (pre-start, in progress, completion prep); a customer who switched off job texts in their account is not texted. The outcome is recorded on the job (defect_tape_sent).",
+    note: "Superseded 24 Oct 2026 (work order UX, ruling M1): the defect-tape message is now the Customer updates queue's Defect day row — one message, text + email + timeline, on every job, from the defect-day time. This switch and these texts no longer send; see Customer updates above.",
   },
   {
     key: "variation_reminder", name: "Variation waiting for approval — reminder", audience: "customer", channels: ["sms", "email"], kind: "automatic",

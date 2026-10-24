@@ -13,7 +13,7 @@ import { serviceClient } from "../fixtures/woLoop";
  *     (tagline H1, ten FAQs, Inside / Outside chips), the mark + "powered by
  *     Paint Group", no business link, no trade lane, the Enlvn legal line,
  *     the reviews credit, its own LocalBusiness `@id` under Paint Group's;
- *     "Paint Group" exactly four times on the page and none of the banned
+ *     "Paint Group" exactly three times on the page (reviews credit, the FAQ sentence, footer) and none of the banned
  *     words outside the big-job answer (§4 AC); Outside → See my price →
  *     the wizard with brand=painthome&scope=exterior (§3, §5 AC)
  *  2. the Paint Group site is untouched; /painthome on a dev host serves
@@ -63,7 +63,7 @@ test.describe("Paint Home — brand and words (sessions 1–2)", () => {
     await expect(page.locator(".shopfront")).toHaveAttribute("data-brand", "painthome");
     await expect(page.getByRole("heading", { level: 1 })).toHaveText("Your qualifiedlocal painters.");
     await expect(page.getByTestId("painthome-logo-nav")).toBeVisible();
-    await expect(page.getByTestId("nav-powered-by")).toHaveText("powered by Paint Group");
+    await expect(page.getByTestId("nav-powered-by")).toHaveCount(0); // Tom, 25 Oct: nothing beside the logo
     await expect(page.getByTestId("nav-other-audience")).toHaveCount(0);
     await expect(page.locator("nav a[href='#painters']")).toHaveText("Who'll be painting");
     await expect(page.locator("#trade")).toHaveCount(0);
@@ -83,7 +83,7 @@ test.describe("Paint Home — brand and words (sessions 1–2)", () => {
     await expect(faq.first().locator("summary")).toHaveText("Who is Paint Home?");
     await expect(faq.nth(4).locator("summary")).toHaveText("My job is larger than a few rooms. Can you still help?");
     const text = (await page.locator(".shopfront").textContent()) ?? "";
-    expect(text.match(/Paint Group/g)?.length).toBe(4);
+    expect(text.match(/Paint Group/g)?.length).toBe(3);
     expect(text.replace("a commercial property", "")).not.toMatch(BANNED);
 
     // residential only: Inside / Outside, no business chip

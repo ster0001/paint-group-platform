@@ -16,7 +16,7 @@ export async function GET() {
   return new ImageResponse(
     (
       <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center", background: BRAND_DEFAULTS.painthome.inkColour, borderRadius: 12 }}>
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox={L.viewBoxNav} width={400} height={63}>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox={L.viewBoxNav} width={360} height={95}>
           <path fill={L.brush} fillRule="evenodd" d={L.paths.brush} />
           <path fill={L.text.dark} fillRule="evenodd" d={L.paths.paint} />
           <path fill={L.home} fillRule="evenodd" d={L.paths.home} />
