@@ -837,7 +837,7 @@
 .pt .surf-hint { color: var(--muted); }
 .pt .tick-note { margin: 12px 0 0; font-size: 11.5px; color: var(--muted); }
 .pt .tick-note b { color: var(--text); font-weight: 600; }
-.pt .tick-toast { position: fixed; left: 50%; transform: translateX(-50%); bottom: 18px; z-index: 40; width: calc(100% - 24px); max-width: 406px; display: flex; gap: 14px; align-items: center; background: var(--text); color: var(--ink); padding: 12px 14px; border-radius: 12px; font-size: 13px; box-shadow: 0 8px 24px rgba(0,0,0,.25); }
+.pt .tick-toast { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(74px + env(safe-area-inset-bottom, 0px)); z-index: 60; /* above the fixed bottom tab bar, or Undo cannot be tapped */ width: calc(100% - 24px); max-width: 406px; display: flex; gap: 14px; align-items: center; background: var(--text); color: var(--ink); padding: 12px 14px; border-radius: 12px; font-size: 13px; box-shadow: 0 8px 24px rgba(0,0,0,.25); }
 .pt .tick-toast button { margin-left: auto; background: none; border: 0; color: var(--cyan); font: 700 13px var(--sans, inherit); cursor: pointer; padding: 4px 6px; }
 .pt[data-theme="light"] .tick-view button.on { background: rgba(14, 140, 156, 0.1); }
 .pt[data-theme="light"] .surf-bar { background: rgba(18, 22, 26, 0.08); }

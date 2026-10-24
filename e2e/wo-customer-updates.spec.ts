@@ -216,8 +216,14 @@ test.describe("customer updates queue — surface milestones", () => {
     await expect(row).toContainText("Prepped");
     await new Promise((r) => setTimeout(r, 2500));
     const rows = await updates("surface_milestone");
-    expect(rows.map((u) => u.milestones)).not.toContainEqual([{ group: "ceilings", state: "prepped" }]);
-    expect(rows).toHaveLength(1);
+    // The dropped ceilings milestone is not back. (The trims milestone, reached while the
+    // job was paused and never announced, may be drafted now the job is open again — that is
+    // the rule working, not a regeneration.)
+    for (const r of rows) {
+      const ms = r.milestones as { group: string; state: string }[];
+      expect(ms).not.toContainEqual({ group: "ceilings", state: "prepped" });
+      expect(ms.every((m) => m.group === "walls" || m.group === "trims")).toBe(true);
+    }
   });
 
   test("CUSTOMER: the sent entry shows the sender line without the greeting, with ONE Reply button; drafts are unreadable", async ({ page }) => {

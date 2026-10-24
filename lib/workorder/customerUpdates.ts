@@ -32,8 +32,10 @@ export function autoSendOn(messaging: Pick<MessagingSettings, "controls" | "disa
 
 export function senderFirstNameOf(messaging: Pick<MessagingSettings, "customerUpdatesSender">, company: { coordinatorName?: string; name?: string }): string {
   const typed = (messaging.customerUpdatesSender ?? "").trim();
-  const name = typed || (company.coordinatorName ?? "").trim() || (company.name ?? "").trim() || "Paint Group";
-  return name.split(/\s+/)[0] ?? name;
+  const person = typed || (company.coordinatorName ?? "").trim();
+  if (person) return person.split(/\s+/)[0] ?? person;
+  // No person to name: the company itself, whole — never its first word.
+  return (company.name ?? "").trim() || "Paint Group";
 }
 
 export async function loadCustomerUpdatesSettings(db: SupabaseClient): Promise<CustomerUpdatesSettings> {

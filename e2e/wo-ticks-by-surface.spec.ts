@@ -130,8 +130,15 @@ test.describe("work order ticks — By surface", () => {
     await expect(page.getByTestId("group-paint-walls")).toBeEnabled();
     expect(await states("Walls")).toEqual(["prepped", "prepped", "prepped"]);
 
+    // R6: Undo — inside its six seconds (the event checks come after; the log keeps them).
+    await page.getByTestId("bulk-undo").click();
+    await expect(page.getByTestId("tick-message")).toContainText("3 rooms put back");
+    await expect(page.getByTestId("group-prep-walls")).toHaveText("Mark all prepped");
+    await expect(page.getByTestId("group-paint-walls")).toBeDisabled();
+    expect(await states("Walls")).toEqual(["todo", "todo", "todo"]);
+
     // R4: three per-room tick rows, each the shape the single tick writes, plus one parent.
-    const ticks = await events("surface_tick");
+    const ticks = (await events("surface_tick")).filter((t) => !t.meta.undo_of);
     expect(ticks).toHaveLength(3);
     const parents = await events("surface_group_ticked");
     expect(parents).toHaveLength(1);
@@ -142,13 +149,6 @@ test.describe("work order ticks — By surface", () => {
       expect(t.actor_kind).toBe("contractor");
       expect(t.meta).toMatchObject({ label: "Walls", from: "todo", to: "prepped", bulk_event_id: parent.id });
     }
-
-    // R6: Undo.
-    await page.getByTestId("bulk-undo").click();
-    await expect(page.getByTestId("tick-message")).toContainText("3 rooms put back");
-    await expect(page.getByTestId("group-prep-walls")).toHaveText("Mark all prepped");
-    await expect(page.getByTestId("group-paint-walls")).toBeDisabled();
-    expect(await states("Walls")).toEqual(["todo", "todo", "todo"]);
     const unticks = await events("surface_group_untick");
     expect(unticks).toHaveLength(1);
     expect(unticks[0].meta).toMatchObject({ parent_event_id: parent.id, count: 3 });
