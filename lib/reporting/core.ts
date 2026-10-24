@@ -169,7 +169,10 @@ export type FunnelSlice = {
     gate_version?: string | null; gate_shown_at?: string | null; gate_completed_at?: string | null; range_shown_at?: string | null; range_option?: string | null }[];
   /** The estimates the drafts became, whatever their date. */
   estimates: FunnelEstimate[];
+  /** Paint Home brief §6–7: the website's own events in the range (crm_events `web_event`), for visits / address typed / see price per shopfront. */
+  web?: WebEventRow[];
 };
+export type WebEventRow = { name: string; audience: string | null; visitor_id: string | null; occurred_at: string };
 export type FunnelEstimate = { id: string; status: string; sent_at: string | null; viewed_at: string | null; accepted_at: string | null; declined_at: string | null; lead_source: string | null };
 
 export type ActivityEvent = { id: string; type: string; payload: Record<string, unknown> | null; occurred_at: string; source: string; account_id: string | null; account_name: string | null };

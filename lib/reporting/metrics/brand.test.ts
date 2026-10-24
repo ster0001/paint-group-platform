@@ -24,6 +24,13 @@ const input = {
       draft("p2", { brand: "painthome", range_option: "visit" }),
       draft("old", { brand: "painthome", started_at: "2026-09-01T01:00:00Z" }),
     ],
+    web: [
+      { name: "address_typed", audience: "painthome", visitor_id: "v1", occurred_at: "2026-10-10T01:00:00Z" },
+      { name: "see_price", audience: "painthome", visitor_id: "v1", occurred_at: "2026-10-10T01:01:00Z" },
+      { name: "address_typed", audience: "painthome", visitor_id: "v2", occurred_at: "2026-10-11T01:00:00Z" },
+      { name: "see_price", audience: "home", visitor_id: "v3", occurred_at: "2026-10-11T01:00:00Z" },
+      { name: "see_price", audience: "painthome", visitor_id: "v9", occurred_at: "2026-09-11T01:00:00Z" },
+    ],
     estimates: [
       { id: "e1", status: "sent", sent_at: "2026-10-11T00:00:00Z", viewed_at: null, accepted_at: null, declined_at: null, lead_source: null },
       { id: "e2", status: "accepted", sent_at: "2026-10-11T00:00:00Z", viewed_at: "2026-10-12T00:00:00Z", accepted_at: "2026-10-13T00:00:00Z", declined_at: null, lead_source: null },
@@ -42,11 +49,11 @@ describe("the dashboard by shopfront (paint-home brief §6)", () => {
     expect(hasPaintHomeSessions(input, range)).toBe(true);
     expect(hasPaintHomeSessions(input, { from: "2026-11-01", to: "2026-11-30" } as Range)).toBe(false);
   });
-  it("By shopfront: started, saved, sent, accepted, calls requested, visits booked — per brand", () => {
+  it("By shopfront: visits, address typed, see price, started, saved, sent, accepted, calls requested, visits booked — per brand", () => {
     const rows = byBrand.select(input, range);
     expect(rows).toEqual([
-      { brand: "Paint Group", started: 2, saved: 1, sent: 1, accepted: 0, calls_requested: 0, visits_booked: 0 },
-      { brand: "Paint Home", started: 2, saved: 1, sent: 1, accepted: 1, calls_requested: 1, visits_booked: 1 },
+      { brand: "Paint Group", visits: 1, address_typed: 0, see_price: 1, started: 2, saved: 1, sent: 1, accepted: 0, calls_requested: 0, visits_booked: 0 },
+      { brand: "Paint Home", visits: 2, address_typed: 2, see_price: 1, started: 2, saved: 1, sent: 1, accepted: 1, calls_requested: 1, visits_booked: 1 },
     ]);
   });
 });

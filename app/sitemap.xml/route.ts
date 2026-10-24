@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { publishedShowcaseJobs } from "@/lib/showcase/queries";
-import { commercialDomain, resolveAudience } from "@/lib/marketing/audience";
+import { commercialDomain, paintHomeDomain, resolveAudience } from "@/lib/marketing/audience";
 
 /**
  * Session 8 §7 — one sitemap per domain, built from the audience: the
@@ -17,8 +17,11 @@ export async function GET(request: Request) {
   const origin = `${proto}://${host}`;
   const domain = commercialDomain();
   const business = audience === "business";
-  const base = business && !domain ? `${origin}/business` : origin;
-  const jobs = (await publishedShowcaseJobs()).filter((j) => j.property_type === (business ? "business" : "home"));
+  const painthome = audience === "painthome";
+  const base = painthome ? `https://${paintHomeDomain()}` : business && !domain ? `${origin}/business` : origin;
+  // Paint Home brief §7 (⚑ P9): a project page's canonical is the Paint Group URL, so the Paint Home
+  // sitemap names its own pages only — never a job page the two sites would compete over.
+  const jobs = painthome ? [] : (await publishedShowcaseJobs()).filter((j) => j.property_type === (business ? "business" : "home"));
   const urls = [
     { loc: `${base}/`, lastmod: new Date().toISOString().slice(0, 10) },
     { loc: `${base}/work`, lastmod: new Date().toISOString().slice(0, 10) },
