@@ -26,7 +26,7 @@ const PLACEHOLDERS = [
 
 export default async function Reviews({ featuredVideoJobId = null, featuredVideo = null, audience = "home", copy, poweredBy = null }: {
   featuredVideoJobId?: string | null; featuredVideo?: WebsiteContent["featuredVideo"] | null;
-  audience?: Audience; copy?: { h2: string; fallbackH2: string };
+  audience?: Audience; copy?: { h2: string; fallbackH2: string; lead?: string };
   /** Paint Home brief §2: the reviews are Paint Group's; the one-line credit under the cards is the honesty mechanism. */
   poweredBy?: string | null;
 }) {
@@ -66,6 +66,7 @@ export default async function Reviews({ featuredVideoJobId = null, featuredVideo
               {live ? `${live.rating.toFixed(1)} from ${live.count} Google review${live.count === 1 ? "" : "s"}` : "Google reviews"}
             </div>
             <h2>{heading}</h2>
+            {copy?.lead && <p className="lead" style={{ marginTop: 14 }}>{copy.lead}</p>}
           </div>
           {live?.url && <a href={live.url} target="_blank" rel="noopener noreferrer" style={{ fontWeight: 500 }} data-testid="reviews-all">All {live.count} reviews on Google →</a>}
         </div>

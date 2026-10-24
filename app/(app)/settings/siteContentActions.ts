@@ -48,7 +48,7 @@ export async function saveSiteContentAction(raw: unknown): Promise<SaveSiteConte
     reportError(e, { where: "settings.siteContent.save" });
     return { status: "error", message: e instanceof Error ? e.message : "That didn't save." };
   }
-  revalidatePath("/"); revalidatePath("/business"); revalidatePath("/work");
+  revalidatePath("/"); revalidatePath("/business"); revalidatePath("/painthome"); revalidatePath("/work");
   return { status: "saved", count: rows.length };
 }
 
@@ -64,6 +64,6 @@ export async function setReviewTagAction(raw: unknown): Promise<{ status: "saved
   if (!svc) return { status: "error", message: "Service key not configured." };
   const { error } = await svc.from("review_tags").update({ audience: parsed.data.audience }).eq("review_key", parsed.data.reviewKey);
   if (error) return { status: "error", message: error.message };
-  revalidatePath("/"); revalidatePath("/business");
+  revalidatePath("/"); revalidatePath("/business"); revalidatePath("/painthome");
   return { status: "saved" };
 }

@@ -681,8 +681,8 @@
     {
       "feature": "paint-home",
       "role": "staff",
-      "title": "Paint Home — the second shopfront, and Settings → Brands",
-      "summary": "Paint Home (painthome.com.au) is the same business, wizard, painters, CRM and invoicing under a second name; Settings → Brands holds each shopfront's domain, phone, legal line and accent colour, and the Paint Home pages are the home site under the Paint Home brand until its own words are seeded.",
+      "title": "Paint Home — the second shopfront: its words, its cards, and Settings → Brands",
+      "summary": "Paint Home (painthome.com.au) is the same business, wizard, painters, CRM and invoicing under a second name; its words are edited on the Paint Home tab of Website copy, its three cards are home jobs under the phone-close price with their own featured rank, and Settings → Brands holds each shopfront's domain, phone, legal line and accent colour.",
       "path": "docs/help/paint-home/staff.md",
       "walkthrough": null,
       "media": [],
@@ -690,10 +690,12 @@
       "sources": [
         "lib/marketing/brand.ts",
         "lib/marketing/audience.ts",
+        "lib/marketing/copy/painthome.ts",
         "app/(marketing)/painthome/page.tsx",
         "app/(app)/settings/BrandsSettings.tsx",
-        "app/(marketing)/_sections/Nav.tsx",
-        "app/(marketing)/_sections/Footer.tsx"
+        "app/(app)/settings/SiteCopyEditor.tsx",
+        "app/(app)/settings/showcase/ShowcaseEditor.tsx",
+        "lib/showcase/rank.ts"
       ]
     },
     {

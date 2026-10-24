@@ -2,16 +2,18 @@ import { describe, it, expect } from "vitest";
 import { CONTENT_FIELDS, missingKeys } from "./schema";
 import { HOME_COPY } from "./home";
 import { BUSINESS_COPY } from "./business";
+import { PAINTHOME_COPY } from "./painthome";
 import { mergeCopy } from "./index";
 
 describe("site copy sets (session 8 §3)", () => {
-  it("both sets carry every field in the schema", () => {
-    expect(missingKeys(HOME_COPY)).toEqual([]);
-    expect(missingKeys(BUSINESS_COPY)).toEqual([]);
+  it("every set carries every field in the schema (bar its own optional keys)", () => {
+    expect(missingKeys(HOME_COPY, "home")).toEqual([]);
+    expect(missingKeys(BUSINESS_COPY, "business")).toEqual([]);
+    expect(missingKeys(PAINTHOME_COPY, "painthome")).toEqual([]);
   });
   it("no em dashes anywhere (Tom, 5 Sep) and no semicolons in headings", () => {
-    for (const set of [HOME_COPY, BUSINESS_COPY]) {
-      for (const f of CONTENT_FIELDS) expect(set[f.section][f.key], `${f.section}.${f.key}`).not.toMatch(/—/);
+    for (const set of [HOME_COPY, BUSINESS_COPY, PAINTHOME_COPY]) {
+      for (const f of CONTENT_FIELDS) expect(set[f.section][f.key] ?? "", `${f.section}.${f.key}`).not.toMatch(/—/);
     }
   });
   it("the home H1 is the one the skeleton spec asserts, line-broken", () => {

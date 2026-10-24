@@ -34,13 +34,15 @@ export const CONTENT_FIELDS: readonly Field[] = [
   f("hero", "lead", "Lead paragraph", "markdown"),
   f("hero", "talk_line", "Rather talk to a person line"),
   f("hero", "chip_home", "Chip: home"), f("hero", "chip_business", "Chip: business"),
+  f("hero", "chip_interior", "Chip: inside (Paint Home)"), f("hero", "chip_exterior", "Chip: outside (Paint Home)"),
   f("hero", "chips_label", "Label before the chips"),
   f("hero", "placeholder", "Address field placeholder"), f("hero", "button", "Field button"),
 
-  ...[1, 2, 3].flatMap((n) => [
-    f("estimator_examples", `example_${n}_address`, `Example ${n}: address`),
+  ...[1, 2, 3, 4].flatMap((n) => [
+    f("estimator_examples", `example_${n}_address`, `Example ${n}: address${n === 4 ? " (optional)" : ""}`),
     f("estimator_examples", `example_${n}_price`, `Example ${n}: price range`),
     f("estimator_examples", `example_${n}_time`, `Example ${n}: time line`),
+    f("estimator_examples", `example_${n}_scope`, `Example ${n}: inside or outside (Paint Home: interior | exterior)`),
   ]),
 
   f("how_it_works", "h2", "Heading"),
@@ -71,10 +73,10 @@ export const CONTENT_FIELDS: readonly Field[] = [
   f("trade", "kicker", "Kicker"), f("trade", "h2", "Heading"), f("trade", "lead", "Lead", "markdown"),
   f("trade", "cta_1", "Button 1"), f("trade", "cta_2", "Button 2"),
 
-  f("reviews", "h2", "Heading"), f("reviews", "fallback_h2", "Heading when business reviews run short"),
+  f("reviews", "h2", "Heading"), f("reviews", "fallback_h2", "Heading when business reviews run short"), f("reviews", "lead", "Lead (optional)"),
 
   f("faq", "h2", "Heading"),
-  ...[1, 2, 3, 4, 5, 6, 7, 8].flatMap((n) => [f("faq", `q_${n}`, `Question ${n}`), f("faq", `a_${n}`, `Answer ${n}`, "markdown")]),
+  ...[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].flatMap((n) => [f("faq", `q_${n}`, `Question ${n}${n > 8 ? " (optional)" : ""}`), f("faq", `a_${n}`, `Answer ${n}`, "markdown")]),
 
   f("cta", "h2", "Heading"), f("cta", "call_line", "Or call line (after the number)"),
 
@@ -95,9 +97,32 @@ export function isSection(v: unknown): v is Section {
 
 export type CopySet = { audience: Audience; copy: SiteCopy };
 
-/** Every field present, no extras — the unit test holds both sets to it. */
-export function missingKeys(copy: SiteCopy): string[] {
+/**
+ * Keys a set may leave blank: the business-only story beat, the optional
+ * fourth example and the example scopes, the optional reviews lead, FAQ 9
+ * and 10 (Paint Home has ten). Paint Home (brief §4) also has no trade
+ * lane, no link to the other site, no home/business chips and no reviews
+ * fallback heading; the other two sets have no inside/outside chips to show.
+ */
+export function optionalKeys(audience: Audience = "home"): Set<string> {
+  const out = new Set<string>(["story.beat_9", "reviews.lead", "faq.q_9", "faq.a_9", "faq.q_10", "faq.a_10", "estimator_examples.example_4_address", "estimator_examples.example_4_price", "estimator_examples.example_4_time"]);
+  for (const n of [1, 2, 3, 4]) out.add(`estimator_examples.example_${n}_scope`);
+  if (audience === "painthome") {
+    for (const f of CONTENT_FIELDS) if (f.section === "trade") out.add(`${f.section}.${f.key}`);
+    for (const k of ["nav.other_audience_label", "hero.chip_home", "hero.chip_business", "reviews.fallback_h2"]) out.add(k);
+  } else {
+    for (const k of ["hero.chip_interior", "hero.chip_exterior"]) out.add(k);
+  }
+  return out;
+}
+
+/** Every field present, no extras — the unit test holds every set to it. */
+export function missingKeys(copy: SiteCopy, audience: Audience = "home"): string[] {
+  const optional = optionalKeys(audience);
   const out: string[] = [];
-  for (const fld of CONTENT_FIELDS) if (!(copy[fld.section]?.[fld.key] ?? "").trim() && !(fld.section === "story" && fld.key === "beat_9")) out.push(`${fld.section}.${fld.key}`);
+  for (const fld of CONTENT_FIELDS) {
+    const id = `${fld.section}.${fld.key}`;
+    if (!(copy[fld.section]?.[fld.key] ?? "").trim() && !optional.has(id)) out.push(id);
+  }
   return out;
 }

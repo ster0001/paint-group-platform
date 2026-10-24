@@ -6,7 +6,7 @@ import TelLink from "../_components/TelLink";
 import { useAudience } from "../_components/Audience";
 import { track } from "@/lib/analytics";
 import { entrySourceFor } from "@/lib/marketing/audience";
-import { estimateHref, type Mode } from "@/lib/marketing/estimateLink";
+import { estimateHref, type Mode, type Scope } from "@/lib/marketing/estimateLink";
 
 export type CtaCopy = { h2: string; callLine: string; labels: FieldLabels };
 
@@ -15,9 +15,9 @@ export default function ClosingCta({ copy }: { copy: CtaCopy }) {
   const router = useRouter();
   const { audience, wizardOrigin, brand } = useAudience();
   const painthome = audience === "painthome";
-  function submit(address: string, mode: Mode) {
-    track("see_price", { where: "bottom", mode, address });
-    router.push(estimateHref(address, mode, { src: entrySourceFor(audience, "bottom"), origin: wizardOrigin, carry: window.location.search, brand: painthome ? "painthome" : undefined }));
+  function submit(address: string, mode: Mode, scope: Scope) {
+    track("see_price", { where: "bottom", mode, address, ...(painthome ? { scope } : {}) });
+    router.push(estimateHref(address, mode, { src: entrySourceFor(audience, "bottom"), origin: wizardOrigin, carry: window.location.search, brand: painthome ? "painthome" : undefined, scope: painthome ? scope : undefined }));
   }
   return (
     <section className="sec cta" id="cta">

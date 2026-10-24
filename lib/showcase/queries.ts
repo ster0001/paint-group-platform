@@ -38,7 +38,7 @@ function rows(data: unknown[] | null): ShowcaseJob[] {
  * business jobs then newest, never padded with home jobs while three or
  * more business jobs are published (lib/showcase/rank.ts, unit-tested).
  */
-export async function featuredShowcaseJobs(audience: Audience = "home"): Promise<ShowcaseJob[]> {
+export async function featuredShowcaseJobs(audience: Audience = "home", maxHighCents: number | null = null): Promise<ShowcaseJob[]> {
   const db = publicClient();
   if (!db) return [];
   const { data } = await db
@@ -46,7 +46,7 @@ export async function featuredShowcaseJobs(audience: Audience = "home"): Promise
     .eq("published", true)
     .order("completed_on", { ascending: false, nullsFirst: false })
     .limit(200);
-  return rankShowcaseJobs(rows(data), audience);
+  return rankShowcaseJobs(rows(data), audience, maxHighCents);
 }
 
 /** /work — every published job, newest completed first. */

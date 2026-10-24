@@ -9,7 +9,7 @@ import { entrySourceFor } from "@/lib/marketing/audience";
 import type { GhostExample } from "@/lib/marketing/ghostEstimator";
 import TelLink from "../_components/TelLink";
 import { track } from "@/lib/analytics";
-import { estimateHref, type Mode } from "@/lib/marketing/estimateLink";
+import { estimateHref, type Mode, type Scope } from "@/lib/marketing/estimateLink";
 import { showcaseMediaUrl } from "@/lib/showcase/format";
 
 /**
@@ -18,9 +18,9 @@ import { showcaseMediaUrl } from "@/lib/showcase/format";
  * {where, mode} and routes to the wizard with both on the URL.
  * The self-typing estimator plays inside AddressField (`ghost`).
  *
- * Paint Home (brief §5): the hand-off carries `brand=painthome`; the
- * home/business chips are not shown — Paint Home is residential only (the
- * Inside / Outside scope chips land with its words in Session 2/3).
+ * Paint Home (brief §4–5): the chips are Inside / Outside (a scope, not a
+ * mode — residential only) and the hand-off carries `brand=painthome` and
+ * `scope=interior|exterior`.
  */
 export type HeroCopy = { kicker: string; h1Lines: string[]; lead: string; talkLine: string; labels: FieldLabels; examples: GhostExample[] };
 
@@ -29,9 +29,9 @@ export default function Hero({ heroPhoto = null, copy }: { heroPhoto?: string | 
   const { audience, wizardOrigin, brand } = useAudience();
   const painthome = audience === "painthome";
 
-  function submit(address: string, mode: Mode) {
-    track("see_price", { where: "hero", mode, address });
-    router.push(estimateHref(address, mode, { src: entrySourceFor(audience, "hero"), origin: wizardOrigin, carry: window.location.search, brand: painthome ? "painthome" : undefined }));
+  function submit(address: string, mode: Mode, scope: Scope) {
+    track("see_price", { where: "hero", mode, address, ...(painthome ? { scope } : {}) });
+    router.push(estimateHref(address, mode, { src: entrySourceFor(audience, "hero"), origin: wizardOrigin, carry: window.location.search, brand: painthome ? "painthome" : undefined, scope: painthome ? scope : undefined }));
   }
 
   return (
@@ -46,7 +46,7 @@ export default function Hero({ heroPhoto = null, copy }: { heroPhoto?: string | 
           <div className="mono" style={{ color: "var(--color-muted)" }}>{copy.kicker}</div>
           <h1>{copy.h1Lines.map((line, i) => <span key={i}>{i > 0 && <br />}{line}</span>)}</h1>
           <p className="lead"><Md src={copy.lead} inline /></p>
-          <AddressField where="hero" showChips={!painthome} ghost examples={copy.examples} labels={copy.labels} onSubmit={submit} />
+          <AddressField where="hero" showChips chips={painthome ? "scope" : "mode"} ghost examples={copy.examples} labels={copy.labels} onSubmit={submit} />
           <div className="under">
             <span>
               {copy.talkLine} <strong><TelLink where="hero">Call {brand.phoneDisplay}</TelLink></strong>

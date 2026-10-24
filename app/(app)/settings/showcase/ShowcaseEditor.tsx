@@ -50,6 +50,7 @@ type Form = {
   hero_path: string | null;
   featured_rank: number | null;
   featured_rank_business: number | null;
+  featured_rank_painthome: number | null;
   consent_confirmed: boolean;
   published: boolean;
 };
@@ -69,7 +70,7 @@ function fromJob(j: ShowcaseJob | null): Form {
     review_quote: j?.review_quote ?? "", review_name: j?.review_name ?? "",
     video_url: j?.video_url ?? "", video_caption: j?.video_caption ?? "", video_transcript: j?.video_transcript ?? "", video_poster_path: j?.video_poster_path ?? null,
     estimate_id: j?.estimate_id ?? null, hero_path: j?.hero_path ?? null,
-    featured_rank: j?.featured_rank ?? null, featured_rank_business: j?.featured_rank_business ?? null, consent_confirmed: j?.consent_confirmed ?? false, published: j?.published ?? false,
+    featured_rank: j?.featured_rank ?? null, featured_rank_business: j?.featured_rank_business ?? null, featured_rank_painthome: j?.featured_rank_painthome ?? null, consent_confirmed: j?.consent_confirmed ?? false, published: j?.published ?? false,
   };
 }
 
@@ -86,7 +87,7 @@ function toInput(f: Form, id: string | undefined, displace = false): ShowcaseJob
     hero_path: f.hero_path, gallery: f.gallery,
     estimate_id: f.estimate_id, review_quote: f.review_quote.trim() || null, review_name: f.review_name.trim() || null,
     video_url: f.video_url.trim() || null, video_caption: f.video_caption.trim() || null, video_transcript: f.video_transcript.trim() || null, video_poster_path: f.video_poster_path,
-    featured_rank: f.featured_rank, featured_rank_business: f.featured_rank_business, consent_confirmed: f.consent_confirmed, published: f.published,
+    featured_rank: f.featured_rank, featured_rank_business: f.featured_rank_business, featured_rank_painthome: f.featured_rank_painthome, consent_confirmed: f.consent_confirmed, published: f.published,
     displace_featured: displace || undefined,
   };
 }
@@ -102,7 +103,7 @@ function toPreview(f: Form, base: ShowcaseJob | null): ShowcaseJob {
     price_low_cents: input.price_low_cents, price_high_cents: input.price_high_cents,
     scope_line: input.scope_line, summary: input.summary, what_we_did: input.what_we_did, colours: input.colours,
     condition_notes: input.condition_notes, hero_path: input.hero_path, gallery: input.gallery, estimate_id: input.estimate_id,
-    review_quote: input.review_quote, review_name: input.review_name, featured_rank: input.featured_rank, featured_rank_business: input.featured_rank_business,
+    review_quote: input.review_quote, review_name: input.review_name, featured_rank: input.featured_rank, featured_rank_business: input.featured_rank_business, featured_rank_painthome: input.featured_rank_painthome,
     video_url: input.video_url, video_caption: input.video_caption, video_transcript: input.video_transcript, video_poster_path: input.video_poster_path,
     consent_confirmed: input.consent_confirmed, published: input.published, published_at: base?.published_at ?? null,
     created_at: base?.created_at ?? "", updated_at: base?.updated_at ?? "",
@@ -395,6 +396,13 @@ export default function ShowcaseEditor({ initial, estimates }: { initial: Showca
               <option value="1">1 — first business card</option>
               <option value="2">2 — second business card</option>
               <option value="3">3 — third business card</option>
+            </select>
+            <div className="mt-3 text-xs text-gray-500">Paint Home (home jobs at or under the phone-close price only)</div>
+            <select className={`${input} w-auto`} value={form.featured_rank_painthome ?? ""} onChange={(e) => set({ featured_rank_painthome: e.target.value === "" ? null : Number(e.target.value) })} data-testid="showcase-rank-painthome">
+              <option value="">Not featured on Paint Home</option>
+              <option value="1">1 — first Paint Home card</option>
+              <option value="2">2 — second Paint Home card</option>
+              <option value="3">3 — third Paint Home card</option>
             </select>
           </Section>
 

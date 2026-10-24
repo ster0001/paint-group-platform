@@ -1,14 +1,10 @@
 import type { Audience } from "../audience";
 import { HOME_COPY } from "./home";
 import { BUSINESS_COPY } from "./business";
+import { PAINTHOME_COPY } from "./painthome";
 import { SECTIONS, type Section, type SiteCopy } from "./schema";
 
-/**
- * Paint Home (brief §8, Session 1): the homepage renders the `home` words
- * under the Paint Home brand until Session 2 seeds its own set from the
- * prototype — the `painthome` arm defaults to the `home` arm (§3).
- */
-export const DEFAULT_COPY: Record<Audience, SiteCopy> = { home: HOME_COPY, business: BUSINESS_COPY, painthome: HOME_COPY };
+export const DEFAULT_COPY: Record<Audience, SiteCopy> = { home: HOME_COPY, business: BUSINESS_COPY, painthome: PAINTHOME_COPY };
 
 /** Defaults, with the stored rows laid over them. A row with an empty value falls back too. */
 export function mergeCopy(audience: Audience, rows: Array<{ section: string; key: string; value: string }>): SiteCopy {

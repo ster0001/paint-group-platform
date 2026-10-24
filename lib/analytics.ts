@@ -23,6 +23,8 @@ export type MarketingEventName =
   | "see_price"
   | "mode_home"
   | "mode_business"
+  | "scope_interior"
+  | "scope_exterior"
   | "ghost_stopped"
   | "job_card"
   | "job_get_price"
@@ -38,7 +40,7 @@ export type MarketingEventName =
   | "consent_choice";
 
 export const MARKETING_EVENT_NAMES: readonly MarketingEventName[] = [
-  "nav_cta", "address_typed", "address_selected", "see_price", "mode_home", "mode_business", "ghost_stopped",
+  "nav_cta", "address_typed", "address_selected", "see_price", "mode_home", "mode_business", "scope_interior", "scope_exterior", "ghost_stopped",
   "job_card", "job_get_price", "promise_0", "promise_1", "promise_2", "promise_3",
   "progress_story_start", "progress_story_complete", "progress_story_replay",
   "painter_card", "trade_walkthrough", "trade_account", "faq_open", "call_tap", "consent_choice",
