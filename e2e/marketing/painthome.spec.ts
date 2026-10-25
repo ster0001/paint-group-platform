@@ -184,15 +184,21 @@ test.describe("Paint Home — brand and words (sessions 1–2)", () => {
     await expect(page.locator(`#jobs a[href$="/work/${slugs.under}"]`)).toHaveCount(0);
   });
 
-  test("5 · Website copy → Paint Home tab: an edited FAQ answer is live on Paint Home, not on the homes site", async ({ page, browser, request }) => {
+  test("5 · Settings → Paint Home website: an edited FAQ answer is live on Paint Home, not on the homes site", async ({ page, browser, request }) => {
     test.skip(!staff || !db, "needs E2E_STAFF_* creds and the service key");
     test.setTimeout(120_000);
     const desk = await (await browser.newContext({ viewport: { width: 1400, height: 900 } })).newPage();
     await signIn(desk, staff!, /\/(home|estimates)/);
-    await desk.goto("/settings#site-copy");
-    const box = desk.getByTestId("site-copy");
-    await expect(box).toBeVisible({ timeout: 20_000 });
-    await box.getByTestId("copy-tab-painthome").click();
+    // Tom, 25 Oct 2026: the Paint Home words live in their own folder, "Paint Home website", with the hero photo and the project cards.
+    await desk.goto("/settings#painthome-website");
+    const folder = desk.getByTestId("folder-painthome-website");
+    await expect(folder.getByTestId("painthome-website")).toBeVisible({ timeout: 20_000 });
+    await expect(folder.getByTestId("painthome-hero-upload")).toBeAttached();
+    await expect(folder.getByTestId("painthome-new-project")).toBeVisible();
+    const box = folder.getByTestId("site-copy");
+    await expect(box).toBeVisible();
+    // the general Website copy folder no longer carries a Paint Home tab
+    await expect(desk.getByTestId("folder-site-copy").getByTestId("copy-tab-painthome")).toHaveCount(0);
     await expect(box.getByTestId("copy-preview")).toHaveAttribute("src", /^\/painthome\?/);
     await box.getByTestId("copy-section-faq").locator("summary").click();
     const answer = `You answer a few questions about the property and a price range appears on screen. e2e ${run}`;
