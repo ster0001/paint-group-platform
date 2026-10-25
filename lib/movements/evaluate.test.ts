@@ -349,13 +349,15 @@ describe("the run plan (ruling 22)", () => {
     // 07:30 restock (seq 3 but earliest time) … the sort is by time first: fixed at 09:30 between.
     expect(ids).toEqual(["c", "a", "ctx:Quality check", "b"]);
   });
-  it("runPlan: km from the warehouse out and back, movements numbered, context unnumbered", () => {
+  it("runPlan: the first stop is the start (Tom, 25 Oct: not the warehouse), km stop to stop, movements numbered, context unnumbered", () => {
     const plan = runPlan(world({ movements: stops() }), FELIPE, MON);
     expect(plan.stopCount).toBe(3);
     expect(plan.stops.map((s) => s.n)).toEqual([1, 2, null, 3]);
-    expect(plan.stops[0].kmFromPrevious).toBeCloseTo(22, 0);        // warehouse → Preston
+    expect(plan.stops[0].kmFromPrevious).toBeNull();                // Preston is where the day starts
     expect(plan.stops[2].kmFromPrevious).toBeCloseTo(2, 0);         // Northcote → Fairfield
-    expect(plan.totalKm).toBeGreaterThan(40);
+    const legs = plan.stops.flatMap((s) => (s.kmFromPrevious == null ? [] : [s.kmFromPrevious]));
+    expect(plan.totalKm).toBeCloseTo(legs.reduce((a, b) => a + b, 0), 0); // no warehouse legs in the total
+    expect(plan.totalKm).toBeLessThan(20);
     expect(runPlan(world(), TOM, SAT).stops).toEqual([]);
   });
   it("reorder hands the same set of times out in the new order; ids off that day are ignored, the rest keep their place after", () => {
@@ -436,7 +438,7 @@ describe("the map (rulings 21 and 22)", () => {
     expect(pins.route).toEqual([]);
     expect(by["0092"].point).toEqual(SUB["northcote"]);
   });
-  it("the selected person's order numbers sit on the icon of each stop; a fixed appointment is ◌; the route runs warehouse → stops → warehouse", () => {
+  it("the selected person's order numbers sit on the icon of each stop; a fixed appointment is ◌; the route runs first stop → last stop, never the warehouse", () => {
     const w = world({ jobs: ON_SITE, movements: felipeMonday() });
     const pins = mapPins(w, FELIPE, MON);
     const by = Object.fromEntries(pins.jobs.map((p) => [p.job.id, p]));
@@ -450,9 +452,9 @@ describe("the map (rulings 21 and 22)", () => {
     expect(preston.badges).toEqual([{ n: 2, fixed: false, label: "Materials pickup" }]);
     expect(pins.shops.find((s) => s.branch.id === "tb-counter")!.stopToday).toBe(false);
     expect(pins.warehouse).toMatchObject({ label: "Warehouse", badges: [] });
-    expect(pins.route[0]).toEqual(SUB["oakleigh south"]);
-    expect(pins.route[pins.route.length - 1]).toEqual(SUB["oakleigh south"]);
-    expect(pins.route.length).toBe(5);
+    expect(pins.route.length).toBe(3);
+    expect(pins.route).not.toContainEqual(SUB["oakleigh south"]);
+    expect(pins.route[0]).toEqual(by["0092"].point);                 // the 08:30 gear drop is the start
     // Ruling 22: after a reorder the numbers follow — the same evaluator, the same stops.
     const patches = reorder(w, FELIPE, MON, ["b", "a"]);
     const after = world({ jobs: ON_SITE, movements: felipeMonday().map((m) => { const p = patches.find((x) => x.id === m.id)!; return { ...m, sequence: p.sequence, time: p.time, half: p.half }; }) });

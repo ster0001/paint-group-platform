@@ -22,7 +22,7 @@ import type {
  *   hotCells         every lane-day lit while a chip is dragged
  *   whileYouAreThere the single nearest tray chip to a calendar / check block
  *   orderedStops     a person-day in run order — fixed context at its time, movements by sequence then time
- *   runPlan          the stops with km from the warehouse out and back
+ *   runPlan          the stops with km from the previous stop; the first stop is the start
  *   reorder          the same set of times handed out in a new order (ruling 22)
  *   locations        where every register item is, from the latest DONE movement carrying it
  *   jobNeeds         what a job still needs (ruling 21's amber icon)
@@ -581,19 +581,22 @@ export function orderedStops(world: World, laneId: string, day: string, blocks: 
 export type RunPlanStop = Stop & { kmFromPrevious: number | null; n: number | null };
 export type RunPlan = { stops: RunPlanStop[]; totalKm: number; stopCount: number };
 
-/** The stops with distances from the warehouse out and back. */
+/**
+ * The stops with the km from the previous stop. The FIRST stop is where the day starts
+ * (Tom, 25 Oct 2026: "mark the first job as the starting point, not the warehouse"), so it
+ * carries no km and the total counts the legs between stops only — nobody is sent out from
+ * the warehouse and back for the figure.
+ */
 export function runPlan(world: World, laneId: string, day: string, blocks: readonly ContextBlock[] = contextBlocks(world)): RunPlan {
-  let prev = warehousePoint(world);
+  let prev: Point | null = null;
   let total = 0, n = 0;
   const stops: RunPlanStop[] = orderedStops(world, laneId, day, blocks).map((s) => {
-    const d = km(prev, s.point);
+    const d = prev ? km(prev, s.point) : null;
     if (d != null) total += d;
     if (s.point) prev = s.point;
     if (!s.fixed) n += 1;
     return { ...s, kmFromPrevious: d, n: s.fixed ? null : n };
   });
-  const back = km(prev, warehousePoint(world));
-  if (back != null && stops.length > 0) total += back;
   return { stops, totalKm: Math.round(total * 10) / 10, stopCount: n };
 }
 
@@ -634,7 +637,7 @@ export type MapPins = {
   jobs: JobPin[];
   shops: ShopPin[];
   warehouse: { point: Point; label: string; badges: MapBadge[] } | null;
-  /** The selected person's day as a line: warehouse, every stop with a point, warehouse. Empty when nobody is selected or the day is empty. */
+  /** The selected person's day as a line: every stop with a point, first to last — the warehouse is not on it. Empty when nobody is selected or the day is empty. */
   route: Point[];
 };
 
@@ -670,7 +673,6 @@ export function mapPins(world: World, laneId: string | null, day: string, blocks
   const wh = warehousePoint(world);
   if (laneId) {
     const plan = runPlan(world, laneId, day, blocks);
-    if (plan.stops.length > 0 && wh) route.push(wh);
     for (const s of plan.stops) {
       if (!s.point) continue;
       const key = pointKey(s.point);
@@ -678,7 +680,6 @@ export function mapPins(world: World, laneId: string | null, day: string, blocks
       badges.set(key, [...(badges.get(key) ?? []), b]);
       route.push(s.point);
     }
-    if (plan.stops.length > 0 && wh) route.push(wh);
   }
   const at = (p: Point) => badges.get(pointKey(p)) ?? [];
 

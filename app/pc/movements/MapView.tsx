@@ -203,9 +203,8 @@ export default function MapView({ world, ctx, lanes, jobExtras, days, day, who, 
     if (!map || !lib || state.kind !== "ready") return;
     const pts = draft.flatMap((e) => (e.point ? [e.point] : []));
     if (pts.length > 0 && planLane) {
-      const wh = pins.warehouse?.point;
-      const path = wh ? [wh, ...pts, wh] : pts;
-      const opts: google.maps.PolylineOptions = { path, map, strokeColor: planLane.colour, strokeOpacity: 0.9, strokeWeight: 3, clickable: false, icons: [] };
+      // The run starts at its first stop, not the warehouse (Tom, 25 Oct 2026).
+      const opts: google.maps.PolylineOptions = { path: pts, map, strokeColor: planLane.colour, strokeOpacity: 0.9, strokeWeight: 3, clickable: false, icons: [] };
       if (lineRef.current) lineRef.current.setOptions(opts); else lineRef.current = new lib.Polyline(opts);
       lineRef.current.setMap(map);
       return;
