@@ -505,10 +505,14 @@ html:has(.mk) { scroll-behavior: smooth; }
 .mk [data-brand="painthome"] .hero h1 { font-size: clamp(36px, 5.6vw, 64px); }
 .mk [data-brand="painthome"] .hero .lead { font-size: clamp(16px, 1.3vw, 18px); max-width: 56ch; }
 @media (max-width: 959px) {
-  /* Phone: a short photo band (not the homes site's tall one) and the block directly under the nav. */
-  .mk [data-brand="painthome"] .hero { padding-top: 12px; }
-  .mk [data-brand="painthome"] .hero-photo { height: 38vw; min-height: 120px; max-height: 200px; }
-  .mk [data-brand="painthome"] .hero .stage { margin-top: -60px; }
+  /* Phone (Tom, 25 Oct 2026): the photo sits BEHIND the form, as on a laptop — not a band above it.
+     Full-bleed behind the hero, darkened top to bottom so the headline and the box read over it;
+     the block keeps its glass over the picture. */
+  .mk [data-brand="painthome"] .hero { padding-top: 16px; padding-bottom: 20px; }
+  .mk [data-brand="painthome"] .hero-photo { position: absolute; inset: 0; height: auto; min-height: 0; max-height: none; margin: 0; }
+  .mk [data-brand="painthome"] .hero-photo::after { background: linear-gradient(180deg, rgba(46, 58, 61, .42) 0%, rgba(46, 58, 61, .52) 60%, rgba(46, 58, 61, .82) 100%); }
+  .mk [data-brand="painthome"] .hero .stage { margin-top: 0; }
+  .mk [data-brand="painthome"] .hero .block { background: rgba(46, 58, 61, .56); backdrop-filter: blur(3px); -webkit-backdrop-filter: blur(3px); }
   .mk [data-brand="painthome"] .hero .block { padding: 18px 16px; gap: 12px; }
   .mk [data-brand="painthome"] .hero h1 { font-size: clamp(30px, 9vw, 40px); }
   .mk [data-brand="painthome"] .hero .lead { font-size: 15px; }
