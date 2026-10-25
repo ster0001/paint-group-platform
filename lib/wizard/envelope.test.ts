@@ -202,3 +202,14 @@ describe("Tom, 15 Sep (late): an outside job's condition spans the range until t
     expect(env.open).not.toContain("condition");
   });
 });
+
+describe("Tom, 25 Oct 2026: an exterior envelope reaches further under", () => {
+  it("underPct lowers the low end only; the top end and the open questions do not move", () => {
+    const plain = envelopeFor({ blocks: tree(), state: state(), ctx, adj, bands: DEFAULT_BANDS, confirmed: null });
+    const under = envelopeFor({ blocks: tree(), state: state(), ctx, adj, bands: DEFAULT_BANDS, underPct: 5, confirmed: null });
+    expect(under.hiCents).toBe(plain.hiCents);
+    expect(under.loCents).toBeLessThan(plain.loCents);
+    expect(under.loCents % 1000).toBe(0);
+    expect(under.open).toEqual(plain.open);
+  });
+});

@@ -24,7 +24,7 @@ import { editorPayload } from "@/lib/wizard/view";
 import { loopConfirmState } from "@/lib/wizard/confirm-state";
 import { adjustmentsFrom } from "@/lib/pricing/context";
 import { priceEstimateTotals, type BlockInput, type PricingContext } from "@/lib/pricing/estimate";
-import { DEFAULT_BANDS, rangeBandPct, rangeFromTotal } from "@/lib/wizard/policy";
+import { DEFAULT_BANDS, rangeBandPct, rangeFromTotal, underPctFor } from "@/lib/wizard/policy";
 import { applyCupboard, applyCupboardInterior, applyRoomSizeOk, confirmRoom, defaultInteriorLoop, type LooseBlock as RoomBlock } from "@/lib/wizard/rooms-loop";
 import { applySideInclude, applySideSizeOk, confirmSide, defaultSidesLoop, SIDE_KEYS, type LooseBlock as SideBlock } from "@/lib/wizard/sides";
 import { CUPBOARD_BY_ROOM_TYPE, CUPBOARD_INTERIOR_BY_ROOM_TYPE } from "@/lib/wizard/rooms-loop";
@@ -145,7 +145,8 @@ function priceBlocks(blocks: unknown[], modSel: Record<string, string>, deferred
   const payload = editorPayload(blocks, ctx, adj, deferred, loopConfirmState(blocks, interior, sides));
   const totals = priceEstimateTotals(blocks as BlockInput[], ctx, adj);
   const band = rangeBandPct(payload.accuracyPct, DEFAULT_BANDS);
-  const r = rangeFromTotal(payload.totals.totalCents, band);
+  // Tom, 25 Oct 2026: an exterior range reaches 5% further under (policy.exteriorUnderPct) on both paths.
+  const r = rangeFromTotal(payload.totals.totalCents, band, underPctFor(blocks));
   return { rows: rowsOf(blocks), hours: totals.contractorHours, totalCents: payload.totals.totalCents, accuracyPct: payload.accuracyPct, loCents: r.loCents, hiCents: r.hiCents };
 }
 

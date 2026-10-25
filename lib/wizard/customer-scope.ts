@@ -20,6 +20,7 @@ import { envelopeFor } from "@/lib/wizard/envelope";
 import {
   answersFromState, bandsFromSettings, evaluateGuardrails,
   policyFromSettings, serviceAreaFromSettings, settingValue,
+  underPctFor,
 } from "@/lib/wizard/policy";
 import { wizardStateSchema } from "@/lib/wizard/state";
 import { defaultSidesLoop, extrasPrices, hoursPerItemCodes, linealCodes, sidesView, wallOptionsFromRates, type SidesLoopMeta, type SidesView } from "@/lib/wizard/sides";
@@ -181,7 +182,8 @@ export async function loadCustomerScope(db: SupabaseClient, estimate: EstimateRo
     {
       ...widen,
       // 14 Sep: the range is the envelope over the open questions.
-      envelope: envelopeFor({ blocks: blocks as Parameters<typeof envelopeFor>[0]["blocks"], state: snap.success ? snap.data : null, ctx, adj: adjustmentsFrom(state), bands: bandsRow, widenPct: widen.widenPct, confirmed: loopState.states }),
+      // Tom, 25 Oct 2026: an exterior envelope reaches 5% further under (policy.exteriorUnderPct).
+      envelope: envelopeFor({ blocks: blocks as Parameters<typeof envelopeFor>[0]["blocks"], state: snap.success ? snap.data : null, ctx, adj: adjustmentsFrom(state), bands: bandsRow, widenPct: widen.widenPct, underPct: underPctFor(blocks, policyFromSettings(settingValue(ctx.settings, "wizard_policy"))), confirmed: loopState.states }),
     },
   );
   // 5 Oct: the wizard family is light — the light-background logo leads.

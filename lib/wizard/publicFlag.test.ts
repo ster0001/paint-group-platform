@@ -1,6 +1,6 @@
 import { test } from "vitest";
 import assert from "node:assert/strict";
-import { DEFAULT_ONLINE_ESTIMATES, onlineEstimatesFrom } from "./publicFlag";
+import { DEFAULT_ONLINE_ESTIMATES, onlineEstimatesFrom, wizardOpenFor } from "./publicFlag";
 
 test("the old { enabled } row still reads exactly as it did", () => {
   const off = onlineEstimatesFrom({ enabled: false });
@@ -23,4 +23,15 @@ test("office wording wins, trimmed and capped; blank wording falls back", () => 
   assert.equal(r.holdingTitle, "Opening 28 September");
   assert.equal(r.holdingBody, DEFAULT_ONLINE_ESTIMATES.holdingBody);
   assert.equal(onlineEstimatesFrom({ holdingTitle: "x".repeat(500) }).holdingTitle.length, 120);
+});
+
+test("Tom, 25 Oct 2026: Paint Home has its own switch, on unless switched off; Paint Group keeps `enabled`", () => {
+  const old = onlineEstimatesFrom({ enabled: false });
+  assert.equal(old.enabledPaintHome, true);
+  assert.equal(wizardOpenFor(old, "painthome"), true);
+  assert.equal(wizardOpenFor(old, "paintgroup"), false);
+  const off = onlineEstimatesFrom({ enabled: true, enabledPaintHome: false });
+  assert.equal(wizardOpenFor(off, "painthome"), false);
+  assert.equal(wizardOpenFor(off, "paintgroup"), true);
+  assert.equal(onlineEstimatesFrom(null).enabledPaintHome, true);
 });

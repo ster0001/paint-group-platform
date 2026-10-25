@@ -7,8 +7,7 @@ import {
   policyFromSettings,
   rangeBandPct,
   rangeFromTotal,
-  type GuardrailAnswers,
-} from "./policy";
+  type GuardrailAnswers, underPctFor } from "./policy";
 
 const clean = (over: Partial<GuardrailAnswers> = {}): GuardrailAnswers => ({
   jobType: "interior",
@@ -38,6 +37,23 @@ describe("range bands", () => {
     expect(hiCents % 1000).toBe(0);
     expect(loCents).toBeLessThanOrEqual(1_234_567 * 0.92);
     expect(hiCents).toBeGreaterThanOrEqual(1_234_567 * 1.08);
+  });
+
+  it("Tom, 25 Oct 2026: the under-percentage stretches the LOW end only — the exterior 5% under", () => {
+    const plain = rangeFromTotal(1_000_000, 8);
+    const under = rangeFromTotal(1_000_000, 8, 5);
+    expect(under.hiCents).toBe(plain.hiCents);
+    expect(under.loCents).toBe(870_000);
+    expect(plain.loCents).toBe(920_000);
+    const exterior = [{ kind: "area", type: "Exterior" }];
+    const interior = [{ kind: "area", type: "Interior" }];
+    expect(underPctFor(exterior)).toBe(5);
+    expect(underPctFor(interior)).toBe(0);
+    expect(underPctFor([...interior, ...exterior])).toBe(5);
+    expect(underPctFor(exterior, { exteriorUnderPct: 0 })).toBe(0);
+    expect(policyFromSettings({ exteriorUnderPct: 7 }).exteriorUnderPct).toBe(7);
+    expect(policyFromSettings({ exteriorUnderPct: -3 }).exteriorUnderPct).toBe(5);
+    expect(policyFromSettings({}).exteriorUnderPct).toBe(5);
   });
 
   it("settings parsing survives garbage and keeps defaults", () => {

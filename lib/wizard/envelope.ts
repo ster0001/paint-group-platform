@@ -169,6 +169,8 @@ export function envelopeFor(input: {
   bands: BandSettings;
   /** C12's commercial widening (⚑20), applied to both ends. */
   widenPct?: number;
+  /** Tom, 25 Oct 2026: the extra reach UNDER the price for an exterior envelope (policy.exteriorUnderPct); the top end never moves for it. */
+  underPct?: number;
   /** areaId → confirmed, from the confirm loop; null = nothing confirmed yet. */
   confirmed: Map<number, "pending" | "confirmed"> | null;
 }): Envelope {
@@ -216,7 +218,7 @@ export function envelopeFor(input: {
   const confirmedCount = input.confirmed ? [...input.confirmed.values()].filter((s) => s === "confirmed").length : 0;
   const confirmedShare = areas ? Math.min(1, confirmedCount / areas) : 0;
   const residual = (sizeResidualPct(confirmedShare, input.bands) + (input.widenPct ?? 0)) / 100;
-  const loCents = roundLo(Math.min(cheap, dear) * (1 - residual));
+  const loCents = roundLo(Math.min(cheap, dear) * (1 - residual - (input.underPct ?? 0) / 100));
   const hiCents = roundHi(Math.max(cheap, dear) * (1 + residual));
   const mid = (loCents + hiCents) / 2;
   const bandPct = mid > 0 ? Math.round(((hiCents - loCents) / 2 / mid) * 100) : 0;

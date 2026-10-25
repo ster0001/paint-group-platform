@@ -14,7 +14,7 @@ import { loopConfirmState } from "@/lib/wizard/confirm-state";
 import { ladderFor, requiresSiteCheck } from "@/lib/wizard/ladder";
 import { adjustmentsFrom } from "@/lib/pricing/context";
 import { chargeOutCents, priceEstimateTotals, type BlockInput } from "@/lib/pricing/estimate";
-import { GUARDRAIL_MESSAGES, answersFromState, bandsFromSettings, evaluateGuardrails, policyFromSettings, rangeBandPct, rangeFromTotal, serviceAreaFromSettings, settingValue } from "@/lib/wizard/policy";
+import { GUARDRAIL_MESSAGES, answersFromState, bandsFromSettings, evaluateGuardrails, policyFromSettings, rangeBandPct, rangeFromTotal, serviceAreaFromSettings, settingValue, underPctFor } from "@/lib/wizard/policy";
 import { type VisitReason } from "@/lib/wizard/sides";
 import { substrateKeyForRateCode } from "@/lib/estimate/substrates";
 import { CUPBOARD_INTERIOR_BY_ROOM_TYPE, applyCupboardInterior, type LooseBlock as RoomBlock } from "@/lib/wizard/rooms-loop";
@@ -321,11 +321,13 @@ function priced(doc: ScopeDoc, deps: ScopeDeps) {
   // The column alone is right for anything submitted after C2, but a legacy row
   // may carry the wrong value — deriving as well can only be stricter.
   const siteCheck = requiresSiteCheck({ state, stored: doc.requiresSiteCheck });
+  const policy = policyFromSettings(settingValue(deps.ctx.settings, "wizard_policy"));
   const decision = evaluateGuardrails(answers, payload.totals.totalCents, payload.accuracyPct, siteCheck,
-    policyFromSettings(settingValue(deps.ctx.settings, "wizard_policy")), serviceAreaFromSettings(settingValue(deps.ctx.settings, "service_area")), trade);
+    policy, serviceAreaFromSettings(settingValue(deps.ctx.settings, "service_area")), trade);
   const bands = bandsFromSettings(settingValue(deps.ctx.settings, "wizard_bands"));
   const bandPct = rangeBandPct(payload.accuracyPct, bands);
-  const range = rangeFromTotal(payload.totals.totalCents, bandPct);
+  // Tom, 25 Oct 2026: an exterior range reaches 5% further under (policy.exteriorUnderPct).
+  const range = rangeFromTotal(payload.totals.totalCents, bandPct, underPctFor(blocks, policy));
   const confirmedIds = [...loop.states.entries()].filter(([, st]) => st === "confirmed").map(([id]) => id);
   const allConfirmed = loop.states.size > 0 && [...loop.states.values()].every((st) => st === "confirmed");
   // The same rule as the graph: the doors & windows check exists only when
