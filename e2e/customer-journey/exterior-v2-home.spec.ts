@@ -182,3 +182,59 @@ test("the rest of the outside path still reaches a range, and the sides editor's
   const { frontM } = scaledLengths(typicalFor("th"), "sm");
   await expect(front.getByTestId("side-assumed-front")).toContainText(new RegExp(`${frontM} m × ${typicalFor("th").wallHM} m`));
 });
+
+/**
+ * Tom, 25 Oct 2026 (on his phone): the drawn house stays pinned at the top on
+ * every outside step while the questions scroll under it, drawn larger than
+ * the band's letterbox, but the pinned card takes well under half the screen so
+ * the page still scrolls; the talk bar is a compact pill at the bottom right,
+ * on screen, above the Continue bar — not a full-width bar over the answers.
+ */
+test("on a phone the house is pinned under the step bar, larger, and the page still scrolls", async ({ browser }) => {
+  test.setTimeout(150_000);
+  const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
+  const page = await ctx.newPage();
+  try {
+    await toHome(page);
+    await page.getByTestId("ql-ext-type-cal").click();
+    await page.getByTestId("ql-ext-size-md").click();
+    const measure = () => page.evaluate(() => {
+      const box = (sel: string) => document.querySelector(sel)!.getBoundingClientRect();
+      const pic = box("[data-testid='ql-picture']"), head = box(".wz-head"), talk = box("[data-testid='ql-talk']"), nav = box(".wz-nav--col");
+      const svg = document.querySelector(".wz-pic-art > svg")?.getBoundingClientRect();
+      return {
+        picTop: pic.top, picH: pic.height, headBottom: head.bottom, svgW: svg?.width ?? 0,
+        talkRight: talk.right, talkW: talk.width, talkBottom: talk.bottom, navTop: nav.top,
+        scrollY: window.scrollY, docW: document.documentElement.scrollWidth,
+        maxScroll: document.documentElement.scrollHeight - window.innerHeight,
+      };
+    });
+    const check = async (step: string) => {
+      await expect(page.locator(`[data-quick-step='${step}']`)).toBeVisible({ timeout: 20_000 });
+      await page.evaluate(() => window.scrollTo({ top: 0, behavior: "instant" as ScrollBehavior }));
+      const top = await measure();
+      expect(top.docW, `${step}: nothing wider than the phone`).toBeLessThanOrEqual(390);
+      expect(top.picH, `${step}: the pinned card is well under half the screen`).toBeLessThan(844 * 0.4);
+      expect(top.maxScroll, `${step}: the questions still scroll`).toBeGreaterThan(80);
+      expect(top.svgW, `${step}: the house is drawn wider than the letterbox`).toBeGreaterThan(400);
+      expect(top.talkRight, `${step}: the talk pill is on the screen`).toBeLessThanOrEqual(390);
+      expect(top.talkW, `${step}: the talk pill is compact`).toBeLessThan(260);
+      expect(top.talkBottom, `${step}: the talk pill sits above the Continue bar`).toBeLessThanOrEqual(top.navTop + 1);
+      await page.evaluate(() => window.scrollTo({ top: document.documentElement.scrollHeight, behavior: "instant" as ScrollBehavior }));
+      await expect.poll(async () => (await measure()).scrollY).toBeGreaterThan(60);
+      const down = await measure();
+      expect(Math.abs(down.picTop - down.headBottom), `${step}: the house is pinned right under the step bar`).toBeLessThanOrEqual(2);
+    };
+    await check("home");
+    await quickNext(page);
+    await check("paint");
+    for (const p of ["walls", "fascias", "gutters", "windows"]) await page.getByTestId(`ext-part-${p}`).click();
+    await quickNext(page);
+    await check("about");
+    await page.getByTestId("ext-mat-weatherboards").click();
+    await quickNext(page);
+    await check("sides");
+  } finally {
+    await ctx.close();
+  }
+});
