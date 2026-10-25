@@ -51,3 +51,17 @@ test("Paint Home brief §5: the hand-off carries brand=painthome; Paint Group ca
   expect(u.searchParams.get("src")).toBe("painthome_home_hero");
   expect(new URL(estimateHref("x", "home"), "http://x").searchParams.get("brand")).toBeNull();
 });
+
+test("Tom, 25 Oct 2026: a resolved pick's parts ride the hand-off; words alone carry none", () => {
+  const picked = { street: "14 Acacia Street", suburb: "Northcote", state: "VIC", postcode: "3070" };
+  const url = new URL(estimateHref("14 Acacia Street, Northcote VIC 3070", "home", { picked }), "http://x");
+  expect(url.searchParams.get("street")).toBe("14 Acacia Street");
+  expect(url.searchParams.get("suburb")).toBe("Northcote");
+  expect(url.searchParams.get("state")).toBe("VIC");
+  expect(url.searchParams.get("postcode")).toBe("3070");
+  const plain = new URL(estimateHref("14 Acacia Street", "home", { picked: null }), "http://x");
+  expect(plain.searchParams.has("suburb")).toBe(false);
+  // half a pick is no pick
+  const half = new URL(estimateHref("x", "home", { picked: { ...picked, postcode: "" } }), "http://x");
+  expect(half.searchParams.has("suburb")).toBe(false);
+});

@@ -471,7 +471,31 @@ html:has(.mk) { scroll-behavior: smooth; }
 .mk [data-brand="painthome"] .pb { font-size: 11px; font-weight: 500; letter-spacing: .02em; color: var(--color-muted); white-space: nowrap; }
 @media (max-width: 600px) { .mk [data-brand="painthome"] .brand .pb { display: none; } .mk [data-brand="painthome"] .logo { height: 36px; } }
 /* hero: slate with a slight warm-grey gradient; the block semi-transparent slate with a faint blush border */
-.mk [data-brand="painthome"] .hero { background: linear-gradient(160deg, #2E3A3D 0%, #2E3A3D 55%, #4A4A50 100%); }
+/* Tom, 25 Oct 2026: "the top of the page seems a bit dull — brighter, pop more". The slate stays the
+   ground; the logo cyan and the blush now LIGHT it: a cyan glow top-right, a blush glow bottom-left,
+   the prototype's soft cyan sweeps, a cyan-edged block with a glow, white headline, cyan kicker. */
+.mk [data-brand="painthome"] .hero {
+  background:
+    radial-gradient(900px 520px at 88% 8%, rgba(23, 249, 241, .34) 0%, rgba(2, 173, 181, .16) 38%, rgba(46, 58, 61, 0) 70%),
+    radial-gradient(760px 480px at 6% 96%, rgba(232, 207, 201, .30) 0%, rgba(201, 154, 144, .12) 40%, rgba(46, 58, 61, 0) 72%),
+    radial-gradient(520px 360px at 50% 110%, rgba(2, 173, 181, .22) 0%, rgba(46, 58, 61, 0) 70%),
+    linear-gradient(160deg, #2E3A3D 0%, #34444A 55%, #3E4B52 100%);
+}
+.mk [data-brand="painthome"] .hero::before {
+  content: ""; position: absolute; inset: 0; z-index: 0; pointer-events: none;
+  background: repeating-linear-gradient(180deg, rgba(23, 249, 241, .035) 0 60px, rgba(23, 249, 241, .10) 60px 120px);
+  filter: blur(18px);
+}
+.mk [data-brand="painthome"] .hero .block {
+  background: rgba(46, 58, 61, .78); backdrop-filter: blur(6px);
+  border: 1px solid rgba(23, 249, 241, .38);
+  box-shadow: 0 0 0 1px rgba(23, 249, 241, .08), 0 24px 80px rgba(2, 173, 181, .22), 0 0 48px rgba(23, 249, 241, .12);
+}
+.mk [data-brand="painthome"] .hero h1 { color: #FFFFFF; text-shadow: 0 0 40px rgba(23, 249, 241, .18); }
+.mk [data-brand="painthome"] .hero .lead { color: #E6ECEA; }
+.mk [data-brand="painthome"] .hero .mono { color: var(--brand) !important; }
+.mk [data-brand="painthome"] .hero .field { background: rgba(59, 72, 76, .92); box-shadow: 0 0 0 4px rgba(23, 249, 241, .10), 0 10px 30px rgba(0, 0, 0, .25); }
+.mk [data-brand="painthome"] .hero .btn-cyan { background: var(--brand); color: var(--color-ink); box-shadow: 0 6px 24px rgba(23, 249, 241, .35); }
 .mk [data-brand="painthome"] .block { background: rgba(46, 58, 61, .92); border-color: rgba(232, 207, 201, .28); }
 .mk [data-brand="painthome"] .hero-photo::after { background: linear-gradient(90deg, rgba(46, 58, 61, .82) 0%, rgba(46, 58, 61, .55) 55%, rgba(46, 58, 61, .35) 100%); }
 @media (max-width: 959px) {

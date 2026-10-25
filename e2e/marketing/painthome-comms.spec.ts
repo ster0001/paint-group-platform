@@ -66,6 +66,9 @@ test.describe("Paint Home — comms and portal (session 4)", () => {
       await page.goto(`${origin}/e/${phToken}`);
       await expect(page).toHaveTitle("Your estimate · Paint Home");
       await expect(page.locator("header img.brandlogo, .brandlogo").first()).toHaveAttribute("alt", "Paint Home");
+      // Tom, 25 Oct 2026: the mark the customer sees IS the Paint Home mark, on the dark view and the printable card.
+      await expect(page.locator("header img.brandlogo, .brandlogo").first()).toHaveAttribute("src", /\/painthome\/(email-logo|logo-light)\.png/);
+      await expect(page.locator(".pd-logo").first()).toHaveAttribute("src", /\/painthome\/logo-light\.png/);
       await expect(page.locator("body")).toContainText("Paint Home · Melbourne");
       await expect(page.locator("header").first()).not.toContainText("Paint Group");
     }

@@ -19,5 +19,9 @@ describe("the staff brand filter and pill (paint-home brief §6)", () => {
     expect(brandPillLabel("painthome")).toBe("Paint Home");
     expect(brandPillLabel("paintgroup")).toBeNull();
     expect(brandPillLabel(null)).toBeNull();
+    // Tom, 25 Oct 2026: the Estimates list names both shopfronts
+    expect(brandPillLabel("paintgroup", true)).toBe("Paint Group");
+    expect(brandPillLabel(null, true)).toBe("Paint Group");
+    expect(brandPillLabel("painthome", true)).toBe("Paint Home");
   });
 });

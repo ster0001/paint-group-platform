@@ -3,6 +3,7 @@
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import AddressField, { type FieldLabels } from "../_components/AddressField";
+import type { PickedAddress } from "@/app/components/useAddressLookup";
 import Md from "../_components/Md";
 import { useAudience } from "../_components/Audience";
 import { entrySourceFor } from "@/lib/marketing/audience";
@@ -29,9 +30,9 @@ export default function Hero({ heroPhoto = null, copy }: { heroPhoto?: string | 
   const { audience, wizardOrigin, brand } = useAudience();
   const painthome = audience === "painthome";
 
-  function submit(address: string, mode: Mode, scope: Scope) {
+  function submit(address: string, mode: Mode, scope: Scope, picked: PickedAddress | null) {
     track("see_price", { where: "hero", mode, address, ...(painthome ? { scope } : {}) });
-    router.push(estimateHref(address, mode, { src: entrySourceFor(audience, "hero"), origin: wizardOrigin, carry: window.location.search, brand: painthome ? "painthome" : undefined, scope: painthome ? scope : undefined }));
+    router.push(estimateHref(address, mode, { src: entrySourceFor(audience, "hero"), origin: wizardOrigin, carry: window.location.search, brand: painthome ? "painthome" : undefined, scope: painthome ? scope : undefined, picked }));
   }
 
   return (

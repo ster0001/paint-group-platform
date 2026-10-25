@@ -22,6 +22,8 @@ export function matchesBrand(rowBrand: unknown, filter: BrandFilter): boolean {
 }
 
 /** The pill on a row: Paint Home rows are tagged; Paint Group rows carry nothing (it is the default and every list would wear it). */
-export function brandPillLabel(rowBrand: unknown): string | null {
-  return rowBrand === "painthome" ? "Paint Home" : null;
+export function brandPillLabel(rowBrand: unknown, always = false): string | null {
+  // Tom, 25 Oct 2026: on the Estimates list EVERY enquiry says which shopfront it came through (`always`);
+  // elsewhere the default brand still wears nothing.
+  return rowBrand === "painthome" ? "Paint Home" : always ? "Paint Group" : null;
 }

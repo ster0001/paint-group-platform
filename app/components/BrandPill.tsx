@@ -8,10 +8,16 @@ import { BRAND_FILTERS, BRAND_FILTER_LABEL, brandPillLabel, type BrandFilter } f
  * pill sits in that screen's pill vocabulary (`.pill` on PC Command, `.chip`
  * in Invoicing, Tailwind in the app shell).
  */
-export function BrandPill({ brand, className = "" }: { brand: unknown; className?: string }) {
-  const label = brandPillLabel(brand);
+export function BrandPill({ brand, className = "", always = false }: { brand: unknown; className?: string; always?: boolean }) {
+  const label = brandPillLabel(brand, always);
   if (!label) return null;
-  return <span className={className || "inline-block rounded-full border border-teal-600 px-2 py-0.5 text-[11px] font-semibold text-teal-800"} data-testid="brand-pill">{label}</span>;
+  const painthome = brand === "painthome";
+  // Tom, 25 Oct 2026: with `always` the two shopfronts are told apart at a glance — Paint Home in its own
+  // slate-and-cyan, Paint Group in a plain grey — and the data attribute lets a spec read the brand.
+  const cls = className || (painthome
+    ? "inline-block rounded-full border border-transparent bg-[#2E3A3D] px-2 py-0.5 text-[11px] font-semibold text-[#17F9F1]"
+    : "inline-block rounded-full border border-gray-300 bg-gray-50 px-2 py-0.5 text-[11px] font-semibold text-gray-700");
+  return <span className={cls} data-testid="brand-pill" data-brand={painthome ? "painthome" : "paintgroup"}>{label}</span>;
 }
 
 /** All · Paint Group · Paint Home — three links, the current one pressed; `hrefFor` is the host list's URL builder. */

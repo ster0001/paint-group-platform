@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import AddressField from "./AddressField";
+import type { PickedAddress } from "@/app/components/useAddressLookup";
 import { track } from "@/lib/analytics";
 import { estimateHref, type Mode } from "@/lib/marketing/estimateLink";
 import type { ShowcaseJob } from "@/lib/showcase/schema";
@@ -18,10 +19,10 @@ export default function GetPriceLike({ job, preview = false }: { job: ShowcaseJo
   const router = useRouter();
   // Paint Home (brief §5): residential only, the hand-off tagged with the brand.
   const painthome = useAudience().audience === "painthome";
-  function submit(address: string, mode: Mode) {
+  function submit(address: string, mode: Mode, _scope: unknown, picked: PickedAddress | null) {
     if (preview) return;
     track("job_get_price", { slug: job.slug, mode });
-    router.push(estimateHref(address, mode, { scope: job.job_type, from: job.slug, src: `job_page:${job.slug}`, carry: window.location.search, brand: painthome ? "painthome" : undefined }));
+    router.push(estimateHref(address, mode, { scope: job.job_type, from: job.slug, src: `job_page:${job.slug}`, carry: window.location.search, brand: painthome ? "painthome" : undefined, picked }));
   }
   return (
     <section className="pp-cta" aria-labelledby="pp-cta-h">

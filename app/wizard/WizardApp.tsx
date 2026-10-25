@@ -45,6 +45,7 @@ import {
 } from "@/lib/wizard/session";
 import type { CustomerPayload, WizardEditorPayload } from "@/lib/wizard/view";
 import AddressField from "./AddressField";
+import type { PickedAddress } from "@/app/components/useAddressLookup";
 import QuickLook from "./QuickLook";
 import SaveAndBookSheet from "./SaveAndBookSheet";
 import type { TalkMode } from "./TalkSheet";
@@ -213,7 +214,7 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
   /** Homepage hand-off (lib/marketing/prefill.ts): the address the visitor
    * typed on the marketing site, shown in the field; "business" pre-selects
    * the commercial property kind. Intent only — no account, no event. */
-  intent?: { addressText: string | null; propertyKind: "commercial" | null; mode?: "home" | "business" | null; entrySource?: string; scope?: string | null };
+  intent?: { addressText: string | null; address?: PickedAddress | null; propertyKind: "commercial" | null; mode?: "home" | "business" | null; entrySource?: string; scope?: string | null };
   /** Tom, 7 Sep: the SERVER copy of a half-finished walk (the autosaved
    * draft for this user) — merged with the browser copy on mount, newest wins. */
   resume?: Omit<ResumeRecord, "v"> | null;
@@ -235,11 +236,12 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
           customer: {
             ...(seed.customer ?? defaultCustomer()),
             email: prefill?.email ?? seed.customer?.email ?? "",
-            suburb: prefill?.address?.suburb ?? seed.customer?.suburb ?? "",
-            postcode: prefill?.address?.postcode ?? seed.customer?.postcode ?? "",
+            // Tom, 25 Oct 2026: the homepage's resolved pick (suburb + postcode) rides the hand-off URL — it is the address, not a hint.
+            suburb: prefill?.address?.suburb ?? intent?.address?.suburb ?? seed.customer?.suburb ?? "",
+            postcode: prefill?.address?.postcode ?? intent?.address?.postcode ?? seed.customer?.postcode ?? "",
             ...(intent?.propertyKind ? { propertyKind: intent.propertyKind } : {}),
           },
-          address: prefill?.address ?? seed.address,
+          address: prefill?.address ?? intent?.address ?? seed.address,
           // Paint Home brief §5: the chip's scope is the job type from the first paint (the quick look mirrors it on every tap).
           ...(scopeIntent ? { jobType: scopeIntent } : {}),
           contact: {
@@ -2487,6 +2489,8 @@ function PageProperty({
           <AddressField
             placeholder="Your address — start typing and pick it"
             value={state.address ? state.address.formatted : addressText}
+            // Tom, 25 Oct 2026: words from the homepage with no pick behind them are looked up once here.
+            autoResolve={!state.address && !state.customer.suburb.trim() && initialAddressText.trim().length >= 3}
             onText={(text) => { setAddressText(text); set({ address: null }); }}
             onPick={(a, inArea) => {
               setAddressText(a.formatted);

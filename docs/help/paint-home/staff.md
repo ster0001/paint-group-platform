@@ -24,6 +24,12 @@ This page covers what the office sees of it today: how the site is served, and t
 6. **Change the accent colour.** A six-digit hex, like `#17F9F1`. On Paint Home this is the logo cyan used on the address field border, the selected chip, the focus ring and small highlights; it never fills a whole section.
 7. **Logos.** They are not edited here. Paint Group's is Company details → logo 1. Paint Home's is the supplied vector mark, drawn inline on every page, so there is nothing to upload.
 
+## What the customer receives
+A Paint Home estimate page (`/e/…`) and a Paint Home invoice (`/i/…`, and the PDF, which is a print of that page) carry the **Paint Home mark**, not the Paint Group wordmark: the dark estimate view shows the slate mark, the white printable card and the invoice show the ink-on-light mark. Emails already carried it. Nothing is rewritten on a sent estimate; the mark is laid over at render from the estimate's or invoice's brand.
+
+## The address from the homepage
+Typing an address on painthome.com.au (or paintgroup.com.au) and pressing **See my price** now carries the suburb and postcode into the wizard: a picked suggestion travels with its parts, and words typed without a pick are looked up once when the wizard opens and the top match is used. The "We couldn't look that address up" line appears only when the lookup finds nothing, and the suburb and postcode fields are there for that case.
+
 ## The wizard on Paint Home
 **Paint Home's wizard is live on its own switch.** Settings → Online estimates has two switches: the first is Paint Group's (paintgroup.com.au stays on its holding page until you turn it on); the second, **Paint Home**, is on by default, so an address typed on painthome.com.au opens the estimator straight away. Turn the Paint Home switch off and painthome.com.au shows the same holding page and call-me form as Paint Group's. Staff and logged-in customers always get through on either site.
 
@@ -39,7 +45,7 @@ The customer portal is shared: one login sees every job from either door. A cust
 ## Finding Paint Home work in the office
 Every staff list carries the same two things. A **Paint Home** pill on a row that came through painthome.com.au (Paint Group rows wear nothing, since that is the default), and a brand filter, **All · Paint Group · Paint Home**, that narrows the list without changing anything else about it:
 
-- **Estimates** — the pill under the title; the filter sits at the right of the status tabs and stays with you as you change tab. The Wizard tab has its own Paint Group / Paint Home chips beside Home / Business.
+- **Estimates** — every enquiry wears a pill under its title saying which shopfront it came through: **Paint Home** in the Paint Home slate-and-cyan, **Paint Group** in plain grey (Tom, 25 Oct 2026: both named, so the list reads at a glance). The filter sits at the right of the status tabs and stays with you as you change tab. The Wizard tab has its own Paint Group / Paint Home chips beside Home / Business, and the same pill on each session.
 - **CRM → Today** — the pill after the card's title; the filter beside the group chips. The brand is read from the record each card is about.
 - **PC Command → Flow** — the pill on the job card; the filter above the river. Counts and alerts are still over every job.
 - **Invoicing → Customers** — the pill beside the address on the All jobs table; the filter beside Show paid.

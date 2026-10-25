@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useRef } from "react";
 import { useAddressLookup, type PickedAddress, type AddressSuggestion } from "@/app/components/useAddressLookup";
 
 /**
@@ -11,15 +12,26 @@ import { useAddressLookup, type PickedAddress, type AddressSuggestion } from "@/
 
 export type { PickedAddress };
 
-export default function AddressField({ value, placeholder, onText, onPick }: {
+export default function AddressField({ value, placeholder, onText, onPick, autoResolve = false }: {
   value: string;
   placeholder: string;
   /** Plain typing — behaves exactly like the old input. */
   onText: (text: string) => void;
   /** A suggestion was chosen and resolved. */
   onPick: (address: PickedAddress, inServiceArea: boolean | null) => void;
+  /** Tom, 25 Oct 2026: the initial value arrived as words (a homepage hand-off with no pick) — look it up ONCE on mount and treat the top match as the pick. */
+  autoResolve?: boolean;
 }) {
-  const { suggestions, open, setOpen, lookup, resolve } = useAddressLookup();
+  const { suggestions, open, setOpen, lookup, resolve, resolveText } = useAddressLookup();
+  const autoRan = useRef(false);
+  useEffect(() => {
+    if (!autoResolve || autoRan.current) return;
+    autoRan.current = true;
+    const text = value;
+    void resolveText(text).then((r) => { if (r) onPick(r.address, r.inServiceArea); });
+    // Once, for the value the screen opened with — never for later typing (that is `lookup`).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoResolve]);
 
   async function pick(s: AddressSuggestion) {
     const resolved = await resolve(s);
