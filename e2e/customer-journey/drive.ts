@@ -299,10 +299,10 @@ export async function passGateIfShown(page: Page, who: { name?: string; email?: 
   return true;
 }
 
-export async function openQuickLook(page: Page, opts: { entry?: "upload" } = {}) {
-  // Tom, 15 Sep (late, item 1): the "Upload photos or a listing" door left the
-  // outside tab; the old page set behind it answers to `?entry=upload`.
-  await page.goto(opts.entry ? `/estimate?entry=${opts.entry}` : "/estimate");
+export async function openQuickLook(page: Page) {
+  // Tom, 25 Oct 2026: a customer is always on the quick look — the old page set
+  // (`?entry=upload`, describe it) is staff-only now, so there is no door to pass.
+  await page.goto("/estimate");
   await expect(page.locator("[data-ready='1']")).toBeAttached({ timeout: 20_000 });
   await expect(page.locator("[data-quick-step='start']")).toBeVisible({ timeout: 20_000 });
 }
@@ -429,20 +429,16 @@ export async function setStylesInEditor(page: Page, opts: {
  * lookup could not resolve. This is that entry, once, so the specs describe
  * what they are testing rather than how to get there.
  *
- * `via: "answers"` walks the quick look's two screens and lands on the
- * EXTERIOR QUICK LOOK (prototype `s-ext-job`), which is what "no photos to
- * hand — we'll size it from your answers" now means. `via: "upload"` hands
- * straight to the upload route and its old pages, for a listing or facade
- * photos.
+ * It walks the quick look's two screens and lands on the drawn house (the
+ * exterior v2 home step). Tom, 25 Oct 2026: the upload route and its old
+ * pages are staff-only now — a customer has no other way in; the sides editor
+ * is reached through the range and Tighten (`toSidesEditor` in
+ * exterior-v2-drive.ts).
  */
-export async function openExteriorPages(page: Page, opts: { via?: "answers" | "upload" } = {}) {
-  await openQuickLook(page, opts.via === "upload" ? { entry: "upload" } : {});
+export async function openExteriorPages(page: Page) {
+  await openQuickLook(page);
   await fillQuickAddress(page);
   await page.getByTestId("ql-jobtype-exterior").click();
-  if (opts.via === "upload") {
-    await page.getByTestId("entry-upload").click();
-    return;
-  }
   await quickNext(page);                 // → the place
   await expect(page.locator("[data-quick-step='place']")).toBeVisible();
   await quickNext(page);                 // → the first outside screen: the v2 home step when the flag is on, else s-ext-job
