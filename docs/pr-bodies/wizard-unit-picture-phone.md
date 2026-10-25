@@ -11,7 +11,8 @@
 `e2e/customer-journey/wizard-phone-pictures.spec.ts` (new): at 390 × 844 on the place step, House, Townhouse, Unit or apartment, Commercial and House with two storeys — the building's parts all lie inside the picture band.
 
 ## Proof
-RESULTS_PLACEHOLDER
+- Measured in the browser at 390 × 844 (dev server, test stack): House 106–266 in a band 100–270; two storeys 103–267; Townhouse 122–282 and Commercial 143–282 in 116–286; Unit 121–254 in 116–286. Lint clean.
+- The new spec could not run locally: the test-project lock was held by a CI e2e run both times I tried (one wait, per the rule), so its first run is this PR's CI.
 
 ## Manual test (phone)
 /estimate → address → Continue → tap each kind of property, then Two storeys on House: the whole building is in the picture every time, nothing cut at the top or bottom.
