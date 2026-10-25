@@ -467,3 +467,13 @@
 .mvx .chip .x { flex: none; width: 22px; height: 22px; border-radius: 50%; border: 1px solid var(--line); background: var(--graphite); color: var(--muted); font-size: 14px; line-height: 1; display: grid; place-items: center; cursor: pointer; touch-action: auto; }
 .mvx .chip .x:hover:not(:disabled) { color: var(--clay); border-color: var(--clay); }
 .mvx .chip .x:disabled { opacity: .4; }
+
+/* The map's icon ladder (Tom, 25 Oct 2026): the count on the corner, the hover list, the rung mark on an order row. */
+.mvx .mpin .mcount { position: absolute; left: 8px; top: -19px; min-width: 15px; height: 15px; padding: 0 4px; border-radius: 999px; border: 1.5px solid #fff; color: #fff; font-family: var(--mono); font-size: 9px; font-weight: 700; line-height: 12px; text-align: center; pointer-events: none; }
+.mvx .mpin .mpop .todo { list-style: none; margin: 4px 0 0; padding: 0; }
+.mvx .mpin .mpop .todo li { display: flex; align-items: center; gap: 6px; color: #12161A; white-space: nowrap; line-height: 1.5; }
+.mvx .mpin .mpop .todo li i { width: 8px; height: 8px; border-radius: 999px; flex: none; }
+.mvx .orow .obody b .jt { display: inline-grid; place-items: center; width: 16px; height: 16px; border-radius: 4px; color: #fff; margin-right: 5px; vertical-align: -3px; }
+.mvx .orow .obody b .jt svg { width: 11px; height: 11px; }
+.mvx .maplegend .ki { display: inline-grid; place-items: center; width: 14px; height: 14px; margin-right: 4px; vertical-align: -2px; color: #12161A; }
+.mvx .maplegend .ki svg { width: 13px; height: 13px; }

@@ -1,3 +1,5 @@
+import { buildPcWorkItems, type WorkItem } from "@/lib/crm/work-queue";
+import type { JobItem } from "./jobIcon";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/server";
 import { fetchAllRows } from "@/lib/supabase/fetchAllRows";
@@ -139,7 +141,7 @@ export async function loadMovementsWeek(from: string, to: string, client?: Supab
   const fail = (what: string, error: string | null) => { if (error) failures.push(`Couldn't read ${what}: ${error}`); };
 
   // ---- round 1: everything that needs nothing else ----------------------------------------
-  const [settingsRes, board, movementsRes, itemLinksRes, equipmentRes, branchesRes, qaRes, visitsRes, unscheduledRes, suburbsRes, productsRes] = await Promise.all([
+  const [settingsRes, board, movementsRes, itemLinksRes, equipmentRes, branchesRes, qaRes, visitsRes, unscheduledRes, suburbsRes, productsRes, pcItems] = await Promise.all([
     supabase.from("settings").select("value").eq("key", "movements").maybeSingle(),
     loadBoard(from, to),
     // The tray (any date) plus everything dated in the window. Done and cancelled rows in the
@@ -167,10 +169,18 @@ export async function loadMovementsWeek(from: string, to: string, client?: Supab
     // Brand by product NAME (Session 1 decision): the paint chip's live rows are the Materials
     // rows of its brand, and the rows carry only the product's name.
     supabase.from("products").select("name, brand, effective_from").order("effective_from", { ascending: false, nullsFirst: false }).limit(2000),
+    // The map's icon ladder (Tom, 25 Oct 2026) reads the console's own queue — one evaluator.
+    buildPcWorkItems(supabase).catch((e: unknown) => ({ items: [] as WorkItem[], failure: e instanceof Error ? e.message : String(e) })),
   ]);
 
   fail("the Movements settings", settingsRes.error?.message ?? null);
   for (const e of board.errors) failures.push(`Couldn't read the schedule: ${e}`);
+  if (pcItems.failure) failures.push(`Couldn't read the jobs' to-dos for the map icons: ${pcItems.failure}`);
+  const jobItems: Record<string, JobItem[]> = {};
+  for (const i of pcItems.items) {
+    if (i.subjectRef.type !== "work_order") continue;
+    (jobItems[i.subjectRef.id] ??= []).push({ kind: i.kind, title: i.title });
+  }
   const settings: MovementsSettings = movementsSettingsFrom(settingsRes.data?.value);
   const movementsRead = failed<RawMovement>(movementsRes.error, movementsRes.data as RawMovement[] | null);
   fail("the movements", movementsRead.error);
@@ -273,7 +283,7 @@ export async function loadMovementsWeek(from: string, to: string, client?: Supab
   return {
     world: {
       from, to, settings, jobs, blocks: board.blocks, painters, staff,
-      googleBusy: google.busy, googleReads: google.reads, appointments, movements,
+      googleBusy: google.busy, googleReads: google.reads, jobItems, appointments, movements,
       items: equipmentRead.rows, branches: branchesRead.rows, decisions: decisionsRes.rows, suburbs,
       // A closed job cannot take a check-in (the RPC refuses), so its orphans stay out of the tray.
       unscheduledCheckins: unscheduledCheckins.filter((c) => jobs.some((j) => j.id === c.workOrderId && j.stage !== "closed")),
