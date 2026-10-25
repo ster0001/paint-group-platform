@@ -1628,7 +1628,15 @@
   .wz .wz-pic-art { aspect-ratio: auto; height: 170px; overflow: hidden; }
   .wz .wz-pic-art > svg.wz-house, .wz .wz-pic-art > svg.wz-outhouse { transform: scale(1.75); transform-origin: 50% 64%; }
   /* two storeys is a taller drawing: a little less zoom, pivoted higher, so the roof stays in the band */
-  .wz .wz-pic-art > svg.wz-house.two, .wz .wz-pic-art > svg.wz-outhouse.two { transform: scale(1.4); transform-origin: 50% 52%; }
+  .wz .wz-pic-art > svg.wz-house.two { transform: scale(1.25); transform-origin: 50% 23%; }
+  .wz .wz-pic-art > svg.wz-outhouse.two { transform: scale(1.4); transform-origin: 50% 52%; }
+  /* Tom, 25 Oct (evening): a zoom about a point shows the band's 170px as 300/k units of the
+     drawing starting at origin × (1 − 1/k): ×1.75 at 64% shows y 82–253 (the roof peak at 88, the
+     door's foot at 250); the two-storey roof lifts 70 units to y 18, so ×1.25 at 23% shows 14–254.
+     e2e/customer-journey/wizard-phone-pictures.spec.ts measures every kind. */
+  /* Tom, 25 Oct (evening): a unit or apartment is a block 210 of the frame's 300 tall — at ×1.75 its
+     roof and door were cut off. A little zoom about the ground line keeps the whole block in. */
+  .wz .wz-pic-art > svg.wz-house[data-kind="unit_apartment"] { transform: scale(1.12); transform-origin: 50% 100%; }
   .wz .wz-pic-note { padding: 7px 14px 8px; min-height: 0; font-size: 13.5px; line-height: 1.35; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
   .wz .wz-stage .wz-cards--col { gap: 8px; }
   .wz .wz-stage .wz-cards--col .wz-card { min-height: 104px; padding: 12px 10px; gap: 8px; }
