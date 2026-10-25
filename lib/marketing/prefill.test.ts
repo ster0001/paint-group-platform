@@ -4,6 +4,7 @@ import { parseEstimateIntent } from "./prefill";
 test("a home hand-off keeps the address and leaves the property kind alone", () => {
   expect(parseEstimateIntent({ address: "12 Elm Street, Northcote VIC 3070", mode: "home" })).toEqual({
     addressText: "12 Elm Street, Northcote VIC 3070",
+    address: null,
     propertyKind: null,
     scope: null,
     from: null,
@@ -47,4 +48,16 @@ test("scope and from are validated, never trusted", () => {
   const bad = parseEstimateIntent({ scope: "roof", from: "../etc; drop table" });
   expect(bad.scope).toBeNull();
   expect(bad.from).toBeNull();
+});
+
+test("Tom, 25 Oct 2026: the homepage's resolved pick rides the hand-off and comes back as the address", () => {
+  const got = parseEstimateIntent({ address: "14 Acacia Street, Northcote VIC 3070", street: "14 Acacia Street", suburb: "Northcote", state: "VIC", postcode: "3070" });
+  expect(got.address).toEqual({ street: "14 Acacia Street", suburb: "Northcote", state: "VIC", postcode: "3070", formatted: "14 Acacia Street, Northcote VIC 3070" });
+  // words alone are still only words
+  expect(parseEstimateIntent({ address: "14 Acacia Street Northcote" }).address).toBeNull();
+  // a pick needs a suburb AND a numeric postcode
+  expect(parseEstimateIntent({ suburb: "Northcote" }).address).toBeNull();
+  expect(parseEstimateIntent({ suburb: "Northcote", postcode: "abc" }).address).toBeNull();
+  // parts without the words still give the wizard something to show
+  expect(parseEstimateIntent({ suburb: "Northcote", postcode: "3070" }).addressText).toBe("Northcote, 3070");
 });

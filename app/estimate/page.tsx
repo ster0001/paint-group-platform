@@ -45,15 +45,15 @@ export async function generateMetadata({ searchParams }: { searchParams: Promise
 export default async function CustomerWizardPage({
   searchParams,
 }: {
-  searchParams: Promise<{ property?: string; rebook?: string; spec?: string; address?: string; mode?: string; scope?: string; from?: string; src?: string; session?: string; brand?: string }>;
+  searchParams: Promise<{ property?: string; rebook?: string; spec?: string; address?: string; street?: string; suburb?: string; state?: string; postcode?: string; mode?: string; scope?: string; from?: string; src?: string; session?: string; brand?: string }>;
 }) {
-  const { property: propertyParam, rebook: rebookParam, spec: specParam, address: addressParam, mode: modeParam, scope: scopeParam, from: fromParam, src: srcParam, session: sessionParam, brand: brandParam } = await searchParams;
+  const { property: propertyParam, rebook: rebookParam, spec: specParam, address: addressParam, street: streetParam, suburb: suburbParam, state: stateParam, postcode: postcodeParam, mode: modeParam, scope: scopeParam, from: fromParam, src: srcParam, session: sessionParam, brand: brandParam } = await searchParams;
   // Paint Home brief §5: the brand is the host's (painthome.com.au serves the same wizard, ⚑ P5) or the hand-off's.
   const brand = await wizardBrand(brandParam);
   // Homepage hand-off (homepage brief §4.2): the typed address and the
   // home/business chip arrive on the URL. Intent only — parsed and clamped
   // by lib/marketing/prefill.ts; nothing is created and nothing fires.
-  const intent = parseEstimateIntent({ address: addressParam, mode: brand === "painthome" ? "home" : modeParam, scope: scopeParam, from: fromParam, src: srcParam, brand: brand === "painthome" ? "painthome" : brandParam });
+  const intent = parseEstimateIntent({ address: addressParam, street: streetParam, suburb: suburbParam, state: stateParam, postcode: postcodeParam, mode: brand === "painthome" ? "home" : modeParam, scope: scopeParam, from: fromParam, src: srcParam, brand: brand === "painthome" ? "painthome" : brandParam });
   const supabase = await createClient();
   // Independent reads go out together — every one of them is a round trip to
   // Supabase, and run one after another they were most of this page's

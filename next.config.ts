@@ -16,8 +16,11 @@ const nextConfig: NextConfig = {
     // scripts (JSON-LD, Clarity, the tour) and third-party embeds, so it
     // needs a nonce pass first — tracked in the audit report.
     const security = [
-      { key: "X-Frame-Options", value: "DENY" },
-      { key: "Content-Security-Policy", value: "frame-ancestors 'none'" },
+      // Tom, 25 Oct 2026: SAMEORIGIN / 'self', not DENY / 'none' — Settings → Website copy and
+      // Paint Home website frame the live site for their preview, and 'none' left that frame
+      // blank ("Framing ... violates frame-ancestors 'none'"). Third-party framing stays blocked.
+      { key: "X-Frame-Options", value: "SAMEORIGIN" },
+      { key: "Content-Security-Policy", value: "frame-ancestors 'self'" },
       { key: "X-Content-Type-Options", value: "nosniff" },
       { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
       // microphone=(self): the estimator's voice notes (4 Oct 2026) record in the

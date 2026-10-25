@@ -21,6 +21,8 @@ export function messageBrandOf(v: unknown): MessageBrand {
 
 /** The Paint Home mark for emails: a PNG with its own slate background (Tom, 24 Sep: transparent logos invert in dark-mode mail clients), served by the app itself. */
 export const PAINTHOME_EMAIL_LOGO_PATH = "/painthome/email-logo.png";
+/** The mark for light surfaces (the white estimate card): transparent, ink lettering (Tom, 25 Oct 2026). */
+export const PAINTHOME_LIGHT_LOGO_PATH = "/painthome/logo-light.png";
 
 export function brandRecord(brand: MessageBrand): Brand {
   return brandFor(brand === "painthome" ? "painthome" : "home");
@@ -35,7 +37,7 @@ export function companyForBrand<T extends CompanyForMessages>(company: T, brand:
   if (brand !== "painthome") return company;
   const b = brandRecord(brand);
   const logo = `${b.url}${PAINTHOME_EMAIL_LOGO_PATH}`;
-  return { ...company, name: b.name, phone: b.phoneDisplay, logoUrl: logo, logoUrlLight: logo, logoUrlEmail: logo };
+  return { ...company, name: b.name, phone: b.phoneDisplay, logoUrl: logo, logoUrlLight: `${b.url}${PAINTHOME_LIGHT_LOGO_PATH}`, logoUrlEmail: logo };
 }
 
 /**

@@ -1,7 +1,7 @@
 import { expect, devices, type Page } from "@playwright/test";
 import { readFileSync } from "node:fs";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
-import { driveNoPlanWizard, fillContactStep, MONEY_RANGE, openQuickLook, openExteriorPages, fillQuickAddress, quickNext } from "./drive";
+import { driveNoPlanWizard, fillContactStep, MONEY_RANGE, openQuickLook, fillQuickAddress, quickNext } from "./drive";
 import { credentials, signIn, test } from "../helpers";
 import { deleteUserByEmail, destroyAccountChain, magicLinkFor, openMagicLink } from "../fixtures/portal";
 
@@ -98,150 +98,10 @@ test.describe("Tom's 7 Sep batch", () => {
     for (const e of [describeEmail, dropEmail]) { await destroyAccountChain(db, e); await deleteUserByEmail(db, e); }
   });
 
-  test("2 · exterior: no interior basics; targets → follow-ups → sides left unticked arrive NOT PAINTING", async ({ page }) => {
-    test.setTimeout(240_000);
-    /**
-     * REACHED VIA THE UPLOAD ROUTE (CI fix, 11 Sep).
-     *
-     * This walked the quick look and then expected the five-page exterior set,
-     * which two `quickNext` calls no longer reach: `stepsFor("exterior")` is
-     * start → place → outside, so an exterior job lands on the ONE-SCREEN
-     * exterior quick look and there is no "What kind of property" page to
-     * answer. The test then waited out its timeout on a Continue button that
-     * was never coming, and read as "exterior is broken".
-     *
-     * Everything this test asserts — targets driving follow-ups, a metal fence
-     * and a shed deferred to the estimator, unticked sides arriving NOT
-     * PAINTING — belongs to the page set, and the page set is still how the
-     * upload route walks an exterior job. So it enters there, the way
-     * exterior-path.spec.ts does.
-     *
-     * The quick look's own "no interior basics on an outside job" is covered by
-     * outside-commercial.spec.ts, which drives the real screens.
-     */
-    await openExteriorPages(page, { via: "upload" });
-    await page.getByPlaceholder("Suburb").fill("Murrumbeena");
-    await page.getByPlaceholder("Postcode").fill("3163");
-    // No listing and no facade photos: this test sizes from the answers, which
-    // is what the exterior gate offers as its way through.
-    await page.getByRole("button", { name: /No photos to hand/i }).click();
-    const ans = answer(page);
-    const next = nextOf(page);
-    // No interior basics anywhere on an exterior walk.
-    await expect(page.locator(".wz-qhead", { hasText: /^Bedrooms/ })).toHaveCount(0);
-    await expect(page.locator(".wz-qhead", { hasText: /Open-plan kitchen/ })).toHaveCount(0);
-    await ans("What kind of property", "House");
-
-    // Page 2 — what are we painting (the house pre-ticked) + the house questions.
-    await next();
-    await expect(page.getByRole("heading", { name: "What are we painting?" })).toBeVisible();
-    await expect(page.getByTestId("ext-target-house")).toHaveClass(/\bon\b/);
-    await page.getByTestId("ext-target-fence").click();
-    await page.getByTestId("ext-target-shed").click();
-    // Tom, 5 Oct: the pergola is a target here too, priced on its top's size.
-    await page.getByTestId("ext-target-pergola").click();
-    await expect(page.getByText(/What.s the house made of/)).toBeVisible();
-    for (const k of ["render", "weatherboards", "brick", "stucco", "colorbond", "other", "none"]) {
-      await expect(page.getByTestId(`ext-cladding-${k}`)).toBeVisible();
-    }
-    await page.getByTestId("ext-cladding-brick").click();
-    await expect(page.getByText(/Also being painted on the house/)).toBeVisible();
-    await page.getByTestId("ext-element-doors").click(); // untick doors
-    await expect(page.getByText(/Where are we painting/)).toBeVisible();
-    await expect(page.getByTestId("ext-side-all")).toHaveClass(/\bon\b/);
-    await page.getByTestId("ext-side-front").click();
-    await expect(page.getByTestId("ext-side-all")).not.toHaveClass(/\bon\b/);
-
-    // Page 3 — the follow-ups for the fence and the shed.
-    await next();
-    await expect(page.getByTestId("ext-fence")).toBeVisible();
-    await page.getByTestId("ext-fence").getByRole("button", { name: "Metal", exact: true }).click();
-    await expect(page.getByText(/priced by your estimator/)).toBeVisible();
-    await page.getByTestId("ext-fence-metres").fill("20");
-    await page.getByTestId("ext-fence-metres").blur();
-    await expect(page.getByTestId("ext-shed")).toBeVisible();
-    await page.getByTestId("ext-shed-cladding").getByRole("button", { name: "Colorbond" }).click();
-    // Tom, 5 Oct: the pergola top — length, width, Confirm; Continue refuses until it is confirmed.
-    await expect(page.getByTestId("ext-pergola")).toBeVisible();
-    await page.getByTestId("ext-pergola-length").fill("4");
-    await page.getByTestId("ext-pergola-length").blur();
-    await page.getByTestId("ext-pergola-width").fill("3");
-    await page.getByTestId("ext-pergola-width").blur();
-    await page.getByRole("button", { name: /Continue|Nearly there/ }).first().click();
-    await expect(page.locator(".wz-err")).toContainText(/how big is the pergola top/i);
-    await page.getByTestId("ext-pergola-confirm").click();
-    await expect(page.getByTestId("ext-pergola-confirm")).toHaveText(/Confirmed/);
-
-    // Page 4 — condition + access (unchanged).
-    await next();
-    await page.getByRole("button", { name: /Good overall/i }).click();
-    await ans(/built before 1970/, "No");
-    await page.getByRole("button", { name: /None of these/i }).click();
-    // Page 5 — extras: deck and fence live on page 2 now.
-    await next();
-    await expect(page.getByRole("heading", { name: /Anything else out there/ })).toBeVisible();
-    await expect(page.locator(".wz-tile", { hasText: /^Fence$/ })).toHaveCount(0);
-    await next();
-    await fillContactStep(page, `e2e-exttargets-${stamp}@example.com`);
-    await page.getByRole("button", { name: "See my estimate" }).click();
-
-    /**
-     * The sides editor: only the FRONT is open for confirming.
-     *
-     * REWRITTEN 11 Sep. This used to assert that the three unticked sides
-     * ARRIVE as cards pilled "NOT PAINTING". They no longer render at all — a
-     * side left unticked on the page set is simply absent from the editor, and
-     * the progress counts what IS there (front plus the four check cards)
-     * rather than all eight. The assertion is inverted to match.
-     *
-     * ⚑ WORTH TOM'S EYE: the old behaviour showed an excluded side on the
-     * quote, as an explicit exclusion the customer could see. The new one shows
-     * nothing, so "we are not painting the back" is now invisible until
-     * somebody asks. The per-side "No — skip this side" button is the intended
-     * place for that decision, but it only exists for sides that rendered.
-     */
-    await expect(page.locator(".sd-card").first()).toBeVisible({ timeout: 120_000 });
-    await expect(page.locator("[data-ready='1']")).toBeAttached({ timeout: 30_000 });
-    // 15 Sep (late): by data-side — the last checks name the missing sides in
-    // words ("Not on your estimate: left side…"), which a text filter would match.
-    for (const side of ["left", "right", "back"]) {
-      await expect(page.locator(`[data-side="${side}"]`)).toHaveCount(0);
-    }
-    await expect(page.locator('[data-side="front"]').locator(".sd-pill")).toHaveText(/Check this side|Close/); // UI refresh S5 (⚑ 7): the mockup's pill wording
-    await expect(page.locator(".sd-prog")).toContainText(/OF 5/);
-    await expect(page.locator(".sc-r, .sd-range").first()).toHaveText(MONEY_RANGE, { timeout: 30_000 });
-
-    // The estimate carries the metal fence and the shed for the estimator, and the site-check flag.
-    const id = new URL(page.url()).searchParams.get("id")!;
-    const { data: est } = await db!.from("estimates").select("requires_site_check, builder_state").eq("id", id).single();
-    const bs = est!.builder_state as { aiDeferred?: Array<{ what: string; needs: string }>; blocks?: Array<{ name?: string; isOption?: boolean; surfaces?: Array<{ code: string; internalLabel?: string }> }>; wizard?: { state?: { exterior?: { targets?: string[]; sides?: string[] } } } };
-    expect(est!.requires_site_check).toBe(true);
-    expect(bs.aiDeferred?.some((d) => d.what === "metal fence" && /20 m/.test(d.needs))).toBe(true);
-    expect(bs.aiDeferred?.some((d) => d.what === "shed" && /Colorbond/.test(d.needs))).toBe(true);
-    expect(bs.blocks?.some((b) => b.surfaces?.some((s) => /Fence/.test(s.code)))).toBe(false);
-    expect(bs.blocks?.find((b) => b.name === "Exterior - Extras")?.surfaces?.some((s) => s.code === "Shed")).toBe(true);
-    // Tom, 5 Oct: the pergola arrives sized and priced on its top, with the size in its label — no "measure on site" deferral.
-    const pergola = bs.blocks?.find((b) => b.name === "Exterior - Extras")?.surfaces?.find((s) => s.code === "Pergola") as { internalLabel?: string; qtyOverride?: number } | undefined;
-    expect(pergola?.internalLabel).toBe("Pergola — top approx. 4 × 3 m (12 m²)");
-    expect(pergola?.qtyOverride).toBe(1.2);
-    expect(bs.aiDeferred?.some((d) => /pergola/i.test(d.what))).toBe(false);
-    /**
-     * ⚑ CHANGED BEHAVIOUR, 11 Sep. This asserted that an unticked side arrives
-     * as a block marked `isOption` — an exclusion the customer could SEE on the
-     * quote. There is no such block now: a side left unticked produces nothing
-     * at all, in the editor or in `builder_state`.
-     *
-     * The assertion follows the code rather than the other way round, because
-     * the change looks deliberate (the per-side "No — skip this side" button is
-     * where that decision now lives). But it is a real loss of visibility and
-     * it is flagged in the parking lot for Tom: "we are not painting the back"
-     * used to be on the quote and now is not recorded anywhere.
-     */
-    expect(bs.blocks?.some((b) => /Rear/.test(b.name ?? ""))).toBe(false);
-    expect(bs.wizard?.state?.exterior?.targets).toEqual(["house", "fence", "shed", "pergola"]);
-    expect(bs.wizard?.state?.exterior?.sides).toEqual(["front"]);
-  });
-
+  // Test 2 (exterior: targets → follow-ups → sides left unticked arrive NOT PAINTING) walked
+  // the old page set through the upload route. Retired 25 Oct 2026 (Tom: the old estimator
+  // wizard is removed for customers; the drawn house is the one outside path, covered by
+  // exterior-v2-*.spec.ts).
   test("1 + 5 · describe it: condition (with photos) and details are asked; the photos are pending sign-off", async ({ page }) => {
     test.skip(true, "describe card removed 15 Sep (Tom) — the chat bubble is the describe door; rewrite pending");
     test.setTimeout(300_000);

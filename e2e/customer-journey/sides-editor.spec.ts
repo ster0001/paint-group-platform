@@ -1,5 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
-import { MONEY_RANGE, fillContactStep, openExteriorPages } from "./drive";
+import { toSidesEditor } from "./exterior-v2-drive";
 
 /**
  * R2b — the exterior confirm-loop editor, BY SIDES (rebuild addendum §0;
@@ -13,184 +13,22 @@ import { MONEY_RANGE, fillContactStep, openExteriorPages } from "./drive";
  * is live throughout (Tom, 8 Sep evening) with a line saying how much is left.
  */
 
+/** Tom, 25 Oct 2026: the old upload route is staff-only — the editor is reached from the drawn house's range (Tighten). */
 async function driveExteriorWizard(page: Page) {
-  await openExteriorPages(page, { via: "upload" });
-  await page.getByPlaceholder(/listing URL/).fill("https://www.realestate.com.au/property-house-vic-murrumbeena-1400002");
-  await page.getByPlaceholder("Suburb").fill("Murrumbeena");
-  await page.getByPlaceholder("Postcode").fill("3163");
-  const answer = async (heading: string | RegExp, label: string) => {
-    const row = page.locator(".wz-qhead", { hasText: heading })
-      .locator("xpath=following-sibling::div[1]")
-      .getByRole("button", { name: label, exact: true });
-    if (await row.count()) await row.first().click();
-  };
-  await answer("What kind of property", "House");
-  const next = async () => {
-    await page.getByRole("button", { name: /Continue|Nearly there|See my estimate/ }).first().click();
-    const err = page.locator(".wz-err");
-    if (await err.count()) throw new Error(`wizard gate: ${await err.first().innerText()}`);
-  };
-  await next(); // → page 2: what are we painting + the house
-  await next(); // → condition (Tom, 7 Sep: the follow-up page only exists for fence / shed / wall / floor)
-  await page.getByRole("button", { name: /Good overall/i }).click();
-  await answer(/built before 1970/, "No");
-  await next(); // extras+paint
-  await next(); // → contact, the LAST page (Tom, 31 Aug)
-  await fillContactStep(page, `e2e-sides-${Date.now()}@example.com`);
-  await page.getByRole("button", { name: "See my estimate" }).click();
-  // 28 Aug: the wizard lands straight in the sides editor.
-  await expect(page.locator(".sd-card").first()).toBeVisible({ timeout: 90_000 });
-  await expect(page.locator("[data-ready='1']")).toBeAttached({ timeout: 20_000 });
+  await toSidesEditor(page, { email: `e2e-sides-${Date.now()}@example.com` });
 }
 
-test("R2b sides loop: amber to cyan, walls must total 100%, a removed side leaves (15 Sep), the loop tracks what remains", async ({ page }) => {
-  test.setTimeout(300_000);
-  page.on("response", async (r) => {
-    if (r.url().includes("wizard-edit") && r.status() >= 400) {
-      console.log("EDIT-FAIL", r.status(), (await r.text().catch(() => "")).slice(0, 160));
-    }
-  });
-  await driveExteriorWizard(page);
+// "R2b sides loop: amber to cyan, walls must total 100%, a removed side leaves, the loop tracks what
+// remains" walked the OLD route's editor — every side arrived undecided ("Are we painting this
+// side?") with the questions pre-answered by the page set. Retired 25 Oct 2026 (Tom: the old
+// estimator wizard is removed for customers); the drawn house's editor loop is exterior-v2-tighten.spec.ts.
 
-  // Eight amber items, progress 0 of 8. Tom, 8 Sep (evening): the CTA is no
-  // longer dead while cards are open — it is live from the start and says so.
-  await expect(page.locator(".sd-prog")).toContainText("0 OF 8");
-  await expect(page.locator(".sd-cta")).toBeEnabled();
-  // Tom, 14 Sep (item 1): the strip is two buttons — the human line is gone.
-  await expect(page.getByTestId("scope-book")).toBeVisible();
-
-  // FRONT: answer the loop. Are we painting this side? -> Yes.
-  const front = page.locator(".sd-card", { hasText: "Front" }).first();
-  await front.locator(".sd-hd").click();
-  await front.getByRole("button", { name: "Yes", exact: true }).click();
-  /**
-   * ⚑ Tom, 10 Sep: "the sizing needs to be added in and not assumed for
-   * exterior." There is no "Looks right" on an assumed number any more — the
-   * boxes are there from the start and the real numbers go in.
-   */
-  await front.getByPlaceholder("length m").fill("12");
-  await front.getByPlaceholder("height m").fill("2.6");
-  await front.getByTestId("side-dims-front").getByRole("button", { name: "Update", exact: true }).click();
-  await expect(page.locator(".sd-saving")).toHaveCount(0, { timeout: 30_000 });
-  // The wall grid shows ONLY the wizard's substrate answer (weatherboard).
-  await expect(front.locator(".sd-wall")).toHaveCount(1);
-  await expect(front.locator(".sd-wall").first()).toContainText(/Weatherboard/i);
-  // Add render from "+ Add a surface" -> arrives at 25% with auto-balance,
-  // and the mix still totals 100%.
-  await front.getByRole("button", { name: /Add a surface/ }).click();
-  await front.getByRole("button", { name: /Render — wall surface/ }).click();
-  await expect(front.locator(".sd-wall")).toHaveCount(2);
-  await expect(front.locator(".sd-wallsum")).toContainText("100%");
-
-  // An OVER-committed mix (125%) blocks the confirm, by name.
-  //
-  // R5.1 REGRESSION GUARD: this sequence — wrong value, refused confirm,
-  // corrected value, confirm again — is the one that broke when taps began
-  // batching. All four arrived as ONE batch, the first confirm refused
-  // exactly as designed, the batch stopped there, and the CORRECTION was
-  // discarded. It failed 2 runs in 3 before a confirm was made to end its
-  // batch. If this goes flaky again, look there first, not at the timeouts.
-  const fbWall = front.locator(".sd-wall", { hasText: /Weatherboard/i }).first();
-  await fbWall.locator(".sd-pc", { hasText: "100" }).click(); // 100 + render 25 = 125
-  await front.getByRole("button", { name: /Confirm front/i }).click();
-  await expect(front).not.toHaveClass(/done/);
-  await expect(page.locator(".sd-toast, .sd-wallsum.bad").first()).toBeVisible();
-  await fbWall.locator(".sd-pc", { hasText: "75" }).click(); // back to 100 total
-  await front.getByRole("button", { name: /Confirm front/i }).click();
-  await expect(front).toHaveClass(/done/, { timeout: 15_000 });
-  await expect(page.locator(".sd-prog")).toContainText("1 OF 8");
-
-  // Tom, 31 Aug: an UNDER-100 mix is a normal answer — half this wall is
-  // glass. 50% says what isn't charged and confirms first go.
-  const left = page.locator(".sd-card", { hasText: "Left" }).first();
-  await left.locator(".sd-hd").click();
-  await left.getByRole("button", { name: "Yes", exact: true }).click();
-  await left.getByPlaceholder("length m").fill("14");
-  await left.getByPlaceholder("height m").fill("2.6");
-  await left.getByTestId("side-dims-left").getByRole("button", { name: "Update", exact: true }).click();
-  await expect(page.locator(".sd-saving")).toHaveCount(0, { timeout: 30_000 });
-  await left.locator(".sd-pc", { hasText: "50" }).first().click();
-  await expect(left.locator(".sd-wallsum")).toContainText(/Painting 50%/i);
-  await left.getByRole("button", { name: /Confirm left/i }).click();
-  await expect(left).toHaveClass(/done/, { timeout: 15_000 });
-
-  // RIGHT: Tom, 15–16 Sep — the × on the header deletes a side like a room,
-  // and it LEAVES the estimate for good: no chip, no card, no way back.
-  // (data-side, not hasText: "is that right?" in the last checks matches "Right".)
-  const right = page.locator('[data-side="right"]');
-  await right.getByTestId("side-delete-right").click();
-  await expect(right).toHaveCount(0, { timeout: 20_000 });
-  await expect(page.locator(".sd-prog")).toContainText("OF 7");
-  await expect(page.getByTestId("sides-which")).toHaveCount(0);
-  await expect(page.getByRole("button", { name: /Add the right side/ })).toHaveCount(0);
-
-  // BACK: not-sure length is accepted — "we'll measure" widens the range.
-  // data-side, not hasText: the questions block has a "← Back" link.
-  const back = page.locator('[data-side="back"]');
-  await back.locator(".sd-hd").click();
-  await back.getByRole("button", { name: "Yes", exact: true }).click();
-  // ⚑ No "Adjust it" any more — the boxes are there from the start (Tom,
-  // 10 Sep: the sizing is added in, not assumed).
-  await back.getByPlaceholder("length m").fill("not sure");
-  await back.getByTestId("side-dims-back").getByRole("button", { name: "Update", exact: true }).click();
-  await expect(back.getByTestId("side-assumed-back")).toContainText(/measure/i);
-  await back.getByRole("button", { name: /Confirm back/i }).click();
-  await expect(back).toHaveClass(/done/, { timeout: 15_000 });
-
-  // The remaining four cards.
-  // Tom, 31 Aug: a ticked extra IS the answer — no "Nothing else" on top.
-  const extras = page.locator(".sd-card", { hasText: "Freestanding extras" });
-  await extras.locator(".sd-hd").click();
-  await extras.getByRole("button", { name: /\+ Deck/ }).click();
-  await extras.getByRole("button", { name: /Confirm extras/i }).click();
-
-  // Tom, 15 Sep (late, items 6, 8, 11): condition & access are the paginated
-  // questions at the TOP; the card behind them confirms itself on the last answer.
-  // The old page set answered the paintwork; the rot question is open here,
-  // and access is asked after it in the editor (Tom, 21 Oct, item 11 — the
-  // wizard's access answer no longer pre-fills it).
-  const cond = page.getByTestId("sides-q");
-  await cond.getByRole("button", { name: /No, looks solid/ }).click();
-  await cond.getByRole("button", { name: "None of these ✓", exact: true }).click();
-  await expect(cond).toHaveClass(/done/, { timeout: 30_000 });
-
-  // Tom, 15 Sep (late, items 9–10): the last checks are paginated and confirm with a tick.
-  const last = page.getByTestId("sides-last");
-  await last.getByTestId("check-dw-ok").click();
-
-  // Tom, 31 Aug: "+ Something else" opens a box to SAY what.
-  await expect(last.getByTestId("sides-last-step-sweep")).toBeVisible({ timeout: 30_000 });
-  await last.getByRole("button", { name: /\+ Something else/ }).click();
-  await last.getByPlaceholder(/What else needs painting/).fill("Bungalow");
-  await last.getByRole("button", { name: "Add", exact: true }).click();
-  await expect(page.locator(".sd-toast")).toContainText(/Bungalow/i, { timeout: 30_000 });
-  await last.getByTestId("check-sweep-ok").click();
-
-  // Everything blue: 7 of 7 (the right side left), the "you can go early" line is gone, range still a range.
-  await expect(page.locator(".sd-prog")).toContainText("7 OF 7", { timeout: 45_000 }); // production queue drain
-  await expect(page.locator(".sd-cta")).toBeEnabled();
-  await expect(page.getByTestId("cta-hint")).toHaveCount(0);
-  await expect(page.locator(".sc-r, .sd-range").first()).toHaveText(MONEY_RANGE);
-});
-
-/** Parity STOP-item 1 — the priced wiring (Tom's price list, 20 Aug 2026).
- * Weathered, minor rot and access PRICE (modifier + allowance lines); the
- * add-panel offers the priced catalogue (shutters/side gate/security door/
- * meter box); the sweep prices Shed and Side gate, while Carport stays an
- * amber visit flag and Rear fence left the sweep. */
-/**
- * Tom, 5 Oct 2026: "I have to click what % of wall area even though I have
- * only ticked weatherboards and it is auto ticked to 100%." The wizard's one
- * substrate IS the wall: the tile reads 100, the sum reads 100, and the side
- * confirms with nothing tapped. (Two substrates still ask for the split —
- * the first test above covers that with "+ Render".)
- */
 test("5 Oct: weatherboards alone — the side confirms with no % tapped", async ({ page }) => {
   test.setTimeout(300_000);
   await driveExteriorWizard(page);
   const front = page.locator(".sd-card", { hasText: "Front" }).first();
   await front.locator(".sd-hd").click();
-  await front.getByRole("button", { name: "Yes", exact: true }).click();
+  // Tom, 25 Oct 2026: on the drawn house the side arrives IN — no "Yes" to tap.
   await front.getByPlaceholder("length m").fill("12");
   await front.getByPlaceholder("height m").fill("2.6");
   await front.getByTestId("side-dims-front").getByRole("button", { name: "Update", exact: true }).click();
@@ -225,6 +63,8 @@ test("priced extras: condition/access, catalogue chips and sweep items move the 
   // settles the block; an earlier answer is changed from its chip on the
   // settled line (the Back link only moves between OPEN questions).
   const cond = page.getByTestId("sides-q");
+  // Tom, 25 Oct 2026: from the drawn house nothing is pre-answered — the block opens on the paintwork.
+  await cond.getByRole("button", { name: "Good overall", exact: true }).click();
   await expect(cond.getByTestId("sides-q-step-rot")).toBeVisible({ timeout: 30_000 });
   await cond.getByRole("button", { name: /No, looks solid/ }).click();
   await cond.getByRole("button", { name: "None of these ✓", exact: true }).click();
@@ -269,7 +109,7 @@ test("priced extras: condition/access, catalogue chips and sweep items move the 
   // on THIS side and moves the range.
   const front = page.locator(".sd-card", { hasText: "Front" }).first();
   await front.locator(".sd-hd").click();
-  await front.getByRole("button", { name: "Yes", exact: true }).click();
+  // Tom, 25 Oct 2026: on the drawn house the side arrives IN — no "Yes" to tap.
   // Batch 2: out-of-range dims CLAMP and proceed (3–40 × 2–8) — the gentle
   // clamp, never a refusal; the toast names the recorded size.
   await front.getByPlaceholder("length m").fill("50");

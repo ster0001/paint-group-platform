@@ -57,6 +57,7 @@
 }
 .invoice-view .wordmark { font-size: 23px; font-weight: 700; letter-spacing: 0.12em; }
 .invoice-view .wordmark span { color: var(--accent); }
+.invoice-view .ph-mark { height: 46px; width: auto; display: block; margin-bottom: 2px; }
 .invoice-view .tagline {
   font-family: var(--mono); font-size: 8px; letter-spacing: 0.18em;
   text-transform: uppercase; color: var(--faint); margin-top: 4px;

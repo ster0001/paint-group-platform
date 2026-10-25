@@ -45,6 +45,7 @@ import {
 } from "@/lib/wizard/session";
 import type { CustomerPayload, WizardEditorPayload } from "@/lib/wizard/view";
 import AddressField from "./AddressField";
+import type { PickedAddress } from "@/app/components/useAddressLookup";
 import QuickLook from "./QuickLook";
 import SaveAndBookSheet from "./SaveAndBookSheet";
 import type { TalkMode } from "./TalkSheet";
@@ -128,29 +129,6 @@ function entryPatch(e: EntryChoice, jobType: WizardState["jobType"], ext: Wizard
   };
 }
 
-/** A restored walk: which way in do its answers imply? */
-function entryFromState(s: WizardState): EntryChoice | null {
-  /**
-   * The quick look leaves its own fingerprint, and it has to be checked FIRST.
-   * `noPlan` is only set when the quick look SUBMITS, so a walk abandoned
-   * halfway looked like "no route chosen" and resumed onto the old entry
-   * cards — the answers were all restored and the screen showing them was
-   * not. The presence of the eight answers is the honest signal.
-   */
-  if (s.quickLook) return "questions";
-  if (s.jobType === "exterior") {
-    if (s.exterior?.noPhotos) return "questions";
-    if (s.facadeRunIds.length > 0 || s.listingUrl.trim()) return "upload";
-    return null;
-  }
-  if (s.noPlan) return "questions";
-  // Tom, 14 Sep: a floorplan is uploaded ON the quick look now (the place
-  // screen), so an inside draft with a plan resumes there — never on the old
-  // pages. The old upload route is the exterior's (facade photos, listing).
-  if (s.planRunIds.length > 0 || s.listingUrl.trim()) return "questions";
-  return null;
-}
-
 type SubmitResult = WizardEditorPayload & {
   estimateId: string;
   openAt: string;
@@ -213,7 +191,7 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
   /** Homepage hand-off (lib/marketing/prefill.ts): the address the visitor
    * typed on the marketing site, shown in the field; "business" pre-selects
    * the commercial property kind. Intent only — no account, no event. */
-  intent?: { addressText: string | null; propertyKind: "commercial" | null; mode?: "home" | "business" | null; entrySource?: string; scope?: string | null };
+  intent?: { addressText: string | null; address?: PickedAddress | null; propertyKind: "commercial" | null; mode?: "home" | "business" | null; entrySource?: string; scope?: string | null };
   /** Tom, 7 Sep: the SERVER copy of a half-finished walk (the autosaved
    * draft for this user) — merged with the browser copy on mount, newest wins. */
   resume?: Omit<ResumeRecord, "v"> | null;
@@ -235,11 +213,12 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
           customer: {
             ...(seed.customer ?? defaultCustomer()),
             email: prefill?.email ?? seed.customer?.email ?? "",
-            suburb: prefill?.address?.suburb ?? seed.customer?.suburb ?? "",
-            postcode: prefill?.address?.postcode ?? seed.customer?.postcode ?? "",
+            // Tom, 25 Oct 2026: the homepage's resolved pick (suburb + postcode) rides the hand-off URL — it is the address, not a hint.
+            suburb: prefill?.address?.suburb ?? intent?.address?.suburb ?? seed.customer?.suburb ?? "",
+            postcode: prefill?.address?.postcode ?? intent?.address?.postcode ?? seed.customer?.postcode ?? "",
             ...(intent?.propertyKind ? { propertyKind: intent.propertyKind } : {}),
           },
-          address: prefill?.address ?? seed.address,
+          address: prefill?.address ?? intent?.address ?? seed.address,
           // Paint Home brief §5: the chip's scope is the job type from the first paint (the quick look mirrors it on every tap).
           ...(scopeIntent ? { jobType: scopeIntent } : {}),
           contact: {
@@ -504,11 +483,14 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
    * people who have a floorplan or would rather write it out. Staff and the
    * resumed-walk path are unchanged.
    */
-  const [entry, setEntry] = useState<EntryChoice | null>(
-    mode === "customer" && !prefillState && entryFromState(resume?.state ?? defaultWizardState()) == null
-      ? "questions"
-      : null,
-  );
+  /**
+   * Tom, 25 Oct 2026: a customer is ALWAYS on the quick look. The old page set
+   * (describe it / upload the listing) is staff-only now — the Paint Home
+   * address hand-off and a resumed draft from before the quick look were both
+   * landing customers on it. Nothing a customer does reaches `entry` other
+   * than "questions"; staff (the internal /wizard) start on the page set as before.
+   */
+  const [entry, setEntry] = useState<EntryChoice | null>(mode === "customer" ? "questions" : null);
   // Tom, 7 Sep: "Describe it" is one request — the property page, then the
   // contact details (still the LAST question before the build), then the
   // build lands in the editor. Nothing else is asked.
@@ -544,12 +526,9 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
   const quickActive = isCustomer && entry === "questions" && !quickDone;
   const lastPage = quickActive ? stepsFor(quick.jobType, quick.propertyKind, commercialPattern, commercialDoor, quick.scope).length : pageKeys.length;
   const pageKey: PageKey = pageKeys[Math.min(page, lastPage) - 1];
-  /** Tom, 15 Sep (late): the upload door shows only when the URL asks for it. */
-  const [uploadDoor, setUploadDoor] = useState(false);
-  useEffect(() => {
-    try { setUploadDoor(new URLSearchParams(window.location.search).get("entry") === "upload"); } catch { /* no window */ }
-  }, []);
   const chooseEntry = (e: EntryChoice) => {
+    // Tom, 25 Oct 2026: the old page set is staff-only — a customer stays on the quick look.
+    if (isCustomer) return;
     setQuickDone(true);
     setEntry(e);
     set(entryPatch(e, state.jobType, state.exterior, state.basics));
@@ -623,15 +602,14 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
        * The place". Recording beats inferring.
        */
       const screenTag = (r as { lastScreen?: string | null }).lastScreen ?? null;
-      if (screenTag?.startsWith("quick:")) {
-        setEntry("questions");
-        setQuickDone(false);
-      } else {
-        setEntry(entryFromState(r.state));
-      }
+      // Tom, 25 Oct 2026: a customer resumes onto the quick look whatever the draft
+      // says — a draft from the old page set starts its quick look at screen 1.
+      const oldPages = isCustomer && !screenTag?.startsWith("quick:");
+      setEntry("questions");
+      setQuickDone(false);
       // The restored step is the landing step — no entrance (see resumeLandingRef).
       resumeLandingRef.current = true;
-      setPage(r.page);
+      setPage(oldPages ? 1 : r.page);
       setResumed(resumeLine(r.page, r.state.jobType, screenTag));
     }, 0);
     return () => clearTimeout(t);
@@ -2216,16 +2194,9 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
                         An INSIDE job uploads its floorplan on the place screen; only the outside
                         path still starts from photos or a listing here. */}
                     {/* Tom, 15 Sep (late, item 1): "Upload photos or a listing" is gone from
-                        the outside tab. The old page set behind it is still reachable with
-                        `?entry=upload` on the URL — the specs that walk it use that door. */}
-                    <div className="wz-otherways" data-testid="wz-entry">
-                      {state.jobType === "exterior" && uploadDoor && <span>Or start another way:</span>}
-                      {state.jobType === "exterior" && uploadDoor && (
-                        <button type="button" className="wz-linkish" data-testid="entry-upload" onClick={() => chooseEntry("upload")}>
-                          Upload photos or a listing
-                        </button>
-                      )}
-                    </div>
+                        the outside tab. Tom, 25 Oct 2026: so is the `?entry=upload` door behind
+                        it — the old page set is staff-only now. */}
+                    <div className="wz-otherways" data-testid="wz-entry" />
                   </>
                 }
               />
@@ -2487,6 +2458,8 @@ function PageProperty({
           <AddressField
             placeholder="Your address — start typing and pick it"
             value={state.address ? state.address.formatted : addressText}
+            // Tom, 25 Oct 2026: words from the homepage with no pick behind them are looked up once here.
+            autoResolve={!state.address && !state.customer.suburb.trim() && initialAddressText.trim().length >= 3}
             onText={(text) => { setAddressText(text); set({ address: null }); }}
             onPick={(a, inArea) => {
               setAddressText(a.formatted);
