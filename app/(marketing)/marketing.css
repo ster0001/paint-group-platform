@@ -497,6 +497,22 @@ html:has(.mk) { scroll-behavior: smooth; }
 .mk [data-brand="painthome"] .hero .field { background: rgba(59, 72, 76, .92); box-shadow: 0 0 0 4px rgba(23, 249, 241, .10), 0 10px 30px rgba(0, 0, 0, .25); }
 .mk [data-brand="painthome"] .hero .btn-cyan { background: var(--brand); color: var(--color-ink); box-shadow: 0 6px 24px rgba(23, 249, 241, .35); }
 .mk [data-brand="painthome"] .block { background: rgba(46, 58, 61, .92); border-color: rgba(232, 207, 201, .28); }
+/* Tom, 25 Oct 2026: "make the form slightly smaller so it sits more above the fold; on mobile the form
+   doesn't sit above the fold". The block starts at the top of the hero instead of centring in it, with a
+   tighter headline, lead and padding, so the address box is in the first screen on a laptop and a phone. */
+.mk [data-brand="painthome"] .hero { align-items: flex-start; min-height: 0; padding-top: clamp(20px, 3vw, 36px); padding-bottom: clamp(20px, 3vw, 36px); }
+.mk [data-brand="painthome"] .hero .block { padding: clamp(20px, 3vw, 32px); gap: 16px; }
+.mk [data-brand="painthome"] .hero h1 { font-size: clamp(36px, 5.6vw, 64px); }
+.mk [data-brand="painthome"] .hero .lead { font-size: clamp(16px, 1.3vw, 18px); max-width: 56ch; }
+@media (max-width: 959px) {
+  /* Phone: a short photo band (not the homes site's tall one) and the block directly under the nav. */
+  .mk [data-brand="painthome"] .hero { padding-top: 12px; }
+  .mk [data-brand="painthome"] .hero-photo { height: 38vw; min-height: 120px; max-height: 200px; }
+  .mk [data-brand="painthome"] .hero .stage { margin-top: -60px; }
+  .mk [data-brand="painthome"] .hero .block { padding: 18px 16px; gap: 12px; }
+  .mk [data-brand="painthome"] .hero h1 { font-size: clamp(30px, 9vw, 40px); }
+  .mk [data-brand="painthome"] .hero .lead { font-size: 15px; }
+}
 .mk [data-brand="painthome"] .hero-photo::after { background: linear-gradient(90deg, rgba(46, 58, 61, .82) 0%, rgba(46, 58, 61, .55) 55%, rgba(46, 58, 61, .35) 100%); }
 @media (max-width: 959px) {
   .mk [data-brand="painthome"] .hero-photo::after { background: linear-gradient(180deg, rgba(46, 58, 61, 0) 0%, rgba(46, 58, 61, 0) 45%, rgba(46, 58, 61, .96) 100%); }
