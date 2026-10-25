@@ -41,6 +41,8 @@ export const websiteContentSchema = z.object({
   heroPhoto: mediaPath.nullable().default(null),
   /** Tom, 7 Sep: the business site's own hero; falls back to the homes photo when unset. */
   heroPhotoBusiness: mediaPath.nullable().default(null),
+  /** Tom, 25 Oct 2026: Paint Home's own hero photo (Settings → Paint Home website); falls back to the homes photo when unset. */
+  heroPhotoPaintHome: mediaPath.nullable().default(null),
   /** The one video on the homepage (Reviews section): a published showcase job that has a video. */
   featuredVideoJobId: z.string().uuid().nullable().default(null),
   /** Tom, 6 Sep: OR a testimonial video entered straight here (YouTube/Vimeo), no showcase job needed. Wins over the job when set. */
@@ -53,7 +55,7 @@ export const websiteContentSchema = z.object({
 });
 export type WebsiteContent = z.infer<typeof websiteContentSchema>;
 
-export const EMPTY_WEBSITE_CONTENT: WebsiteContent = { painters: [], demoPainter: null, promisePhotos: [], storyPhotos: [], heroPhoto: null, heroPhotoBusiness: null, featuredVideoJobId: null, featuredVideo: { url: "", caption: "", transcript: "", posterPath: null } };
+export const EMPTY_WEBSITE_CONTENT: WebsiteContent = { painters: [], demoPainter: null, promisePhotos: [], storyPhotos: [], heroPhoto: null, heroPhotoBusiness: null, heroPhotoPaintHome: null, featuredVideoJobId: null, featuredVideo: { url: "", caption: "", transcript: "", posterPath: null } };
 
 /** Tolerant: an older or partial row still renders; garbage renders the defaults. */
 export function parseWebsiteContent(value: unknown): WebsiteContent {

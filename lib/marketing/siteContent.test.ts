@@ -18,3 +18,8 @@ test("a pasted testimonial video must be a YouTube or Vimeo link (Tom, 6 Sep); e
   expect(websiteContentSchema.safeParse({ featuredVideo: { url: "https://example.com/video.mp4" } }).success).toBe(false);
   expect(parseWebsiteContent({ featuredVideo: { url: "" } }).featuredVideo).toEqual({ url: "", caption: "", transcript: "", posterPath: null });
 });
+
+test("Tom, 25 Oct 2026: Paint Home's own hero photo is a field of the row; an older row reads as unset", () => {
+  expect(parseWebsiteContent({}).heroPhotoPaintHome).toBeNull();
+  expect(parseWebsiteContent({ heroPhotoPaintHome: "site/abc.jpg" }).heroPhotoPaintHome).toBe("site/abc.jpg");
+});

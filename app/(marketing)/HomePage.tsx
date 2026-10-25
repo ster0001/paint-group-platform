@@ -148,7 +148,7 @@ export default async function HomePage({ audience }: { audience: Audience }) {
       <div className="shopfront" data-brand={brand.key} style={brandStyle}>
         <Nav logoUrl={logoUrl} copy={c.nav} brand={brand} />
         <main data-audience={audience}>
-          <Hero heroPhoto={business ? (content.heroPhotoBusiness ?? content.heroPhoto) : content.heroPhoto} copy={c.hero} />
+          <Hero heroPhoto={painthome ? (content.heroPhotoPaintHome ?? content.heroPhoto) : business ? (content.heroPhotoBusiness ?? content.heroPhoto) : content.heroPhoto} copy={c.hero} />
           <HowItWorks copy={c.steps} brand={brand} />
           <RealJobs audience={audience} copy={c.jobs} prefix={prefix} maxHighCents={maxHighCents} />
           {business && <Trade copy={c.trade} promoted />}

@@ -199,3 +199,28 @@ async function uniqueSlug(db: Db, base: string, selfId: string | null): Promise<
   }
   throw new Error("could not find a free slug");
 }
+
+const rankInput = z.object({ id: z.string().uuid(), rank: z.number().int().min(1).max(3).nullable() });
+export type SetRankResult = { status: "saved" } | { status: "invalid" } | { status: "error"; message: string };
+
+/**
+ * Tom, 25 Oct 2026 — Settings → Paint Home website: give a published home job
+ * a Paint Home card rank (1–3) or take it off, without opening the job. The
+ * rank's previous holder is cleared first, as the job editor does.
+ */
+export async function setPaintHomeRankAction(raw: unknown): Promise<SetRankResult> {
+  const db = await createClient();
+  if (!(await requireStaff(db))) return { status: "error", message: "Staff only." };
+  const parsed = rankInput.safeParse(raw);
+  if (!parsed.success) return { status: "invalid" };
+  const { id, rank } = parsed.data;
+  if (rank != null) {
+    const { error: clearErr } = await db.from("showcase_jobs").update({ featured_rank_painthome: null }).eq("featured_rank_painthome", rank).neq("id", id);
+    if (clearErr) return { status: "error", message: "Couldn't move the rank — please try again." };
+  }
+  const { error } = await db.from("showcase_jobs").update({ featured_rank_painthome: rank }).eq("id", id);
+  if (error) return { status: "error", message: "Couldn't save the rank — please try again." };
+  revalidatePath("/painthome");
+  revalidatePath("/settings");
+  return { status: "saved" };
+}
