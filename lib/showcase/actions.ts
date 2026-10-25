@@ -209,8 +209,11 @@ export type SetRankResult = { status: "saved" } | { status: "invalid" } | { stat
  * rank's previous holder is cleared first, as the job editor does.
  */
 export async function setPaintHomeRankAction(raw: unknown): Promise<SetRankResult> {
-  const db = await createClient();
-  if (!(await requireStaff(db))) return { status: "error", message: "Staff only." };
+  const supabase = await createClient();
+  if (!(await requireStaff(supabase))) return { status: "error", message: "Staff only." };
+  // The write goes through the service client, as every showcase write does (staff have no RLS write on showcase_jobs).
+  const db = createServiceClient();
+  if (!db) return { status: "error", message: "The service key isn't configured on this machine." };
   const parsed = rankInput.safeParse(raw);
   if (!parsed.success) return { status: "invalid" };
   const { id, rank } = parsed.data;
