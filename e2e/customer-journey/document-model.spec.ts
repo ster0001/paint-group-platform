@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { fillQuickAddress, openQuickLook, quickNext, driveNoPlanWizard } from "./drive";
+import { fillQuickAddress, openQuickLook, quickNext, driveNoPlanWizard, openExteriorPages } from "./drive";
 
 /**
  * R1.3 — the document model (diagnostic #2 and #3).
@@ -50,17 +50,13 @@ test.describe("R1.3 document model", () => {
   });
 
   test("the exterior path has no floorplan field anywhere", async ({ page }) => {
-    await openQuickLook(page, { entry: "upload" }); // 15 Sep (late): the upload door answers to the URL now
-    // v2 phase 2: the chip reads "Outside", and the answer reaches the state
-    // immediately — the upload route branches on it, so a customer who picked
-    // Outside must not be offered a floorplan field.
-    await page.getByTestId("ql-jobtype-exterior").click();
-    await page.getByTestId("entry-upload").click();
+    // Tom, 25 Oct 2026: a customer's only way in is the quick look (the upload
+    // route is staff-only) — an outside job walks the drawn house, and no screen
+    // on it offers a floorplan.
+    await openExteriorPages(page);
     await expect(page.getByRole("button", { name: /Upload a floorplan/ })).toHaveCount(0);
     await expect(page.getByRole("button", { name: /floorplan to hand/ })).toHaveCount(0);
-    // The facade intake is what exterior offers instead.
-    await page.getByTestId("entry-upload").click(); // Phase 2: the way in is a card
-    await expect(page.getByRole("button", { name: /Add facade photos/ })).toBeVisible();
+    await expect(page.getByTestId("entry-upload")).toHaveCount(0);
   });
 
   test("condition photos that can't be analysed end in a VISIBLE state", async ({ page }) => {

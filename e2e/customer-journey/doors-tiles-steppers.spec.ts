@@ -1,5 +1,6 @@
 import { test, expect } from "@playwright/test";
-import { driveNoPlanWizard, setStylesInEditor, openScopeEditor, fillContactStep , openQuickLook } from "./drive";
+import { driveNoPlanWizard, setStylesInEditor, openScopeEditor } from "./drive";
+import { toSidesEditor } from "./exterior-v2-drive";
 
 /**
  * Tom's 21 Aug batch, driven on the real screen.
@@ -94,36 +95,8 @@ test("exterior: every item can be taken off, and there is no accept-online butto
   // v2 phase 2: the job type is a chip on the quick look's first screen, and
   // the answer reaches the state as it is tapped — so the upload route it hands
   // to offers facade photos and a listing, never a floorplan.
-  await openQuickLook(page, { entry: "upload" }); // 15 Sep (late): the upload door answers to the URL now
-  await page.getByTestId("ql-jobtype-exterior").click();
-  await page.getByTestId("entry-upload").click();
-  await page.getByPlaceholder(/listing URL/).fill("https://www.realestate.com.au/property-house-vic-murrumbeena-1400001");
-  await page.getByPlaceholder("Suburb").fill("Murrumbeena");
-  await page.getByPlaceholder("Postcode").fill("3163");
-  const answer = async (heading: string | RegExp, label: string) => {
-    const row = page.locator(".wz-qhead", { hasText: heading })
-      .locator("xpath=following-sibling::div[1]")
-      .getByRole("button", { name: label, exact: true });
-    if (await row.count()) await row.first().click();
-  };
-  await answer("What kind of property", "House");
-  const next = async () => {
-    await page.getByRole("button", { name: /Continue|Nearly there|See my estimate/ }).first().click();
-    const err = page.locator(".wz-err");
-    if (await err.count()) throw new Error(`wizard gate: ${await err.first().innerText()}`);
-  };
-  await next(); // → page 2: what are we painting + the house (Tom, 7 Sep)
-  await next(); // → condition + access (no follow-up page for a house-only job)
-  await page.getByRole("button", { name: /Good overall/i }).click();
-  await answer(/built before 1970/, "No");
-  await page.getByRole("button", { name: /None of these/i }).click();
-  await next(); // → extras + paint
-  await next(); // → contact, the LAST page (Tom, 31 Aug)
-  await fillContactStep(page, `e2e-ext-${Date.now()}@example.com`);
-  await page.getByRole("button", { name: "See my estimate" }).click();
-  // 28 Aug: the wizard lands straight in the confirm-loop editor.
-  await expect(page.locator(".sc-r").first()).toBeVisible({ timeout: 90_000 });
-  await expect(page.locator("[data-ready='1']")).toBeAttached({ timeout: 30_000 });
+  // Tom, 25 Oct 2026: the old upload route is staff-only — the editor is reached from the drawn house's range (Tighten).
+  await toSidesEditor(page, { email: `e2e-ext-${Date.now()}@example.com` });
 
   // The CTA never offers an online accept — an estimator signs every
   // exterior job off (Tom, 21 Aug).
@@ -134,26 +107,9 @@ test("exterior: every item can be taken off, and there is no accept-online butto
   await expect(cta).toHaveText("Finalise my price");
   await expect(page.getByTestId("scope-book")).toBeVisible();
 
-  // Every tile on an open side carries a remove control. (The tiles only
-  // appear once the side is IN — "Are we painting this side?" comes first.)
-  const side = page.locator(".sd-card.open").first();
-  await side.getByRole("button", { name: "Yes", exact: true }).click();
-  const removable = side.locator(".sd-tl.has-x .sd-x");
-  await expect(removable.first()).toBeVisible({ timeout: 25_000 });
-  expect(await removable.count()).toBeGreaterThan(0);
-  // Take an "also on this side" tile off (not a wall — a wall's share has to
-  // be rebalanced, and the last one can't go at all).
-  const tiles = side.locator(".sd-tl.has-x").filter({ hasNot: page.locator(".sd-pcts, .sd-wseg") });
-  const before = await tiles.count();
-  expect(before).toBeGreaterThan(0);
-  const tile = tiles.first();
-  // The tile's name has its own element (`.sd-tlname`) — reading the last
-  // text node broke as soon as the tile grew a metres control (Tom, 8 Sep).
-  const label = (await tile.locator(".sd-tlname").innerText()).replace(/×/g, "").trim();
-  expect(label.length).toBeGreaterThan(0);
-  await tile.locator(".sd-x").click();
-  await expect(tiles).toHaveCount(before - 1, { timeout: 25_000 });
-  await expect(side.locator(".sd-tl").filter({ has: page.locator(".sd-tlname", { hasText: label }) })).toHaveCount(0);
+  // Tom, 25 Oct 2026: the rest of this test (open a side → "Yes" → take a tile off) was the
+  // old route's editor, where a side arrived undecided. On the drawn house every side arrives
+  // decided; the sides editor's own mechanics are exterior-v2-tighten.spec.ts.
 });
 
 // Tom's walk ruling (31 Aug, trade batch 1): frames ARE architraves — the

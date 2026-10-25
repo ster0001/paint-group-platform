@@ -1,5 +1,6 @@
 import { test, expect, type Page } from "@playwright/test";
-import { fillContactStep, uniquePhone, openExteriorPages } from "./drive";
+import { uniquePhone } from "./drive";
+import { toSidesEditor } from "./exterior-v2-drive";
 
 /**
  * Tom's 8 September 2026 (evening) batch, driven on the real screen.
@@ -21,36 +22,10 @@ import { fillContactStep, uniquePhone, openExteriorPages } from "./drive";
 
 const PHONE = uniquePhone();
 
+/** Tom, 25 Oct 2026: the old upload route is staff-only — the editor is reached from the drawn
+ *  house's range (Tighten). The gate's own phone field is what the call-back form copies. */
 async function driveExteriorWizard(page: Page) {
-  await openExteriorPages(page, { via: "upload" });
-  await page.getByPlaceholder(/listing URL/).fill("https://www.realestate.com.au/property-house-vic-murrumbeena-1400002");
-  await page.getByPlaceholder("Suburb").fill("Murrumbeena");
-  await page.getByPlaceholder("Postcode").fill("3163");
-  const answer = async (heading: string | RegExp, label: string) => {
-    const row = page.locator(".wz-qhead", { hasText: heading })
-      .locator("xpath=following-sibling::div[1]")
-      .getByRole("button", { name: label, exact: true });
-    if (await row.count()) await row.first().click();
-  };
-  await answer("What kind of property", "House");
-  const next = async () => {
-    await page.getByRole("button", { name: /Continue|Nearly there|See my estimate/ }).first().click();
-    const err = page.locator(".wz-err");
-    if (await err.count()) throw new Error(`wizard gate: ${await err.first().innerText()}`);
-  };
-  await next();
-  await next();
-  await page.getByRole("button", { name: /Good overall/i }).click();
-  await answer(/built before 1970/, "No");
-  await next();
-  await next();
-  await fillContactStep(page, `e2e-8sep-${Date.now()}@example.com`);
-  // The contact page's own phone field is what the call-back form copies —
-  // fill it with a known one so the prefill can be asserted exactly.
-  await page.locator(".wz-crow input").nth(2).fill(PHONE);
-  await page.getByRole("button", { name: "See my estimate" }).click();
-  await expect(page.locator(".sd-card").first()).toBeVisible({ timeout: 90_000 });
-  await expect(page.locator("[data-ready='1']")).toBeAttached({ timeout: 20_000 });
+  await toSidesEditor(page, { email: `e2e-8sep-${Date.now()}@example.com`, mobile: PHONE });
 }
 
 test("Tom, 8 Sep evening: rename a side, gutters twice, handrails by the metre, the notes box", async ({ page }) => {
@@ -59,7 +34,7 @@ test("Tom, 8 Sep evening: rename a side, gutters twice, handrails by the metre, 
 
   const front = page.locator('.sd-card[data-side="front"]');
   await front.locator(".sd-hd").click();
-  await front.getByRole("button", { name: "Yes", exact: true }).click();
+  // Tom, 25 Oct 2026: on the drawn house the side arrives IN — no "Are we painting this side?" to answer.
   /**
    * ⚑ Tom, 10 Sep: "the sizing needs to be added in and not assumed for
    * exterior." A side's size is no longer an assumption to agree with, so the
@@ -91,6 +66,10 @@ test("Tom, 8 Sep evening: rename a side, gutters twice, handrails by the metre, 
   const panel = front.locator(".sd-addpanel");
   await expect(panel).toBeVisible();
   for (const code of ["Gutters", "Fascias"]) {
+    // Tom, 25 Oct 2026: on the drawn house a part sits on the sides the shape gives it, so a
+    // first run may not be on the front yet — add it, then the panel offers the second.
+    const first = panel.getByRole("button", { name: new RegExp(`^\\+ ${code}$`) });
+    if (await first.count()) { await first.click(); await expect(front.locator(".sd-tl", { hasText: code })).toHaveCount(1, { timeout: 30_000 }); }
     const second = panel.getByRole("button", { name: new RegExp(`${code} \\(second run, upper\\)`) });
     await expect(second, `${code} may go on twice`).toBeVisible({ timeout: 30_000 });
     await second.click();
@@ -174,7 +153,7 @@ test("Tom, 8 Sep evening: the estimate page fits the screen at every width", asy
   // add panel and the notes box all render at once.
   const front = page.locator('.sd-card[data-side="front"]');
   await front.locator(".sd-hd").click();
-  await front.getByRole("button", { name: "Yes", exact: true }).click();
+  // Tom, 25 Oct 2026: on the drawn house the side arrives IN — no "Are we painting this side?" to answer.
 
   for (const [w, h] of [[320, 720], [375, 812], [768, 1024], [1440, 900]] as const) {
     await page.setViewportSize({ width: w, height: h });

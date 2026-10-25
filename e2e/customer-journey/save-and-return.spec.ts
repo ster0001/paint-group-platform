@@ -1,6 +1,7 @@
 import { test, expect, devices } from "@playwright/test";
 import { createClient } from "@supabase/supabase-js";
 import { driveNoPlanWizard, MONEY_RANGE } from "./drive";
+import { defaultWizardState } from "../../lib/wizard/state";
 import { magicLinkFor, destroyAccountChain, openMagicLink } from "../fixtures/portal";
 
 /**
@@ -83,6 +84,47 @@ test.describe("save-and-return", () => {
     // back is the previous walk, so the field shows Bentleigh, never Malvern.
     await expect(page.getByPlaceholder(/Your address/)).toHaveValue(/Bentleigh/);
     await expect(page.getByPlaceholder("Suburb")).toHaveValue("");
+    await ctx.close();
+  });
+
+  test("Tom, 25 Oct: a draft from the old page set, and a Paint Home hand-off, both land on the quick look", async ({ browser }) => {
+    /**
+     * ⚑ THE BUG THIS CATCHES. Typing an address on painthome.com.au took Tom to
+     * the OLD estimator wizard ("Step 1 of 5 · The property", Interior /
+     * Exterior / Both, Describe it / Answer a few questions / Upload). A draft
+     * saved before the quick look — no `quickLook` answers, a `page:` screen
+     * tag — resumed onto the page set by inference, and a seeded state did the
+     * same. The old page set is staff-only now: a customer is always on the
+     * quick look, whatever the draft or the URL says.
+     */
+    const ctx = await browser.newContext({ ...devices["iPhone 13"] });
+    const page = await ctx.newPage();
+    const old = {
+      v: 1, savedAt: new Date().toISOString(), page: 2,
+      state: { ...defaultWizardState(), jobType: "exterior", title: "14 Acacia Street, Northcote" },
+      answered: { heritage: false, pre1970: false, asbestos: false },
+      addressText: "14 Acacia Street, Northcote",
+      lastScreen: "page:house",
+    };
+    await page.addInitScript((rec: string) => { window.localStorage.setItem("pg-wizard-resume-v1", rec); }, JSON.stringify(old));
+    await page.goto("/estimate");
+    await expect(page.locator("[data-ready='1']")).toBeAttached({ timeout: 20_000 });
+    await expect(page.getByTestId("wz-resume")).toBeVisible({ timeout: 20_000 });
+    await expect(page.locator("[data-quick-step='start']")).toBeVisible();
+    await expect(page.locator(".wz-wrap--pages")).toHaveCount(0);
+    await expect(page.getByTestId("entry-upload")).toHaveCount(0);
+    await expect(page.getByTestId("entry-describe")).toHaveCount(0);
+
+    // The Paint Home hero's hand-off (address + scope + brand on the URL).
+    await page.goto(`/estimate?address=${encodeURIComponent("14 Acacia Street, Northcote")}&mode=home&scope=exterior&brand=painthome&src=homepage_hero`);
+    await expect(page.locator("[data-ready='1']")).toBeAttached({ timeout: 20_000 });
+    await expect(page.locator("[data-quick-step='start']")).toBeVisible({ timeout: 20_000 });
+    await expect(page.locator(".wz-wrap--pages")).toHaveCount(0);
+    await expect(page.getByTestId("ql-jobtype-exterior")).toHaveClass(/\bon\b/);
+    // …and the old door on the URL is no door at all.
+    await page.goto("/estimate?entry=upload");
+    await expect(page.locator("[data-quick-step='start']")).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByTestId("entry-upload")).toHaveCount(0);
     await ctx.close();
   });
 

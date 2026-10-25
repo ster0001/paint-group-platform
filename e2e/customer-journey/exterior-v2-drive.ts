@@ -1,5 +1,5 @@
 import { expect, type Page } from "@playwright/test";
-import { fillQuickAddress, openQuickLook, quickNext } from "./drive";
+import { fillQuickAddress, lookAtEverySide, MONEY_RANGE, openQuickLook, passDetailsSheetIfShown, passGateIfShown, quickNext } from "./drive";
 
 /**
  * Exterior wizard v2 — the shared walk to the Each-side step for the S4/S5
@@ -31,3 +31,21 @@ export async function toSides(page: Page, shape = "cal", parts = BUNGALOW_PARTS,
   await expect(page.locator("[data-quick-step='sides']")).toBeVisible({ timeout: 20_000 });
 }
 
+
+/**
+ * Tom, 25 Oct 2026: the old upload route (listing, facade photos, five pages)
+ * is staff-only now, so the specs that used it to reach the SIDES EDITOR take
+ * the customer's real way: the drawn house, every side looked at, the gate,
+ * the range, then Tighten my price (exterior-v2-tighten.spec.ts, item 8).
+ */
+export async function toSidesEditor(page: Page, who: { name?: string; email?: string; mobile?: string } = {}) {
+  await toSides(page, "cal", ["walls", "gable", "fascias", "gutters", "eaves", "windows", "doors"]);
+  await lookAtEverySide(page);
+  await quickNext(page);
+  await passGateIfShown(page, who);
+  await expect(page.getByTestId("reveal-range")).toContainText(MONEY_RANGE, { timeout: 90_000 });
+  await page.getByTestId("door-tighten").click();
+  await passDetailsSheetIfShown(page, who);
+  await expect(page.locator(".sd-card").first()).toBeVisible({ timeout: 90_000 });
+  await expect(page.locator("[data-ready='1']")).toBeAttached({ timeout: 30_000 });
+}

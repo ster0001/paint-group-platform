@@ -32,6 +32,12 @@ export const GEAR_LABELS: Record<EquipmentCategory, string> = {
 };
 
 /** The four need icons (ruling 21): paint · materials · gear · rubbish. */
+/** The map ladder's own icons (lib/movements/jobIcon.ts): a problem, a client call, an office visit. */
+export const ATTENTION_ICONS = {
+  warning: svg([<path key="a" d="M12 3l10 18H2z" />, <path key="b" d="M12 10v5" />, <path key="c" d="M12 18h.01" />], 1.8),
+  phone: svg([<path key="a" d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2" />], 1.7),
+  clipboard: svg([<path key="a" d="M9 4h6v3H9z" />, <path key="b" d="M15 5h3v15H6V5h3" />, <path key="c" d="M9 12l2 2 4-4" />], 1.7),
+};
 export const KIND_ICONS = {
   paint: svg([<path key="a" d="M5 9h14v11a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2z" />, <path key="b" d="M8 9V6a4 4 0 0 1 8 0v3" />, <path key="c" d="M5 13h14" opacity=".6" />], 1.7),
   materials: svg([<path key="a" d="M3 8l9-4 9 4-9 4z" />, <path key="b" d="M3 8v8l9 4 9-4V8" />, <path key="c" d="M12 12v8" />], 1.7),

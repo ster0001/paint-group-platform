@@ -1,5 +1,6 @@
 import { test, expect } from "@playwright/test";
-import { MONEY_RANGE, driveNoPlanWizard, fillContactStep, openScopeEditor, openExteriorPages } from "./drive";
+import { MONEY_RANGE, driveNoPlanWizard, openScopeEditor } from "./drive";
+import { toSidesEditor } from "./exterior-v2-drive";
 
 /**
  * Parity PR — loop mechanics (Inventory A3, B4/B5, C1 + exterior $ toasts):
@@ -52,31 +53,8 @@ test("interior: cards collapse, confirm auto-advances + scrolls, window groups i
 
 test("exterior: geometry chips + flag flip the tier; toasts carry $ amounts", async ({ page }) => {
   test.setTimeout(240_000);
-  await openExteriorPages(page, { via: "upload" });
-  await page.getByPlaceholder(/listing URL/).fill("https://www.realestate.com.au/property-house-vic-murrumbeena-1400031");
-  await page.getByPlaceholder("Suburb").fill("Murrumbeena");
-  await page.getByPlaceholder("Postcode").fill("3163");
-  const answer = async (heading: string | RegExp, label: string) => {
-    const row = page.locator(".wz-qhead", { hasText: heading })
-      .locator("xpath=following-sibling::div[1]")
-      .getByRole("button", { name: label, exact: true });
-    if (await row.count()) await row.first().click();
-  };
-  await answer("What kind of property", "House");
-  const next = async () => page.getByRole("button", { name: /Continue|Nearly there|See my estimate/ }).first().click();
-  await next();
-  await next(); await next();
-  await page.getByRole("button", { name: /Good overall/i }).click();
-  await answer(/built before 1970/, "No");
-  await answer(/asbestos/, "No"); // Phase 0: unanswered until tapped
-  await answer(/living there/, "No — it'll be empty"); // Tom, 7 Sep
-  await next(); await next();
-  // The contact page is the LAST page now (Tom, 31 Aug).
-  await fillContactStep(page, `e2e-mech-${Date.now()}@example.com`);
-  await page.getByRole("button", { name: "See my estimate" }).click();
-  // 28 Aug: the wizard lands straight in the confirm-loop editor.
-  await expect(page.locator(".sc-r").first()).toBeVisible({ timeout: 90_000 });
-  await expect(page.locator("[data-ready='1']")).toBeAttached({ timeout: 20_000 });
+  // Tom, 25 Oct 2026: the old upload route is staff-only — the editor is reached from the drawn house's range (Tighten).
+  await toSidesEditor(page, { email: `e2e-mech-${Date.now()}@example.com` });
 
   // Geometry chips read from the answers; the flag button is right there.
   const visual = page.locator(".sd-visual");
@@ -86,7 +64,7 @@ test("exterior: geometry chips + flag flip the tier; toasts carry $ amounts", as
   // A priced change toasts a $ amount (mockup: "Windows ×3 — +$120").
   const front = page.locator(".sd-card", { hasText: "Front" }).first();
   await front.locator(".sd-hd").click();
-  await front.getByRole("button", { name: "Yes", exact: true }).click();
+  // Tom, 25 Oct 2026: on the drawn house the side arrives IN — there is no "Are we painting this side?" to answer.
   const winTile = front.locator(".sd-tl", { hasText: "Windows" }).first();
   await winTile.locator(".sd-st button", { hasText: "+" }).click();
   await expect(page.locator(".sd-toast")).toContainText(/[+−-]\$\d/, { timeout: 15_000 });
