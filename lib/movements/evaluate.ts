@@ -1,3 +1,4 @@
+import { jobAttention, type JobAttention, type JobItem, type PinTier } from "./jobIcon";
 import type { Block } from "@/lib/scheduling/board";
 import type { GoogleBusy, GoogleReadKind } from "@/lib/gcal/read";
 import { jobPoint, km, rpcNeedsOrder } from "./sync";
@@ -89,6 +90,12 @@ export type World = {
   staff: StaffPerson[];
   googleBusy: GoogleBusy[];
   googleReads: Record<string, GoogleReadKind>;
+  /**
+   * The PC Command work items homed on each job (kind + title), keyed by work order id —
+   * the map's icon ladder reads them (`lib/movements/jobIcon.ts`). Absent on a world built
+   * without them (tests, the painter's read): every job then sits on the move rung or below.
+   */
+  jobItems?: Record<string, JobItem[]>;
   appointments: Appointment[];
   movements: MovementRow[];
   items: EquipmentItemRow[];
@@ -615,7 +622,8 @@ export function reorder(world: World, laneId: string, day: string, newOrderIds: 
 // ---- the map (Session 6, rulings 21 and 22) --------------------------------------------------
 
 export type MapBadge = { n: number | "◌"; fixed: boolean; label: string };
-export type MapFill = "teal" | "amber" | "grey";
+export type MapFill = "teal" | "amber" | "grey" | "red" | "violet" | "cyan";
+const TIER_FILL: Record<PinTier, MapFill> = { problem: "red", call: "violet", visit: "cyan", move: "amber", closed: "grey", none: "teal" };
 export type NeedKind = ReturnType<typeof chipFilterKind>;
 export type JobPin = {
   job: Job; point: Point; fill: MapFill;
@@ -627,6 +635,8 @@ export type JobPin = {
   label: string;
   /** One line under the address: what is needed, else "closed" or "on track". */
   line: string;
+  /** The ladder's answer: the rung, the icon, every open thing on the job in order, the count. */
+  attention: JobAttention;
   badges: MapBadge[];
 };
 export type ShopPin = { branch: WorldBranch; point: Point; stopToday: boolean; badges: MapBadge[] };
@@ -658,9 +668,11 @@ export function onMap(job: Pick<Job, "stage" | "paidOn">, today: string): boolea
 export const pointKey = (p: Point): string => `${p.lat.toFixed(5)},${p.lng.toFixed(5)}`;
 
 /**
- * Ruling 21: one icon per job — teal when nothing is outstanding, amber carrying the first
- * need's icon when `jobNeeds` is not empty, grey for a closed job (it is only in the world
- * because gear is still on it). Ruling 22: the selected person's order numbers from
+ * Ruling 21 as Tom reshaped it on 25 Oct 2026: one icon per job, chosen by the ladder in
+ * `jobIcon.ts` — red warning for a problem, violet phone for a client call, cyan clipboard for
+ * an office visit, amber carrying the first need's icon when `jobNeeds` is not empty, grey for a
+ * closed job (only in the world because gear is still on it), teal house for nothing. The fill
+ * is the rung; the line under the address is the top thing on the list. Ruling 22: the selected person's order numbers from
  * `runPlan` sit on the icon of each stop of their day (◌ for a fixed appointment). Shops
  * with a point are listed with whether they are a stop today; the view decides which to draw.
  */
@@ -689,12 +701,14 @@ export function mapPins(world: World, laneId: string | null, day: string, blocks
     if (!point) continue;
     const needs = jobNeeds(world, job.id);
     const closed = job.stage === "closed";
-    const fill: MapFill = needs.length ? "amber" : closed ? "grey" : "teal";
     // "paint to plan" for a tray chip; "paint delivery · not ordered" for a placed one still owing its order.
     const words = needs.map((m) => (m.status === "tray" ? `${chipFilterKind(m)} to plan` : `${kindLabel(m).toLowerCase()} · not ordered`));
-    const line = needs.length ? `${words.slice(0, 2).join(" · ")}${needs.length > 2 ? ` +${needs.length - 2}` : ""}` : closed ? "closed · gear still here" : "on track";
+    const attention = jobAttention(world.jobItems?.[job.id] ?? [], words, closed);
+    const fill = TIER_FILL[attention.tier];
+    const top = attention.lines.slice(0, 2).map((l) => l.label);
+    const line = attention.count ? `${top.join(" · ")}${attention.count > 2 ? ` +${attention.count - 2}` : ""}` : closed ? "closed · gear still here" : "on track";
     const street = job.address.split(",")[0]?.trim() ?? "";
-    jobs.push({ job, point, fill, needs, need: needs.length ? chipFilterKind(needs[0]) : null, label: street || job.jobRef, line, badges: at(point) });
+    jobs.push({ job, point, fill, needs, need: needs.length ? chipFilterKind(needs[0]) : null, label: street || job.jobRef, line, attention, badges: at(point) });
   }
 
   const shops: ShopPin[] = [];
