@@ -291,14 +291,13 @@
 .wz .sc-name { background: none; border: 0; padding: 0; margin: 0; color: inherit; font: inherit; cursor: text; text-decoration: underline dotted transparent; text-underline-offset: 3px; }
 .wz .sc-name:hover, .wz .sc-name:focus-visible { text-decoration-color: var(--cyan, #39D9E6); outline: none; }
 /* Tom, 25 Oct 2026 (item 17): the size boxes sit in the question, prefilled. */
-.wz .sd-mrow--inline { flex-wrap: wrap; row-gap: 6px; }
-.wz .sd-mrow--inline input { width: 84px; }
-.wz .sd .sd-mrow--inline input { min-height: 44px; }
+.wz .sd-mrow.sd-mrow--inline { flex-wrap: wrap; row-gap: 6px; }
+.wz .sd-mrow.sd-mrow--inline input { width: 84px; }
+.wz .sd-mrow.sd-mrow--inline input[data-testid^="size-height-"] { width: 128px; }
 /* Phone (390 wide, beside the room outline): two boxes on the first line, the ceiling on the second. */
 @media (max-width: 640px) {
-  .wz .sd .sd-mrow--inline { gap: 6px; }
-  .wz .sd .sd-mrow--inline input { width: 64px; min-width: 0; padding: 9px 8px; font-size: 15px; }
-  .wz .sd .sd-mrow--inline input[data-testid^="size-height-"] { width: 128px; }
+  .wz .sd-mrow.sd-mrow--inline { gap: 6px; }
+  .wz .sd-mrow.sd-mrow--inline input { width: 64px; min-width: 0; padding: 9px 8px; font-size: 15px; }
 }
 /* Tom, 25 Oct 2026 (item 13): a ticked whole-job extra carries its − / + beside the chip. */
 .wz .sc-extra-chip { display: inline-flex; align-items: center; gap: 6px; }
