@@ -52,6 +52,7 @@ import { requestNowMs } from "@/lib/time/requestClock";
 import { AUTOMATIONS } from "@/lib/automations/registry";
 import WebsiteContentManager from "./WebsiteContentManager";
 import BrandsSettings from "./BrandsSettings";
+import PaintHomeWebsiteSettings from "./PaintHomeWebsiteSettings";
 import { parseBrandSettings } from "@/lib/marketing/brand";
 import { BRANDS_SETTINGS_KEY } from "@/lib/marketing/brandServer";
 import CrmSettings, { type TagRow as CrmTagRow } from "./CrmSettings";
@@ -164,7 +165,14 @@ export default async function SettingsPage() {
   const websiteContent = parseWebsiteContent(allSettings.find((r) => r.key === WEBSITE_CONTENT_KEY)?.value);
   // Paint Home brief §6: Settings → Brands, the editable face of lib/marketing/brand.ts.
   const brandSettings = parseBrandSettings(allSettings.find((r) => r.key === BRANDS_SETTINGS_KEY)?.value);
-  const videoJobs = (await listShowcaseJobsForStaff()).filter((j) => j.video_url).map((j) => ({ id: j.id, title: j.title, suburb: j.suburb, published: j.published }));
+  const showcaseJobs = await listShowcaseJobsForStaff();
+  const videoJobs = showcaseJobs.filter((j) => j.video_url).map((j) => ({ id: j.id, title: j.title, suburb: j.suburb, published: j.published }));
+  // Tom, 25 Oct 2026 — Settings → Paint Home website: the published home jobs and whether each can be a Paint Home card (lib/showcase/rank.ts's rule).
+  const paintHomeCap = policyFromSettings(allSettings.find((r) => r.key === "wizard_policy")?.value).remoteConfirmCapCents;
+  const paintHomeProjects = showcaseJobs.filter((j) => j.published && j.property_type === "home").map((j) => ({
+    id: j.id, title: j.title, suburb: j.suburb, priceHighCents: j.price_high_cents ?? null, rank: j.featured_rank_painthome ?? null,
+    fits: j.price_high_cents != null && j.price_high_cents <= paintHomeCap,
+  }));
   // Session 8: the copy for both audiences and the fetched reviews' tags.
   const [homeCopy, businessCopy, paintHomeCopy, tagRes] = await Promise.all([
     getSiteCopy("home"), getSiteCopy("business"), getSiteCopy("painthome"),
@@ -315,12 +323,14 @@ export default async function SettingsPage() {
           content: <SettingsForm initial={company} /> },
         { id: "documents", title: "Documents", subtitle: "Credentials on display in every customer portal — insurance certificates with expiry, plus the warranty-terms approval switch", count: companyDocs.length,
           content: <DocumentsManager initialDocs={companyDocs} warrantyApproved={warrantyApproved} /> },
-        { id: "website", title: "Website", subtitle: "The homepage's painter cards and the photos in the promise card and the progress story — the top-left logo comes from Company details (logo 1)", count: websiteContent.painters.length,
+        { id: "website", title: "Website", subtitle: "The Paint Group homepage — painter cards, hero photo, the photos in the promise card and the progress story; the top-left logo comes from Company details (logo 1)", count: websiteContent.painters.length,
           content: <WebsiteContentManager initial={websiteContent} videoJobs={videoJobs} /> },
+        { id: "painthome-website", title: "Paint Home website", subtitle: "painthome.com.au — its hero photo, every word on the page, and which finished jobs are its three project cards", count: paintHomeProjects.filter((p) => p.rank != null).length,
+          content: <PaintHomeWebsiteSettings heroPhoto={websiteContent.heroPhotoPaintHome} copy={paintHomeCopy} projects={paintHomeProjects} capCents={paintHomeCap} paintHomeHref={audiencePrefix("painthome")} /> },
         { id: "brands", title: "Brands", subtitle: "Paint Group and Paint Home — the domain, phone number, legal line and accent colour each shopfront shows; the Paint Home mark is the supplied vector",
           content: <BrandsSettings initial={brandSettings} /> },
-        { id: "site-copy", title: "Website copy", subtitle: "Every word on the homes site, the business site and Paint Home, by section, with a live preview. Business copy is a draft to work through here.",
-          content: <SiteCopyEditor initial={{ home: homeCopy, business: businessCopy, painthome: paintHomeCopy }} businessHref={businessHref} /> },
+        { id: "site-copy", title: "Website copy", subtitle: "Every word on the homes site and the business site, by section, with a live preview (Paint Home's words are in the Paint Home website folder). Business copy is a draft to work through here.",
+          content: <SiteCopyEditor initial={{ home: homeCopy, business: businessCopy }} businessHref={businessHref} /> },
         { id: "review-tags", title: "Reviews", subtitle: "Tag each Google review Home or Business so the business site shows the right ones", count: reviewTags.length,
           content: <ReviewTagsManager initial={reviewTags} /> },
         { id: "showcase", title: "Showcase jobs", subtitle: "Finished jobs shown on the website as “Real jobs, real prices” — photos, price range, what we did; the three featured ones are the homepage cards",

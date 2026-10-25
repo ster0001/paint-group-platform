@@ -3,7 +3,7 @@ feature: paint-home
 role: staff
 title: Paint Home — the second shopfront: its words, its cards, and Settings → Brands
 summary: Paint Home (painthome.com.au) is the same business, wizard, painters, CRM and invoicing under a second name; its words are edited on the Paint Home tab of Website copy, its three cards are home jobs under the phone-close price with their own featured rank, and Settings → Brands holds each shopfront's domain, phone, legal line and accent colour.
-sources: lib/wizard/publicFlag.ts, app/(app)/settings/OnlineEstimatesSettings.tsx, lib/wizard/policy.ts, lib/brand/filter.ts, app/components/BrandPill.tsx, lib/messaging/brand.ts, lib/marketing/brand.ts, lib/marketing/audience.ts, lib/marketing/copy/painthome.ts, app/(marketing)/painthome/page.tsx, app/(app)/settings/BrandsSettings.tsx, app/(app)/settings/SiteCopyEditor.tsx, app/(app)/settings/showcase/ShowcaseEditor.tsx, lib/showcase/rank.ts, lib/wizard/brand.ts, app/wizard/Reveal.tsx, app/api/wizard/submit/route.ts
+sources: app/(app)/settings/PaintHomeWebsiteSettings.tsx, lib/wizard/publicFlag.ts, app/(app)/settings/OnlineEstimatesSettings.tsx, lib/wizard/policy.ts, lib/brand/filter.ts, app/components/BrandPill.tsx, lib/messaging/brand.ts, lib/marketing/brand.ts, lib/marketing/audience.ts, lib/marketing/copy/painthome.ts, app/(marketing)/painthome/page.tsx, app/(app)/settings/BrandsSettings.tsx, app/(app)/settings/SiteCopyEditor.tsx, app/(app)/settings/showcase/ShowcaseEditor.tsx, lib/showcase/rank.ts, lib/wizard/brand.ts, app/wizard/Reveal.tsx, app/api/wizard/submit/route.ts
 ---
 
 ## What this is for
@@ -18,11 +18,20 @@ This page covers what the office sees of it today: how the site is served, and t
 ## Steps
 1. **See the Paint Home homepage.** Open `/painthome` on the site you are logged in to, or painthome.com.au. Same sections as the homes site, under the Paint Home mark, Inside / Outside chips in the address box instead of home / business, ten questions in the FAQ (the first is "Who is Paint Home?"), a Paint Home footer with the Enlvn legal line, and no "For business" link or trade lane. Paint Group is named in exactly three places: the line under the reviews, the end of the first FAQ answer, and the footer.
 2. **Edit the words.** Settings → Company → **Website copy** → the **Paint Home** tab. The sections are in page order; every field is labelled; the preview on the right is the real Paint Home page. Save, and it is live within a minute. The tone to keep: short statements, plain nouns (price, invoice, guarantee, walk-through), nothing that names businesses, agents or trade.
-3. **Pick the three cards.** Settings → Showcase jobs → a job → **Featured on the homepage** → the **Paint Home** rank, 1 to 3. Only home jobs whose top price is at or under the phone-close ceiling (Settings → `wizard_policy`, remote confirmation cap, $12,000 by default) can appear; a ranked job over that price is simply skipped, and gaps are filled with the newest qualifying home jobs.
+3. **Pick the three cards.** Settings → Paint Home website → the Project cards table → the **Paint Home card** rank, 1 to 3 (or on the job itself under **Featured on the homepage**). Only home jobs whose top price is at or under the phone-close ceiling (Settings → `wizard_policy`, remote confirmation cap, $12,000 by default) can appear; a ranked job over that price is simply skipped, and gaps are filled with the newest qualifying home jobs.
 4. **Settings → Company → Brands.** Two cards, Paint Group and Paint Home. Each has four fields: domain, phone number, legal line and accent colour. A blank field uses the default shown as the placeholder, so you only type what differs.
 5. **Change a phone number.** Type it as it should read on the site (digits and spaces). The `tel:` link is worked out from it. Save, and the line under the fields shows the number and link now in use. The websites pick it up within a minute.
 6. **Change the accent colour.** A six-digit hex, like `#17F9F1`. On Paint Home this is the logo cyan used on the address field border, the selected chip, the focus ring and small highlights; it never fills a whole section.
 7. **Logos.** They are not edited here. Paint Group's is Company details → logo 1. Paint Home's is the supplied vector mark, drawn inline on every page, so there is nothing to upload.
+
+## Settings → Paint Home website
+Everything on painthome.com.au that you edit is in one folder, **Settings → Company → Paint Home website** (Tom, 25 Oct 2026: "labelled clearly as Paint Home website"), in the order a visitor meets it:
+
+1. **Hero photo** — upload, then **Save hero photo**. It sits behind the headline (darkened on desktop, a strip above the address box on phones). Empty means the homes site's hero photo is used.
+2. **Every word on the site** — the same section-by-section editor as the homes and business sites, with the live Paint Home page beside it. (The general *Website copy* folder now holds the homes and business words only.)
+3. **Project cards** — every published home job, its top-of-range price, whether it qualifies (at or under the phone-close ceiling and priced), and a **Paint Home card** rank of 1 to 3 you set right there; a rank already held moves to the job you pick. **Add a new project →** opens a blank showcase job; once it is published with a price under the ceiling it qualifies, and the three cards are the ranked ones first, then the newest.
+
+The Paint Home phone number, domain and legal line stay in **Brands**, just above.
 
 ## The wizard on Paint Home
 **Paint Home's wizard is live on its own switch.** Settings → Online estimates has two switches: the first is Paint Group's (paintgroup.com.au stays on its holding page until you turn it on); the second, **Paint Home**, is on by default, so an address typed on painthome.com.au opens the estimator straight away. Turn the Paint Home switch off and painthome.com.au shows the same holding page and call-me form as Paint Group's. Staff and logged-in customers always get through on either site.
