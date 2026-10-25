@@ -473,6 +473,26 @@ describe("the map (rulings 21 and 22)", () => {
   });
 });
 
+describe("the map icon ladder (Tom, 25 Oct 2026)", () => {
+  const ON_SITE = JOBS.map((j) => (j.stage === "pre_start" ? { ...j, stage: "in_progress" } : j));
+  it("the console's items on a job outrank its needs: a check-in due is a violet phone, an overdue movement a red warning; the list is in ladder order and the count is the lot", () => {
+    const w = world({ jobs: ON_SITE, movements: [mv({ id: "t", kind: "paint", work_order_id: "0094" })], jobItems: {
+      "0094": [{ kind: "job_checkin", title: "Check in with the Sandringham customer" }, { kind: "painter_message", title: "Josef wrote" }],
+      "0092": [{ kind: "movement_overdue", title: "Gear drop-off overdue" }, { kind: "qa_check_due", title: "Quality check due" }],
+    } });
+    const by = Object.fromEntries(mapPins(w, null, MON).jobs.map((p) => [p.job.id, p]));
+    expect(by["0094"]).toMatchObject({ fill: "violet", need: "paint", line: "Check in with the Sandringham customer · paint to plan +1" });
+    expect(by["0094"].attention).toMatchObject({ tier: "call", icon: "phone", count: 3 });
+    expect(by["0094"].attention.lines.map((l) => l.tier)).toEqual(["call", "move", "other"]);
+    expect(by["0092"]).toMatchObject({ fill: "red", need: null, line: "Gear drop-off overdue · Quality check due" });
+    expect(by["0092"].attention).toMatchObject({ tier: "problem", icon: "warning", count: 2 });
+    // A world without items (the painter's read, older callers): the old three fills still hold.
+    const plain = Object.fromEntries(mapPins(world({ jobs: ON_SITE, movements: [mv({ id: "t", kind: "paint", work_order_id: "0094" })] }), null, MON).jobs.map((p) => [p.job.id, p]));
+    expect(plain["0094"]).toMatchObject({ fill: "amber", attention: { tier: "move", icon: "need", count: 1 } });
+    expect(plain["0092"]).toMatchObject({ fill: "teal", attention: { tier: "none", icon: "house", count: 0 } });
+  });
+});
+
 describe("the map shows only the active jobs (Tom, 21 Oct 2026)", () => {
   const TODAY = "2026-10-21";
   it("onMap: on-site stages yes; an offer or a booking confirmed no; a closed job until a week after it was paid", () => {

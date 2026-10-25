@@ -8,7 +8,8 @@ import {
 } from "@/lib/movements/evaluate";
 import RunPlanner, { nextStart, type PlanEntry } from "./RunPlanner";
 import type { JobExtras } from "@/lib/movements/load";
-import { KIND_ICONS, movementIcon } from "@/lib/movements/gearIcons";
+import { ATTENTION_ICONS, KIND_ICONS, movementIcon } from "@/lib/movements/gearIcons";
+import { TIER_LABEL, type JobAttention } from "@/lib/movements/jobIcon";
 import type { EquipmentCategory, MovementRow, Point } from "@/lib/movements/types";
 import { loadGoogleMaps, mapsBrowserKey, type GoogleMapsLib } from "@/lib/maps/googleMaps";
 import { todayIso } from "@/lib/scheduling/dates";
@@ -38,9 +39,18 @@ const WAREHOUSE = (
     <path d="M3 9l9-5 9 5v11H3z" /><path d="M7 20v-7h10v7" /><path d="M7 16h10" />
   </svg>
 );
-const FILL: Record<JobPin["fill"], string> = { teal: "#1A9DAE", amber: "#C9962F", grey: "#9AA3AB" };
+// The ladder's colours (lib/movements/jobIcon.ts): red problem, violet call, cyan visit, amber move, grey closed, teal nothing.
+const FILL: Record<JobPin["fill"], string> = { teal: "#1A9DAE", amber: "#C9962F", grey: "#9AA3AB", red: "#C9463D", violet: "#5B4FD6", cyan: "#0E8C9C" };
 const VIOLET = "#5B4FD6";
 const INK = "#12161A";
+const TIER_FILL = { problem: "red", call: "violet", visit: "cyan", move: "amber", closed: "grey", none: "teal" } as const;
+/** The ladder's icon: warning / phone / clipboard, the first need's icon on the move rung, a ladder on a closed job, the house otherwise. */
+function attentionIcon(a: JobAttention, first: MovementRow | undefined, categoryOf: MapViewProps["categoryOf"]) {
+  if (a.icon === "warning" || a.icon === "phone" || a.icon === "clipboard") return ATTENTION_ICONS[a.icon];
+  if (a.icon === "need") return first ? movementIcon(first, categoryOf(first)) : KIND_ICONS.materials;
+  if (a.icon === "gear") return KIND_ICONS.gear;
+  return HOUSE;
+}
 
 /** Where a stop is, in words (the order card's second line). */
 function whereOf(m: MovementRow, world: World, lane: MovementLane): string {
@@ -316,15 +326,21 @@ export default function MapView({ world, ctx, lanes, jobExtras, days, day, who, 
           {badges(pins.warehouse.badges, colour)}
         </div>
       ); })()}
-      {pins.jobs.map((p) => { const at = place(p.point); if (!at) return null; const first = p.needs[0]; const open = openPin === p.job.id; return (
-        <div key={`job:${p.job.id}`} className={`mpin job ${p.fill}${open ? " open" : ""}`} style={at} data-testid="map-job" data-job-id={p.job.id} data-fill={p.fill} data-need={p.need ?? ""} data-point={jobExtras[p.job.id]?.pointSource ?? "none"} data-open={open ? "true" : "false"}>
-          <button type="button" className="ibox" style={{ background: FILL[p.fill] }} aria-label={`${p.label} — ${p.line}`} aria-expanded={open}
+      {pins.jobs.map((p) => { const at = place(p.point); if (!at) return null; const first = p.needs[0]; const open = openPin === p.job.id; const a = p.attention; return (
+        <div key={`job:${p.job.id}`} className={`mpin job ${p.fill}${open ? " open" : ""}`} style={at} data-testid="map-job" data-job-id={p.job.id} data-fill={p.fill} data-tier={a.tier} data-count={a.count} data-need={p.need ?? ""} data-point={jobExtras[p.job.id]?.pointSource ?? "none"} data-open={open ? "true" : "false"}>
+          <button type="button" className="ibox" style={{ background: FILL[p.fill] }} aria-label={`${p.label} — ${TIER_LABEL[a.tier]} — ${p.line}`} aria-expanded={open}
             draggable onDragStart={(e) => { e.dataTransfer.setData("text/plain", `job:${p.job.id}`); e.dataTransfer.effectAllowed = "copy"; }}
             onClick={() => setOpenPin((cur) => (cur === p.job.id ? null : p.job.id))}>
-            {first ? movementIcon(first, categoryOf(first)) : HOUSE}
+            {attentionIcon(a, first, categoryOf)}
           </button>
+          {a.count > 1 && <span className="mcount" style={{ background: FILL[p.fill] }} data-testid="map-count">{a.count}</span>}
           <div className="mpop" data-testid="map-pop">
-            <b>{p.label}</b><small>{p.job.suburb ? `${p.job.suburb} · ` : ""}{p.job.jobRef}</small><small className="ln">{p.line}</small>
+            <b>{p.label}</b><small>{p.job.suburb ? `${p.job.suburb} · ` : ""}{p.job.jobRef}</small>
+            {a.count > 0 ? (
+              <ul className="todo" data-testid="map-todo">
+                {a.lines.map((l, i) => <li key={i} data-tier={l.tier}><i style={{ background: l.tier === "other" ? "#9AA3AB" : FILL[TIER_FILL[l.tier]] }} />{l.label}</li>)}
+              </ul>
+            ) : <small className="ln">{p.line}</small>}
             {first && <button type="button" className="mopen" onClick={() => { setOpenPin(null); onOpen(first); }} data-testid="map-pop-open">Open {kindLabel(first).toLowerCase()}</button>}
             <button type="button" className="mopen plan" onClick={() => { setOpenPin(null); addJob(p.job.id); }} data-testid="map-pop-plan">+ Add to run</button>
           </div>
@@ -356,7 +372,8 @@ export default function MapView({ world, ctx, lanes, jobExtras, days, day, who, 
           onPointerDown={(e) => onHandleDown(e, m.id)} onPointerMove={onHandleMove} onPointerUp={onHandleUp} onPointerCancel={onHandleUp}>⋮⋮</button>
         <span className="num" data-testid="order-n">{s.n}</span>
         <button type="button" className="obody" onClick={() => onOpen(m)}>
-          <b><span className="ic">{movementIcon(m, categoryOf(m))}</span>{kindLabel(m)} · {m.title}</b>
+          <b>{(() => { const t = pins.jobs.find((p) => p.job.id === m.work_order_id)?.attention; return t && (t.tier === "problem" || t.tier === "call" || t.tier === "visit")
+            ? <span className="jt" style={{ background: FILL[TIER_FILL[t.tier]] }} title={TIER_LABEL[t.tier]} data-testid="order-tier" data-tier={t.tier}>{ATTENTION_ICONS[t.icon as "warning" | "phone" | "clipboard"]}</span> : null; })()}<span className="ic">{movementIcon(m, categoryOf(m))}</span>{kindLabel(m)} · {m.title}</b>
           <small>{whereOf(m, world, lane!)}</small>
         </button>
         <span className="km">{s.time}<br />{s.kmFromPrevious != null ? `${s.kmFromPrevious.toFixed(0)} km` : ""}</span>
@@ -392,7 +409,7 @@ export default function MapView({ world, ctx, lanes, jobExtras, days, day, who, 
           {state.kind === "failed" && <p className="mapnote bad" role="alert">{state.why}</p>}
           {pinNodes}
         </div>
-        <p className="note">Only the active jobs: on site, in the finish, or closed with gear still there (a closed job leaves a week after it is paid). Each is one icon — amber with a paint / materials / gear / rubbish icon when it still needs something. Hover or tap an icon for the address; the amber ones open their chip from there, and <b>+ Add to run</b> puts the job on the run plan (drag the icon into the plan box does the same). Numbers are {lane ? `${first}'s` : "the selected person's"} order for the day.</p>
+        <p className="note">Only the active jobs: on site, in the finish, or closed with gear still there (a closed job leaves a week after it is paid). Each is one icon, chosen by what matters most on the job: red for a problem, violet when the client needs a call, cyan when the office needs to be on site, amber with a paint / materials / gear / rubbish icon when something still has to move. Hover or tap an icon for the address; the amber ones open their chip from there, and <b>+ Add to run</b> puts the job on the run plan (drag the icon into the plan box does the same). Numbers are {lane ? `${first}'s` : "the selected person's"} order for the day.</p>
         <div className="card totray" data-testid="map-tray">
           <h3>Still to plan <em>{toPlan.length} chip{toPlan.length === 1 ? "" : "s"} in the tray</em></h3>
           <p className="note">Everything outstanding, by job. Tap + or drag a chip into the run plan.</p>
@@ -432,9 +449,13 @@ export default function MapView({ world, ctx, lanes, jobExtras, days, day, who, 
         <div className="card">
           <h3>Icons <em>what they mean</em></h3>
           <div className="maplegend" data-testid="map-legend">
-            <span><i className="sq" style={{ background: FILL.teal }} />Job — nothing outstanding</span>
-            <span><i className="sq" style={{ background: FILL.amber }} />Job — needs something (the icon says what)</span>
+            <span><i className="sq" style={{ background: FILL.red }} /><span className="ki">{ATTENTION_ICONS.warning}</span>Something is wrong — overdue or a problem on a movement, a payment hold, a flagged walkthrough, a call back not booked</span>
+            <span><i className="sq" style={{ background: FILL.violet }} /><span className="ki">{ATTENTION_ICONS.phone}</span>Call the client — check-in or follow-up due, a call-back visit soon, a delivery not confirmed</span>
+            <span><i className="sq" style={{ background: FILL.cyan }} /><span className="ki">{ATTENTION_ICONS.clipboard}</span>Office on site — a quality check due or to book, a site check-in due</span>
+            <span><i className="sq" style={{ background: FILL.amber }} />Something to move (the icon says what)</span>
             <span><i className="sq" style={{ background: FILL.grey }} />Closed job — gear still there</span>
+            <span><i className="sq" style={{ background: FILL.teal }} />Nothing outstanding</span>
+            <span className="kl">The most important thing picks the icon; a number on the corner says how many are open — hover or tap for the list.</span>
             <span><i className="sq" style={{ background: INK }} />Warehouse</span>
             <span><i style={{ background: FILL.teal, opacity: 0.5 }} />Shop / hire yard (faint until a stop today, or Shops is on)</span>
             <span><i style={{ background: colour }} />Numbered = {lane ? `${first}'s` : "the person's"} order today</span>
