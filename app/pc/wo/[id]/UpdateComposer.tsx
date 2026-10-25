@@ -49,6 +49,9 @@ export default function UpdateComposer({ workOrderId, draftText, photos }: {
   return (
     <div className="card" data-testid="update-composer">
       <h3>Send the customer an update</h3>
+      <p className="note" style={{ margin: "4px 0 0" }}>
+        Send as many as you need, whatever has already gone today — each one is emailed and texted, and sits on their job page.
+      </p>
       <textarea
         value={body}
         onChange={(e) => setBody(e.target.value)}
