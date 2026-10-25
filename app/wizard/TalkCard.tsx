@@ -11,7 +11,10 @@ import type { WizardBrand } from "@/lib/wizard/brand";
  * `ql-message`), and it is rendered ONCE. Tom, 21 Oct: it FLOATS bottom-right
  * on every wizard page as a slim BAR, not a card — one row on a laptop (the
  * avatar, one line, the three buttons); on a phone a bar of the three options
- * just above the Continue bar — so the page underneath stays readable.
+ * just above the Continue bar — so the page underneath stays readable. Tom,
+ * 25 Oct: on a phone it is a compact pill at the bottom right (the avatar and
+ * the three options as icons; the words stay for screen readers and the
+ * specs) — the full-width bar sat over the answer cards.
  *
  * The estimator is whoever the wizard already resolves (⚑ 23,
  * `resolveEstimator` — Settings → Estimator until an address names a patch);
@@ -40,17 +43,17 @@ export default function TalkCard({ estimatorName, phone, onBook, onMessage, bran
       <div className="wz-talk-row">
         <button type="button" className="wz-btn wz-bs2" onClick={onBook} data-testid="ql-book">
           <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="5" width="16" height="15" rx="2" /><path d="M4 10h16M8 3v4M16 3v4" /></svg>
-          {painthome ? "Request a call" : "Request a site visit"}
+          <span className="wz-talk-lbl">{painthome ? "Request a call" : "Request a site visit"}</span>
         </button>
         {phone && (
           <a className="wz-btn wz-bs2" href={`tel:${phone.replace(/\s+/g, "")}`} data-testid="ql-call">
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4h4l2 5-2.5 1.5a11 11 0 005 5L15 13l5 2v4a2 2 0 01-2 2A16 16 0 013 6a2 2 0 012-2z" /></svg>
-            Call us
+            <span className="wz-talk-lbl">Call us</span>
           </a>
         )}
         <button type="button" className="wz-btn wz-bs2" onClick={onMessage} data-testid="ql-message">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v11H9l-5 4z" /></svg>
-          Send a message
+          <span className="wz-talk-lbl">Send a message</span>
         </button>
       </div>
       </div>

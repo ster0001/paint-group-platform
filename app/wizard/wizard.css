@@ -1621,15 +1621,14 @@
      step bar, which is 99px tall with its progress line), and the house is drawn larger: the
      400 × 300 drawing is scaled up around the house itself, so the ground and sky are cropped
      and the house fills the band — "slightly larger, but not so large it takes up the full
-     screen and you can't scroll": the band is 150px, the card about 190px with its note. */
+     screen and you can't scroll": the band is 170px (Tom, 25 Oct, second pass: 150 left the
+     400 × 300 room and plan drawings 200px wide), the card about 210px with its note. */
   .wz .wz-pic { position: sticky; top: 99px; z-index: 30; border-radius: 18px; box-shadow: 0 1px 0 rgba(13,22,28,.04), 0 14px 28px -14px rgba(13,22,28,.35); }
   .wz .wz-pic-head { display: none; }
-  .wz .wz-pic-art { aspect-ratio: auto; height: 150px; overflow: hidden; }
+  .wz .wz-pic-art { aspect-ratio: auto; height: 170px; overflow: hidden; }
   .wz .wz-pic-art > svg.wz-house, .wz .wz-pic-art > svg.wz-outhouse { transform: scale(1.75); transform-origin: 50% 64%; }
   /* two storeys is a taller drawing: a little less zoom, pivoted higher, so the roof stays in the band */
   .wz .wz-pic-art > svg.wz-house.two, .wz .wz-pic-art > svg.wz-outhouse.two { transform: scale(1.4); transform-origin: 50% 52%; }
-  /* Tom, 21 Oct: the drawn house needs the room — 112 px made a 400 × 240 elevation 150 px wide, its windows unreadable. */
-  .wz .wz-pic-art:has(> .wz-elev) { height: 172px; }
   .wz .wz-pic-note { padding: 7px 14px 8px; min-height: 0; font-size: 13.5px; line-height: 1.35; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
   .wz .wz-stage .wz-cards--col { gap: 8px; }
   .wz .wz-stage .wz-cards--col .wz-card { min-height: 104px; padding: 12px 10px; gap: 8px; }
@@ -2434,3 +2433,41 @@
 .wz .wz-ph-handoff .wz-kick { margin-bottom: 6px; }
 .wz .wz-ph-handoff .wz-sub { margin: 0 0 8px; max-width: 60ch; }
 .wz .wz-ph-handoff .wz-doors { margin-top: 12px; }
+
+/* ───── Tom, 25 Oct 2026 (the wizard on a phone) ───── */
+@media (max-width: 900px) {
+  /* The talk bar is a compact pill at the bottom right — the avatar and the three options as
+     icons (the words stay, visually hidden) — not a full-width bar over the answer cards. It
+     also had `width: 100%` from the stage's stretch rule, so it ran off the right of the screen. */
+  .wz .wz-stage .wz-side .wz-talk { left: auto; right: 12px; bottom: calc(90px + env(safe-area-inset-bottom)); width: auto; }
+  .wz .wz-talk-body { border-radius: 100px; padding: 4px; gap: 4px; }
+  .wz .wz-stage .wz-talk-body .wz-talk-row { flex: none; justify-content: flex-start; gap: 2px; }
+  .wz .wz-stage .wz-talk-body .wz-talk-row .wz-btn { flex: none; width: 40px; min-height: 40px; padding: 0; border-radius: 50%; border-color: transparent; }
+  .wz .wz-stage .wz-talk-body .wz-talk-row .wz-btn svg { width: 19px; height: 19px; }
+  .wz .wz-talk-lbl { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  /* Icon cards two-up (the kind of property, storeys, occupied): the icon ABOVE the words — beside
+     them the words had 47px and broke mid-word ("Townh ouse", "Comm ercial"). */
+  .wz .wz-stage .wz-cards:not(.wz-cards--col) .wz-card:has(.wz-pic-icon) { flex-direction: column; align-items: flex-start; gap: 8px; padding: 12px 40px 12px 12px; min-height: 0; }
+  .wz .wz-stage .wz-cards:not(.wz-cards--col) .wz-card:has(.wz-pic-icon) > b { font-size: 15.5px; line-height: 1.2; }
+  .wz .wz-stage .wz-cards:not(.wz-cards--col) .wz-card:has(.wz-pic-icon) > span { flex-basis: auto; font-size: 13px; line-height: 1.3; }
+  .wz .wz-stage .wz-cards:not(.wz-cards--col) .wz-card .wz-pic-icon { width: 34px; height: 34px; }
+  .wz .wz-stage .wz-cards:not(.wz-cards--col) .wz-card:has(.wz-pic-icon)::after { top: 12px; right: 12px; width: 22px; height: 22px; background-size: 12px; }
+  /* The drawn house (exterior v2, a 400 × 240 elevation in the 170px band) fitted by height and sat
+     small in the middle with sky either side. Scaled about the ground line it fills the band edge
+     to edge; the top of the drawing (the chimney, y = 51) is still in (the band shows y ≥ 46). */
+  .wz .wz-pic-art > svg.wz-elev { transform: scale(1.24); transform-origin: 50% 100%; }
+  /* The room and the floor plan fill their 400 × 300 and cannot be cropped much: a notch larger
+     about the centre (the plan's rooms, drawn 14–286, all stay in at 1.1). */
+  .wz .wz-pic-art > svg.wz-room { transform: scale(1.18); transform-origin: 50% 50%; }
+  .wz .wz-pic-art > svg.wz-plan { transform: scale(1.1); transform-origin: 50% 50%; }
+  /* With the step bar and the pinned picture taking the top 290px, the heading and its line
+     were most of what was left: a notch smaller on a phone, so the first answer is in reach. */
+  .wz .wz-stage h1 { font-size: 27px; }
+  .wz .wz-stage .wz-sub { font-size: 16px; margin: 8px 0 20px; }
+  .wz .wz-stage .wz-qhead { font-size: 18px; margin-top: 24px; }
+  .wz .wz-stage .wz-hint { font-size: 15px; }
+  /* "Continue to the last question" wrapped onto two lines in the bottom bar. */
+  .wz .wz-btn.wz-bpaint { padding: 0 14px; font-size: 16.5px; min-height: 54px; white-space: nowrap; }
+  .wz .wz-btn.wz-bpaint svg { display: none; }
+  .wz .wz-btn.wz-btxt { min-height: 54px; padding: 0 10px; font-size: 17px; }
+}
