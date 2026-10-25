@@ -46,7 +46,7 @@ export default function RunList({ world: serial, ctx, lane, day }: { world: Seri
   return (
     <div className="runlist" data-testid="run-list" data-day={day}>
       <h1>{lane.name.split(" ")[0]}&rsquo;s run · {shortDay(day)}</h1>
-      <p className="lede">{plan.stopCount} stop{plan.stopCount === 1 ? "" : "s"} · about {plan.totalKm.toFixed(0)} km from the warehouse and back.</p>
+      <p className="lede">{plan.stopCount} stop{plan.stopCount === 1 ? "" : "s"} · about {plan.totalKm.toFixed(0)} km from the first stop to the last.</p>
       {message && <p className="err" role="alert">{message}</p>}
       <ol>
         {plan.stops.map((s) => {
