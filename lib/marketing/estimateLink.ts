@@ -54,11 +54,19 @@ export function estimateHref(
      *  `painthome` is ever written — Paint Group is the wizard's default and
      *  carries no tag (the wizard reads it in Session 3). */
     brand?: "painthome";
+    /** Tom, 25 Oct 2026: the homepage's resolved pick — its street, suburb, state and postcode ride along so the wizard opens with the address known, not just its words. */
+    picked?: { street: string; suburb: string; state: string; postcode: string } | null;
   } = {},
 ): string {
   const q = new URLSearchParams();
   const a = address.trim();
   if (a) q.set("address", a);
+  if (opts.picked && opts.picked.suburb.trim() && opts.picked.postcode.trim()) {
+    if (opts.picked.street.trim()) q.set("street", opts.picked.street.trim());
+    q.set("suburb", opts.picked.suburb.trim());
+    if (opts.picked.state.trim()) q.set("state", opts.picked.state.trim());
+    q.set("postcode", opts.picked.postcode.trim());
+  }
   q.set("mode", mode);
   if (opts.scope) q.set("scope", opts.scope);
   if (opts.from) q.set("from", opts.from);

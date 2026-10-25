@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useId, useRef, useState } from "react";
-import { useAddressLookup, type AddressSuggestion } from "@/app/components/useAddressLookup";
+import { useAddressLookup, type AddressSuggestion, type PickedAddress } from "@/app/components/useAddressLookup";
 import Chip from "./Chip";
 import { track } from "@/lib/analytics";
 import type { Mode, Scope } from "@/lib/marketing/estimateLink";
@@ -57,12 +57,14 @@ export default function AddressField({
   /** Session 8 §4: the self-typing examples, from site content, this audience's mode only. */
   examples?: readonly GhostExample[];
   labels?: FieldLabels;
-  onSubmit: (address: string, mode: Mode, scope: Scope) => void;
+  /** `picked` (Tom, 25 Oct 2026): the resolved address when a suggestion was chosen or the top match resolved on submit — the hand-off carries its suburb and postcode. */
+  onSubmit: (address: string, mode: Mode, scope: Scope, picked: PickedAddress | null) => void;
 }) {
   const { audience } = useAudience();
   const restMode: Mode = initialMode ?? (audience === "business" ? "business" : "home");
   const list = examples && examples.length ? examples : GHOST_EXAMPLES.filter((e) => e.mode === restMode);
   const [value, setValue] = useState("");
+  const [picked, setPicked] = useState<PickedAddress | null>(null);
   const [mode, setMode] = useState<Mode>(restMode);
   const [scope, setScope] = useState<Scope>("interior");
   const typedOnce = useRef(false);
@@ -121,6 +123,7 @@ export default function AddressField({
   function onChange(text: string) {
     stopGhostNow();
     setValue(text);
+    setPicked(null);
     if (!typedOnce.current && text.trim()) {
       typedOnce.current = true;
       track("address_typed", { where });
@@ -131,7 +134,24 @@ export default function AddressField({
   async function pick(s: AddressSuggestion) {
     const resolved = await resolve(s);
     setValue(resolved ? resolved.address.formatted : [s.main, s.secondary].filter(Boolean).join(", "));
+    setPicked(resolved?.address ?? null);
     track("address_selected", { where });
+  }
+
+  /**
+   * Tom, 25 Oct 2026: See my price with words but no pick used to hand over
+   * the words alone, and the wizard answered "We couldn't look that address
+   * up". Now the top suggestion (when the list has one) is resolved first,
+   * so the suburb and postcode travel with the address.
+   */
+  async function submit() {
+    let p = picked;
+    let text = value.trim();
+    if (!p && suggestions.length > 0) {
+      const r = await resolve(suggestions[0]);
+      if (r) { p = r.address; text = r.address.formatted; setValue(text); setPicked(p); }
+    }
+    onSubmit(text, mode, scope, p);
   }
 
   function choose(next: Mode) {
@@ -155,7 +175,7 @@ export default function AddressField({
           e.preventDefault();
           stopGhostNow();
           setOpen(false);
-          onSubmit(value.trim(), mode, scope);
+          void submit();
         }}
       >
         <svg className="pin" aria-hidden="true" width="18" height="22" viewBox="0 0 18 22" fill="none"><path d="M9 21s7-6.6 7-12A7 7 0 0 0 2 9c0 5.4 7 12 7 12Z" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round"/><circle cx="9" cy="9" r="2.6" stroke="currentColor" strokeWidth="1.8"/></svg>

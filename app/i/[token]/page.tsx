@@ -165,6 +165,7 @@ export default async function CustomerInvoicePage({
       <div className="sheet-wrap">
         <InvoiceSheet
           doc={doc}
+          brand={invoiceBrand}
           entity={entity}
           bank={bank}
           printMode={printMode}

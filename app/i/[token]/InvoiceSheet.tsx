@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import PaintHomeLogo from "@/app/(marketing)/_components/PaintHomeLogo";
 
 /**
  * THE invoice document — the white A4 tax-invoice sheet. One component for
@@ -69,10 +70,12 @@ export const KIND_HEADING: Record<string, string> = {
 };
 
 export default function InvoiceSheet({
-  doc, entity, bank, payBox = null, payPanel = null, extraNote = null,
+  doc, entity, bank, payBox = null, payPanel = null, extraNote = null, brand = "paintgroup",
 }: {
   doc: SheetDoc;
   entity: Record<string, string>;
+  /** Tom, 25 Oct 2026: a Paint Home invoice carries the Paint Home mark where the wordmark sits (the PDF is a print of this sheet). */
+  brand?: "paintgroup" | "painthome";
   bank: Record<string, string>;
   printMode?: boolean;
   /** The customer's Pay button (opens the bank-details box). When given it
@@ -112,7 +115,9 @@ export default function InvoiceSheet({
     <div className="sheet" data-testid="invoice-sheet">
       <div className="top">
         <div>
-          <div className="wordmark">PAINT<span>GROUP</span></div>
+          {brand === "painthome"
+            ? <PaintHomeLogo on="light" className="ph-mark" />
+            : <div className="wordmark">PAINT<span>GROUP</span></div>}
           {/* Tagline only when Settings sets one (Tom, 1 Sep: the old
               "Painting · Plastering · Restoration" default is gone). */}
           {entity.brandSub ? <div className="tagline">{entity.brandSub}</div> : null}

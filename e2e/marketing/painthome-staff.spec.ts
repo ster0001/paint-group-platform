@@ -43,7 +43,8 @@ test.describe("Paint Home — the staff side (session 5)", () => {
     await expect(ph).toBeVisible({ timeout: 20_000 });
     await expect(pg).toBeVisible();
     await expect(ph.getByTestId("brand-pill")).toHaveText("Paint Home");
-    await expect(pg.getByTestId("brand-pill")).toHaveCount(0);
+    // Tom, 25 Oct 2026: every enquiry names its shopfront
+    await expect(pg.getByTestId("brand-pill")).toHaveText("Paint Group");
 
     await page.getByTestId("brand-filter-painthome").click();
     await expect(page).toHaveURL(/brand=painthome/);
