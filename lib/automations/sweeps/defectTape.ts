@@ -37,6 +37,8 @@ import { dayInstant, suburbFromAddress } from "./moneySignoff";
 import { realOnly } from "@/lib/demo/scope";
 
 export const DEFECT_TAPE_KEY = "customer_defect_tape";
+/** Superseded by the queue's defect-day message (M1, 24 Oct 2026). */
+export const DEFECT_TAPE_SUPERSEDED = true;
 const OPEN_STAGES = ["pre_start", "in_progress", "completion_prep"];
 
 export type DefectTapeRules = {
@@ -73,7 +75,7 @@ export function defectTapeDue(days: readonly string[], now: Date, rules: DefectT
   return null;
 }
 
-export type DefectTapeResult = { due: number; dispatched: number; stopped: number };
+export type DefectTapeResult = { due: number; dispatched: number; stopped: number; superseded?: true };
 
 type JobRow = {
   id: string; wo_ref: string; stage: string; start_date: string | null; end_date: string | null; estimate_id: string;
@@ -93,6 +95,12 @@ const finishDate = (iso: string) =>
 
 export async function runDefectTapeSweep(db: SupabaseClient, now = new Date()): Promise<DefectTapeResult> {
   const out: DefectTapeResult = { due: 0, dispatched: 0, stopped: 0 };
+  // Work order UX (24 Oct 2026, ruling M1): the defect-tape text is now the
+  // Customer updates queue's defect-day message (lib/automations/sweeps/
+  // customerUpdates.ts runCustomerNoteTriggers → wo_draft_note), sent as text,
+  // email and timeline entry through the queue. This sweep sends nothing any
+  // more; its day maths (customerDefectTapeRungs) is what the queue reuses.
+  if (DEFECT_TAPE_SUPERSEDED) return { ...out, superseded: true };
   const a = automationByKey(DEFECT_TAPE_KEY);
   try {
     const { messaging, company } = await loadMessaging(db);

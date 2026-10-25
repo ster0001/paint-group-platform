@@ -63,8 +63,13 @@ export async function setAutoSend(db: SupabaseClient, on: boolean): Promise<{ er
   return { error: upErr?.message ?? null };
 }
 
-/** The kinds that reach the customer on the timeline only — never emailed or texted (R10; Step 3 default for the defect-day note). */
-export const TIMELINE_ONLY_KINDS: ReadonlySet<string> = new Set(["checkin_40", "defect_day"]);
+/**
+ * The kinds that reach the customer on the timeline only — never emailed or
+ * texted: the 40% check-in (R10). The defect-day message is NOT one of them:
+ * since 24 Oct 2026 (M1, Tom) it IS the defect-tape text — one queued message,
+ * text + email + timeline — and the old customer_defect_tape sweep is superseded.
+ */
+export const TIMELINE_ONLY_KINDS: ReadonlySet<string> = new Set(["checkin_40"]);
 export function isTimelineOnlyKind(kind: string | null | undefined): boolean {
   return !!kind && TIMELINE_ONLY_KINDS.has(kind);
 }
