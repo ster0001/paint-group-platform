@@ -5,7 +5,7 @@
  */
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { envelopeFor, openQuestions, dearestTree, assumedHeightTree, sizeResidualPct, sumEnvelopes } from "./envelope";
+import { capSpread, envelopeFor, openQuestions, dearestTree, assumedHeightTree, sizeResidualPct, sumEnvelopes } from "./envelope";
 import { defaultExterior, defaultWizardState, type WizardState } from "./state";
 import { DEFAULT_BANDS } from "./policy";
 import { priceEstimateTotals, type PricingContext } from "@/lib/pricing/estimate";
@@ -16,6 +16,8 @@ const refsFile = JSON.parse(readFileSync(new URL("../agent/__fixtures__/scope-re
 const golden = JSON.parse(readFileSync(new URL("../pricing/__fixtures__/golden-estimates.json", import.meta.url), "utf8")) as { reference: Pick<PricingContext, "products" | "modifiers" | "settings"> };
 const ctx: PricingContext = { rateItems: refsFile.rateItems, products: golden.reference.products, modifiers: golden.reference.modifiers, settings: golden.reference.settings };
 const adj = { modSel: {}, materials: {} };
+/** The mechanics below are about the ends nesting; the guide cap (Tom, 25 Oct 2026) is tested on its own, so it is OFF here. */
+const BANDS = { ...DEFAULT_BANDS, guideMaxSpreadPct: 0 };
 
 const surf = (id: number, code: string, count = 1) => ({ id, code, internalLabel: code, clientLabel: code, count, coats: 2, prepHr: 0, crewNote: "", origin: "ai_assumed", confidence: 0.5, assumedFields: [] });
 const room = (id: number, name: string, roomType: string, surfaces: ReturnType<typeof surf>[]) => ({
@@ -69,8 +71,8 @@ describe("open questions", () => {
     expect(openQuestions(withPaint({ base: "water", trimsOilBased: "yes" }), tree(), codes)).not.toContain("trims");
     // "Not sure what is underneath" keeps the top end honest.
     expect(openQuestions(withPaint({ base: "water", trimsOilBased: "unsure" }), tree(), codes)).toContain("trims");
-    const open = envelopeFor({ blocks: tree(), state: state(), ctx, adj, bands: DEFAULT_BANDS, confirmed: null });
-    const closed = envelopeFor({ blocks: tree(), state: withPaint({ base: "oil" }), ctx, adj, bands: DEFAULT_BANDS, confirmed: null });
+    const open = envelopeFor({ blocks: tree(), state: state(), ctx, adj, bands: BANDS, confirmed: null });
+    const closed = envelopeFor({ blocks: tree(), state: withPaint({ base: "oil" }), ctx, adj, bands: BANDS, confirmed: null });
     expect(closed.hiCents).toBeLessThan(open.hiCents);
     expect(closed.loCents).toBe(open.loCents);
     expect(open.closesCents.trims).toBeGreaterThan(0);
@@ -79,47 +81,47 @@ describe("open questions", () => {
 
 describe("the envelope", () => {
   it("is wider than the cheap tree's band, and the ends NEST as questions are answered", () => {
-    const e0 = envelopeFor({ blocks: tree(), state: state(), ctx, adj, bands: DEFAULT_BANDS, confirmed: null });
+    const e0 = envelopeFor({ blocks: tree(), state: state(), ctx, adj, bands: BANDS, confirmed: null });
     expect(e0.open.length).toBeGreaterThan(0);
     expect(e0.hiCents).toBeGreaterThan(e0.loCents);
     // Answer "panel doors" — the dear answer: the low end may rise, the high end may not.
-    const e1 = envelopeFor({ blocks: tree(), state: state({ doorStyle: "panel" }), ctx, adj, bands: DEFAULT_BANDS, confirmed: null });
+    const e1 = envelopeFor({ blocks: tree(), state: state({ doorStyle: "panel" }), ctx, adj, bands: BANDS, confirmed: null });
     expect(e1.loCents).toBeGreaterThanOrEqual(e0.loCents);
     expect(e1.hiCents).toBeLessThanOrEqual(e0.hiCents);
     expect(e1.open).not.toContain("doors");
     // Answer "flat doors" — the cheap answer: the high end drops, the low end holds.
-    const e2 = envelopeFor({ blocks: tree(), state: state({ doorStyle: "flat" }), ctx, adj, bands: DEFAULT_BANDS, confirmed: null });
+    const e2 = envelopeFor({ blocks: tree(), state: state({ doorStyle: "flat" }), ctx, adj, bands: BANDS, confirmed: null });
     expect(e2.hiCents).toBeLessThanOrEqual(e0.hiCents);
     expect(e2.loCents).toBeGreaterThanOrEqual(e0.loCents);
     // Tom, 14 Sep (evening, item 8): the low end already prices 2.4 m and the high end 3 m, so
     // confirming 2.4 on the tree lowers the HIGH end and leaves the low end where it was.
     const confirmedH = tree().map((b) => ({ ...b, assumedFields: ["L", "W"] }));
-    const eH = envelopeFor({ blocks: confirmedH, state: state(), ctx, adj, bands: DEFAULT_BANDS, confirmed: null });
+    const eH = envelopeFor({ blocks: confirmedH, state: state(), ctx, adj, bands: BANDS, confirmed: null });
     expect(eH.open).not.toContain("height");
     expect(eH.hiCents).toBeLessThan(e0.hiCents);
     expect(eH.loCents).toBeGreaterThanOrEqual(e0.loCents);
     // …and confirming 3 m lifts the low end to the high end's footing.
     const confirmed3 = tree().map((b) => ({ ...b, H: 3.0, assumedFields: ["L", "W"] }));
-    const eUp = envelopeFor({ blocks: confirmed3, state: state(), ctx, adj, bands: DEFAULT_BANDS, confirmed: null });
+    const eUp = envelopeFor({ blocks: confirmed3, state: state(), ctx, adj, bands: BANDS, confirmed: null });
     expect(eUp.loCents).toBeGreaterThan(e0.loCents);
     // Everything answered: the envelope is the residual alone. (14 Sep: the
     // trims question closes when the customer says what is underneath.)
     const allDetails = state({ doorStyle: "flat", windowStyle: "casement", ceilingHeight: "2.4" });
     const all = { ...allDetails, paint: { ...allDetails.paint, trimsOilBased: "no" as const } };
     const answeredCup = confirmedH;
-    const e3 = envelopeFor({ blocks: answeredCup, state: all, ctx, adj, bands: DEFAULT_BANDS, confirmed: null });
+    const e3 = envelopeFor({ blocks: answeredCup, state: all, ctx, adj, bands: BANDS, confirmed: null });
     expect(e3.open).toEqual([]);
     expect(e3.bandPct).toBe(DEFAULT_BANDS.widePct); // nothing confirmed → the wide residual
   });
   it("says what each open question closes, and the closes add up to the spread the questions carry", () => {
-    const e = envelopeFor({ blocks: tree(), state: state(), ctx, adj, bands: DEFAULT_BANDS, confirmed: null });
+    const e = envelopeFor({ blocks: tree(), state: state(), ctx, adj, bands: BANDS, confirmed: null });
     expect(Object.keys(e.closesCents)).toEqual(expect.arrayContaining(e.open));
     for (const v of Object.values(e.closesCents)) expect(v).toBeGreaterThan(0);
-    const answered = envelopeFor({ blocks: tree(), state: state({ doorStyle: "panel" }), ctx, adj, bands: DEFAULT_BANDS, confirmed: null });
+    const answered = envelopeFor({ blocks: tree(), state: state({ doorStyle: "panel" }), ctx, adj, bands: BANDS, confirmed: null });
     expect(answered.closesCents.doors).toBeUndefined();
   });
   it("a both job's headline is the sum of its parts", () => {
-    const a = envelopeFor({ blocks: tree(), state: state(), ctx, adj, bands: DEFAULT_BANDS, confirmed: null });
+    const a = envelopeFor({ blocks: tree(), state: state(), ctx, adj, bands: BANDS, confirmed: null });
     const b = { ...a, loCents: 100_000, hiCents: 150_000, closesCents: {} };
     const sum = sumEnvelopes([a, b]);
     expect(sum.loCents).toBe(a.loCents + 100_000);
@@ -129,9 +131,9 @@ describe("the envelope", () => {
     const allDetails = state({ doorStyle: "flat", windowStyle: "casement", ceilingHeight: "2.4" });
     const all = { ...allDetails, paint: { ...allDetails.paint, base: "oil" as const } };
     const answeredCup = tree().map((b) => ({ ...b, assumedFields: ["L", "W"] }));
-    const none = envelopeFor({ blocks: answeredCup, state: all, ctx, adj, bands: DEFAULT_BANDS, confirmed: new Map() });
-    const half = envelopeFor({ blocks: answeredCup, state: all, ctx, adj, bands: DEFAULT_BANDS, confirmed: new Map([[1, "confirmed"]]) });
-    const full = envelopeFor({ blocks: answeredCup, state: all, ctx, adj, bands: DEFAULT_BANDS, confirmed: new Map([[1, "confirmed"], [2, "confirmed"]]) });
+    const none = envelopeFor({ blocks: answeredCup, state: all, ctx, adj, bands: BANDS, confirmed: new Map() });
+    const half = envelopeFor({ blocks: answeredCup, state: all, ctx, adj, bands: BANDS, confirmed: new Map([[1, "confirmed"]]) });
+    const full = envelopeFor({ blocks: answeredCup, state: all, ctx, adj, bands: BANDS, confirmed: new Map([[1, "confirmed"], [2, "confirmed"]]) });
     expect(sizeResidualPct(0, DEFAULT_BANDS)).toBe(DEFAULT_BANDS.widePct);
     expect(sizeResidualPct(1, DEFAULT_BANDS)).toBe(DEFAULT_BANDS.tightPct);
     expect(sizeResidualPct(0.5, DEFAULT_BANDS)).toBeCloseTo((DEFAULT_BANDS.widePct + DEFAULT_BANDS.tightPct) / 2);
@@ -150,13 +152,13 @@ describe("the envelope", () => {
       { ...room(90, "Site access", "surface", []), areaType: "surface", surfaces: [] },
       { ...room(91, "Interior - extras", "surface", []), areaType: "surface", surfaces: [] },
     ];
-    const both = envelopeFor({ blocks: [...rooms, ...pseudo], state: all, ctx, adj, bands: DEFAULT_BANDS, confirmed: new Map([[1, "confirmed"], [2, "confirmed"]]) });
+    const both = envelopeFor({ blocks: [...rooms, ...pseudo], state: all, ctx, adj, bands: BANDS, confirmed: new Map([[1, "confirmed"], [2, "confirmed"]]) });
     expect(both.confirmedShare).toBe(1);
     expect(both.bandPct).toBe(DEFAULT_BANDS.tightPct);
   });
   it("the commercial widening lands on both ends", () => {
-    const e = envelopeFor({ blocks: tree(), state: state(), ctx, adj, bands: DEFAULT_BANDS, confirmed: null });
-    const w = envelopeFor({ blocks: tree(), state: state(), ctx, adj, bands: DEFAULT_BANDS, widenPct: 8, confirmed: null });
+    const e = envelopeFor({ blocks: tree(), state: state(), ctx, adj, bands: BANDS, confirmed: null });
+    const w = envelopeFor({ blocks: tree(), state: state(), ctx, adj, bands: BANDS, widenPct: 8, confirmed: null });
     expect(w.loCents).toBeLessThanOrEqual(e.loCents);
     expect(w.hiCents).toBeGreaterThanOrEqual(e.hiCents);
   });
@@ -179,13 +181,13 @@ describe("Tom, 15 Sep (late): an outside job's condition spans the range until t
 
   it("unanswered: the dear end carries the Poor modifier, the cheap end does not, and 'condition' is the open question", () => {
     const blocks = [side(1, "Front"), side(2, "Back")];
-    const env = envelopeFor({ blocks: blocks as never, state: outside(null), ctx, adj, bands: DEFAULT_BANDS, confirmed: null });
+    const env = envelopeFor({ blocks: blocks as never, state: outside(null), ctx, adj, bands: BANDS, confirmed: null });
     expect(env.open).toContain("condition");
     const plain = priceOf(blocks, {});
     const poor = priceOf(blocks, { Condition: "COND-POOR" });
     expect(poor).toBeGreaterThan(plain);
     expect(env.closesCents.condition).toBe(poor - plain);
-    const answered = envelopeFor({ blocks: blocks as never, state: outside("good"), ctx, adj, bands: DEFAULT_BANDS, confirmed: null });
+    const answered = envelopeFor({ blocks: blocks as never, state: outside("good"), ctx, adj, bands: BANDS, confirmed: null });
     expect(answered.open).not.toContain("condition");
     expect(answered.hiCents).toBeLessThan(env.hiCents);
     expect(answered.loCents).toBe(env.loCents);
@@ -193,23 +195,42 @@ describe("Tom, 15 Sep (late): an outside job's condition spans the range until t
 
   it("an answer on the tighten screen closes it even when the state still says null (modSel wins)", () => {
     const blocks = [side(1, "Front")];
-    const env = envelopeFor({ blocks: blocks as never, state: outside(null), ctx, adj: { ...adj, modSel: { Condition: "COND-POOR" } }, bands: DEFAULT_BANDS, confirmed: null });
+    const env = envelopeFor({ blocks: blocks as never, state: outside(null), ctx, adj: { ...adj, modSel: { Condition: "COND-POOR" } }, bands: BANDS, confirmed: null });
     expect(env.open).not.toContain("condition");
   });
 
   it("never opens on an inside job", () => {
-    const env = envelopeFor({ blocks: tree() as never, state: state(), ctx, adj, bands: DEFAULT_BANDS, confirmed: null });
+    const env = envelopeFor({ blocks: tree() as never, state: state(), ctx, adj, bands: BANDS, confirmed: null });
     expect(env.open).not.toContain("condition");
   });
 });
 
 describe("Tom, 25 Oct 2026: an exterior envelope reaches further under", () => {
   it("underPct lowers the low end only; the top end and the open questions do not move", () => {
-    const plain = envelopeFor({ blocks: tree(), state: state(), ctx, adj, bands: DEFAULT_BANDS, confirmed: null });
-    const under = envelopeFor({ blocks: tree(), state: state(), ctx, adj, bands: DEFAULT_BANDS, underPct: 5, confirmed: null });
+    const plain = envelopeFor({ blocks: tree(), state: state(), ctx, adj, bands: BANDS, confirmed: null });
+    const under = envelopeFor({ blocks: tree(), state: state(), ctx, adj, bands: BANDS, underPct: 5, confirmed: null });
     expect(under.hiCents).toBe(plain.hiCents);
     expect(under.loCents).toBeLessThan(plain.loCents);
     expect(under.loCents % 1000).toBe(0);
     expect(under.open).toEqual(plain.open);
+  });
+});
+
+describe("Tom, 25 Oct 2026 (item 3): the guide range is never wider than the low end plus the cap", () => {
+  it("$6,000–$10,000 becomes $6,000–$8,400 at the default 40%, rounded up to the ten dollars like the dear end; the low end never moves", () => {
+    expect(capSpread(600000, 1000000, DEFAULT_BANDS)).toBe(840000);
+    expect(capSpread(600000, 800000, DEFAULT_BANDS)).toBe(800000); // already inside the cap — untouched
+    expect(capSpread(612300, 1000000, DEFAULT_BANDS)).toBe(858000); // 612300 × 1.4 = 857220 c → up to the next $10
+    expect(capSpread(600000, 1000000, { guideMaxSpreadPct: 0 })).toBe(1000000); // 0 = off
+  });
+  it("the envelope honours it — the top end sits at the cap, the open questions still list, and the low end is the uncapped one", () => {
+    const off = envelopeFor({ blocks: tree(), state: state(), ctx, adj, bands: BANDS, confirmed: null });
+    const on = envelopeFor({ blocks: tree(), state: state(), ctx, adj, bands: DEFAULT_BANDS, confirmed: null });
+    expect(off.hiCents / off.loCents).toBeGreaterThan(1.4); // this fixture is wider than the cap without it
+    expect(on.loCents).toBe(off.loCents);
+    expect(on.hiCents).toBe(Math.ceil((off.loCents * 1.4) / 1000) * 1000);
+    expect(on.hiCents).toBeLessThan(off.hiCents);
+    expect(on.open).toEqual(off.open);
+    expect(on.bandPct).toBeLessThan(off.bandPct);
   });
 });

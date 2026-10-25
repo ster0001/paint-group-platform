@@ -24,8 +24,9 @@ describe("the tag vocabulary is the platform's, relabelled", () => {
   it("maps every tag onto a real defect type", () => {
     const known = new Set<string>(defectTypes);
     for (const tag of SPOT_TAGS) {
-      // Wallpaper is the documented exception: work, not a defect.
-      if (tag.key === "wallpaper") continue;
+      // Wallpaper is the documented exception: work, not a defect. "Something
+      // else" (Tom, 25 Oct 2026) is the customer's own words — never priced from a rate row.
+      if (tag.key === "wallpaper" || tag.key === "other") continue;
       expect(known.has(tag.defectType), `${tag.key} → ${tag.defectType}`).toBe(true);
     }
   });

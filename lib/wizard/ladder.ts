@@ -122,7 +122,7 @@ function nextUnlockFor(tier: Tier, i: LadderInput, reason: VisitReason | null): 
   if (tier === "guide") {
     const needs: string[] = [];
     if (confirmLine) needs.push(confirmLine);
-    if (!i.hasPlan) needs.push("Upload your floorplan or paste the listing");
+    if (!i.hasPlan) needs.push("Upload your floorplan");
     if (i.deferred.length > 0) needs.push(`Answer the ${i.deferred.length} open question${i.deferred.length === 1 ? "" : "s"}`);
     return needs.length ? { tier: "detailed", needs } : null;
   }
@@ -134,7 +134,7 @@ function nextUnlockFor(tier: Tier, i: LadderInput, reason: VisitReason | null): 
   if (i.decision.reasons.includes("mixed_scope")) return null;
   if (reason && VISIT_ONLY.has(reason)) return null;
   const needs: string[] = [];
-  if (!i.hasPlan) needs.push("Upload your floorplan or paste the listing");
+  if (!i.hasPlan) needs.push("Upload your floorplan");
   if (confirmLine) needs.push(confirmLine);
   if (reason === "custom") needs.push("Something you named needs a person to price it — remove it, or a person confirms it with you");
   if (i.decision.reasons.includes("asbestos_unsure")) return null;   // settled on site, never online

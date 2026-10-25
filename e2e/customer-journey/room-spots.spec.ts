@@ -35,9 +35,21 @@ test("a flagged spot becomes a repair line on the room it's in", async ({ page }
   // A crack: ⚑6 says this one auto-prices.
   const before = await page.locator(".sc-r").first().innerText();
   await page.getByTestId(`spot-open-${areaId}`).click();
+  // Tom, 25 Oct 2026 (items 7–9): no "easier in person" offer, one line about photos, and
+  // "What is it?" comes BEFORE "How much of it is there?" — the tag is a choice, Add it sends.
+  const panel = page.getByTestId(`spot-panel-${areaId}`);
+  await expect(page.getByTestId("offer-damage")).toHaveCount(0);
+  await expect(page.getByTestId(`spot-intro-${areaId}`)).toHaveText(/Attach photos of areas that need attention/i);
+  const panelText = (await panel.innerText()).replace(/\s+/g, " ");
+  expect(panelText.indexOf("What is it?")).toBeGreaterThan(-1);
+  expect(panelText.indexOf("What is it?")).toBeLessThan(panelText.indexOf("How much of it is there?"));
   // "A couple of spots" is the safe floor and starts selected.
   await expect(page.getByTestId(`spot-extent-${areaId}-spots`)).toHaveAttribute("aria-pressed", "true");
+  // Nothing is sent until a tag is picked.
+  await expect(page.getByTestId(`spot-add-${areaId}`)).toBeDisabled();
   await page.getByTestId(`spot-tag-${areaId}-crack`).click();
+  await expect(page.getByTestId(`spot-tag-${areaId}-crack`)).toHaveAttribute("aria-pressed", "true");
+  await page.getByTestId(`spot-add-${areaId}`).click();
 
   const list = page.getByTestId(`spot-list-${areaId}`);
   // Their own word back — they tapped "Crack", they read "Crack".
@@ -53,10 +65,22 @@ test("a flagged spot becomes a repair line on the room it's in", async ({ page }
   // A water mark with no photo: recorded, priced by a person (⚑6) — and the
   // extent goes with it so they know whether it is two spots or the whole wall.
   await page.getByTestId(`spot-open-${areaId}`).click();
-  await page.getByTestId(`spot-extent-${areaId}-most`).click();
   await page.getByTestId(`spot-tag-${areaId}-water`).click();
+  await page.getByTestId(`spot-extent-${areaId}-most`).click();
+  await page.getByTestId(`spot-add-${areaId}`).click();
   await expect(list).toContainText("Water mark", { timeout: 30_000 });
   await expect(list).toContainText("we'll price this one");
+
+  // Tom, 25 Oct 2026 (item 10): "Something else" opens a note box, and the note is the label —
+  // the customer's own words, priced by a person.
+  await page.getByTestId(`spot-open-${areaId}`).click();
+  await page.getByTestId(`spot-tag-${areaId}-other`).click();
+  await expect(page.getByTestId(`spot-note-${areaId}`)).toBeVisible();
+  await expect(page.getByTestId(`spot-add-${areaId}`)).toBeDisabled(); // a note is required for "something else"
+  await page.getByTestId(`spot-note-${areaId}`).fill("Stain behind the fridge");
+  await page.getByTestId(`spot-add-${areaId}`).click();
+  await expect(list).toContainText("Stain behind the fridge", { timeout: 30_000 });
+  await expect(list).not.toContainText(/Something else/);
 
   /**
    * The repair must NOT appear as a paintable surface tile. Prep lines used to

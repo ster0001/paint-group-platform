@@ -216,8 +216,10 @@ export function customerStatusLine(input: {
     case null:
       return null;
     case "requested":
+      // Tom, 25 Oct 2026 (item 18): no name here — the estimator goes through the
+      // answers first, and a site inspection is organised only if it is needed.
       return input.kind === "visit"
-        ? { headline: "A visit is being arranged", detail: `${input.coordinator} will call to agree a time.` }
+        ? { headline: "Thanks — your estimator will contact you", detail: "They'll go through all of the information with you and, if required, organise a site inspection." }
         : { headline: "With your estimator now", detail: `${input.coordinator} is checking it — ${input.turnaroundWords}.` };
     case "question_asked":
       return { headline: `${input.coordinator} has asked you something`, detail: "One answer and it carries on — check your messages." };

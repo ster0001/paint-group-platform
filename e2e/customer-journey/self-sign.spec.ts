@@ -57,9 +57,8 @@ async function measureAndConfirmEveryRoom(page: Page, metres: [number, number] =
   for (let i = 0; i < count; i++) {
     const card = cards.nth(i);
     await card.scrollIntoViewIfNeeded();
-    // "Adjust it" opens the two-box size row; entering real metres clears the
-    // assumed-dimension penalty that "Looks right" leaves in place.
-    await card.getByRole("button", { name: /Adjust it/ }).click();
+    // The size row is in the question, prefilled (Tom, 25 Oct 2026, item 17); entering real
+    // metres clears the assumed-dimension penalty that "Looks right" leaves in place.
     const row = card.locator(".sd-mrow");
     await row.locator("input").first().fill(String(metres[0]));
     await row.locator("input").nth(1).fill(String(metres[1]));

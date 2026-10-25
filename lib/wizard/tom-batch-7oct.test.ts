@@ -64,15 +64,14 @@ const bed = (): LooseBlock => ({ id: 3, kind: "area", type: "Interior", roomType
 const ALL = new Set(["Kitchen Cupboard Front", "Robe Door", "Vanity Door"]);
 
 describe("4 + 6 · cupboards start answered", () => {
-  it("kitchen and vanity No, robe doors Yes with the standard count — tagged as an assumption", () => {
+  it("every cupboard question starts as No — robe doors included (Tom, 25 Oct 2026, item 5); no assumed line is added", () => {
     let id = 10;
     const out = applyCupboardDefaults([kitchen(), bath(), bed()], ALL, () => id++);
     const views = roomLoopViews(out, ALL);
-    expect(views.map((v) => v.cupboard?.on)).toEqual([false, false, true]);
-    expect(views[2].cupboard?.count).toBe(2);
-    const robe = out[2].surfaces?.find((s) => s.code === "Robe Door");
-    expect(robe).toMatchObject({ count: 2, origin: "ai_assumed", assumedFields: ["included"] });
+    expect(views.map((v) => v.cupboard?.on)).toEqual([false, false, false]);
+    expect(out[2].surfaces?.find((s) => s.code === "Robe Door")).toBeUndefined();
     expect(out[0].surfaces).toEqual([]);
+    expect(out.map((b) => b.customer?.cup)).toEqual([false, false, false]);
   });
 
   it("an answer already given is left alone, and a card without the code asks nothing", () => {

@@ -191,6 +191,16 @@ export function boldSurfaceKeys(q: Parameters<typeof boldGroupsOf>[0]): WizardSu
   return boldGroupsOf(q).flatMap((k) => BOLD_GROUP_SURFACES[k]);
 }
 
+/**
+ * Tom, 25 Oct 2026 (item 2): the surfaces the drawn room paints DEEP BLUE —
+ * the ones ticked as going much lighter or bold, as the room picture names
+ * them (its cornices ride with the ceilings, as they do for painting).
+ */
+export function boldPictureSurfaces(q: Parameters<typeof boldGroupsOf>[0]): string[] {
+  const keys = boldSurfaceKeys(q) as string[];
+  return keys.includes("ceilings") ? [...keys, "cornices"] : keys;
+}
+
 export const COLOUR_INTENTS: Choice<ColourIntent>[] = [
   { value: "same", label: "The same colours again", hint: "Colour-matched — a freshen up" },
   { value: "new", label: "New colours", hint: "Two coats, standard preparation" },

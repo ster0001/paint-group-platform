@@ -68,6 +68,7 @@ test("confirm three rooms and flag a crack with a photo: the score climbs, the r
   await page.getByTestId(`spot-photo-${areaId}`).setInputFiles(`${FIXTURES}/condition-photo.png`);
   await expect(page.getByTestId(`spot-reading-${areaId}`)).toHaveCount(0, { timeout: 60_000 });
   await page.getByTestId(`spot-tag-${areaId}-crack`).click();
+  await page.getByTestId(`spot-add-${areaId}`).click(); // 25 Oct 2026: the tag is a choice; Add it sends
   const list = page.getByTestId(`spot-list-${areaId}`);
   await expect(list).toContainText(/repair priced/i, { timeout: 30_000 });
 

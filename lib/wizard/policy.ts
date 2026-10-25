@@ -71,10 +71,17 @@ export type BandSettings = {
   tightMin: number; tightPct: number;
   midMin: number; midPct: number;
   widePct: number;
+  /**
+   * Tom, 25 Oct 2026 (item 3): the widest a GUIDE range may be, as a percentage
+   * of its low end — "6000–10000 should be more like 6000–8400", which is the
+   * low end plus 40%. The envelope's dear end is pulled down to it; the low end
+   * never moves. 0 turns the cap off.
+   */
+  guideMaxSpreadPct: number;
 };
 
-/** Phase plan W4: >=90 → ±4% · 70–89 → ±8% · <70 → ±15%. */
-export const DEFAULT_BANDS: BandSettings = { tightMin: 90, tightPct: 4, midMin: 70, midPct: 8, widePct: 15 };
+/** Phase plan W4: >=90 → ±4% · 70–89 → ±8% · <70 → ±15%. Guide spread capped at +40% over the low end (Tom, 25 Oct 2026). */
+export const DEFAULT_BANDS: BandSettings = { tightMin: 90, tightPct: 4, midMin: 70, midPct: 8, widePct: 15, guideMaxSpreadPct: 40 };
 
 const num = (v: unknown, fallback: number): number =>
   typeof v === "number" && Number.isFinite(v) && v >= 0 ? v : fallback;
@@ -103,6 +110,7 @@ export function bandsFromSettings(value: unknown): BandSettings {
     midMin: num(v.midMin, DEFAULT_BANDS.midMin),
     widePct: num(v.widePct, DEFAULT_BANDS.widePct),
     midPct: num(v.midPct, DEFAULT_BANDS.midPct),
+    guideMaxSpreadPct: num(v.guideMaxSpreadPct, DEFAULT_BANDS.guideMaxSpreadPct),
   };
 }
 

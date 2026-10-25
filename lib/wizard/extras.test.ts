@@ -7,6 +7,11 @@ const card = [
   { code: "Air Vent", category: "Interior", sub_category: "Extras", charge_out_cents: 4500 },
   { code: "Ceiling Rose", category: "Interior", sub_category: "Extras", charge_out_cents: 12000 },
   { code: "Mould Treatment", category: "Interior", sub_category: "Extras", charge_out_cents: 9000 },
+  // Tom, 25 Oct 2026 (item 14): a per-item row prices at charge-out × its hours, not at the hourly rate.
+  { code: "Mantle", category: "Interior", sub_category: "Interior Trim", unit: "Hours Per Item", rate_1_coat: "1.43", rate_2_coat: "2.5", default_coats: 2, charge_out_cents: 13600 },
+  // Item 15: picture rails are never on the sheet; item 16: an import artefact is never offered.
+  { code: "Picture Rails", category: "Interior", sub_category: "Interior Trim", unit: "Lineal Metres", charge_out_cents: 9500 },
+  { code: "Custom surface (imported)", category: "Interior", sub_category: "Imported", unit: "Hours Per Item", rate_2_coat: 1, charge_out_cents: 9500 },
   // Another control owns these — they must never reach the sheet.
   { code: "Robe Door", category: "Interior", sub_category: "Extras", charge_out_cents: 5000 },
   { code: "Plastering", category: "Interior", sub_category: "Allowances", charge_out_cents: 8500 },
@@ -22,6 +27,16 @@ describe("the sheet is derived from the card, never hardcoded", () => {
     expect(codes).toContain("Ceiling Rose");
     expect(codes).toContain("Mould Treatment");
     expect(out.find((e) => e.code === "Ceiling Rose")?.priceDollars).toBe(120);
+  });
+
+  it("prices one of a timed row at charge-out × hours at its default coats — a mantle at 2.5 h is $340, not $136", () => {
+    expect(jobExtras(card).find((e) => e.code === "Mantle")?.priceDollars).toBe(340);
+  });
+
+  it("never offers picture rails or the imported custom-surface row (Tom, 25 Oct 2026, items 15–16)", () => {
+    const codes = jobExtras(card).map((e) => e.code);
+    expect(codes).not.toContain("Picture Rails");
+    expect(codes).not.toContain("Custom surface (imported)");
   });
 
   /** A tick that cannot price is a lie — the add panel's rule, kept. */
