@@ -294,6 +294,12 @@
 .wz .sd-mrow--inline { flex-wrap: wrap; row-gap: 6px; }
 .wz .sd-mrow--inline input { width: 84px; }
 .wz .sd .sd-mrow--inline input { min-height: 44px; }
+/* Phone (390 wide, beside the room outline): two boxes on the first line, the ceiling on the second. */
+@media (max-width: 640px) {
+  .wz .sd .sd-mrow--inline { gap: 6px; }
+  .wz .sd .sd-mrow--inline input { width: 64px; min-width: 0; padding: 9px 8px; font-size: 15px; }
+  .wz .sd .sd-mrow--inline input[data-testid^="size-height-"] { width: 128px; }
+}
 /* Tom, 25 Oct 2026 (item 13): a ticked whole-job extra carries its − / + beside the chip. */
 .wz .sc-extra-chip { display: inline-flex; align-items: center; gap: 6px; }
 .wz .sc-extra-chip .sc-st { display: inline-flex; align-items: center; gap: 4px; margin-top: 0; }
