@@ -79,7 +79,18 @@ export const SPOT_TAGS: SpotTag[] = [
     crewNote: "customer flagged rust — wire back, treat and prime before the topcoats" },
   { key: "render", label: "Cracked render", defectType: "render_cracks", side: "exterior",
     crewNote: "customer flagged cracked render — rake out, patch and let it cure" },
+  /**
+   * Tom, 25 Oct 2026 (item 10): "Something else" — the customer's own words, in
+   * a note box that opens when it is tapped. No row in the defect vocabulary and
+   * never in `AUTO_PRICED`, so it is recorded and a person prices it; the note
+   * is the label the estimator and the painter read.
+   */
+  { key: "other", label: "Something else", defectType: "other", side: "both",
+    crewNote: "customer flagged something else — read their note before pricing the prep" },
 ];
+
+/** The tag that opens a note box instead of naming a defect. */
+export const OTHER_TAG_KEY = "other";
 
 /**
  * ⚑6 — the tags whose repair is standard enough to price from words alone.
@@ -277,9 +288,11 @@ export function spotLine(
   const prices = AUTO_PRICED.has(tag.key) || hasPhoto;
   const hours = prices ? defectHours({ type: tag.defectType, severity, qty }, rates) : 0;
 
+  // "Something else" wears the customer's own words (item 10), never the word "other".
+  const said = tag.key === OTHER_TAG_KEY && spot.note?.trim() ? spot.note.trim().slice(0, 60) : tag.label;
   const label = prices
-    ? `Repair — ${tag.label} (${EXTENT_LABEL[extent].toLowerCase()})`
-    : `Repair — ${tag.label} (to price)`;
+    ? `Repair — ${said} (${EXTENT_LABEL[extent].toLowerCase()})`
+    : `Repair — ${said} (to price)`;
   const surface = makeDraftSurface(nextId(), tag.defectType, label, 1, "customer_stated", 0.8, ["prep"]);
   surface.prepHr = hours;
   surface.crewNote = [

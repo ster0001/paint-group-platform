@@ -6,7 +6,7 @@ const bedroom = (id = 2): LooseBlock => ({ id, kind: "area", type: "Interior", r
 const allCodes = new Set(["Kitchen Cupboard Front", "Kitchen Cupboard Interior", "Robe Door", "Robe Interior", "Flat Door (1 Side)"]);
 const codes = (b: LooseBlock) => (b.surfaces ?? []).map((s) => String(s.code));
 
-describe("cupboard interiors — the insides follow the doors (Tom, 7 Sep 2026; supersedes D19's independent answers)", () => {
+describe("cupboard interiors — their own question (Tom, 25 Oct 2026, item 6: a mirrored robe keeps its doors and still wants the inside painted); the inside FACE of the doors still follows the doors", () => {
   it("every room type with a question names a code the migration creates", () => {
     const set = new Set(Object.values(CUPBOARD_INTERIOR_BY_ROOM_TYPE).map((c) => c.code));
     expect([...set].sort()).toEqual(["Kitchen Cupboard Interior", "Linen / Broom Cupboard Interior", "Robe Interior", "Vanity Interior"]);
@@ -31,26 +31,30 @@ describe("cupboard interiors — the insides follow the doors (Tom, 7 Sep 2026; 
     expect(no.ok && no.blocks[0].customer?.cupInterior).toBe(false);
   });
 
-  it("the insides are refused until the doors are a Yes", () => {
-    const unasked = applyCupboardInterior([kitchen()], 1, true, null, () => 99);
-    expect(unasked).toEqual({ ok: false, error: "Tick the cupboard doors first — the insides follow that answer." });
+  it("the insides are answered with the doors unasked or a No; only the door FACES wait for the doors", () => {
+    let id = 10;
+    const unasked = applyCupboardInterior([kitchen()], 1, true, null, () => id++);
+    expect(unasked.ok && codes(unasked.blocks[0])).toEqual(["Kitchen Cupboard Interior"]);
+    expect(unasked.ok && unasked.blocks[0].customer).toMatchObject({ cup: null, cupInterior: true });
     const doorsNo = applyCupboard([bedroom()], 2, false, null, () => 99);
+    const insideNo = doorsNo.ok ? applyCupboardInterior(doorsNo.blocks, 2, true, null, () => id++) : doorsNo;
+    expect(insideNo.ok && codes(insideNo.blocks[0])).toEqual(["Robe Interior"]);
     const inside = doorsNo.ok ? applyCupboardDoorInside(doorsNo.blocks, 2, true, null, () => 99) : doorsNo;
     expect(inside).toEqual({ ok: false, error: "Tick the robe doors first — the inside faces follow that answer." });
   });
 
-  it("a No on the doors drops the inside lines and un-asks both follow-ups; a later Yes asks them fresh", () => {
+  it("a No on the doors drops the door-face line and un-asks it; the walls inside keep their answer and their line", () => {
     let id = 10;
     const a = applyCupboard([bedroom()], 2, true, null, () => id++);
     const b = a.ok ? applyCupboardInterior(a.blocks, 2, true, null, () => id++) : a;
     const c = b.ok ? applyCupboardDoorInside(b.blocks, 2, true, null, () => id++) : b;
     expect(c.ok && codes(c.blocks[0])).toEqual(["Robe Door", "Robe Interior", "Flat Door (1 Side)"]);
     const d = c.ok ? applyCupboard(c.blocks, 2, false, null, () => id++) : c;
-    expect(d.ok && codes(d.blocks[0])).toEqual([]);
-    expect(d.ok && d.blocks[0].customer).toMatchObject({ cup: false, cupInterior: null, cupDoorInside: null });
+    expect(d.ok && codes(d.blocks[0])).toEqual(["Robe Interior"]);
+    expect(d.ok && d.blocks[0].customer).toMatchObject({ cup: false, cupInterior: true, cupDoorInside: null });
     const e = d.ok ? applyCupboard(d.blocks, 2, true, null, () => id++) : d;
     const view = e.ok ? roomLoopViews(e.blocks, allCodes)[0] : null;
-    expect(view?.cupboardInterior?.on).toBeNull();
+    expect(view?.cupboardInterior?.on).toBe(true);
     expect(view?.cupboardDoorInside?.on).toBeNull();
   });
 
@@ -59,12 +63,14 @@ describe("cupboard interiors — the insides follow the doors (Tom, 7 Sep 2026; 
     expect(r).toEqual({ ok: false, error: "This room has no cupboard-interior question." });
   });
 
-  it("the loop view asks about the insides only once the doors are a Yes, and only when the code is on the card", () => {
+  it("the loop view asks about the insides whatever the doors say, but only when the code is on the card; the door faces still wait for the doors", () => {
     const unasked = roomLoopViews([kitchen()], allCodes)[0];
     expect(unasked.cupboard).not.toBeNull();
-    expect(unasked.cupboardInterior).toBeNull();
+    expect(unasked.cupboardInterior).toMatchObject({ question: "Paint inside the kitchen cupboards too?", on: null, count: 8 });
     const doorsNo = applyCupboard([kitchen()], 1, false, null, () => 50);
-    expect(doorsNo.ok && roomLoopViews(doorsNo.blocks, allCodes)[0].cupboardInterior).toBeNull();
+    expect(doorsNo.ok && roomLoopViews(doorsNo.blocks, allCodes)[0].cupboardInterior).toMatchObject({ on: null });
+    const bedNo = applyCupboard([bedroom()], 2, false, null, () => 50);
+    expect(bedNo.ok && roomLoopViews(bedNo.blocks, allCodes)[0].cupboardDoorInside).toBeNull();
     const doorsYes = applyCupboard([kitchen()], 1, true, null, () => 50);
     const withRow = doorsYes.ok ? roomLoopViews(doorsYes.blocks, allCodes)[0] : null;
     expect(withRow?.cupboardInterior).toMatchObject({ question: "Paint inside the kitchen cupboards too?", on: null, count: 8 });
@@ -75,14 +81,17 @@ describe("cupboard interiors — the insides follow the doors (Tom, 7 Sep 2026; 
     expect(bedView?.cupboardDoorInside).toMatchObject({ question: "Paint the inside of the robe doors too?", on: null, count: 2 });
   });
 
-  it("the sweep chips reach only the rooms whose doors are a Yes", () => {
+  it("the door-face sweep reaches only the rooms whose doors are a Yes; the insides sweep reaches every room with the question", () => {
     let id = 10;
     const yes = applyCupboard([bedroom(2), bedroom(3), kitchen()], 2, true, null, () => id++);
     const r = yes.ok ? applyCupboardsEverywhere(yes.blocks, "door_inside", allCodes, () => id++) : { blocks: [], rooms: -1 };
     expect(r.rooms).toBe(1);
     expect(codes(r.blocks[0])).toEqual(["Robe Door", "Flat Door (1 Side)"]);
     expect(codes(r.blocks[1])).toEqual([]);
-    const none = applyCupboardsEverywhere([bedroom(2), bedroom(3)], "interior", allCodes, () => id++);
+    const all = applyCupboardsEverywhere([bedroom(2), bedroom(3), kitchen()], "interior", allCodes, () => id++);
+    expect(all.rooms).toBe(3);
+    expect(codes(all.blocks[2])).toEqual(["Kitchen Cupboard Interior"]);
+    const none = applyCupboardsEverywhere([{ ...kitchen(), roomType: "living" }], "interior", allCodes, () => id++);
     expect(none.rooms).toBe(0);
   });
 

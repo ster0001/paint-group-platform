@@ -1,4 +1,5 @@
 import { makeDraftSurface } from "@/lib/extract/draft";
+import { isExtrasBlock } from "./sides";
 import { PERGOLA_DIM_MAX_M, PERGOLA_DIM_MIN_M, pergolaDimsOk, pergolaItemsForTop, pergolaTopLabel } from "@/lib/pricing/pergola";
 import { substrateKeyForRateCode, substrateLabel, type SubstrateKey } from "@/lib/estimate/substrates";
 import {
@@ -271,7 +272,10 @@ function isPrepLine(s: Record<string, unknown>): boolean {
 
 export function customerScopeRooms(blocks: LooseBlock[], rules: ScopeRule[]): CustomerScopeRoom[] {
   return blocks
-    .filter((b) => b.kind === "area" && b.type !== "Exterior")
+    // Tom, 25 Oct 2026 (item 13): the whole-job "Interior - Extras" block is the extras
+    // sheet's, not a room — drawn as a room card it offered Walls and Ceilings on a block
+    // with no walls, and its air vent's + posted a room action the block could not take.
+    .filter((b) => b.kind === "area" && b.type !== "Exterior" && !isExtrasBlock(b))
     .map((b) => customerRoomView(b, rules));
 }
 

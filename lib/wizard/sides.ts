@@ -715,6 +715,30 @@ export function hasExtrasItem(blocks: LooseBlock[], code: string): boolean {
   return (b?.surfaces ?? []).some((s) => String(s.code) === code);
 }
 
+/** A whole-job extras block (Interior / Exterior - Extras) — never a room card (Tom, 25 Oct 2026, item 13). */
+export const isExtrasBlock = (b: { kind?: unknown; name?: unknown }) => b.kind === "area" && EXTRAS_BLOCK.test(String(b.name ?? ""));
+
+/**
+ * Tom, 25 Oct 2026 (item 13): how many of each priced extra the job carries
+ * (two air vents), read off the block's lines — the sheet's − / + shows it.
+ */
+export function extrasItemCounts(blocks: LooseBlock[], side: ExtrasSide = "Interior"): Record<string, number> {
+  const b = blocks.find((x) => x.kind === "area" && String(x.name ?? "").toLowerCase() === `${side} - extras`.toLowerCase());
+  const out: Record<string, number> = {};
+  for (const s of b?.surfaces ?? []) out[String(s.code)] = Math.max(1, Number(s.count) || 1);
+  return out;
+}
+
+/** Tom, 25 Oct 2026 (item 13): the count on ONE priced extra — the sheet's − / +. Clamped 1–20; both the count and the absolute quantity move, so the price follows. */
+export function setExtrasItemCount(blocks: LooseBlock[], code: string, count: number, side: ExtrasSide = "Interior"): SidesResult {
+  if (!(count >= 1 && count <= 20)) return { ok: false, error: "Counts run 1–20." };
+  const existing = blocks.find((x) => x.kind === "area" && String(x.name ?? "").toLowerCase() === `${side} - extras`.toLowerCase());
+  const line = (existing?.surfaces ?? []).find((s) => String(s.code) === code);
+  if (!existing || !line) return { ok: false, error: "That extra isn't on the estimate — tick it first." };
+  const copy = { ...existing, surfaces: (existing.surfaces ?? []).map((s) => (s === line ? { ...s, count, qtyOverride: count } : s)) };
+  return { ok: true, blocks: blocks.map((b) => (b === existing ? copy : b)) };
+}
+
 /** Put a priced whole-job item on (or take it off) the "Exterior - Extras"
  * block — sweep sheds/gates and the condition/access allowances live here.
  * Creates the block on first use; idempotent both ways. */

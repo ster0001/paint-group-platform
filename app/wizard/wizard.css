@@ -287,6 +287,23 @@
 .wz .sc-pen:hover { border-color: var(--cyan, #39D9E6); color: var(--cyan, #39D9E6); }
 .wz .sc-rn { display: flex; gap: 6px; align-items: center; flex: 1; min-width: 0; }
 .wz .sc-rn input { flex: 1; min-width: 0; background: var(--panel2); border: 1px solid var(--line); color: inherit; border-radius: 8px; padding: 6px 9px; font: inherit; font-size: 14px; }
+/* Tom, 25 Oct 2026 (item 11): the room's name is the rename control — a button that looks like the name. */
+.wz .sc-name { background: none; border: 0; padding: 0; margin: 0; color: inherit; font: inherit; cursor: text; text-decoration: underline dotted transparent; text-underline-offset: 3px; }
+.wz .sc-name:hover, .wz .sc-name:focus-visible { text-decoration-color: var(--cyan, #39D9E6); outline: none; }
+/* Tom, 25 Oct 2026 (item 17): the size boxes sit in the question, prefilled. */
+.wz .sd-mrow.sd-mrow--inline { flex-wrap: wrap; row-gap: 6px; }
+.wz .sd-mrow.sd-mrow--inline input { width: 84px; }
+.wz .sd-mrow.sd-mrow--inline input[data-testid^="size-height-"] { width: 128px; }
+/* Phone (390 wide, beside the room outline): two boxes on the first line, the ceiling on the second. */
+@media (max-width: 640px) {
+  .wz .sd-mrow.sd-mrow--inline { gap: 6px; }
+  .wz .sd-mrow.sd-mrow--inline input { width: 64px; min-width: 0; padding: 9px 8px; font-size: 15px; }
+}
+/* Tom, 25 Oct 2026 (item 13): a ticked whole-job extra carries its − / + beside the chip. */
+.wz .sc-extra-chip { display: inline-flex; align-items: center; gap: 6px; }
+.wz .sc-extra-chip .sc-st { display: inline-flex; align-items: center; gap: 4px; margin-top: 0; }
+/* Tom, 25 Oct 2026 (item 10): "Something else" opens a note box. */
+.wz .sc-spot-note { display: block; width: 100%; margin-top: 8px; background: var(--panel2); border: 1px solid var(--line); color: inherit; border-radius: 9px; padding: 9px 11px; font: inherit; font-size: 14px; }
 .wz .sc-tgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(148px, 1fr)); gap: 8px; margin-top: 13px; }
 .wz .sc-tl { position: relative; min-width: 0; border: 1px solid var(--line); background: var(--panel2); border-radius: 10px; padding: 11px 12px; cursor: pointer; font-size: 13.5px; color: var(--muted); user-select: none; }
 .wz .sc-tl.on { border-color: var(--cyan); color: var(--text); background: rgba(59,216,233,.07); }
@@ -1541,6 +1558,9 @@
 .wz .wz-room .shade { fill: #0d161c; opacity: .07; pointer-events: none; }
 .wz .wz-room .floor { fill: #b79c78; }
 .wz .wz-room .s.hl { stroke: var(--cyan); stroke-opacity: 1; stroke-width: 3; animation: wzpulse 1s 2; }
+/* Tom, 25 Oct 2026 (item 2): a surface ticked as going much lighter or bold paints DEEP BLUE. */
+.wz .wz-room .s.on.bold { fill: #1f3a93; }
+.wz .wz-room .s-wall.on.bold { fill: #1f3a93; }
 @keyframes wzpulse { 50% { stroke-width: 5.5; } }
 .wz .wz-room .marks > g { opacity: 0; transition: opacity .4s; }
 .wz .wz-room .marks > g.show { opacity: 1; }

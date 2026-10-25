@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { QuickLook, QuickLookStep } from "@/lib/wizard/quick-look";
-import { paintedSurfaces } from "@/lib/wizard/quick-look";
+import { boldPictureSurfaces, paintedSurfaces } from "@/lib/wizard/quick-look";
 import HousePicture from "./pictures/HousePicture";
 import RoomPicture, { type RoomSurface } from "./pictures/RoomPicture";
 import PlanMap, { type PlanRoom } from "./pictures/PlanMap";
@@ -108,6 +108,8 @@ export default function PictureCard({ step, quick, outside, suburb, rooms, planP
             : "house";
 
   const painted = useMemo(() => paintedSurfaces(quick.scope, quick.excluded), [quick.scope, quick.excluded]);
+  // Tom, 25 Oct 2026 (item 2): the groups ticked as going much lighter or bold paint deep blue.
+  const boldOn = useMemo(() => boldPictureSurfaces(quick), [quick]);
   // The surface just ticked or unticked: outlined for two seconds and named in the caption.
   const prev = useRef<string[]>(painted);
   const [touched, setTouched] = useState<RoomSurface | null>(null);
@@ -179,7 +181,9 @@ export default function PictureCard({ step, quick, outside, suburb, rooms, planP
         ? "That’s everything we need. Your guide range appears as soon as you add your details."
         : touched
           ? <><b>{NAME[touched]}</b>: {GLOSS[touched]}</>
-          : "Tick or untick a surface and it paints in or out of the picture.";
+          : boldOn.length > 0
+            ? <><b>Deep blue</b> marks what&rsquo;s going much lighter or bold — an undercoat and a third coat.</>
+            : "Tick or untick a surface and it paints in or out of the picture.";
   } else if (which === "plan") {
     title = planPreviewUrl ? "Your floorplan" : "Your rooms";
     tag = `${onCount} to paint`;
@@ -299,7 +303,7 @@ export default function PictureCard({ step, quick, outside, suburb, rooms, planP
         )}
         {which === "comroom" && <RoomPicture painted={comPainted} today={false} condition={quick.condition} occupied={false} highlight={null} />}
         {which === "room" && (
-          <RoomPicture painted={painted} today={step === "condition"} condition={quick.condition} occupied={quick.occupied === "yes"}
+          <RoomPicture painted={painted} bold={boldOn} today={step === "condition"} condition={quick.condition} occupied={quick.occupied === "yes"}
             highlight={step === "job" ? touched : null} />
         )}
         {which === "plan" && (planPreviewUrl ? (

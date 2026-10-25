@@ -14,6 +14,8 @@ const CARD = [
   { code: "Standard Cornices", category: "Interior", sub_category: "Ceilings", unit: "Lineal Metres", charge_out_cents: 8500 },
   { code: "Skirting Boards", category: "Interior", sub_category: "Interior Trim", unit: "Lineal Metres", charge_out_cents: 8500 },
   { code: "Picture Rails", category: "Interior", sub_category: "Interior Trim", unit: "Lineal Metres", charge_out_cents: 8500 },
+  { code: "Custom surface (imported)", category: "Interior", sub_category: "Imported", unit: "Hours Per Item", charge_out_cents: 8500 },
+  { code: "Custom surface (imported)", category: "Exterior", sub_category: "Imported", unit: "Hours Per Item", charge_out_cents: 10000 },
   { code: "Flat Door and Frame (1 Side)", category: "Interior", sub_category: "Interior Doors", unit: "Hours Per Item", charge_out_cents: 8500 },
   { code: "Awning / Casement Window", category: "Interior", sub_category: "Interior Windows", unit: "Hours Per Item", charge_out_cents: 8500 },
   { code: "Air Vent", category: "Interior", sub_category: "Extras", unit: "Hours Per Item", charge_out_cents: 18000 },
@@ -31,6 +33,9 @@ const keys = (opts: Array<{ key: string }>) => opts.map((o) => o.key);
 describe("interiorAddOptions", () => {
   test("offers card rows no substrate tick covers", () => {
     expect(keys(interiorAddOptions(CARD))).toContain("Picture Rails");
+    // Tom, 25 Oct 2026 (item 16): the import artefact is offered nowhere.
+    expect(keys(interiorAddOptions(CARD))).not.toContain("Custom surface (imported)");
+    expect(keys(exteriorAddOptions(CARD))).not.toContain("Custom surface (imported)");
   });
 
   test("never offers a cabinetry row — the cupboard question owns those", () => {

@@ -23,7 +23,7 @@ import {
   underPctFor,
 } from "@/lib/wizard/policy";
 import { wizardStateSchema } from "@/lib/wizard/state";
-import { defaultSidesLoop, extrasPrices, hoursPerItemCodes, linealCodes, sidesView, wallOptionsFromRates, type SidesLoopMeta, type SidesView } from "@/lib/wizard/sides";
+import { extrasItemCounts, defaultSidesLoop, extrasPrices, hoursPerItemCodes, linealCodes, sidesView, wallOptionsFromRates, type SidesLoopMeta, type SidesView } from "@/lib/wizard/sides";
 import { ladderFor, requiresSiteCheck, type Ladder } from "@/lib/wizard/ladder";
 import { defaultInteriorLoop, interiorDwTotals, interiorProgress, roomLoopViews, type InteriorLoopMeta, type RoomLoopView } from "@/lib/wizard/rooms-loop";
 import { loopConfirmState } from "@/lib/wizard/confirm-state";
@@ -116,7 +116,7 @@ export type CustomerScopeBundle =
       /** Tom, 14 Sep (evening, item 9): the cornice answer as stored. */
       initialCornices: "none" | "standard" | "decorative" | null;
       /** §4.5 — the extras on offer, which are on, the colour-help tick and the note. */
-      initialExtras: { offer: JobExtra[]; on: string[]; colourHelp: boolean; note: string };
+      initialExtras: { offer: JobExtra[]; on: string[]; counts: Record<string, number>; colourHelp: boolean; note: string };
     };
 
 export async function loadCustomerScope(db: SupabaseClient, estimate: EstimateRow): Promise<CustomerScopeBundle> {
@@ -293,6 +293,8 @@ export async function loadCustomerScope(db: SupabaseClient, estimate: EstimateRo
         .filter((b) => String(b.name ?? "").toLowerCase() === "interior - extras")
         .flatMap((b) => (Array.isArray(b.surfaces) ? (b.surfaces as Array<{ code?: unknown }>) : []))
         .map((x) => String(x.code ?? "")),
+      // Tom, 25 Oct 2026 (item 13): how many of each — the sheet's − / +.
+      counts: extrasItemCounts(blocks as unknown as Parameters<typeof extrasItemCounts>[0], "Interior"),
       colourHelp: snap.success ? snap.data.paint.colourHelp === "advice" : false,
       note: snap.success ? String(snap.data.details.extraNote ?? "") : "",
     },

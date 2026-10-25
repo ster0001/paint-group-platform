@@ -38,7 +38,7 @@ import {
   applySideInclude, applySideMetres, applySideNote, applySideRename, applySideSizeOk, applyWallShare, applyWindowSize, confirmSide, defaultSidesLoop,
   extrasPrices, findSide, hasExtrasItem, linealCodes, rateFor, removeSideCustom, removeSideLine, sidesView, toggleExtrasItem,
   wallOptionsFromRates,
-  type SidesLoopMeta, hoursPerItemCodes } from "@/lib/wizard/sides";
+  type SidesLoopMeta, hoursPerItemCodes, setExtrasItemCount, extrasItemCounts } from "@/lib/wizard/sides";
 import {
   CUPBOARD_BY_ROOM_TYPE, addCatalogueLine, addRoomCustom, addRoomWindowGroup, applyCupboard, applyCupboardInterior, applyCupboardDoorInside, applyCupboardsEverywhere,
   applyCupboardDefaults, applyLineCount, applyRoomDims, applyRoomSizeOk, applyRoomWindowSize, confirmRoom,
@@ -227,6 +227,8 @@ const actionSchema = z.discriminatedUnion("action", [
     action: z.literal("toggle_job_extra"),
     code: z.string().min(1).max(80),
     on: z.boolean(),
+    /** Tom, 25 Oct 2026 (item 13): how many — the sheet's − / + (two air vents). Only with `on`. */
+    count: z.number().int().min(1).max(20).optional(),
   }),
   z.object({ action: z.literal("set_colour_help"), want: z.boolean() }),
   z.object({ action: z.literal("extra_note"), note: z.string().max(400) }),
@@ -675,6 +677,11 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       );
       if (!res.ok) return { error: res.error, status: 400 };
       blocks = res.blocks as unknown as typeof blocks;
+      if (act.on && act.count != null) {
+        const counted = setExtrasItemCount(blocks as unknown as Parameters<typeof setExtrasItemCount>[0], act.code, act.count, "Interior");
+        if (!counted.ok) return { error: counted.error, status: 400 };
+        blocks = counted.blocks as unknown as typeof blocks;
+      }
     }
 
     /** §4.5's fourth extra. Not a rate row — it rides the field that already
@@ -1455,7 +1462,14 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       let next = Math.max(0, ...blocks.flatMap((b) => [Number(b.id) || 0, ...(b.surfaces ?? []).map((s) => Number(s.id) || 0)])) + 1;
       const codes = new Set((await ctxPromise).rateItems.map((r) => r.code));
       const res = applyCupboardsEverywhere(blocks, act.kind, codes, () => next++);
-      if (res.rooms === 0) return { error: "Tick the cupboard doors Yes in a room first — the insides follow that answer.", status: 400 };
+      if (res.rooms === 0) {
+        return {
+          error: act.kind === "door_inside"
+            ? "Tick the robe doors Yes in a bedroom first — the inside faces follow that answer."
+            : "No room on this estimate has a cupboard we can paint inside.",
+          status: 400,
+        };
+      }
       blocks = res.blocks;
       return null;
     }
@@ -2045,6 +2059,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
             .filter((b) => String(b.name ?? "").toLowerCase() === "interior - extras")
             .flatMap((b) => (b.surfaces ?? []))
             .map((x) => String(x.code ?? "")),
+          // Tom, 25 Oct 2026 (item 13): how many of each — the sheet's − / +.
+          counts: extrasItemCounts(blocks as unknown as Parameters<typeof extrasItemCounts>[0], "Interior"),
           colourHelp: sn.success ? sn.data.paint.colourHelp === "advice" : false,
           note: sn.success ? String(sn.data.details.extraNote ?? "") : "",
         };

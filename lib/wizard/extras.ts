@@ -38,7 +38,33 @@ export type JobExtra = {
 type LooseRateItem = {
   code: string | null; category: string | null; sub_category?: string | null;
   unit?: string | null; charge_out_cents?: number | null;
+  rate_1_coat?: number | string | null; rate_2_coat?: number | string | null; rate_3_coat?: number | string | null;
+  default_coats?: number | null;
 };
+
+/**
+ * Tom, 25 Oct 2026 (item 15): rows a customer is not offered on the whole-job
+ * sheet even though the card prices them. Picture rails are a per-metre trim an
+ * estimator measures, not a thing a customer ticks.
+ */
+const NOT_ON_THE_SHEET = new Set(["Picture Rails"]);
+
+/**
+ * What ONE of this row costs, in cents — the charge-out times the hours the
+ * card allows per item at its default coats. The sheet used to show the
+ * charge-out itself ($95 beside a mantle that prices at 2.5 h), which is the
+ * hourly rate, not a price (Tom, 25 Oct 2026, item 14). A per-metre row has no
+ * per-item price and is not offered.
+ */
+export function perItemPriceCents(r: LooseRateItem): number {
+  const cents = r.charge_out_cents ?? 0;
+  if (cents <= 0) return 0;
+  if ((r.unit ?? "Hours Per Item") !== "Hours Per Item") return 0;
+  const coats = r.default_coats === 1 || r.default_coats === 3 ? r.default_coats : 2;
+  const hours = Number(coats === 1 ? r.rate_1_coat : coats === 3 ? r.rate_3_coat : r.rate_2_coat);
+  // A row with no hours (the fixture card, an un-timed row) is priced as one hour of its charge-out.
+  return Math.round(cents * (Number.isFinite(hours) && hours > 0 ? hours : 1));
+}
 
 /**
  * The surfaces a ROOM owns. A whole-job sheet must not offer them again — the
@@ -60,9 +86,10 @@ const roomOwned = (o: AddOption) => o.via === "substrate";
 export function jobExtras(rateItems: ReadonlyArray<LooseRateItem>): JobExtra[] {
   const byCode = new Map(rateItems.filter((r) => r.code).map((r) => [r.code as string, r]));
   return interiorAddOptions(rateItems)
-    .filter((o) => !roomOwned(o))
+    .filter((o) => !roomOwned(o) && !NOT_ON_THE_SHEET.has(o.key))
     .map((o) => {
-      const cents = byCode.get(o.key)?.charge_out_cents ?? 0;
+      const row = byCode.get(o.key);
+      const cents = row ? perItemPriceCents(row) : 0;
       return { code: o.key, label: o.label, group: o.group, priceDollars: Math.round(cents / 100) };
     })
     .filter((e) => e.priceDollars > 0);

@@ -54,7 +54,9 @@ test("R3 interior loop: L×W size question, confirm walk, dw check, sweep — ac
     if (i === 0) {
       // Batch 2: out-of-range CLAMPS and proceeds (1–15 m a side) — the
       // gentle clamp, never a refusal; the toast names the recorded size.
-      await card.getByRole("button", { name: /Adjust it/ }).click();
+      // Tom, 25 Oct 2026 (item 17): the boxes are in the question, prefilled — no "Adjust it".
+      await expect(card.getByRole("button", { name: /Adjust it/ })).toHaveCount(0);
+      await expect(card.getByPlaceholder("length m")).toHaveValue(/^\d+(\.\d+)?$/);
       await card.getByPlaceholder("length m").fill("20");
       await card.getByPlaceholder("width m").fill("3.8");
       await card.getByRole("button", { name: "Update size" }).click();

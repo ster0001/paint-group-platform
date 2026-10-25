@@ -91,15 +91,17 @@ test("the footer line changes with the not-sures, and the offers appear at their
     if (await b.count()) { await b.first().click(); await page.waitForTimeout(800); }
   }
 
-  // Tom, 14 Sep (item 21): "Adjust it" opens the measurements — no "measure it instead" box.
+  // Tom, 14 Sep (item 21): no "measure it instead" box. Tom, 25 Oct 2026 (item 17): the
+  // measurements are in the question as boxes — no "Adjust it" step either.
   const first = page.locator(".sc-rc[data-room]").first();
-  await first.locator(".il-hd").click().catch(() => undefined);
-  await first.getByRole("button", { name: /Adjust it/ }).click();
+  await first.locator(".il-hd .il-pill").click().catch(() => undefined);
+  await expect(first.getByRole("button", { name: /Adjust it/ })).toHaveCount(0);
   await expect(first.getByTestId("offer-measure")).toHaveCount(0);
   await expect(first.getByPlaceholder(/length/i)).toBeVisible();
 
-  // Pointing out a spot brings the "damage is easier in person" offer.
+  // Tom, 25 Oct 2026 (item 7): pointing out a spot no longer brings the "damage is easier in person" offer.
   const areaId = await first.getAttribute("data-room");
   await page.getByTestId(`spot-open-${areaId}`).click();
-  await expect(page.getByTestId("offer-damage")).toBeVisible();
+  await expect(page.getByTestId(`spot-panel-${areaId}`)).toBeVisible();
+  await expect(page.getByTestId("offer-damage")).toHaveCount(0);
 });

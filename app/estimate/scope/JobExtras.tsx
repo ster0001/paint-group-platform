@@ -16,14 +16,17 @@ import { COLOUR_HELP_LABEL, EXTRA_NOTE_MAX, type JobExtra } from "@/lib/wizard/e
  * because "something we haven't listed" is exactly what a card cannot cover.
  */
 export default function JobExtras({
-  offer, on, colourHelp, note, busy, onToggle, onColourHelp, onNote,
+  offer, on, counts = {}, colourHelp, note, busy, onToggle, onCount, onColourHelp, onNote,
 }: {
   offer: JobExtra[];
   on: string[];
+  /** Tom, 25 Oct 2026 (item 13): how many of each ticked extra (two air vents). */
+  counts?: Record<string, number>;
   colourHelp: boolean;
   note: string;
   busy?: boolean;
   onToggle: (code: string, on: boolean) => void;
+  onCount?: (code: string, count: number) => void;
   onColourHelp: (want: boolean) => void;
   onNote: (note: string) => void;
 }) {
@@ -50,16 +53,27 @@ export default function JobExtras({
           <div className="sc-chips">
             {offer.filter((e) => e.group === group).map((e) => {
               const isOn = chosen.has(e.code);
+              const slug = e.code.replace(/\s+/g, "-").toLowerCase();
+              const n = counts[e.code] ?? 1;
               return (
-                <button
-                  key={e.code}
-                  type="button"
-                  className={`sd-chip il-chip ${isOn ? "on" : ""}`}
-                  aria-pressed={isOn}
-                  disabled={busy}
-                  data-testid={`extra-${e.code.replace(/\s+/g, "-").toLowerCase()}`}
-                  onClick={() => onToggle(e.code, !isOn)}
-                >{e.label} · ${e.priceDollars}</button>
+                <span key={e.code} className={`sc-extra-chip ${isOn ? "on" : ""}`}>
+                  <button
+                    type="button"
+                    className={`sd-chip il-chip ${isOn ? "on" : ""}`}
+                    aria-pressed={isOn}
+                    disabled={busy}
+                    data-testid={`extra-${slug}`}
+                    onClick={() => onToggle(e.code, !isOn)}
+                  >{e.label} · ${e.priceDollars}{isOn && n > 1 ? ` × ${n}` : ""}</button>
+                  {/* Tom, 25 Oct 2026 (item 13): how many — on the sheet, where the tick is. */}
+                  {isOn && onCount && (
+                    <span className="sc-st" data-testid={`extra-count-${slug}`}>
+                      <button type="button" aria-label={`fewer ${e.label.toLowerCase()}`} disabled={busy || n <= 1} onClick={() => onCount(e.code, n - 1)}>−</button>
+                      <b>{n}</b>
+                      <button type="button" aria-label={`more ${e.label.toLowerCase()}`} disabled={busy || n >= 20} onClick={() => onCount(e.code, n + 1)}>+</button>
+                    </span>
+                  )}
+                </span>
               );
             })}
           </div>

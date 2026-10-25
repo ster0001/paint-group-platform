@@ -80,6 +80,7 @@ test.describe("R1.3 document model", () => {
     await page.getByTestId(`spot-open-${areaId}`).click();
     await page.getByTestId(`spot-photo-${areaId}`).setInputFiles(`${FIXTURES}/condition-photo.png`);
     await page.getByTestId(`spot-tag-${areaId}-water`).click();
+    await page.getByTestId(`spot-add-${areaId}`).click(); // 25 Oct 2026: the tag is a choice; Add it sends
     await expect(page.locator(".sd-saving")).toHaveCount(0, { timeout: 30_000 });
 
     // The customer is TOLD what happened to their photos — an amber trace,

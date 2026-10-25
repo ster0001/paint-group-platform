@@ -58,7 +58,7 @@ describe("the next unlock never names a target the road can't reach", () => {
     expect(l.nextUnlock?.tier).toBe("detailed");
     expect(l.nextUnlock?.needs).toEqual([
       "Confirm 6 more rooms",
-      "Upload your floorplan or paste the listing",
+      "Upload your floorplan",
       "Answer the 1 open question",
     ]);
   });
@@ -66,7 +66,7 @@ describe("the next unlock never names a target the road can't reach", () => {
   test("detailed, no plan → confirmed is unlocked BY the plan (the reachable road)", () => {
     const l = ladderFor(input({ accuracyPct: 74, decision: decide(400_000, 74), pendingAreas: 0 }));
     expect(l.tier).toBe("detailed");
-    expect(l.nextUnlock).toEqual({ tier: "confirmed", needs: ["Upload your floorplan or paste the listing"] });
+    expect(l.nextUnlock).toEqual({ tier: "confirmed", needs: ["Upload your floorplan"] });
   });
 
   test("an exterior job is never told about confirmed — an estimator signs every one off", () => {

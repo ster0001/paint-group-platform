@@ -19,7 +19,7 @@ import {
 import type { RateItem } from "../pricing/types.ts";
 import {
   ALLOWANCE_CODES, addCatalogItem, applySideDims, applyWallShare, confirmSide, defaultSidesLoop, extrasPrices, findSide,
-  hasExtrasItem, rateFor, removeSideCustom, removeSideLine, toggleExtrasItem, visitReason,
+  extrasItemCounts, hasExtrasItem, isExtrasBlock, rateFor, setExtrasItemCount, removeSideCustom, removeSideLine, toggleExtrasItem, visitReason,
   addSideCustom, addWallSurface, addSideSurface, wallOptionsFromRates, wallSumPct,
   applySideInclude, PARTNER, sidesView,
   applySideMetres, applySideNote, applySideRename, linealCodes, sideCustomLabel, sidesDoneCount,
@@ -143,6 +143,25 @@ test("allowances price flat on the measureless extras block, and toggle both way
   const off = toggleExtrasItem(blocks, ALLOWANCE_CODES.rot.code, ALLOWANCE_CODES.rot.label, false, () => next++, r.chargeOutDollars);
   assert.ok(off.ok);
   assert.equal(hasExtrasItem(off.blocks, ALLOWANCE_CODES.rot.code), false);
+});
+
+test("Tom, 25 Oct 2026 (item 13): a whole-job extra carries a count, read back by code; the block is never a room", () => {
+  let blocks: LooseBlock[] = [sideBlock()];
+  let next = 40;
+  const on = toggleExtrasItem(blocks, "Air Vent", "Air vent", true, () => next++, 200, "Interior");
+  assert.ok(on.ok);
+  blocks = on.blocks;
+  assert.deepEqual(extrasItemCounts(blocks, "Interior"), { "Air Vent": 1 });
+  assert.ok(isExtrasBlock(blocks.find((b) => /Interior - Extras/.test(String(b.name)))!));
+  assert.equal(isExtrasBlock(sideBlock()), false);
+  const two = setExtrasItemCount(blocks, "Air Vent", 2, "Interior");
+  assert.ok(two.ok);
+  const line = (two.blocks.find((b) => /Interior - Extras/.test(String(b.name)))!.surfaces ?? [])[0];
+  assert.equal(line.count, 2);
+  assert.equal(line.qtyOverride, 2, "the absolute quantity moves with the count, so the price follows");
+  assert.deepEqual(extrasItemCounts(two.blocks, "Interior"), { "Air Vent": 2 });
+  assert.equal(setExtrasItemCount(blocks, "Air Vent", 21, "Interior").ok, false, "clamped 1–20");
+  assert.equal(setExtrasItemCount(blocks, "Meter Box", 2, "Interior").ok, false, "not on the estimate");
 });
 
 test("the weathered modifier scales wall labour ×1.8 through modSel.Condition", () => {

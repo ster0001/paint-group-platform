@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, test } from "vitest";
 import {
-  canAct, holdDaysFromSettings, holdUntil, holdWords, isOverdue, priceToFix,
+  canAct, customerStatusLine, holdDaysFromSettings, holdUntil, holdWords, isOverdue, priceToFix,
   type ConfirmationRow,
 } from "./confirmation-actions";
 
@@ -196,4 +196,16 @@ test("no date accessor in this file answers in the runtime's timezone", () => {
   const src = readFileSync(new URL("./confirmation-actions.ts", import.meta.url), "utf8");
   const banned = src.match(/\.get(FullYear|Month|Date|Day|Hours|Minutes)\b/g) ?? [];
   expect(banned).toEqual([]);
+});
+
+describe("Tom, 25 Oct 2026 (item 18): what a requested visit says on the sent screen", () => {
+  test("names no one, promises contact first, and a site inspection only if required — the remote line is unchanged", () => {
+    const visit = customerStatusLine({ status: "requested", kind: "visit", coordinator: "Tom Roman", turnaroundWords: "usually by the next working day" })!;
+    expect(visit.headline).toBe("Thanks — your estimator will contact you");
+    expect(visit.detail).toMatch(/go through all of the information/);
+    expect(visit.detail).toMatch(/if required, organise a site inspection/);
+    expect(`${visit.headline} ${visit.detail}`).not.toMatch(/Tom Roman|will call to agree|visit is being arranged/);
+    const remote = customerStatusLine({ status: "requested", kind: "remote", coordinator: "Tom Roman", turnaroundWords: "usually by the next working day" })!;
+    expect(remote.detail).toContain("Tom Roman is checking it");
+  });
 });
