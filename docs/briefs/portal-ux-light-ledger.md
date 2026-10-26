@@ -172,3 +172,7 @@ grep -rn "--raised\|--graphite\|--muted\|--line\b\|--cyan\b" app/account → not
 | F1 | "Payments" everywhere, trade and finance included | `AccountTabs.tsx`, `TradeMoneyScreen.tsx` |
 | F4 | Pay now → the invoice page (card payment is wired there) | — |
 | G3 | "Open the estimate" is a small secondary button under the title, not a header chip | the thread page header |
+
+## e2e run note (26 Oct 2026, ~15:00 Melbourne)
+
+Two attempts to take the test project for the portal batch (`portal-home-groups`, `portal-messages`, `portal-money`, `portal-timeline`, `portal-aftercare`, `portal-shell`, `portal-builder`, `trade-timeline`, `trade-money-team`, `portal-commercial`, `support`, `tom-batch-17sep`) were REFUSED: the lock was held by CI run 40261115241 (started 02:57Z) at stage 3 and again 52 minutes later. The rule is one wait, then report — no retry loop. **The new and changed specs have not run locally.** Their first result will be the PR's CI run (`e2e/customer-journey` + the listed specs) and the main run after merge; the screenshots folder `docs/briefs/portal-ux-light-screens/` fills on the first green local run (`./scripts/c1/run-e2e.sh e2e/portal-*.spec.ts`).
