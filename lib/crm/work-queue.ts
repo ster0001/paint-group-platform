@@ -204,6 +204,14 @@ export const WORK_ITEM_KINDS = [
   "hire_off_due",
   "job_moved",
   "materials_changed_after_order",
+  /**
+   * Tom, 26 Oct 2026 (28 Logan Street): colour-match codes no longer hold the
+   * walkthrough — the painter hands the customer the phone with codes still to
+   * come, and THIS is how the office knows. Derived from the work order (the
+   * same wo_colour_match_outstanding the gate used to read); keying the codes
+   * on either side clears it.
+   */
+  "colour_match_outstanding",
 ] as const;
 
 export type WorkItemKind = (typeof WORK_ITEM_KINDS)[number];
@@ -300,7 +308,7 @@ export function isCustomerVisible(kind: WorkItemKind): boolean {
  * SCREENS over one queue is not.
  */
 export type WorkItemHome = "crm" | "pc";
-const PC_HOMED: ReadonlySet<WorkItemKind> = new Set(["job_checkin", "job_followup", "standards_unsigned", "walkthrough_flagged", "callback_unbooked", "callback_visit_soon", "callback_fixed", "painter_orange", "painter_red", "bonus_due", "bonus_changed", "payment_hold", "qa_check_due", "qa_check_final_cancelled", "qa_check_to_book", "painter_message", "site_visit_due", "material_request", "no_work_requested", "insurance_missing", "agreement_unsigned", "agreement_expiring",
+const PC_HOMED: ReadonlySet<WorkItemKind> = new Set(["job_checkin", "job_followup", "standards_unsigned", "walkthrough_flagged", "callback_unbooked", "callback_visit_soon", "callback_fixed", "painter_orange", "painter_red", "bonus_due", "bonus_changed", "payment_hold", "qa_check_due", "qa_check_final_cancelled", "qa_check_to_book", "painter_message", "site_visit_due", "material_request", "no_work_requested", "insurance_missing", "agreement_unsigned", "agreement_expiring", "colour_match_outstanding",
   "movements_unplanned", "order_unplaced", "delivery_unconfirmed", "movement_overdue", "movement_problem", "equipment_stranded", "hire_off_due", "job_moved", "materials_changed_after_order"]);
 export function homeOf(kind: WorkItemKind): WorkItemHome {
   return PC_HOMED.has(kind) ? "pc" : "crm";
@@ -406,6 +414,7 @@ export const KIND_WEIGHT: Record<WorkItemKind, number> = {
   hire_off_due: 26,
   job_moved: 28,
   materials_changed_after_order: 28,
+  colour_match_outstanding: 27,
 };
 
 export type PriorityInput = {
@@ -537,6 +546,7 @@ export const GROUP_OF_KIND: Record<WorkItemKind, Exclude<FilterGroup, "all">> = 
   hire_off_due: "followups",
   job_moved: "approvals",
   materials_changed_after_order: "approvals",
+  colour_match_outstanding: "followups",
 };
 
 // ---- source: customer check-ins on a running job (Tom, 25 Sep 2026) ----------
@@ -2539,6 +2549,40 @@ async function readNoWorkRequestRows(supabase: SupabaseClient): Promise<{ rows: 
   })) };
 }
 
+// ---- Colour-match codes outstanding at the hand-over (Tom, 26 Oct 2026) --------------------
+//
+// 28 Logan Street: the gate used to refuse the pack while a paint flagged "colour match
+// required" had no code, and the painter stood at the door unable to start. The codes never
+// hold the walkthrough again (20270306); instead the job tells the office. The reader is the
+// staff-only RPC wo_colour_matches_outstanding — one definer read over the same
+// wo_colour_match_outstanding the gate used — so this card and the Colour matches card on the
+// job page can never disagree. Keying the codes on either side is what clears it.
+export type ColourMatchQueueRow = { workOrderId: string; woRef: string; where: string; painter: string; stage: string; products: string; since: string };
+
+export function buildColourMatchItems(rows: readonly ColourMatchQueueRow[], now: Date): WorkItem[] {
+  return rows.map((r) => {
+    const done = r.stage === "closed";
+    return finish({
+      key: itemKey("colour_match_outstanding", "work_order", r.workOrderId, "codes"),
+      kind: "colour_match_outstanding", accountId: null, subjectRef: { type: "work_order", id: r.workOrderId },
+      title: `Colour match codes still to come on ${r.woRef} — ${r.where}`,
+      detail: `${r.painter} ${done ? "finished" : "went to the walkthrough"} without codes for ${r.products}. Ask them, or key the codes on the job's Colour matches card — the customer's record needs them.`,
+      since: r.since, dueAt: new Date(new Date(r.since).getTime() + 24 * 3_600_000).toISOString(),
+      action: { label: "Open the job", href: `/pc/wo/${r.workOrderId}#colour-matches` },
+    }, { valueCents: null, promisedToCustomer: false }, now);
+  });
+}
+
+async function readColourMatchRows(supabase: SupabaseClient): Promise<{ rows: ColourMatchQueueRow[]; error: string | null }> {
+  const { data, error } = await supabase.rpc("wo_colour_matches_outstanding");
+  if (error) return { rows: [], error: error.message };
+  type Row = { work_order_id: string; wo_ref: string; where_text: string; painter: string; stage: string; products: string; since: string };
+  return { error: null, rows: ((data ?? []) as Row[]).map((r) => ({
+    workOrderId: r.work_order_id, woRef: r.wo_ref, where: r.where_text || r.wo_ref, painter: r.painter || "The painter",
+    stage: r.stage, products: r.products, since: r.since,
+  })) };
+}
+
 // The "no public liability on file" card was retired from PC Command on 19 Oct
 // 2026 (Tom). The certificate reminder texts (certificateReminders sweep) and
 // the Contractors screens still carry it; the kind stays declared for old keys.
@@ -2936,7 +2980,7 @@ async function readAgreementRows(supabase: SupabaseClient, now: Date): Promise<{
 }
 
 export async function buildPcWorkItems(supabase: SupabaseClient, now = new Date()): Promise<{ items: WorkItem[]; failure: string | null }> {
-  const [checkins, callbacks, painters, qaChecks, painterMessages, siteVisits, materials, noWork, movements, agreements, dismissed] = await Promise.all([
+  const [checkins, callbacks, painters, qaChecks, painterMessages, siteVisits, materials, noWork, movements, agreements, colourMatches, dismissed] = await Promise.all([
     readJobCheckinRows(supabase, now),
     readCallbackRows(supabase),
     readPainterStatusRows(supabase),
@@ -2948,6 +2992,7 @@ export async function buildPcWorkItems(supabase: SupabaseClient, now = new Date(
     // Movements (brief §6, wired in Session 4 — the cards link to /pc/movements, which now exists).
     readMovementQueueRows(supabase),
     readAgreementRows(supabase, now),
+    readColourMatchRows(supabase),
     supabase.from("work_item_dismissals").select("item_key, until").or(`until.is.null,until.gt.${now.toISOString()}`).limit(500),
   ]);
   if (checkins.error) return { items: [], failure: `Couldn't read the jobs for check-ins: ${checkins.error}` };
@@ -2963,6 +3008,7 @@ export async function buildPcWorkItems(supabase: SupabaseClient, now = new Date(
     ...buildNoWorkRequestItems(noWork.rows, now),
     ...buildMovementWorkItems(movements.rows, movements.stranded, movements.settings, now),
     ...buildAgreementItems(agreements.rows, agreements.renewalWarnDays, agreements.today, now),
+    ...buildColourMatchItems(colourMatches.rows, now),
   ];
   const items = sortItems(applyDismissals(pcItems(built), dismissals, now));
   const failures = [
@@ -2976,6 +3022,7 @@ export async function buildPcWorkItems(supabase: SupabaseClient, now = new Date(
     noWork.error ? `Couldn't read the no-work requests (${noWork.error}).` : null,
     movements.error ? `Couldn't read the movements (${movements.error}).` : null,
     agreements.error ? `Couldn't read the subcontractor agreements (${agreements.error}).` : null,
+    colourMatches.error ? `Couldn't read the outstanding colour matches (${colourMatches.error}).` : null,
   ].filter(Boolean);
   return { items, failure: failures.length ? failures.join(" ") : null };
 }

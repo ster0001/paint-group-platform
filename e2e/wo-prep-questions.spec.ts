@@ -19,9 +19,11 @@ import {
  *   · the customer reads the painter's note on the sign-off page.
  *
  * Since 24 Sep 2026 (20270197, Tom: "when a job goes to quality check, only
- * staff need to sign the job off") a job that PASSED a check is the office's to
- * sign off: at Walkthrough the painter's job page shows the "Quality check
- * passed" notice (`staff-signoff-notice`), not the walkthrough-start button.
+ * staff need to sign the job off") a job that PASSED a check can be signed off
+ * by the office. Since 26 Oct 2026 (28 Logan Street) that is a second door, not
+ * a wall: at Walkthrough the painter's job page keeps the Start button, with a
+ * line saying the office can also sign (`walkthrough-start-office`); the old
+ * `staff-signoff-notice` is gone.
  *
  * Needs migration 20261103 live. A check is only scheduled on finish when the
  * product says one is due — and the shared e2e painter is long past "new" on
@@ -171,11 +173,12 @@ test.describe("prep questions + pass → walkthrough", () => {
     await expect(page.getByTestId("stage-advance")).toContainText(/Walkthrough/, { timeout: 15_000 });
   });
 
-  test("…and the painter sees the office-signs-off notice, not the quality-check notice", async ({ page }) => {
+  test("…and the painter sees the Start button with the office-may-sign line, not the quality-check notice", async ({ page }) => {
     await signIn(page, contractor!, /\/portal/);
     await page.goto(`/portal/jobs/${uiFixture!.workOrderId}`);
-    await expect(page.getByTestId("staff-signoff-notice")).toBeVisible({ timeout: 15_000 });
-    await expect(page.getByTestId("walkthrough-start")).toHaveCount(0);
+    await expect(page.getByTestId("walkthrough-start")).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByTestId("walkthrough-start-office")).toBeVisible();
+    await expect(page.getByTestId("staff-signoff-notice")).toHaveCount(0);
     await expect(page.getByTestId("qa-notice")).toHaveCount(0);
   });
 
@@ -205,8 +208,8 @@ test.describe("prep questions + pass → walkthrough", () => {
 
     await signIn(page, contractor!, /\/portal/);
     await page.goto(`/portal/jobs/${painterFixture!.workOrderId}`);
-    await expect(page.getByTestId("staff-signoff-notice")).toBeVisible({ timeout: 15_000 });
-    await expect(page.getByTestId("walkthrough-start")).toHaveCount(0);
+    await expect(page.getByTestId("walkthrough-start")).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByTestId("walkthrough-start-office")).toBeVisible();
     await expect(page.getByTestId("send-pack")).toHaveCount(0);
     await expect(page.getByTestId("qa-passed")).toHaveCount(0);
   });
@@ -228,7 +231,8 @@ test.describe("prep questions + pass → walkthrough", () => {
 
       await signIn(page, contractor!, /\/portal/);
       await page.goto(`/portal/jobs/${parked.workOrderId}`);
-      await expect(page.getByTestId("staff-signoff-notice")).toBeVisible({ timeout: 15_000 });
+      await expect(page.getByTestId("walkthrough-start")).toBeVisible({ timeout: 15_000 });
+      await expect(page.getByTestId("walkthrough-start-office")).toBeVisible();
       const { data: after } = await db!.from("work_orders").select("stage").eq("id", parked.workOrderId).maybeSingle();
       expect((after as { stage: string }).stage).toBe("walkthrough");
     } finally {
