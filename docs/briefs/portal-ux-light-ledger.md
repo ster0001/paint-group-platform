@@ -144,3 +144,31 @@ Shipped:
 - Help: new `docs/help/customer-portal/customer.md` (Home, Payments, Messages, My colours, Profile); `work-orders/customer.md` (switcher, extras row, past tense, lightbox), `invoicing/customer.md` (Payments / Pay now / Invoice PDF), `imported-history/customer.md` (Done group). `npm run help:index -- --check` passes. `docs/ARCHITECTURE.md` carries the paragraph.
 
 ⚑ A3: the three darkened tokens differ from the brief's table by one or two shades; the brief's values did not pass AA at the sizes they are used.
+
+## Stage 9 — remove the old (ground rules)
+
+Nothing of the dark portal remains to delete beyond what the stages already replaced in place: the token block was rewritten (stage 1), the widget mount and `--chat-lift` went with it, the OPEN pill / "View invoice & PDF" / separate receipt line / mono-caps headings were replaced by their light-mode counterparts in their stages. No `-v2`, `-old` or `legacy` file was created; no component was kept "just in case".
+
+Grep checklist (run from the worktree root, 26 Oct 2026):
+```
+grep -rn "data-theme\|prefers-color-scheme\|dark:" app/account        → nothing
+grep -rn "Invoicing" app/account                                         → nothing
+grep -rn "v2\|-old\|legacy" app/account                                  → 4 pre-existing comments about "estimator journey v2" / "trade portal v2" (the brief names, not files)
+grep -rn "--raised\|--graphite\|--muted\|--line\b\|--cyan\b" app/account → nothing (the old token names are gone)
+```
+`knip` is not installed (and is not added — no new dependency); instead every `.acct .class` in `account.css` was grepped for a consumer under `app/account`, `app/wizard`, `app/e` and `lib` — none is orphaned. `git diff --stat origin/main..HEAD -- app lib e2e`: 63 files, +1943 / −653 — a replace-in-place diff with real deletions, as the plan asked.
+
+## ⚑ for the morning (all defaults built; overturn any)
+| ⚑ | What was built | To overturn |
+|---|---|---|
+| A3 | `--ink-3`, `--ok`, `--warn` one–two shades darker than the brief's table (AA) | the three lines at the top of `account.css` |
+| B3 / G4 | Chat with us hidden on every `/account/*` route | mount `AssistantWidget` in `(portal)/layout.tsx` and restore a `--chat-lift` |
+| C2 | identical addresses one chip + count; nothing merged | `addressChips()` in `lib/portal/homeList.ts` |
+| C4 | one "Get an estimate for another property" → `/estimate`; "Add a property (no estimate yet)" kept as a text link; the Home shortcut aimed at the selected property is gone | the CTA block in `(portal)/page.tsx` |
+| D2 | "Extra work · N approved · $X inc GST" replaces the Variations area row | `areaRollups()` filter in `lib/portal/timeline.ts` |
+| E1 | brand · line · finish parsed from the product name; hex / id "codes" hidden | `describeProduct` / `displayCode` in `lib/portal/colours.ts` |
+| E2 | By colour default, By area toggle | `byArea` default in `colours/page.tsx` |
+| E4 | "Need touch-up paint?" still rings the office | the action row in `colours/page.tsx` |
+| F1 | "Payments" everywhere, trade and finance included | `AccountTabs.tsx`, `TradeMoneyScreen.tsx` |
+| F4 | Pay now → the invoice page (card payment is wired there) | — |
+| G3 | "Open the estimate" is a small secondary button under the title, not a header chip | the thread page header |
