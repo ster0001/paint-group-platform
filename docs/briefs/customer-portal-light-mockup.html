@@ -1,0 +1,232 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Portal light mode</title>
+<style>
+:root{
+  --bg:#F6F5F1; --surface:#FFFFFF; --surface-2:#EFEEE9; --border:#E3E1DA;
+  --ink:#14181D; --ink-2:#5A6370; --ink-3:#8A939E;
+  --accent:#35D5EF; --accent-ink:#0E7490;
+  --ok:#1B7F56; --ok-bg:#E6F4EC; --warn:#9A6A0F; --warn-bg:#FBF1DC; --info:#0E7490; --info-bg:#DDF4F8;
+  --shadow:0 1px 2px rgba(20,24,29,.06);
+  --mono:"Martian Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
+  --body:-apple-system,BlinkMacSystemFont,"Segoe UI",Inter,Roboto,sans-serif;
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--body);-webkit-font-smoothing:antialiased}
+body{padding-bottom:76px}
+.hdr{position:sticky;top:0;z-index:5;background:var(--surface);border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;padding:12px 16px}
+.logo img{height:22px;width:auto;display:block;filter:invert(1) hue-rotate(180deg)}
+.hdr .r{display:flex;gap:8px;align-items:center}
+.pill{border:1px solid var(--border);border-radius:999px;padding:8px 12px;font-family:var(--mono);font-size:12px;background:var(--surface)}
+.pill .num{display:none}@media(min-width:640px){.pill .num{display:inline}}
+.avatar{width:34px;height:34px;border-radius:50%;background:var(--accent);color:var(--ink);display:grid;place-items:center;font-weight:700;font-size:13px}
+main{max-width:680px;margin:0 auto;padding:20px 16px}
+h1{font-size:26px;line-height:1.15;margin:4px 0 14px;letter-spacing:-.01em}
+.eyebrow{color:var(--ink-2);font-size:14px}
+h2{font-size:13px;font-weight:600;color:var(--ink-2);margin:22px 0 8px;letter-spacing:.02em}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:16px;box-shadow:var(--shadow);padding:16px;margin-bottom:10px}
+.card.tap{cursor:pointer;display:flex;justify-content:space-between;gap:12px;align-items:center}
+.card.tap:active{background:var(--surface-2)}
+.card .t{font-weight:600;font-size:16px}
+.card .s{color:var(--ink-2);font-size:14px;margin-top:4px}
+.card .m{color:var(--ink-3);font-size:12px;margin-top:6px}
+.chev{color:var(--ink-3);font-size:18px}
+.chip{display:inline-flex;align-items:center;gap:6px;font-family:var(--mono);font-size:10.5px;letter-spacing:.04em;text-transform:uppercase;padding:5px 9px;border-radius:999px;white-space:nowrap}
+.chip::before{content:"";width:6px;height:6px;border-radius:50%;background:currentColor}
+.ok{background:var(--ok-bg);color:var(--ok)}.warn{background:var(--warn-bg);color:var(--warn)}.info{background:var(--info-bg);color:var(--info)}
+.btn{display:block;width:100%;text-align:center;padding:14px;border-radius:12px;font-weight:600;font-size:15px;border:1px solid transparent;cursor:pointer;font-family:var(--body)}
+.btn.p{background:var(--accent);color:var(--ink)}
+.btn.s{background:var(--surface);border-color:var(--border);color:var(--ink)}
+.btn.sm{display:inline-block;width:auto;padding:8px 12px;font-size:13px;border-radius:9px}
+.strip{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 16px}
+.addr{font-family:var(--mono);font-size:10.5px;text-transform:uppercase;letter-spacing:.04em;padding:6px 10px;border-radius:999px;background:var(--surface-2);color:var(--ink-2);border:1px solid transparent}
+.addr.on{background:var(--info-bg);color:var(--info)}
+.addr.more{border-color:var(--border);background:var(--surface)}
+.hero{border-color:#BFE8F0;background:linear-gradient(180deg,#F2FBFD,#fff)}
+.money{font-family:var(--mono);font-weight:700}
+.row{display:flex;justify-content:space-between;align-items:center;gap:12px}
+.hr{border:0;border-top:1px solid var(--border);margin:14px 0}
+.inv{padding:12px 0;border-top:1px solid var(--border)}
+.inv:first-of-type{border-top:0}
+.inv .meta{font-family:var(--mono);font-size:11px;color:var(--ink-3)}
+.inv .amt{font-size:18px}
+.sum{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:10px}
+.sum div{background:var(--surface-2);border-radius:10px;padding:10px}
+.sum small{display:block;color:var(--ink-2);font-size:11px;margin-bottom:3px}
+.sw{width:40px;height:40px;border-radius:10px;border:1px solid var(--border);flex:none}
+.col{display:flex;gap:12px;align-items:flex-start;padding:12px 0;border-top:1px solid var(--border)}
+.col:first-of-type{border-top:0}
+.acts{display:flex;gap:8px;margin:8px 0 12px}
+.nav{position:fixed;bottom:0;left:0;right:0;background:var(--surface);border-top:1px solid var(--border);display:flex;justify-content:space-around;padding:8px 4px 10px;z-index:5}
+.nav a{font-size:11px;color:var(--ink-2);text-decoration:none;display:flex;flex-direction:column;align-items:center;gap:3px;padding:4px 8px;border-radius:8px}
+.nav a.on{color:var(--accent-ink);background:var(--surface-2)}
+.nav i{font-style:normal;font-size:18px}
+.tabs{display:flex;gap:6px;margin-bottom:14px;overflow:auto}
+.tabs button{border:1px solid var(--border);background:var(--surface);border-radius:999px;padding:8px 12px;font-size:13px;font-family:var(--body);cursor:pointer;white-space:nowrap}
+.tabs button.on{background:var(--ink);color:#fff;border-color:var(--ink)}
+section{display:none}section.on{display:block}
+.note{background:var(--warn-bg);color:var(--warn);border-radius:10px;padding:10px 12px;font-size:13px;margin-bottom:14px}
+.bubble{max-width:82%;padding:10px 12px;border-radius:14px;font-size:15px;line-height:1.35;margin:4px 0}
+.bubble.me{background:var(--ink);color:#fff;margin-left:auto;border-bottom-right-radius:4px}
+.bubble.them{background:var(--surface);border:1px solid var(--border);border-bottom-left-radius:4px}
+.bmeta{font-size:12px;color:var(--ink-3);margin:2px 0 8px}
+.bmeta.r{text-align:right}
+.composer{position:sticky;bottom:76px;background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:10px;display:flex;gap:8px;margin-top:16px;box-shadow:var(--shadow)}
+.composer input{flex:1;border:0;outline:0;font-size:15px;font-family:var(--body);background:transparent}
+</style>
+</head>
+<body>
+
+<header class="hdr">
+  <a class="logo" href="#"><img src="https://llmrvgdequpmzzuaxdhq.supabase.co/storage/v1/object/public/estimate-media/logos/1786806613771-Color_logo_-_no_background.png" alt="Paint Group"></a>
+  <div class="r"><span class="pill">📞 <span class="num">03 8840 9414</span></span><span class="avatar">T</span></div>
+</header>
+
+<main>
+<div class="note">Light-mode mockup, phone-first. Tap the tabs to see each page. Not every row is real data.</div>
+<div class="tabs">
+  <button class="on" data-t="home">Home</button>
+  <button data-t="project">My project</button>
+  <button data-t="colours">My colours</button>
+  <button data-t="pay">Payments</button>
+  <button data-t="msg">Messages</button>
+</div>
+
+<!-- HOME -->
+<section id="home" class="on">
+  <div class="eyebrow">Good evening, Tom</div>
+  <h1>Your painting at 1/41 Devoy Street is ready for your look around</h1>
+  <div class="strip">
+    <span class="addr on">Everything</span><span class="addr">1/41 Devoy St</span><span class="addr">2 Beech Rise</span><span class="addr">288 Bluff Rd</span><span class="addr">13 Leamington Cres · 4</span><span class="addr more">More (12)</span>
+  </div>
+  <div class="card hero">
+    <span class="chip info">Ready for your walkthrough</span>
+    <div class="t" style="margin-top:10px;font-size:18px">Time for a look around.</div>
+    <div class="s">Walk through with your painter, check every area, and sign off when you're happy — nothing is done until you say so.</div>
+    <div style="margin-top:14px"><button class="btn p">See my project</button></div>
+  </div>
+
+  <h2>Needs you</h2>
+  <div class="card tap"><div><div class="t">111/25 Bunney Road, Landsborough</div><div class="s">Your estimate is ready — tap to open it</div><div class="m">Updated 2 days ago</div></div><div style="text-align:right"><span class="chip info">Ready for you</span><div class="chev">›</div></div></div>
+  <div class="card tap"><div><div class="t">53B Talbot Crescent</div><div class="s">Confirm your rooms to finalise your price</div><div class="m">Updated 5 days ago</div></div><div style="text-align:right"><span class="chip warn">Keep shaping</span><div class="chev">›</div></div></div>
+  <div class="card tap"><div><div class="t">13 Lemongrass Cct, Point Cook</div><div class="s">You were at Condition — tap to finish</div><div class="m">Started 1 week ago</div></div><div style="text-align:right"><span class="chip warn">Not submitted</span><div class="chev">›</div></div></div>
+
+  <h2>With us</h2>
+  <div class="card tap"><div><div class="t">1330 Ferntree Gully Road</div><div class="s">We're checking the details — you'll hear from us within one business day</div><div class="m">Sent 3 days ago</div></div><div style="text-align:right"><span class="chip warn">Being checked</span><div class="chev">›</div></div></div>
+
+  <h2>Done <span style="font-weight:400">· 3</span></h2>
+  <div class="card tap"><div><div class="t">2 Beech Rise</div><div class="s">Completed 16 Sep · signed off</div></div><div style="text-align:right"><span class="chip ok">Complete</span><div class="chev">›</div></div></div>
+
+  <h2>Thinking about more painting?</h2>
+  <div class="card"><div class="s" style="margin:0 0 12px">Answer a few questions about the property and see your estimate in minutes.</div><button class="btn s">Get an estimate for another property</button></div>
+
+  <h2>Documents &amp; warranty</h2>
+  <div class="card tap"><div><div class="t">Your documents</div><div class="s">Warranty card, insurance certificates, completion reports</div></div><div class="chev">›</div></div>
+
+  <h2>Prefer to talk?</h2>
+  <div class="card"><div class="s" style="margin:0 0 12px">You can always ring us on <b>03 8840 9414</b> — a person answers.</div><button class="btn s">Call us now</button></div>
+  <p style="text-align:center;margin:22px 0"><a href="#" style="color:var(--ink-2)">Sign out</a></p>
+</section>
+
+<!-- PROJECT -->
+<section id="project">
+  <div class="strip" style="margin-bottom:8px"><span class="addr on">1/41 Devoy St</span><span class="addr">2 Beech Rise</span><span class="addr">23a Oakdene Cres</span></div>
+  <h1>Your project, day by day</h1>
+  <div class="card tap"><div><div class="t">Your completion report</div><div class="s">Signed off and yours for good — every area, with your warranty dates.</div></div><button class="btn s sm">Open</button></div>
+  <div class="card">
+    <div class="t" style="margin-bottom:6px">Where everything is up to</div>
+    <div class="row inv"><span>Exterior – Front</span><span class="chip ok">Done</span></div>
+    <div class="row inv"><span>Exterior – Left</span><span class="chip ok">Done</span></div>
+    <div class="row inv"><span>Exterior – Right</span><span class="chip ok">Done</span></div>
+    <div class="row inv"><span>Exterior – Rear</span><span class="chip ok">Done</span></div>
+    <div class="row inv"><span>Extra work · 1 approved · <span class="money">$250.00</span> inc GST</span><span class="chip ok">Approved</span></div>
+  </div>
+  <h2>Who painted your home</h2>
+  <div class="card row"><div style="display:flex;gap:12px;align-items:center"><span class="avatar" style="background:var(--surface-2)">J</span><div><div class="t">Josef</div><div class="s">Your painter</div></div></div></div>
+  <div class="card row"><div style="display:flex;gap:12px;align-items:center"><span class="avatar" style="background:var(--surface-2)">F</span><div><div class="t">Felipe Martinez</div><div class="s">Your project coordinator</div></div></div><button class="btn s sm">Message</button></div>
+  <h2>Day by day</h2>
+  <div class="m" style="color:var(--ink-3);font-size:12px;margin-bottom:6px">Thursday 17 September</div>
+  <div class="card"><div class="t">Signed off — thank you</div><div class="s">Your records stay here for good — the photos, your colours, your warranty.</div><div style="margin-top:8px"><span class="chip ok">Complete</span></div></div>
+  <div class="card"><div class="t">Quality check passed</div><div class="s">Your project coordinator checked the work against our standards.</div></div>
+  <div class="m" style="color:var(--ink-3);font-size:12px;margin:12px 0 6px">Tuesday 25 August</div>
+  <div class="card"><div class="t">We're underway</div><div class="s">Drop sheets down, furniture covered — and every area photographed first.</div>
+    <div class="m">4 photos · tap to view</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px"><div class="sw" style="width:100%;height:110px;background:#D8DCE0"></div><div class="sw" style="width:100%;height:110px;background:#CFD6DB"></div><div class="sw" style="width:100%;height:110px;background:#D8DCE0"></div><div class="sw" style="width:100%;height:110px;background:#CFD6DB"></div></div>
+  </div>
+</section>
+
+<!-- COLOURS -->
+<section id="colours">
+  <h1>My colours</h1>
+  <p class="s" style="color:var(--ink-2);margin:-6px 0 14px">Every colour on your walls, kept here for good.</p>
+  <div class="tabs" style="margin-bottom:6px"><button class="on">By colour</button><button>By area</button></div>
+
+  <h2 class="row">1/41 Devoy Street <span style="font-weight:400">Applied 17 Sep 2026</span></h2>
+  <div class="acts"><button class="btn s sm">Download PDF</button><button class="btn s sm">Need touch-up paint?</button></div>
+  <div class="card">
+    <div class="col"><div class="sw" style="background:#4A4C4B"></div><div><div class="t">Ironstone</div><div class="s">Dulux · low sheen · 2 coats</div><div class="m">Weatherboards, gutters, downpipes, windows, garage door — all four elevations</div></div></div>
+  </div>
+
+  <h2 class="row">23a Oakdene Crescent <span style="font-weight:400">Applied 30 Aug 2026</span></h2>
+  <div class="acts"><button class="btn s sm">Download PDF</button><button class="btn s sm">Need touch-up paint?</button></div>
+  <div class="card">
+    <div class="col"><div class="sw" style="background:#EDE8DD"></div><div><div class="t">White Duck Half</div><div class="s">Dulux · low sheen · 1 coat</div><div class="m">Walls — all rooms</div></div></div>
+    <div class="col"><div class="sw" style="background:#F7F7F4"></div><div><div class="t">Vivid White</div><div class="s">Dulux · flat · 1 coat</div><div class="m">Ceilings and cornices — all rooms</div></div></div>
+    <div class="col"><div class="sw" style="background:#F2F1EC"></div><div><div class="t">Lexicon Quarter</div><div class="s">Dulux · semi gloss · 1–2 coats</div><div class="m">Skirting, architraves, doors, windows, robe doors</div></div></div>
+  </div>
+
+  <h2 class="row">2 Beech Rise <span class="chip warn">To be confirmed</span></h2>
+  <div class="card"><div class="s" style="margin:0">Some colours are still being decided. They'll appear here the moment they're confirmed.</div></div>
+</section>
+
+<!-- PAYMENTS -->
+<section id="pay">
+  <h1>Payments</h1>
+  <div class="card">
+    <div class="row"><div><div class="eyebrow">1/41 Devoy Street</div><div class="money" style="font-size:24px">$7,886.11</div><div class="m">Project total · includes GST of $716.92</div></div><span class="chip ok">Nothing owing</span></div>
+    <div class="sum"><div><small>Total</small><span class="money">$7,886.11</span></div><div><small>Paid</small><span class="money">$7,886.11</span></div><div><small>Remaining</small><span class="money">$0.00</span></div></div>
+    <hr class="hr">
+    <div class="inv"><div class="meta">INV-0023 · Payment request · 25 Aug</div><div class="row"><span class="money amt">$1,971.53</span><span class="chip ok">Paid 25 Aug</span></div><div class="acts" style="margin:10px 0 0"><button class="btn s sm">Invoice PDF</button><button class="btn s sm">Receipt PDF</button></div></div>
+    <div class="inv"><div class="meta">INV-0024 · Balance on completion · 25 Aug</div><div class="row"><span class="money amt">$5,914.58</span><span class="chip ok">Paid 25 Aug</span></div><div class="acts" style="margin:10px 0 0"><button class="btn s sm">Invoice PDF</button><button class="btn s sm">Receipt PDF</button></div></div>
+  </div>
+  <div class="card">
+    <div class="row"><div><div class="eyebrow">2 Beech Rise</div><div class="money" style="font-size:24px">$12,141.29</div><div class="m">Project total · includes GST of $1,103.76</div></div><span class="chip warn">Due 4 Nov</span></div>
+    <div class="sum"><div><small>Total</small><span class="money">$12,141.29</span></div><div><small>Paid</small><span class="money">$10,687.32</span></div><div><small>Remaining</small><span class="money">$1,453.97</span></div></div>
+    <hr class="hr">
+    <div class="inv"><div class="meta">INV-0028 · Balance on completion · 16 Sep</div><div class="row"><span class="money amt">$1,453.97</span><span class="chip warn">Due 4 Nov</span></div><div style="margin-top:10px"><button class="btn p">Pay now</button></div><div class="acts" style="margin:8px 0 0"><button class="btn s sm">Invoice PDF</button></div></div>
+    <div class="inv"><div class="meta">INV-0022 · Payment request · 24 Aug</div><div class="row"><span class="money amt">$5,443.66</span><span class="chip ok">Paid 16 Sep</span></div><div class="acts" style="margin:10px 0 0"><button class="btn s sm">Invoice PDF</button><button class="btn s sm">Receipt PDF</button></div></div>
+  </div>
+  <div class="card"><div class="s" style="margin:0">A question about a payment? Ring us on <b>03 8840 9414</b> — we'll sort it out together.</div></div>
+</section>
+
+<!-- MESSAGES -->
+<section id="msg">
+  <div class="eyebrow">‹ All messages</div>
+  <div class="row" style="margin:4px 0 12px"><h1 style="margin:0;font-size:22px">111/25 Bunney Road</h1><span class="chip info">Ready for you</span></div>
+  <div class="acts"><button class="btn s sm">Open the estimate</button><button class="btn s sm">Ask the assistant</button></div>
+  <div class="bubble me">Test</div><div class="bmeta r">You · 20 Sep, 8:30 pm</div>
+  <div class="bubble them">answering this to get it off my screen!</div><div class="bmeta">Robyn · 22 Sep, 1:25 pm</div>
+  <div class="bubble me">Great, thanks — can we start the week after next?</div><div class="bmeta r">You · 23 Sep, 9:02 am</div>
+  <div class="bubble them">Yes — I'll pencil in Monday 6 Oct and confirm by Friday.</div><div class="bmeta">Felipe · 23 Sep, 9:40 am</div>
+  <div class="composer"><input placeholder="Type here — we usually reply the same business day"><button class="btn p sm">Send</button></div>
+</section>
+</main>
+
+<nav class="nav">
+  <a class="on" href="#"><i>⌂</i>Home</a><a href="#"><i>▣</i>My project</a><a href="#"><i>◐</i>My colours</a><a href="#"><i>▭</i>Payments</a><a href="#"><i>◯</i>Messages</a>
+</nav>
+
+<script>
+document.querySelectorAll('.tabs button[data-t]').forEach(b=>b.addEventListener('click',()=>{
+  document.querySelectorAll('.tabs button[data-t]').forEach(x=>x.classList.remove('on'));b.classList.add('on');
+  document.querySelectorAll('section').forEach(s=>s.classList.toggle('on',s.id===b.dataset.t));
+  const i={home:0,project:1,colours:2,pay:3,msg:4}[b.dataset.t];
+  document.querySelectorAll('.nav a').forEach((a,k)=>a.classList.toggle('on',k===i));
+  window.scrollTo(0,0);
+}));
+</script>
+</body>
+</html>

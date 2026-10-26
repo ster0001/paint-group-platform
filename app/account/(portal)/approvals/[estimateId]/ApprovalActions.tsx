@@ -84,7 +84,7 @@ export default function ApprovalActions({ estimateId, strip, pendingExternal }: 
       )}
 
       {warn && (
-        <div className="card" style={{ borderColor: "var(--amber)" }} data-testid="over-limit-warning">
+        <div className="card" style={{ borderColor: "var(--warn)" }} data-testid="over-limit-warning">
           <span className="chip amber nodot">Over your approval limit</span>
           <p className="sub" style={{ marginTop: 8 }}>
             This estimate is {fmt(warn.totalCents)} inc GST — above your {fmt(warn.limitCents)} limit.
@@ -130,7 +130,7 @@ export default function ApprovalActions({ estimateId, strip, pendingExternal }: 
         </div>
       )}
 
-      {msg && <p className="note" style={{ color: "var(--amber)" }} role="status">{msg}</p>}
+      {msg && <p className="note" style={{ color: "var(--warn)" }} role="status">{msg}</p>}
     </div>
   );
 }

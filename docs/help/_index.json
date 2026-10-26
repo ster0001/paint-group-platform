@@ -194,6 +194,28 @@
       "sources": []
     },
     {
+      "feature": "customer-portal",
+      "role": "customer",
+      "title": "Your account — Home, Payments, Messages and My colours on a phone",
+      "summary": "What each tab of your Paint Group account shows and how to use it — the grouped estimate list and address chips on Home, the three numbers and PDF buttons on Payments, the message threads with their unread badge, and your colours listed by colour with a By area view.",
+      "path": "docs/help/customer-portal/customer.md",
+      "walkthrough": null,
+      "media": [],
+      "verified_at_commit": null,
+      "sources": [
+        "app/account/(portal)/page.tsx",
+        "app/account/(portal)/money/page.tsx",
+        "app/account/(portal)/messages/page.tsx",
+        "app/account/(portal)/messages/[estimateId]/page.tsx",
+        "app/account/(portal)/colours/page.tsx",
+        "app/account/(portal)/profile/page.tsx",
+        "lib/portal/homeList.ts",
+        "lib/portal/money.ts",
+        "lib/portal/messages.ts",
+        "lib/portal/colours.ts"
+      ]
+    },
+    {
       "feature": "dashboard",
       "role": "pc",
       "title": "The home dashboard for a project coordinator — jobs, painters, and what needs you today",

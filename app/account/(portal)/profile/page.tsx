@@ -37,12 +37,12 @@ export default async function ProfilePage({
       <h1>My profile</h1>
 
       {saved && (
-        <div className="card" style={{ borderColor: "rgba(47,164,107,.5)" }}>
+        <div className="card" style={{ borderColor: "var(--ok)" }}>
           <p className="sub">Saved — all up to date.</p>
         </div>
       )}
       {error && (
-        <div className="card" style={{ borderColor: "rgba(224,168,60,.5)" }}>
+        <div className="card" style={{ borderColor: "var(--warn)" }}>
           <p className="sub">That didn&rsquo;t save — please check the details and try again.</p>
         </div>
       )}
@@ -72,12 +72,16 @@ export default async function ProfilePage({
 
       {/* Tom, 7 Sep: alerts per type and per channel live on their own page —
           one place, for residential and trade alike. */}
-      <Link href="/account/notifications" className="card" style={{ display: "block", textDecoration: "none" }} data-testid="notifications-link">
-        <h3>Notifications &amp; alerts →</h3>
-        <p className="sub" style={{ marginTop: 6 }}>
-          Choose what we send you — estimates, visits, job updates, invoices, replies — and whether by email or text.
-          {marketingOptOut ? " Offers and tips: off." : " Offers and tips: on."}
-        </p>
+      {/* B4: the whole card is the link. */}
+      <Link href="/account/notifications" className="job tap" data-testid="notifications-link">
+        <div className="job-main">
+          <div className="addr">Notifications &amp; alerts</div>
+          <div className="meta">
+            Choose what we send you — estimates, visits, job updates, invoices, replies — and whether by email or text.
+            {marketingOptOut ? " Offers and tips: off." : " Offers and tips: on."}
+          </div>
+        </div>
+        <span className="chev" aria-hidden="true">›</span>
       </Link>
 
       <SetPassword />

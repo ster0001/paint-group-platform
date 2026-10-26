@@ -121,7 +121,7 @@ export default async function TradePortfolioHome({ ctx }: { ctx: PortalContext }
       <div className="card">
         <p className="sub" style={{ marginBottom: ctx.companyPhone ? 14 : 0 }}>
           {ctx.companyPhone
-            ? <>Statements, approvals, anything at all — ring us on <b style={{ color: "var(--text)" }}>{ctx.companyPhone}</b>.</>
+            ? <>Statements, approvals, anything at all — ring us on <b style={{ color: "var(--ink)" }}>{ctx.companyPhone}</b>.</>
             : <>Statements, approvals, anything at all — reply to any of our emails.</>}
         </p>
         {ctx.companyPhone && (

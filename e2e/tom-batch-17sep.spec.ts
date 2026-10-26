@@ -261,18 +261,17 @@ test.describe("Tom's 17 Sep batch", () => {
     await expect(page.getByTestId(`variation-approval-${variationId}`)).toHaveCount(0);
   });
 
-  test("11 · on a phone, the customer's Chat with us sits above the tab bar", async ({ page }) => {
+  // Portal UX + light mode (25 Oct 2026, ruling B3): the floating Chat with us is
+  // gone from every /account route — Messages is the one chat, one tap away in
+  // the tab bar. The widget still lives on the customer's estimate editor.
+  test("11 · on a phone, nothing floats over the portal's tab bar", async ({ page }) => {
     test.skip(!customer, missingCreds("CUSTOMER"));
     await page.setViewportSize({ width: 390, height: 844 });
     await signIn(page, customer!, /\/account/);
-    await page.goto("/account");
-    const launch = page.getByTestId("assistant-widget-launch");
-    await expect(launch).toBeVisible({ timeout: 30_000 });
-    const tabbar = page.locator(".acct .tabbar");
-    await expect(tabbar).toBeVisible();
-    const l = (await launch.boundingBox())!;
-    const t = (await tabbar.boundingBox())!;
-    // The launcher's bottom edge is above the bar's top edge — no overlap.
-    expect(l.y + l.height).toBeLessThanOrEqual(t.y + 1);
+    for (const path of ["/account", "/account/messages", "/account/money"]) {
+      await page.goto(path);
+      await expect(page.locator(".acct .tabbar")).toBeVisible();
+      await expect(page.getByTestId("assistant-widget-launch")).toHaveCount(0);
+    }
   });
 });

@@ -33,7 +33,13 @@ export type MoneyJob = {
   title: string;
   projectTotalIncCents: number | null; // the accepted contract, when accepted
   projectGstCents: number | null;
-  chip: { cls: "emerald" | "clay"; label: string } | null;
+  /** F2 (portal UX brief, 25 Oct 2026): the same three numbers on every project —
+   * Total (the accepted contract, else everything issued), Paid, Remaining. */
+  totalIncCents: number;
+  paidCents: number;
+  remainingCents: number;
+  /** Nothing owing (ok) · Due {date} (warn) · Overdue (danger); null with nothing issued. */
+  chip: { cls: "emerald" | "amber" | "clay"; label: string } | null;
   rows: MoneyInvoiceRow[];
   /** Accepted total minus everything issued — the mockup's "Balance on
    * completion · Not due yet" row. */
@@ -137,7 +143,9 @@ export function buildMoneyView(
       .map((inv) => {
         const d = toDerive(inv);
         const paid = invoicePaidCents(d, dPayments);
-        const balance = inv.total_inc_cents - paid;
+        // A paid invoice owes nothing, whatever the payment rows say (a bank transfer
+        // marked paid by hand has no payment row to subtract).
+        const balance = inv.status === "paid" ? 0 : inv.total_inc_cents - paid;
         const overdue = invoiceIsOverdue(d, dPayments, now);
         if (overdue) anyOverdue = true;
 
@@ -181,13 +189,27 @@ export function buildMoneyView(
 
     const issuedTotal = jobInvoices.reduce((a, i) => a + i.total_inc_cents, 0);
     const remainder = accepted ? Math.max(0, (est.accepted_total_cents ?? 0) - issuedTotal) : 0;
+    const paidCents = rows.reduce((a, r) => a + (r.totalIncCents - r.balanceCents), 0);
+    const totalIncCents = accepted ? (est.accepted_total_cents ?? 0) : issuedTotal;
+    const remainingCents = Math.max(0, totalIncCents - paidCents);
+    // The chip answers "do I owe anything?" — never a job-status word like "On track".
+    const nextDue = rows.filter((r) => r.balanceCents > 0 && r.dueOn).map((r) => r.dueOn!).sort()[0] ?? null;
+    const owing = rows.some((r) => r.balanceCents > 0);
+    const chip: MoneyJob["chip"] = rows.length === 0
+      ? null
+      : anyOverdue ? { cls: "clay", label: "Overdue" }
+      : owing ? { cls: "amber", label: nextDue ? `Due ${fmtDay(nextDue)}` : "Due" }
+      : { cls: "emerald", label: "Nothing owing" };
 
     jobs.push({
       estimateId: est.id,
       title: est.title?.trim() || "Your project",
       projectTotalIncCents: accepted ? est.accepted_total_cents : null,
       projectGstCents: accepted ? gstFromIncCents(est.accepted_total_cents!) : null,
-      chip: rows.length === 0 ? null : anyOverdue ? { cls: "clay", label: "Overdue" } : { cls: "emerald", label: "On track" },
+      totalIncCents,
+      paidCents,
+      remainingCents,
+      chip,
       rows,
       remainderCents: remainder > 0 ? remainder : null,
     });

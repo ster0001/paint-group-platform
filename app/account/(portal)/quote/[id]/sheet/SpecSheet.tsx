@@ -119,7 +119,7 @@ export default function SpecSheet(props: {
             {rows.map((row) => (
               <tr key={row.areaId} data-testid="sheet-row" data-area-id={row.areaId}>
                 <td style={td}><b>{row.name}</b></td>
-                <td style={{ ...td, color: "var(--muted)", whiteSpace: "nowrap" }}>{row.size}</td>
+                <td style={{ ...td, color: "var(--ink-2)", whiteSpace: "nowrap" }}>{row.size}</td>
                 {SHEET_COLUMNS.map((col) => (
                   <td key={col} style={{ ...td, textAlign: "center", padding: 4 }}>
                     <button
@@ -130,9 +130,9 @@ export default function SpecSheet(props: {
                       data-on={row.cells[col].on ? "1" : "0"}
                       aria-label={`${row.name} ${HEAD[col].toLowerCase()}: ${cellText(row, col)}`}
                       style={{
-                        minWidth: 44, minHeight: 36, borderRadius: 8, border: "1px solid var(--line, #e5e7eb)",
-                        background: row.cells[col].on ? "var(--cyan-soft, #ecfeff)" : "transparent",
-                        color: row.cells[col].on ? "var(--text)" : "var(--muted)", fontWeight: 600, cursor: sent ? "default" : "pointer",
+                        minWidth: 44, minHeight: 36, borderRadius: 8, border: "1px solid var(--border)",
+                        background: row.cells[col].on ? "var(--info-bg)" : "transparent",
+                        color: row.cells[col].on ? "var(--ink)" : "var(--ink-2)", fontWeight: 600, cursor: sent ? "default" : "pointer",
                       }}
                     >
                       {cellText(row, col)}
@@ -212,5 +212,5 @@ export default function SpecSheet(props: {
   );
 }
 
-const th: React.CSSProperties = { padding: "10px 10px", borderBottom: "1px solid var(--line, #e5e7eb)", fontSize: 12, color: "var(--muted)", letterSpacing: ".03em", textTransform: "uppercase" };
-const td: React.CSSProperties = { padding: "8px 10px", borderBottom: "1px solid var(--line, #f1f5f9)", verticalAlign: "middle" };
+const th: React.CSSProperties = { padding: "10px 10px", borderBottom: "1px solid var(--border)", fontSize: 12, color: "var(--ink-2)", letterSpacing: ".03em", textTransform: "uppercase" };
+const td: React.CSSProperties = { padding: "8px 10px", borderBottom: "1px solid var(--border)", verticalAlign: "middle" };

@@ -76,9 +76,9 @@ test.describe("portal builder (3a-6)", () => {
     const sb = db!;
     await openMagicLink(page, await magicLinkFor(sb, email));
 
-    // Home offers the builder, aimed at their property.
-    const cta = page.getByRole("link", { name: "Get a new estimate" });
-    await expect(cta).toHaveAttribute("href", `/estimate?property=${propertyId}`);
+    // Home offers the builder (portal UX C4, 25 Oct 2026: one button, address step first);
+    // the property-aimed door is the wizard's own ?property= link.
+    await expect(page.getByRole("link", { name: "Get an estimate for another property" })).toHaveAttribute("href", "/estimate");
     await page.goto(`/estimate?property=${propertyId}`);
     await expectWizardOn(page);
 

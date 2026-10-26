@@ -16,12 +16,16 @@ export type PortalEstimate = {
   share_token: string | null;
   sent_at: string | null;
   created_at: string;
+  /** Last touch of the row — the list's "Updated N days ago" (C3). Absent on older callers. */
+  updated_at?: string | null;
   property_id?: string | null;
   /** Paint Home brief §5 (⚑ P8): which shopfront the estimate came through; Paint Group when absent. */
   brand?: string | null;
 };
 
 export type PortalWorkOrder = {
+  /** The work order id — the project switcher's `?project=` key (D1). Absent on older callers. */
+  id?: string;
   estimate_id: string;
   stage: string; // offered | pre_start | in_progress | qa | completion_prep | walkthrough | closed
   start_date: string | null; // yyyy-mm-dd
@@ -93,7 +97,9 @@ export function homeState(
     const e = byEstimate.get(atWalkthrough.estimate_id)!;
     return {
       key: "walkthrough",
-      headline: `Your painting${about(e.title)} is finished`,
+      // C1 (portal UX brief, 25 Oct 2026): the headline follows the SAME stage as the
+      // card below it — nothing is finished until the customer says so.
+      headline: `Your painting${about(e.title)} is ready for your look around`,
       sub: "Time for a look around. Walk through with your painter, check every area, and sign off when you're happy — nothing is done until you say so.",
       chip: "Ready for your walkthrough",
       cta: { label: "See my project", href: "/account/project" },
@@ -106,7 +112,7 @@ export function homeState(
     const e = byEstimate.get(active.estimate_id)!;
     return {
       key: "underway",
-      headline: `Your painting is underway${about(e.title)}`,
+      headline: `Your painting${about(e.title)} is underway`,
       sub: "Follow it day by day — photos and progress land here as the work happens.",
       chip: dayOfJob(active.start_date, active.end_date, todayYmd),
       cta: { label: "See my project", href: "/account/project" },
@@ -122,7 +128,7 @@ export function homeState(
     if (closed) {
       return {
         key: "finished",
-        headline: `All finished${about(e.title)}`,
+        headline: `Your painting${about(e.title)} is finished`,
         sub: "Your records are safe here for good — photos, invoices and every colour on your walls.",
         chip: null,
         cta: { label: "See my project", href: "/account/project" },

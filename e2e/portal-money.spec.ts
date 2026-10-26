@@ -101,9 +101,31 @@ test.describe("portal money (3a-3)", () => {
     await expect(page.getByText("Not due yet")).toBeVisible();
     await expect(page.getByText("$4,915.00")).toBeVisible(); // 8450 − 2535 − 1000
 
-    // View & pay goes to the existing invoice token page.
-    const pay = page.getByRole("link", { name: "View & pay" });
+    // F2: Total / Paid / Remaining on the project card, and a chip that says what is owed.
+    const sum = page.getByTestId("money-sum");
+    await expect(sum).toContainText("Total$8,450.00");
+    await expect(sum).toContainText("Paid$2,535.00");
+    await expect(sum).toContainText("Remaining$5,915.00");
+    await expect(page.getByTestId("money-project-chip")).toHaveText("Due 31 Dec");
+
+    // F3: one row per invoice with its PDF buttons — the paid one carries the receipt too.
+    await expect(page.getByTestId("invoice-row")).toHaveCount(2);
+    await expect(page.getByTestId("invoice-pdf")).toHaveCount(2);
+    const receipt = page.getByTestId("receipt-pdf");
+    await expect(receipt).toHaveCount(1);
+    await expect(receipt).toHaveAttribute("href", `/account/receipt/${paymentId}`);
+
+    // F4: Pay now lands on the invoice page, which carries the card payment.
+    const pay = page.getByTestId("pay-now");
+    await expect(pay).toHaveCount(1);
     await expect(pay).toHaveAttribute("href", /^\/i\//);
+    await expect(pay).toContainText("due 31 Dec");
+
+    // B1: nothing but numbers and chips is mono — the question line is body copy.
+    await expect(page.getByText(/A question about a payment\?/)).toBeVisible();
+
+    await page.setViewportSize({ width: 400, height: 860 });
+    await page.screenshot({ path: "docs/briefs/portal-ux-light-screens/payments-phone.png", fullPage: true });
   });
 
   test("the receipt PDF route is owner-only — strangers and the signed-out get 404", async ({ page, request }) => {

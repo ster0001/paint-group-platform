@@ -73,7 +73,7 @@ export function SaveAsSpec({ estimateId, label }: { estimateId: string; label: s
           Cancel
         </button>
       </div>
-      {error && <div className="meta" style={{ color: "var(--amber, #b45309)" }} data-testid={`save-spec-error-${estimateId}`}>{error}</div>}
+      {error && <div className="meta" style={{ color: "var(--warn)" }} data-testid={`save-spec-error-${estimateId}`}>{error}</div>}
     </div>
   );
 }
