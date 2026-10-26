@@ -178,7 +178,7 @@ test.describe("portal timeline (3a-4)", () => {
 
     // The SENT update renders with its photos; the draft never does.
     await expect(page.getByText(/First coat on in the hallway today/)).toBeVisible();
-    await expect(page.getByText("CHECKED AND SENT BY THE OFFICE")).toBeVisible();
+    await expect(page.getByText("Checked and sent by the office")).toBeVisible();
     expect(await page.getByText("TOMORROW-DRAFT-MUST-NOT-RENDER").count()).toBe(0);
 
     // Photos: exactly the before + progress renditions — the qa photo never.

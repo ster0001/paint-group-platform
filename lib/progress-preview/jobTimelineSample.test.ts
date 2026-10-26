@@ -45,7 +45,7 @@ describe("JobTimeline in sample mode", () => {
     // Feed only: none of the portal page chrome around it.
     expect(html).not.toContain("Day by day");
     expect(html).not.toContain("Who&#x27;s at your home");
-    expect(html).not.toContain("CHECKED AND SENT BY THE OFFICE");
+    expect(html).not.toContain("Checked and sent by the office");
     expect(signPhotosByIds).not.toHaveBeenCalled();
   });
 

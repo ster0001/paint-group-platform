@@ -18,7 +18,7 @@ Once your job is booked, **Your project, day by day** in your account is the rec
 1. Open your account and choose **My project**.
 2. **Where everything is up to** lists each area with **Not started**, **Being prepped**, **First coat** or **Done ✓**, and a **Day 3 of 6** chip while the job runs.
 3. **Who's at your home** names your painter by first name, and **Who is managing and overseeing the job** names your project coordinator with **Message me**.
-4. **Day by day** is the feed, newest first. A card headed **From your painting team** is an update the office checked and sent you (it says **CHECKED AND SENT BY THE OFFICE** underneath). The photos the office attached to that update sit on that card, whatever day they were taken (since 14 Oct 2026). Other site photos from that day sit under the same card; a day with photos but no update gets its own **Photos from the site** or **Before photos — how it started** card.
+4. **Day by day** is the feed, newest first. A card headed **From your painting team** is an update the office checked and sent you (it says **Checked and sent by the office** underneath). The photos the office attached to that update sit on that card, whatever day they were taken (since 14 Oct 2026). Other site photos from that day sit under the same card; a day with photos but no update gets its own **Photos from the site** or **Before photos — how it started** card.
 5. Tap a photo to see it full size. Tap **Close** to come back.
 
 ## Updates from the office

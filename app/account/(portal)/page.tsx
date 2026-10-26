@@ -163,14 +163,12 @@ export default async function AccountHomePage({
       </div>
 
       <h2>Documents &amp; warranty</h2>
-      <Link href="/account/documents" className="job">
-        <div className="row">
-          <div>
-            <div className="addr">Your documents</div>
-            <div className="meta">Warranty card, our insurance certificates, completion reports</div>
-          </div>
-          <span className="chip mut nodot">Open</span>
+      <Link href="/account/documents" className="job tap" data-testid="documents-card">
+        <div className="job-main">
+          <div className="addr">Your documents</div>
+          <div className="meta">Warranty card, our insurance certificates, completion reports</div>
         </div>
+        <span className="chev" aria-hidden="true">›</span>
       </Link>
 
       <h2>Prefer to talk?</h2>

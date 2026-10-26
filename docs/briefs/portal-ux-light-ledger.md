@@ -49,3 +49,14 @@ Shipped:
 Checked: `tsc` clean (the two `LayoutProps` errors are Next's generated types, absent until a build runs in this worktree); `eslint --max-warnings 4 app/account lib/portal` clean; Home, login and the tab bar viewed at 400px on the C1 stack (:3102).
 
 ⚑ None.
+
+## Stage 2 — global sweep (B1, B4, B5)
+
+Shipped:
+- B1: `h2`, `.note`, `.tl-date`, `.mmeta`, `.msg-meta`, `.sw-meta`, `.refline`, `.colourcard .meta2`, `.raillabels`, `.notify-head` and the photo caption are the body font in sentence case. Mono now paints only `.money`, `.chip`, `.tile .num`, `.pulse .n`, the phone pill, the new `.meta-mono` (invoice / receipt numbers, stage 5) and the DRAFT watermark. "CHECKED AND SENT BY THE OFFICE" reads "Checked and sent by the office" (component, both timeline specs, the sample test and the customer help).
+- B4: `.job.tap` + `.chev` — a card that is a link is the whole card, with a right chevron and a pressed state. Applied to Home's Documents card (replacing the mono OPEN pill — C5's ask, settled the mockup's way) and the Profile Notifications card (the "→" is gone from the heading). Estimate cards get it in stage 3 with the grouping; message rows in stage 6 with the list rewrite; invoice rows in stage 5.
+- B5 / H3: Sign out already existed at the foot of Profile as well as Home — nothing to add.
+
+Checked: lint clean; `vitest lib/portal lib/progress-preview` 148/148; Home and Profile viewed at 400px.
+
+⚑ None.

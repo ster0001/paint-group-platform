@@ -144,7 +144,7 @@ test.describe("trade timeline (trade portal v2, session 4)", () => {
     await page.goto(`/account/properties/${propA}/jobs/${woA}`);
     await expect(page.getByRole("heading", { name: "Your project, day by day" })).toBeVisible();
     await expect(page.getByText("First coat is on in the living room.")).toBeVisible();
-    await expect(page.getByText("CHECKED AND SENT BY THE OFFICE")).toBeVisible();
+    await expect(page.getByText("Checked and sent by the office")).toBeVisible();
     await expect(page.getByText("Colours confirmed & paint ordered")).toBeVisible();
     await expect(page.locator(".tl img").first()).toBeVisible(); // signed rendition, never an original
     await expect(page.getByText("‹ 14 Beaumont St, Elwood")).toBeVisible();

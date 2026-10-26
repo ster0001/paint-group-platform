@@ -88,7 +88,7 @@ export default async function JobTimeline({ project, companyPhone, coordinatorNa
                 </div>
               )}
               {item.key.startsWith("update:") && (
-                <div className="mmeta">CHECKED AND SENT BY THE OFFICE</div>
+                <div className="mmeta">Checked and sent by the office</div>
               )}
             </div>
           </div>
