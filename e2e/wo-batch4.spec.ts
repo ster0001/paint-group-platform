@@ -3,7 +3,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { credentials, missingCreds, signIn, test } from "./helpers";
 import {
   completePrep, contractorIdForEmail, createLoopFixture, destroyLoopFixture,
-  rpcAs, serviceClient, type LoopFixture, photosIn } from "./fixtures/woLoop";
+  rpcAs, rpcAsJson, serviceClient, type LoopFixture, photosIn } from "./fixtures/woLoop";
 
 /**
  * Tom, 23 Aug (batch 4) — needs 20261109 + 20261110 live:
@@ -114,7 +114,10 @@ test.describe("batch 4 — no walkthrough, colour match, pre-start list", () => 
     expect((wo as { stage: string }).stage).toBe("closed");
   });
 
-  test("colour match gates the hand-over until the painter supplies the codes", async ({ page }) => {
+  // Tom, 26 Oct 2026 (28 Logan Street): colour-match codes no longer gate the hand-over
+  // (20270306). The pack goes, the job records colour_match_outstanding, and the office's
+  // outstanding list carries it until the codes are keyed — here by the painter on their page.
+  test("colour match no longer gates the hand-over — the office is told, and the painter can still supply the codes", async ({ page }) => {
     // Answer the colours question NO on the pre-start list (opens the uncoloured product too).
     await rpcAs(staff!, "wo_seed_checklists", { p_work_order_id: cm!.workOrderId });
     const { data: colours } = await db!.from("wo_checklist_items").select("id")
@@ -126,10 +129,14 @@ test.describe("batch 4 — no walkthrough, colour match, pre-start list", () => 
     await completePrep(db!, staff!, cm!.workOrderId);
     expect(await rpcAs(contractor!, "wo_contractor_finish", { p_work_order_id: cm!.workOrderId })).toMatch(/^ok:completion_prep/);
     await db!.from("wo_qa_checks").update({ result: "pass" }).eq("work_order_id", cm!.workOrderId);
-    const blocked = await rpcAs(contractor!, "wo_contractor_confirm_prep", { p_work_order_id: cm!.workOrderId });
-    expect(blocked).toMatch(/^error:gate:colour match codes still needed for/);
+    // Was error:gate:colour match codes still needed for … — the hand-over goes through now.
+    expect(await rpcAs(contractor!, "wo_contractor_confirm_prep", { p_work_order_id: cm!.workOrderId })).toBe("ok:walkthrough");
+    const { data: ev } = await db!.from("wo_events").select("meta").eq("work_order_id", cm!.workOrderId).eq("type", "colour_match_outstanding");
+    expect(((ev ?? []) as { meta: { products?: string } }[])[0]?.meta?.products).toBe("Aquanamel Gloss, Weathershield Low Sheen");
+    const listed = await rpcAsJson<{ work_order_id: string; products: string }[]>(staff!, "wo_colour_matches_outstanding", {});
+    expect((listed ?? []).find((r) => r.work_order_id === cm!.workOrderId)?.products).toBe("Aquanamel Gloss, Weathershield Low Sheen");
 
-    // The painter supplies them on their job page.
+    // The painter supplies them on their job page — the office's item clears.
     await signIn(page, contractor!, /\/portal/);
     await page.goto(`/portal/jobs/${cm!.workOrderId}`);
     await expect(page.getByTestId("colour-match-card")).toBeVisible({ timeout: 15_000 });
@@ -141,9 +148,8 @@ test.describe("batch 4 — no walkthrough, colour match, pre-start list", () => 
     await expect(page.getByTestId("colour-match-msg")).toContainText(/saved/i, { timeout: 15_000 });
     expect(await rpcAs(staff!, "wo_set_colour_match", { p_work_order_id: cm!.workOrderId, p_product: "Aquanamel Gloss", p_code: "SW7006", p_brand: "Sherwin", p_can_size: "4 L" })).toBe("ok");
     expect(await rpcAs(staff!, "wo_colour_match_outstanding", { p_work_order_id: cm!.workOrderId })).toBe("");
-
-    // Gate clear — the hand-over goes through.
-    expect(await rpcAs(contractor!, "wo_contractor_confirm_prep", { p_work_order_id: cm!.workOrderId })).toBe("ok:walkthrough");
+    const cleared = await rpcAsJson<{ work_order_id: string }[]>(staff!, "wo_colour_matches_outstanding", {});
+    expect((cleared ?? []).some((r) => r.work_order_id === cm!.workOrderId)).toBe(false);
   });
 
   test("pre-start list: six items; 'Pre-start checklist' ticked → the sweep sends (or records why not)", async ({ request }) => {

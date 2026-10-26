@@ -297,7 +297,7 @@ export default function StageAdvance({
               : "Every scheduled check has to be logged as a pass — then the job closes (no walkthrough on this booking).")
           : stage === "completion_prep" ? "The completion list has to be ticked before the customer is asked to look."
           : stage === "walkthrough" && !walkthroughRequired ? "No walkthrough on this booking — closing writes the report, starts the warranty and drafts the invoice."
-          : stage === "walkthrough" && staffSignsOff ? "The quality check passed, so the office signs this one off — the customer isn't asked to sign. They receive the completion report."
+          : stage === "walkthrough" && staffSignsOff ? "The quality check passed, so the office can sign this one off from here — the customer isn't chased for a signature. The painter can still walk them through on their phone (since 26 Oct 2026); whichever lands first closes the job. They receive the completion report."
           : ""}
       </p>
     </div>

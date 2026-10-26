@@ -450,11 +450,15 @@ export default async function PortalJobPage({
   // Tom, 21 Oct 2026: a job parked at Quality check whose check has NOT passed
   // can still be walked — the painter starts the walkthrough from here and the
   // server delivers the pack on the way (wo_start_walkthrough_mode, 20270284).
-  // A passed check is the office's sign-off (24 Sep) and shows the notice instead.
-  const walkBeforeQa = stage === "qa" && walkthroughRequired && !staffSignsOff && !qaPassed;
+  // A passed check routes the job on view (above); until it has, this is the door.
+  // Tom, 26 Oct 2026 (28 Logan Street): a passed check used to swap the Start
+  // button for "the office signs this job off", and colour-match codes refused
+  // the pack. Neither holds the painter now — the office MAY sign off from its
+  // side, and colour codes still to come are the office's work item.
+  const walkBeforeQa = stage === "qa" && walkthroughRequired && !qaPassed;
   // Tom, 23 Oct 2026: and from finishing up (completion_prep) once the prep list is ticked —
   // the RPC refuses in words while items are still open.
-  const walkFromPrep = stage === "completion_prep" && walkthroughRequired && !staffSignsOff;
+  const walkFromPrep = stage === "completion_prep" && walkthroughRequired;
   // Session 6: Start / Finish day on THIS job, hours only (clocksOn painters).
   const timesheet = capabilities.clocksOn && stage !== "closed" ? await loadMyTimesheet(id) : null;
   const bookedFinal = ((walkthroughRows ?? []) as { kind: string; scheduled_date: string }[])
@@ -483,10 +487,10 @@ export default async function PortalJobPage({
   // Tom (17 Sep): every box ticked → a Start-the-walkthrough bar pinned under
   // the header, so the next step is never a scroll away. It stays through the
   // finish and the walkthrough stage; the quality check has its own notice.
-  // A quality-checked job at the sign-off stage is the office's: no bar, a notice instead.
-  // ...and a job whose walkthrough was switched off after it got here (Tom,
-  // 24 Sep) has none to start either — the office closes it.
-  const showWalkthroughBar = job.committed && ((atWalkthrough && !staffSignsOff && walkthroughRequired) || walkBeforeQa || canPrep || (canTick && allSurfacesDone));
+  // A job whose walkthrough was switched off after it got here (Tom, 24 Sep)
+  // has none to start — the office closes it. A quality-checked job keeps the
+  // bar (Tom, 26 Oct 2026): the office can sign it off too, but never instead.
+  const showWalkthroughBar = job.committed && ((atWalkthrough && walkthroughRequired) || walkBeforeQa || canPrep || (canTick && allSurfacesDone));
   const prepLeft = prepItems.filter((i) => i.required && !i.done).length;
   // Tom (17 Sep): areas the customer flagged at their walkthrough and nobody
   // has yet marked put right. While any exist on an in-progress job, the
@@ -806,22 +810,12 @@ export default async function PortalJobPage({
       )}
 
       {/* §4b Mode A: at the walkthrough stage the painter runs the sign-off
-          from their own phone — unless the job was quality checked (Tom,
-          24 Sep): then the office signs it off and there is nothing to run. */}
-      {atWalkthrough && job.committed && !staffSignsOff && walkthroughRequired && (
+          from their own phone. A quality-checked job (Tom, 24 Sep) can ALSO be
+          signed off by the office — since 26 Oct 2026 that is a second door,
+          never a wall: the painter's button stays, with a line saying so. */}
+      {atWalkthrough && job.committed && walkthroughRequired && (
         <div style={{ padding: "0 16px" }}>
-          <WalkthroughStart workOrderId={id} finalDate={bookedFinal} />
-        </div>
-      )}
-      {atWalkthrough && job.committed && staffSignsOff && (
-        <div style={{ padding: "0 16px" }}>
-          <div className="card" data-testid="staff-signoff-notice">
-            <div className="tick-head"><b>Quality check passed</b></div>
-            <p className="hint" style={{ padding: 0, marginTop: 6 }}>
-              Paint Group signs this job off from the office — no walkthrough to run on your phone.
-              The customer receives the completion report when it&rsquo;s signed, and the job reads complete here.
-            </p>
-          </div>
+          <WalkthroughStart workOrderId={id} finalDate={bookedFinal} officeMaySign={staffSignsOff} />
         </div>
       )}
 
