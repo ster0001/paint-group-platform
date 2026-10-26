@@ -83,7 +83,7 @@ export default async function TradePropertyPage({ params, searchParams }: {
       {d.companyPhone && (
         <div className="card">
           <p className="sub" style={{ margin: 0 }}>
-            Questions about this job? Call us on <b style={{ color: "var(--text)" }}>{d.companyPhone}</b>.
+            Questions about this job? Call us on <b style={{ color: "var(--ink)" }}>{d.companyPhone}</b>.
           </p>
         </div>
       )}
@@ -92,7 +92,7 @@ export default async function TradePropertyPage({ params, searchParams }: {
         <h3 style={{ marginTop: 0 }}>Job history at this property</h3>
         {d.jobHistory.length === 0 && <p className="sub">No jobs on record yet.</p>}
         {d.jobHistory.map((j, i) => (
-          <div key={`${j.woRef}-${i}`} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, padding: "10px 0", borderTop: i ? "1px solid var(--line)" : "none" }}>
+          <div key={`${j.woRef}-${i}`} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, padding: "10px 0", borderTop: i ? "1px solid var(--border)" : "none" }}>
             <div style={{ minWidth: 0 }}>
               <b style={{ fontSize: 13 }}>{j.title}</b>
               <div className="refline">{j.woRef ?? ""}{j.closedLabel ? ` · ${j.closedLabel}` : j.current ? " · in progress" : ""}</div>
@@ -193,13 +193,13 @@ export default async function TradePropertyPage({ params, searchParams }: {
         <h3 style={{ marginTop: 0 }}>Invoices — this property</h3>
         {d.money.invoices.length === 0 && <p className="sub">Nothing invoiced at this property yet.</p>}
         {d.money.invoices.map((inv, i) => (
-          <div key={inv.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, padding: "10px 0", borderTop: i ? "1px solid var(--line)" : "none" }}>
+          <div key={inv.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, padding: "10px 0", borderTop: i ? "1px solid var(--border)" : "none" }}>
             <div style={{ minWidth: 0 }}>
               <b style={{ fontSize: 13, textTransform: "capitalize" }}>{inv.kind}</b>
               <div className="refline">{inv.number ?? ""}{inv.issuedOn ? ` · issued ${inv.issuedOn}` : ""}</div>
             </div>
             {inv.token
-              ? <a className="money" style={{ fontSize: 13, color: inv.paid ? "var(--emerald)" : undefined }} href={`/i/${inv.token}?portal=1`}>{moneyFmt(inv.totalIncCents)}</a>
+              ? <a className="money" style={{ fontSize: 13, color: inv.paid ? "var(--ok)" : undefined }} href={`/i/${inv.token}?portal=1`}>{moneyFmt(inv.totalIncCents)}</a>
               : <span className="money" style={{ fontSize: 13 }}>{moneyFmt(inv.totalIncCents)}</span>}
           </div>
         ))}
@@ -213,7 +213,7 @@ export default async function TradePropertyPage({ params, searchParams }: {
       <div className="card">
         {d.documents.length === 0 && <p className="sub">Completion reports and warranty certificates will land here as jobs finish.</p>}
         {d.documents.map((doc, i) => (
-          <div key={doc.href} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, padding: "10px 0", borderTop: i ? "1px solid var(--line)" : "none" }}>
+          <div key={doc.href} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, padding: "10px 0", borderTop: i ? "1px solid var(--border)" : "none" }}>
             <div style={{ minWidth: 0 }}>
               <b style={{ fontSize: 13 }}>{doc.title}</b>
               <div className="refline">{doc.meta}</div>
@@ -226,7 +226,7 @@ export default async function TradePropertyPage({ params, searchParams }: {
       <div className="card" data-testid="about-paint-group">
         {d.aboutDocs.length === 0 && <p className="sub">Our insurance certificates and warranty terms live here.</p>}
         {d.aboutDocs.map((doc, i) => (
-          <div key={doc.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, padding: "10px 0", borderTop: i ? "1px solid var(--line)" : "none" }}>
+          <div key={doc.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, padding: "10px 0", borderTop: i ? "1px solid var(--border)" : "none" }}>
             <div style={{ minWidth: 0 }}>
               <b style={{ fontSize: 13 }}>{doc.title}</b>
               <div className="refline">{doc.meta}</div>

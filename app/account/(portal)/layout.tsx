@@ -5,7 +5,6 @@ import PaintHomeLogo from "@/app/(marketing)/_components/PaintHomeLogo";
 import { brandFor } from "@/lib/marketing/brand";
 import { ensureMembership } from "@/lib/portal/auth";
 import AccountTabs from "./AccountTabs";
-import AssistantWidget from "@/app/estimate/assist/AssistantWidget";
 
 export const dynamic = "force-dynamic";
 
@@ -46,16 +45,19 @@ export default async function PortalShellLayout({ children }: { children: React.
   return (
     <div className="app" data-brand={brand}>
       <header className="hdr">
-        <div>
-          {painthome
-            ? <PaintHomeLogo variant="nav" on="light" className="brandlogo" title="Paint Home" />
-            : ctx.logoUrl
-              // eslint-disable-next-line @next/next/no-img-element
-              ? <img className="brandlogo" src={ctx.logoUrl} alt={ctx.companyName} />
-              : <div className="brand">PAINT GROUP<span className="dot">.</span></div>}
+        <div style={{ minWidth: 0 }}>
+          {/* A4: the real mark with dark lettering on the white header; home on tap. */}
+          <Link href="/account" className="brandlink" aria-label="Home">
+            {painthome
+              ? <PaintHomeLogo variant="nav" on="light" className="brandlogo" title="Paint Home" />
+              : ctx.logoUrl
+                // eslint-disable-next-line @next/next/no-img-element
+                ? <img className="brandlogo" src={ctx.logoUrl} alt={ctx.companyName} />
+                : <div className="brand">{ctx.companyName.toUpperCase()}<span className="dot">.</span></div>}
+          </Link>
           {trade && (
             <div style={{ display: "flex", alignItems: "center", gap: 7, marginTop: 5 }}>
-              {orgName && <span style={{ fontSize: 13, color: "var(--muted)", fontWeight: 600 }}>{orgName}</span>}
+              {orgName && <span style={{ fontSize: 13, color: "var(--ink-2)", fontWeight: 600 }}>{orgName}</span>}
               <span className="trade-tag">Trade account</span>
             </div>
           )}
@@ -64,7 +66,7 @@ export default async function PortalShellLayout({ children }: { children: React.
           {phone && (
             <a className="call-chip" href={`tel:${phone.replace(/\s+/g, "")}`}>
               <svg viewBox="0 0 24 24"><path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1 1 .4 2 .7 2.9a2 2 0 0 1-.5 2.1L8 10a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.5c.9.3 1.9.6 2.9.7a2 2 0 0 1 1.7 2z" /></svg>
-              {phone}
+              <span className="call-num">{phone}</span>
             </a>
           )}
           <Link href="/account/profile" className="avatar" aria-label="My profile">{initial}</Link>
@@ -72,8 +74,6 @@ export default async function PortalShellLayout({ children }: { children: React.
       </header>
       <AccountTabs trade={trade} financeOnly={financeOnly} />
       <main className="scroll">{children}</main>
-      {/* Tom, 7 Sep: bottom-right chat — the assistant on their latest estimate, or a person. */}
-      {!financeOnly && <AssistantWidget />}
     </div>
   );
 }

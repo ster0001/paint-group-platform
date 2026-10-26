@@ -66,7 +66,7 @@ export default async function MessageThreadPage({
         {thread.shareToken && (
           <>
             {" "}
-            <Link href={`/e/${thread.shareToken}?portal=1#chat`} style={{ color: "var(--cyan)" }}>
+            <Link href={`/e/${thread.shareToken}?portal=1#chat`} style={{ color: "var(--accent-ink)" }}>
               Open the estimate
             </Link>
           </>
@@ -93,7 +93,7 @@ export default async function MessageThreadPage({
       )}
 
       {error === "send" && (
-        <div className="card" style={{ borderColor: "rgba(224,168,60,.5)" }}>
+        <div className="card" style={{ borderColor: "var(--warn)" }}>
           <p className="sub">That message didn&rsquo;t send — please try again.</p>
         </div>
       )}

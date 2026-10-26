@@ -99,7 +99,7 @@ export default async function MoneyPage() {
           <h2>Invoices &amp; receipts</h2>
           <div className="card">
             {job.rows.map((row, i) => (
-              <div key={row.id} style={{ borderTop: i === 0 ? "none" : "1px solid var(--line)", padding: i === 0 ? "2px 0 14px" : "14px 0" }}>
+              <div key={row.id} style={{ borderTop: i === 0 ? "none" : "1px solid var(--border)", padding: i === 0 ? "2px 0 14px" : "14px 0" }}>
                 <div className="row">
                   <div style={{ minWidth: 0 }}>
                     <div className="note">
@@ -139,7 +139,7 @@ export default async function MoneyPage() {
                       <a
                         href={`/account/receipt/${r.paymentId}`}
                         className="note"
-                        style={{ color: "var(--cyan)" }}
+                        style={{ color: "var(--accent-ink)" }}
                       >
                         Download PDF
                       </a>
@@ -150,7 +150,7 @@ export default async function MoneyPage() {
             ))}
 
             {job.remainderCents != null && (
-              <div style={{ borderTop: job.rows.length ? "1px solid var(--line)" : "none", padding: "14px 0 2px" }}>
+              <div style={{ borderTop: job.rows.length ? "1px solid var(--border)" : "none", padding: "14px 0 2px" }}>
                 <div className="row">
                   <div>
                     <div style={{ fontSize: 17, fontWeight: 700 }}>Balance on completion</div>
@@ -177,7 +177,7 @@ export default async function MoneyPage() {
         <p className="sub">
           A question about an invoice?{" "}
           {phone ? (
-            <>Ring us on <b style={{ color: "var(--text)" }}>{phone}</b> — we&rsquo;ll sort it out together.</>
+            <>Ring us on <b style={{ color: "var(--ink)" }}>{phone}</b> — we&rsquo;ll sort it out together.</>
           ) : (
             <>Reply to any of our emails — we&rsquo;ll sort it out together.</>
           )}

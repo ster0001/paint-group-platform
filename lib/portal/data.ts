@@ -105,7 +105,9 @@ export async function getPortalContext(): Promise<PortalContext | null> {
     properties,
     companyName: company.name,
     companyPhone: company.phone,
-    logoUrl: company.logoUrl,
+    // The portal is light only (25 Oct 2026): the header wears the dark-lettering
+    // mark. getCompanyContact() falls back to the main mark when none is set.
+    logoUrl: company.logoUrlLight,
     coordinatorName: company.coordinatorName,
   };
 }

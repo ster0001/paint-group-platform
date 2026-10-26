@@ -37,12 +37,12 @@ export default async function ProfilePage({
       <h1>My profile</h1>
 
       {saved && (
-        <div className="card" style={{ borderColor: "rgba(47,164,107,.5)" }}>
+        <div className="card" style={{ borderColor: "var(--ok)" }}>
           <p className="sub">Saved — all up to date.</p>
         </div>
       )}
       {error && (
-        <div className="card" style={{ borderColor: "rgba(224,168,60,.5)" }}>
+        <div className="card" style={{ borderColor: "var(--warn)" }}>
           <p className="sub">That didn&rsquo;t save — please check the details and try again.</p>
         </div>
       )}

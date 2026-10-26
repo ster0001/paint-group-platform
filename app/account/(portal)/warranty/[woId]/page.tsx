@@ -54,11 +54,11 @@ export default async function WarrantyCertificatePage({
         </p>
         <div className="big" style={{ margin: "6px 0" }}>{job.title}</div>
         <p className="sub" style={{ fontSize: 17.5 }}>
-          completed for <b style={{ color: "var(--text)" }}>{holder}</b> and signed off on{" "}
-          <b style={{ color: "var(--text)" }}>{longDate(job.warranty!.startsOn)}</b> are covered by the{" "}
+          completed for <b style={{ color: "var(--ink)" }}>{holder}</b> and signed off on{" "}
+          <b style={{ color: "var(--ink)" }}>{longDate(job.warranty!.startsOn)}</b> are covered by the{" "}
           {companyName} workmanship warranty until
         </p>
-        <div className="big" style={{ margin: "6px 0", color: "var(--cyan)" }}>
+        <div className="big" style={{ margin: "6px 0", color: "var(--accent-ink)" }}>
           {longDate(job.warranty!.endsOn)}
         </div>
 

@@ -49,7 +49,7 @@ export default function SetPassword() {
         value={pw2} onChange={(e) => setPw2(e.target.value)} minLength={8}
       />
       {msg && (
-        <p className="sub" style={{ marginTop: 12, color: msg.ok ? "var(--emerald)" : "var(--amber)" }}>
+        <p className="sub" style={{ marginTop: 12, color: msg.ok ? "var(--ok)" : "var(--warn)" }}>
           {msg.text}
         </p>
       )}

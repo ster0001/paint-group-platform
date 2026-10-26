@@ -177,7 +177,7 @@ export default async function AccountHomePage({
       <div className="card">
         <p className="sub" style={{ marginBottom: ctx.companyPhone ? 14 : 0 }}>
           {ctx.companyPhone ? (
-            <>You can always ring us on <b style={{ color: "var(--text)" }}>{ctx.companyPhone}</b> — a person answers, and we&rsquo;re happy to talk anything through.</>
+            <>You can always ring us on <b style={{ color: "var(--ink)" }}>{ctx.companyPhone}</b> — a person answers, and we&rsquo;re happy to talk anything through.</>
           ) : (
             <>We&rsquo;re always happy to talk anything through — reply to any of our emails and a person answers.</>
           )}

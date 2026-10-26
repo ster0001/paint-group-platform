@@ -85,7 +85,7 @@ export default async function PortfolioHome({ ctx }: { ctx: PortalContext }) {
       <div className="card">
         <p className="sub" style={{ marginBottom: ctx.companyPhone ? 14 : 0 }}>
           {ctx.companyPhone
-            ? <>Statements, different terms, anything at all — ring us on <b style={{ color: "var(--text)" }}>{ctx.companyPhone}</b>.</>
+            ? <>Statements, different terms, anything at all — ring us on <b style={{ color: "var(--ink)" }}>{ctx.companyPhone}</b>.</>
             : <>Statements, different terms, anything at all — reply to any of our emails.</>}
         </p>
         {ctx.companyPhone && (

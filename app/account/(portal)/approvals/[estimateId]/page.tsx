@@ -83,7 +83,7 @@ export default async function TradeApprovalPage({ params }: { params: Promise<{ 
             <ApprovalActions estimateId={estimate.id} strip={strip} pendingExternal={screen.pendingExternal} />
           )}
 
-          <Link className="btn btn-ghost" style={{ marginTop: 8, color: "var(--muted)" }}
+          <Link className="btn btn-ghost" style={{ marginTop: 8, color: "var(--ink-2)" }}
             href={`/account/messages/${estimate.id}`}>
             Ask a question or request a change
           </Link>

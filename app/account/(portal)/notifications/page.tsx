@@ -40,17 +40,17 @@ export default async function NotificationsPage({ searchParams }: { searchParams
       <p className="sub">Choose what we send you, and how. {ALWAYS_SENT_NOTE}</p>
 
       {saved && (
-        <div className="card" style={{ borderColor: "rgba(47,164,107,.5)" }} data-testid="notify-saved">
+        <div className="card" style={{ borderColor: "var(--ok)" }} data-testid="notify-saved">
           <p className="sub">Saved — from now on we&rsquo;ll only send what you&rsquo;ve ticked.</p>
         </div>
       )}
       {error && (
-        <div className="card" style={{ borderColor: "rgba(224,168,60,.5)" }}>
+        <div className="card" style={{ borderColor: "var(--warn)" }}>
           <p className="sub">That didn&rsquo;t save — please try again.</p>
         </div>
       )}
       {!canEdit && (
-        <div className="card" style={{ borderColor: "rgba(224,168,60,.5)" }}>
+        <div className="card" style={{ borderColor: "var(--warn)" }}>
           <p className="sub">These settings belong to the account holder. Ask them to change what the office sends.</p>
         </div>
       )}

@@ -66,7 +66,7 @@ export default async function MessagesPage() {
           <h2>Prefer to talk?</h2>
           <div className="card">
             <p className="sub" style={{ marginBottom: 14 }}>
-              Ring us on <b style={{ color: "var(--text)" }}>{phone}</b> — we&rsquo;re happy to
+              Ring us on <b style={{ color: "var(--ink)" }}>{phone}</b> — we&rsquo;re happy to
               talk anything through.
             </p>
             <a className="btn btn-ghost" href={`tel:${phone.replace(/\s+/g, "")}`}>Call us now</a>

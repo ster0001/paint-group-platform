@@ -24,7 +24,7 @@ export default async function ComingCard({
         <p className="sub" style={{ marginBottom: phone ? 14 : 0 }}>
           Need it sooner?{" "}
           {phone ? (
-            <>Ring us on <b style={{ color: "var(--text)" }}>{phone}</b> and we&rsquo;ll send it to you today.</>
+            <>Ring us on <b style={{ color: "var(--ink)" }}>{phone}</b> and we&rsquo;ll send it to you today.</>
           ) : (
             <>Reply to any of our emails and we&rsquo;ll send it to you today.</>
           )}

@@ -80,7 +80,7 @@ export default function SupportView({ conversationId, estimateId, shareToken, in
           <button type="submit" className="btn btn-cyan" disabled={busy}>Book the callback</button>
         </form>
       )}
-      {error && <p className="sub" role="alert" style={{ color: "#ff8a8a" }}>{error}</p>}
+      {error && <p className="sub" role="alert" style={{ color: "var(--danger)" }}>{error}</p>}
     </div>
   );
 }

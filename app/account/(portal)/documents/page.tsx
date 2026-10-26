@@ -54,20 +54,20 @@ export default async function DocumentsPage({
       <h1>Documents &amp; warranty</h1>
 
       {issue === "reported" && (
-        <div className="card" style={{ borderColor: "rgba(47,164,107,.5)" }}>
+        <div className="card" style={{ borderColor: "var(--ok)" }}>
           <p className="sub">
             Thank you — we&rsquo;ve got it, and we&rsquo;ll be in touch within two business days.
-            {phone ? <> Sooner suits better? Ring us on <b style={{ color: "var(--text)" }}>{phone}</b>.</> : null}
+            {phone ? <> Sooner suits better? Ring us on <b style={{ color: "var(--ink)" }}>{phone}</b>.</> : null}
           </p>
         </div>
       )}
       {(issue === "photo" || issue === "invalid" || issue === "failed") && (
-        <div className="card" style={{ borderColor: "rgba(224,168,60,.5)" }}>
+        <div className="card" style={{ borderColor: "var(--warn)" }}>
           <p className="sub">
             {issue === "photo" ? (why || "One of the photos didn't work — try again.") :
              issue === "invalid" ? "Tell us a little about what you've noticed, then send it again." :
              "That didn't go through — please try again."}
-            {phone ? <> Or just ring us on <b style={{ color: "var(--text)" }}>{phone}</b> — we&rsquo;re happy to come and look.</> : null}
+            {phone ? <> Or just ring us on <b style={{ color: "var(--ink)" }}>{phone}</b> — we&rsquo;re happy to come and look.</> : null}
           </p>
         </div>
       )}
@@ -161,7 +161,7 @@ export default async function DocumentsPage({
         {documents.length === 0 && (
           <p className="sub">
             Our insurance certificates will sit here — ask us
-            {phone ? <> on <b style={{ color: "var(--text)" }}>{phone}</b></> : null} and
+            {phone ? <> on <b style={{ color: "var(--ink)" }}>{phone}</b></> : null} and
             we&rsquo;ll send them today.
           </p>
         )}
