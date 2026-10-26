@@ -24,6 +24,8 @@ export type PortalEstimate = {
 };
 
 export type PortalWorkOrder = {
+  /** The work order id — the project switcher's `?project=` key (D1). Absent on older callers. */
+  id?: string;
   estimate_id: string;
   stage: string; // offered | pre_start | in_progress | qa | completion_prep | walkthrough | closed
   start_date: string | null; // yyyy-mm-dd

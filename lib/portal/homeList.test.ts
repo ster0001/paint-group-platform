@@ -102,7 +102,7 @@ describe("addressChips — dedupe, cap, expand", () => {
   it("identical addresses are one chip with a count; the four most active lead; the rest are hidden", () => {
     const s = addressChips(props, rows, null, false);
     expect(s.shown.map((c) => c.label)).toEqual(["1/41 Devoy St", "2 Beech Rise", "288 Bluff Rd", "53B Talbot Cres"]);
-    expect(s.hidden.map((c) => c.label)).toEqual(["13 Leamington Crescent", "1330 Ferntree Gully Rd"]);
+    expect(s.hidden.map((c) => c.label)).toEqual(["13 Leamington Cres", "1330 Ferntree Gully Rd"]);
     const leam = s.hidden[0];
     expect(leam.ids).toEqual(["a1", "a2", "a3"]);
     expect(leam.count).toBe(3);
@@ -111,7 +111,7 @@ describe("addressChips — dedupe, cap, expand", () => {
 
   it("a selected hidden chip is pulled into view and selects every merged id", () => {
     const s = addressChips(props, rows, "a2", false);
-    expect(s.shown.map((c) => c.label)).toContain("13 Leamington Crescent");
+    expect(s.shown.map((c) => c.label)).toContain("13 Leamington Cres");
     expect(s.shown).toHaveLength(4);
     expect(s.selectedIds).toEqual(["a1", "a2", "a3"]);
   });

@@ -80,6 +80,11 @@ export function groupEstimates(
   const groups: HomeGroups = { needsYou: [], withUs: [], done: [] };
   const closed = new Set(workOrders.filter((w) => w.stage === "closed").map((w) => w.estimate_id));
   const booked = new Set(workOrders.filter((w) => w.stage !== "closed").map((w) => w.estimate_id));
+  // D1: a card with a job behind it deep-links to that job's timeline.
+  const projectHref = (estimateId: string): string | null => {
+    const wo = workOrders.find((w) => w.estimate_id === estimateId && w.id);
+    return wo ? `/account/project?project=${wo.id}` : null;
+  };
 
   if (openWizard) {
     groups.needsYou.push({
@@ -145,7 +150,7 @@ export function groupEstimates(
       const done = closed.has(e.id);
       groups.done.push({
         ...base,
-        href: docHref,
+        href: projectHref(e.id) ?? docHref,
         chip: done ? { cls: "emerald", label: "Complete" } : { cls: "emerald", label: "Accepted" },
         next: done
           ? "Signed off — your photos, colours and warranty stay here for good"
@@ -190,6 +195,15 @@ export type ChipStrip = {
   selectedIds: string[] | null;
 };
 
+/** "13 Leamington Crescent" → "13 Leamington Cres": the chip's label, short enough for two rows at 400px. */
+export function shortAddress(address: string): string {
+  const abbr: Record<string, string> = {
+    street: "St", road: "Rd", crescent: "Cres", avenue: "Ave", drive: "Dr", court: "Ct", place: "Pl", parade: "Pde",
+    boulevard: "Bvd", circuit: "Cct", terrace: "Tce", highway: "Hwy", grove: "Gr", close: "Cl", lane: "La", esplanade: "Esp",
+  };
+  return address.trim().replace(/\b([A-Za-z]+)\b/g, (w) => abbr[w.toLowerCase()] ?? w);
+}
+
 function addressKey(p: Pick<PortalProperty, "address" | "suburb" | "postcode">): string {
   return [p.address, p.suburb, p.postcode].map((s) => (s ?? "").trim().toLowerCase().replace(/\s+/g, " ")).join("|");
 }
@@ -209,7 +223,7 @@ export function addressChips(
   const groups = new Map<string, AddressChip & { last: string }>();
   for (const p of properties) {
     const key = addressKey(p) || p.id;
-    const label = p.address?.trim() || p.suburb?.trim() || "My address";
+    const label = p.address?.trim() ? shortAddress(p.address) : p.suburb?.trim() || "My address";
     const g = groups.get(key);
     if (g) g.ids.push(p.id);
     else groups.set(key, { id: p.id, ids: [p.id], label, count: 0, last: "" });

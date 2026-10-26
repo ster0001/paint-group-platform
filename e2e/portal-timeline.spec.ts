@@ -24,6 +24,8 @@ test.describe("portal timeline (3a-4)", () => {
   const email = `pg.e2e.timeline.${run}@example.com`;
   const painterEmail = `pg.e2e.painter.${run}@example.com`;
   let fixture: LoopFixture | null = null;
+  /** A second, signed-off job on the same account — the project switcher (D1) and the past tense (D3). */
+  let fixture2: LoopFixture | null = null;
   let accountId = "";
   let contractorId = "";
   let painterUserId = "";
@@ -50,7 +52,10 @@ test.describe("portal timeline (3a-4)", () => {
     fixture = await createLoopFixture(sb, contractorId, [
       { heading: "Hallway & stairs", labels: ["Walls", "Ceiling"] },
       { heading: "Lounge", labels: ["Walls", "Feature wall"] },
+      // D2: the office adds extras as an area; once one is approved the row must not read "Not started".
+      { heading: "Variations", labels: ["Extra work"] },
     ]);
+    fixture2 = await createLoopFixture(sb, contractorId, [{ heading: "Kitchen", labels: ["Walls"] }]);
 
     // The account chain.
     const acct = await sb.from("accounts").insert({ email, name: "Margaret Timeline" }).select("id").single();
@@ -60,6 +65,9 @@ test.describe("portal timeline (3a-4)", () => {
       .update({ account_id: accountId, title: "12 Acacia Street", accepted_total_cents: 845_000 })
       .eq("id", fixture.estimateId);
     if (link.error) throw new Error(`estimate link: ${link.error.message}`);
+    const link2 = await sb.from("estimates").update({ account_id: accountId, title: "7 Oak Court" }).eq("id", fixture2.estimateId);
+    if (link2.error) throw new Error(`estimate link 2: ${link2.error.message}`);
+    await sb.from("work_orders").update({ stage: "closed", status: "complete" }).eq("id", fixture2.workOrderId);
 
     // Booking dates → "Day 3 of 6".
     await sb.from("work_orders")
@@ -124,6 +132,10 @@ test.describe("portal timeline (3a-4)", () => {
         work_order_id: fixture.workOrderId, category: "extra_scope", comment: "Paint the laundry too",
         status: "declined", customer_responded_at: new Date().toISOString(),
       },
+      {
+        work_order_id: fixture.workOrderId, category: "extra_scope", comment: "Paint the hallway cupboard",
+        status: "customer_approved", price_cents: 25_000, customer_token: `e2eva${run}`, customer_responded_at: new Date().toISOString(),
+      },
     ]);
 
     // Deposit paid → milestone + Money agreement.
@@ -149,6 +161,7 @@ test.describe("portal timeline (3a-4)", () => {
       if (ids.length) await sb.from("payments").delete().in("invoice_id", ids);
       await destroyLoopFixture(sb, fixture);
     }
+    if (fixture2) await destroyLoopFixture(sb, fixture2);
     if (photoPaths.length) await sb.storage.from("wo-photos").remove(photoPaths);
     if (accountId) {
       await sb.from("account_users").delete().eq("account_id", accountId);
@@ -171,6 +184,13 @@ test.describe("portal timeline (3a-4)", () => {
     await expect(hallway.locator(".chip")).toHaveText("Done ✓");
     const lounge = page.locator(".area", { hasText: "Lounge" });
     await expect(lounge.locator(".chip")).toHaveText("Being prepped");
+    // D2: the approved extra is one row with count and total; no "Variations · Not started".
+    const extras = page.locator(".area", { hasText: "Extra work · 1 approved" });
+    await expect(extras).toContainText("$250.00");
+    await expect(extras.locator(".chip")).toHaveText("Approved");
+    expect(await page.locator(".area", { hasText: /^Variations/ }).count()).toBe(0);
+    // D3: the job is under way — present tense.
+    await expect(page.getByRole("heading", { name: "Who's at your home" })).toBeVisible();
 
     // Who's at your home: first name only.
     await expect(page.getByText("Marco", { exact: true })).toBeVisible();
@@ -200,14 +220,31 @@ test.describe("portal timeline (3a-4)", () => {
     await expect(page.getByText("Deposit received — you're booked")).toBeVisible();
     await expect(page.getByText("We're underway")).toBeVisible();
 
-    // Full-screen tap: the lightbox opens a larger rendition and closes.
+    // D4: the entry says how many photos; the lightbox opens a larger rendition, steps
+    // between the photos of that entry with the area label and "n of m", and closes.
+    await expect(page.getByTestId("photo-count").first()).toContainText(/2 photos/);
     await page.locator(".pgrid img").first().click();
     await expect(page.locator(".lightbox img")).toBeVisible();
+    await expect(page.getByTestId("lightbox-position")).toHaveText("1 of 2");
+    await page.keyboard.press("ArrowRight");
+    await expect(page.getByTestId("lightbox-position")).toHaveText("2 of 2");
+    await page.getByRole("button", { name: "Next photo" }).click();
+    await expect(page.getByTestId("lightbox-position")).toHaveText("1 of 2");
     await page.getByRole("button", { name: "Close" }).click();
     await expect(page.locator(".lightbox")).toHaveCount(0);
+
+    // D1: two jobs → the switcher; the signed-off one reads in the past tense (D3).
+    await expect(page.getByTestId("project-chip")).toHaveCount(2);
+    await page.getByTestId("project-chip").filter({ hasText: "7 Oak Ct" }).click();
+    await expect(page).toHaveURL(new RegExp(`project=${fixture2!.workOrderId}`));
+    await expect(page.getByText("7 Oak Court")).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Who painted your home" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Who looked after your job" })).toBeVisible();
+    await page.goto("/account/project");
 
     // The eyeball artefact (phone frame).
     await page.setViewportSize({ width: 390, height: 900 });
     await page.screenshot({ path: "test-results/look-portal/phone-project.png", fullPage: true });
+    await page.screenshot({ path: "docs/briefs/portal-ux-light-screens/project-phone.png", fullPage: true });
   });
 });

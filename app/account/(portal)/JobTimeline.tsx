@@ -46,9 +46,12 @@ export default async function JobTimeline({ project, companyPhone, coordinatorNa
   const items = sample ? sample.items : capPhotos(buildTimeline({ ...project.timeline, todayYmd: today, tradeEvents }));
   // Sample photos are the estimate's own public URLs — nothing to sign.
   const photosById = sample ? sample.photos : await signPhotosByIds(project.photoRows, items.flatMap((i) => i.photoIds));
-  const rollups = areaRollups(project.timeline.surfaces);
+  // D2: approved extras become one honest row (count + total) in place of "Variations · Not started".
+  const rollups = areaRollups(project.timeline.surfaces, project.timeline.variations);
   const dayChip = dayOfJob(project.startDate, project.endDate, today);
-  const showCrew = ["in_progress", "qa", "completion_prep", "walkthrough"].includes(project.stage);
+  // D3: after sign-off the people stay on the page, in the past tense.
+  const signedOff = project.stage === "closed";
+  const showCrew = signedOff || ["in_progress", "qa", "completion_prep", "walkthrough"].includes(project.stage);
 
   const gridFor = (photoIds: string[]): GridPhoto[] =>
     photoIds
@@ -119,7 +122,7 @@ export default async function JobTimeline({ project, companyPhone, coordinatorNa
               </p>
             </div>
             <a className="btn btn-ghost" style={{ width: "auto", padding: "12px 18px", fontSize: 15 }}
-              href={`/s/${project.reportToken}`}>Open</a>
+              href={`/s/${project.reportToken}`}>Open report</a>
           </div>
         </div>
       )}
@@ -132,7 +135,10 @@ export default async function JobTimeline({ project, companyPhone, coordinatorNa
           </div>
           {rollups.map((r) => (
             <div className="area" key={r.heading}>
-              <span className="nm">{r.heading}</span>
+              <span className="nm">
+                {r.heading}
+                {r.amountCents != null && <> · <span className="money">{moneyFmt(r.amountCents)}</span> inc GST</>}
+              </span>
               <span className={`chip ${r.chip.cls}`}>{r.chip.label}</span>
             </div>
           ))}
@@ -143,7 +149,7 @@ export default async function JobTimeline({ project, companyPhone, coordinatorNa
         <>
           {/* Tom, 1 Sep: this section is the PAINTER only — the coordinator
               gets their own section below, with a name and a way in. */}
-          <h2>Who&rsquo;s at your home</h2>
+          <h2>{signedOff ? "Who painted your home" : "Who's at your home"}</h2>
           <div className="card">
             {project.painterFirstName ? (
               <div className="person">
@@ -151,8 +157,9 @@ export default async function JobTimeline({ project, companyPhone, coordinatorNa
                 <div>
                   <div className="pname">{project.painterFirstName}</div>
                   <div className="prole">
-                    Your painter &middot; Please speak to me if you have any questions
-                    regarding how the job will be completed.
+                    {signedOff
+                      ? "Your painter"
+                      : "Your painter · Please speak to me if you have any questions regarding how the job will be completed."}
                   </div>
                 </div>
               </div>
@@ -161,15 +168,16 @@ export default async function JobTimeline({ project, companyPhone, coordinatorNa
             )}
           </div>
 
-          <h2>Who is managing and overseeing the job</h2>
+          <h2>{signedOff ? "Who looked after your job" : "Who is managing and overseeing the job"}</h2>
           <div className="card" data-testid="coordinator-card">
             <div className="person">
               <div className="pface d">{(coordinatorName || "P")[0]?.toUpperCase()}</div>
               <div>
                 <div className="pname">{coordinatorName || "Your project coordinator"}</div>
                 <div className="prole">
-                  Your Project Coordinator &middot; Please speak to me if you would like to
-                  make any changes to your scope, any progress updates or concerns.
+                  {signedOff
+                    ? "Your project coordinator"
+                    : "Your Project Coordinator · Please speak to me if you would like to make any changes to your scope, any progress updates or concerns."}
                   {companyPhone ? ` ${companyPhone}` : ""}
                 </div>
               </div>

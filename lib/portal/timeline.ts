@@ -80,7 +80,19 @@ export type TimelineItem = {
   amountCents: number | null;
 };
 
-export type AreaRollup = { heading: string; chip: { cls: ChipCls; label: string } };
+export type AreaRollup = { heading: string; chip: { cls: ChipCls; label: string }; /** The approved-extras row carries its total (D2). */ amountCents?: number };
+
+/** D2 (portal UX brief, 25 Oct 2026): the extras the customer approved — count
+ * and net total (a signed credit subtracts). A variation is "approved" once the
+ * customer said yes or the painter took it on; raised / priced / declined /
+ * cancelled never count. */
+export function approvedExtras(variations: readonly Pick<TimelineVariation, "status" | "price_cents" | "credit">[]): { count: number; totalCents: number } {
+  const ok = variations.filter((v) => (v.status === "customer_approved" || v.status === "contractor_accepted") && v.price_cents != null);
+  return {
+    count: ok.length,
+    totalCents: ok.reduce((s, v) => s + (v.credit ? -(v.price_cents ?? 0) : (v.price_cents ?? 0)), 0),
+  };
+}
 
 
 /** "Hi Amanda, all the walls…" → "All the walls…" when the sender line already says who it is from. */
@@ -113,9 +125,15 @@ function dayAnchor(ymd: string): string {
   return `${ymd}T12:00:00Z`;
 }
 
-export function areaRollups(surfaces: readonly TimelineSurface[]): AreaRollup[] {
+export function areaRollups(
+  surfaces: readonly TimelineSurface[],
+  variations: readonly Pick<TimelineVariation, "status" | "price_cents" | "credit">[] = [],
+): AreaRollup[] {
   const headings = [...new Set([...surfaces].sort((a, b) => a.sort - b.sort).map((s) => s.heading))];
-  return headings.map((heading) => {
+  // D2: once an extra is approved, the "Variations · Not started" area row says
+  // the wrong thing — it becomes one honest row with the count and the total.
+  const extras = approvedExtras(variations);
+  const rows: AreaRollup[] = headings.filter((h) => !(extras.count > 0 && /^variations?$/i.test(h.trim()))).map((heading) => {
     const group = surfaces.filter((s) => s.heading === heading);
     const done = group.filter((s) => s.state === "done").length;
     const prepped = group.filter((s) => s.state === "prepped").length;
@@ -126,6 +144,10 @@ export function areaRollups(surfaces: readonly TimelineSurface[]): AreaRollup[] 
     else chip = { cls: "mut", label: "Not started" };
     return { heading, chip };
   });
+  if (extras.count > 0) {
+    rows.push({ heading: `Extra work · ${extras.count} approved`, chip: { cls: "emerald", label: "Approved" }, amountCents: extras.totalCents });
+  }
+  return rows;
 }
 
 function moneyFmt(cents: number): string {

@@ -74,3 +74,19 @@ Shipped:
 Checked: `tsc` clean, lint clean, `vitest lib/portal` 79/79. **e2e not yet run** — the test project lock was held by CI run 40261115241 at the first try (one wait, then report: the rule). Retried once with the stage 5–7 specs below.
 
 ⚑ C4: the Home button no longer aims the wizard at the selected property (`/estimate?property=…`); that door is unchanged inside the wizard and from the trade portfolio, only the Home shortcut is gone.
+
+## Stage 4 — My project (D1–D5)
+
+Shipped:
+- D1: `getPortalProjects()` lists every issued work order the account owns (stage order, as before); `getPortalProject(accountIds, workOrderId)` picks by `?project=` and falls back to the first. With two or more jobs the page carries the Home chip strip (minus Everything) above the title; Home's Done cards with a job behind them deep-link to `/account/project?project=<woId>` (`work_orders.id` now rides the Home query).
+- D2 (locked default): `approvedExtras()` + `areaRollups(surfaces, variations)` — once an extra is approved (`customer_approved` / `contractor_accepted`, a signed credit subtracts) the "Variations" area row is replaced by "Extra work · N approved · $X inc GST" with an Approved chip. Pinned in `timeline.test.ts`.
+- D3: a signed-off job keeps its people, in the past tense — "Who painted your home" / "Who looked after your job"; the coordinator's Message / Reply button stays.
+- D4: `PhotoGrid` — "4 photos · tap to view" on the entry; the lightbox shows the area label and "2 of 4", steps with arrows, ← → keys and a swipe, and stays a rendition. Thumbnails already lazy-load; `decoding="async"` added.
+- D5: the completion-report button is the secondary button, labelled "Open report".
+- Spec: `portal-timeline.spec.ts` now seeds a Variations area + an approved extra and a second, signed-off job; asserts the extras row, the present/past tense, the count line, the lightbox stepping and the switcher; saves `project-phone.png` to the screens folder.
+
+Checked: `tsc` clean, lint clean, `vitest lib/portal lib/progress-preview` 157/157. e2e queued with the batch (lock held, see stage 3).
+
+Lesson for the ledger: three edits in this stage went through perl with `$/`, `${…}` in the replacement — one NUL byte and two emptied placeholders. Every changed file is now NUL-scanned before a commit.
+
+⚑ D2: variations and extras are one concept here (the brief's default). If "Variations" should stay a separate area row alongside the extras line, that is one filter in `areaRollups`.

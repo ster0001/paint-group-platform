@@ -31,6 +31,17 @@ describe("areaRollups — customer words only", () => {
       { heading: "Bedroom", chip: { cls: "cyan", label: "First coat" } },
     ]);
   });
+
+  it("D2: approved extras replace the Variations area with one row carrying count and total", () => {
+    const v = (status: string, price_cents: number | null, credit = false) => ({ status, price_cents, credit });
+    const surfaces = [sf("Hallway", "done", 0), sf("Variations", "todo", 1)];
+    // Nothing approved yet: the area shows as it is.
+    expect(areaRollups(surfaces, [v("priced", 34_000)]).map((r) => r.heading)).toEqual(["Hallway", "Variations"]);
+    // Two approved, one a credit: the Variations row goes, the extras row carries the net.
+    const rows = areaRollups(surfaces, [v("customer_approved", 25_000), v("contractor_accepted", 10_000), v("customer_approved", 5_000, true), v("declined", 99_000)]);
+    expect(rows.map((r) => r.heading)).toEqual(["Hallway", "Extra work · 3 approved"]);
+    expect(rows[1]).toEqual({ heading: "Extra work · 3 approved", chip: { cls: "emerald", label: "Approved" }, amountCents: 30_000 });
+  });
 });
 
 describe("buildTimeline", () => {

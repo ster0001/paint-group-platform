@@ -49,7 +49,7 @@ test.describe("portal Home — grouped estimates and capped address chips", () =
     if (props.error) throw new Error(props.error.message);
     const idOf = (address: string, nth = 0) => props.data.filter((p) => p.address === address)[nth].id as string;
 
-    const base = { account_id: accountId, level_of_finish: 3, builder_state: { blocks: [] } };
+    const base = { account_id: accountId, level_of_finish: 3, total_cents: 0, builder_state: { blocks: [] } };
     const ago = (days: number) => new Date(Date.now() - days * 86_400_000).toISOString();
     const rows = [
       { ...base, title: "1/41 Devoy Street, Ashwood", status: "sent", source: "customer_intake", share_token: sentToken, sent_at: ago(0), property_id: idOf("1/41 Devoy Street") },
@@ -112,7 +112,7 @@ test.describe("portal Home — grouped estimates and capped address chips", () =
     expect(box.height, "chip strip stays within two rows at 400px").toBeLessThan(90);
     await page.getByTestId("address-more").click();
     await expect(page.getByTestId("address-chip")).toHaveCount(6);
-    const leamington = page.getByTestId("address-chip").filter({ hasText: "13 Leamington Crescent" });
+    const leamington = page.getByTestId("address-chip").filter({ hasText: "13 Leamington Cres" });
     await expect(leamington).toHaveCount(1);
     await expect(leamington).toContainText("· 2");
     // Selecting the merged chip filters to BOTH records behind it.
