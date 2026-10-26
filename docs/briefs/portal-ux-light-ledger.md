@@ -90,3 +90,17 @@ Checked: `tsc` clean, lint clean, `vitest lib/portal lib/progress-preview` 157/1
 Lesson for the ledger: three edits in this stage went through perl with `$/`, `${…}` in the replacement — one NUL byte and two emptied placeholders. Every changed file is now NUL-scanned before a commit.
 
 ⚑ D2: variations and extras are one concept here (the brief's default). If "Variations" should stay a separate area row alongside the extras line, that is one filter in `areaRollups`.
+
+## Stage 5 — Payments (F1–F5)
+
+Shipped:
+- F1 (locked default): the tab and the page say "Payments" — residential, trade and the finance seat alike, and the property page's Money tab. Route stays `/money`.
+- F2: `buildMoneyView` gives every project `totalIncCents` (the accepted contract, else everything issued), `paidCents`, `remainingCents`, and a chip that answers "do I owe anything?": Nothing owing (ok) · Due {date} (warn, the earliest unpaid due date) · Overdue (danger). "On track" is gone. A `paid` invoice owes nothing whatever its payment rows say (a hand-marked bank transfer has none). Pinned in `money.test.ts`.
+- F3: one row per invoice — `INV-0023 · Payment request · 25 Aug` in the one mono meta line, the amount, the state chip, "Includes GST of …", then two small secondary buttons: **Invoice PDF** (new owner-only route `app/account/invoice/[invoiceId]/route.ts`, the twin of the receipt route — issued invoices only, 404 otherwise, served through `ensureInvoicePdf`) and **Receipt PDF** (`/account/receipt/[paymentId]`). The separate receipt line and the full-width "View invoice & PDF" button are gone. The not-yet-invoiced remainder keeps its row ("Not yet invoiced · Not due yet").
+- F4: customer card payment is wired on the invoice page (`PayBox`), so an unpaid row carries a primary **Pay now · due {date}** into `/i/<token>?portal=1`. An unpaid row with no token (should not exist) shows the due date and "Ring us … to pay" instead of a dead button.
+- F5: the footer question is body copy and says "payment".
+- Specs: `portal-money.spec.ts` asserts the three numbers, the Due chip, two Invoice PDF buttons, one Receipt PDF, Pay now, and saves `payments-phone.png`; `portal-shell`, `portal-commercial`, `trade-money-team` look for the Payments tab.
+
+Checked: `tsc` clean, lint clean, `vitest lib/portal` 102/102; `/account/money` viewed at 400px on the seeded preview account (two projects, paid + due rows).
+
+⚑ F1: the trade portal's money tab and title now also read "Payments" (the tab component is shared). If trade customers should keep "Invoicing", it is one label in `AccountTabs.tsx` and one `<h1>` in `TradeMoneyScreen.tsx`.

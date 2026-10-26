@@ -11,7 +11,7 @@ export default function TradeMoneyScreen({ view, orgName }: { view: TradeMoneyVi
   return (
     <div>
       <div className="greet">{orgName}</div>
-      <h1>Invoicing</h1>
+      <h1>Payments</h1>
 
       <div className="tiles" style={{ gridTemplateColumns: "1fr 1fr", marginTop: 14 }}>
         <div className="tile">

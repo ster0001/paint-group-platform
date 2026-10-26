@@ -29,7 +29,7 @@ const TABS = [
   },
   {
     href: "/account/money",
-    label: "Invoicing", // Tom, 1 Sep: "Invoicing", not "Money" (route unchanged)
+    label: "Payments", // Portal UX F1 (25 Oct 2026): customers pay, they do not invoice (route unchanged)
     icon: (
       <svg viewBox="0 0 24 24"><rect x="2" y="5" width="20" height="14" rx="2" /><path d="M2 10h20" /></svg>
     ),
@@ -62,7 +62,7 @@ const TRADE_TABS = [
       <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" /><path d="M12 8v8M8 12h8" /></svg>
     ),
   },
-  { ...TABS[3], label: "Invoicing" },
+  { ...TABS[3], label: "Payments" },
   {
     href: "/account/team",
     label: "Team",
@@ -73,7 +73,7 @@ const TRADE_TABS = [
 ];
 
 // A finance seat's whole portal is the money view (§5.6).
-const FINANCE_TABS = [{ ...TABS[3], label: "Invoicing" }];
+const FINANCE_TABS = [{ ...TABS[3], label: "Payments" }];
 
 export default function AccountTabs({ trade = false, financeOnly = false }: { trade?: boolean; financeOnly?: boolean }) {
   const pathname = usePathname();

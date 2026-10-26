@@ -59,6 +59,32 @@ describe("buildMoneyView — the customer's money, read-only and honest", () => 
     expect(jobs[0].chip).toEqual({ cls: "clay", label: "Overdue" }); // job chip follows
   });
 
+  it("F2: every project carries Total / Paid / Remaining, and the chip answers \"do I owe anything?\"", () => {
+    // A paid deposit and a progress claim still due.
+    const [owing] = buildMoneyView(
+      [est()],
+      [inv({ id: "i1", status: "paid" }), inv({ id: "i2", kind: "progress", number: "INV-2042", total_inc_cents: 100_000, gst_cents: 9_091, due_on: "2026-09-10" })],
+      [pay()],
+      TODAY, NOW,
+    );
+    expect(owing.totalIncCents).toBe(845_000);
+    expect(owing.paidCents).toBe(253_500);
+    expect(owing.remainingCents).toBe(591_500);
+    expect(owing.chip).toEqual({ cls: "amber", label: "Due 10 Sep" });
+
+    // Everything issued is paid: nothing owing, whatever the contract still has to invoice.
+    const [clear] = buildMoneyView([est()], [inv({ status: "paid" })], [pay()], TODAY, NOW);
+    expect(clear.paidCents).toBe(253_500);
+    expect(clear.remainingCents).toBe(591_500);
+    expect(clear.chip).toEqual({ cls: "emerald", label: "Nothing owing" });
+
+    // No accepted contract: the total is what was issued.
+    const [issuedOnly] = buildMoneyView([est({ status: "sent", accepted_total_cents: null })], [inv({ status: "paid" })], [pay()], TODAY, NOW);
+    expect(issuedOnly.totalIncCents).toBe(253_500);
+    expect(issuedOnly.remainingCents).toBe(0);
+    expect(issuedOnly.chip?.label).toBe("Nothing owing");
+  });
+
   it("a partly-paid invoice shows its remaining balance", () => {
     const [job] = buildMoneyView(
       [est()],
