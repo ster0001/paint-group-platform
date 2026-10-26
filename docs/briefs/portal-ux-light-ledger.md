@@ -117,3 +117,20 @@ Shipped:
 Checked: `tsc` clean, lint clean, `vitest lib/portal` green; list + thread viewed at 400px on the preview account (badge 2, composer on screen).
 
 ⚑ G3: a chip for "Open the estimate" in the header (the brief's words) made the header three lines at 400px with a long address; it is a small secondary button on the row under the title instead.
+
+## Stage 7 — My colours (E1–E6)
+
+Shipped:
+- E1 (locked default): the register row's `product` string is the only record of brand and finish, so `describeProduct()` reads brand · line · finish off it ("Dulux · Wash&Wear · low sheen"; an unknown brand is the first word, nothing invented). `displayCode()` shows a painter's match code only when it reads as a manufacturer code — a hex colour or an id fragment ("6c15e22d", the leak) is never rendered. No UUID reaches the page.
+- E2 (locked default): `byColour()` — one card per colour: name, brand · line · finish · coats (a range when they differ) · Code, then "Walls — Hallway & stairs, Lounge · Ceiling — Lounge". "By area" is a server-rendered toggle (`?view=area`) with the per-area rows in the same words.
+- E3: the swatch is the real hex when known, the colour's initial on surface-2 when not; TBC keeps its striped amber swatch.
+- E4: Download PDF + "Need touch-up paint?" sit on a sticky action row under each property heading. The touch-up link rings the office today (a `tel:`), so it stays a call (locked default: leave it when it is not Messages).
+- E5: with more than one property each collapses to its heading + colour count + applied date, the first open (native `<details>`).
+- E6: "kept here for good" appears once, in the intro; "Applied by 17 Sep 2026" per property, formatted like every other date.
+- `PrintButton` takes `small` for the action row; the statement, warranty and `/e` warranty pages keep the full-width button.
+- Spec: `portal-aftercare.spec.ts` asserts the by-colour card (line, code, surfaces, the real swatch colour), the TBC card, the applied date, the sticky actions, "for good" once, and the By area view; saves `colours-phone.png`.
+
+Checked: `tsc` clean, lint clean, `vitest lib/portal` green (colours 12/12). The preview account has no signed-off job, so this page's look is proven by the spec's screenshot, not the browser.
+
+⚑ E1: brand comes off the product name. If the office wants a separate brand/finish field on the colour record, that is a schema change and out of this run.
+⚑ E4: "Need touch-up paint?" still rings the office rather than opening Messages with a prefilled line.
