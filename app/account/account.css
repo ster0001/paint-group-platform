@@ -342,3 +342,19 @@
   .acct .notify-head, .acct .notify-row { grid-template-columns: 1fr 72px 72px; }
   .acct .notify-tick span { display: none; }
 }
+
+/* ===== Home: address chips (C2) and the grouped list (C3) ===== */
+.acct .strip { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 16px; }
+.acct .addr-chip {
+  display: inline-flex; align-items: center; font-family: var(--mono); font-size: 10.5px; text-transform: uppercase;
+  letter-spacing: 0.04em; padding: 7px 10px; border-radius: 999px; background: var(--surface-2); color: var(--ink-2);
+  border: 1px solid transparent; white-space: nowrap; max-width: 100%; overflow: hidden; text-overflow: ellipsis;
+}
+.acct .addr-chip.on { background: var(--info-bg); color: var(--info); }
+.acct .addr-chip.more { background: var(--surface); border-color: var(--border); color: var(--ink); }
+.acct .addr-chip .n { color: var(--ink-3); margin-left: 2px; }
+.acct details.group > summary { list-style: none; cursor: pointer; display: flex; align-items: center; gap: 8px; }
+.acct details.group > summary::-webkit-details-marker { display: none; }
+.acct details.group > summary h2 { margin: 24px 0 10px; }
+.acct details.group > summary::after { content: "›"; color: var(--ink-3); font-size: 20px; transform: rotate(90deg); margin-top: 14px; }
+.acct details.group[open] > summary::after { transform: rotate(-90deg); }

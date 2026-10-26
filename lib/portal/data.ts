@@ -127,7 +127,7 @@ export async function getPortalJobs(accountIds: string[]): Promise<PortalJobs> {
   // One round trip: the work order rides its estimate (volume gate finding).
   const { data: estimates } = await svc
     .from("estimates")
-    .select("id, title, status, source, total_cents, share_token, sent_at, created_at, property_id, brand, work_orders(estimate_id, stage, start_date, end_date)")
+    .select("id, title, status, source, total_cents, share_token, sent_at, created_at, updated_at, property_id, brand, work_orders(estimate_id, stage, start_date, end_date)")
     .in("account_id", accountIds)
     .order("created_at", { ascending: false })
     .limit(50);

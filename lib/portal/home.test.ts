@@ -94,11 +94,14 @@ describe("homeState — one headline, one primary action, by precedence", () => 
       PHONE,
     );
     expect(s.key).toBe("walkthrough");
+    // C1: the headline and the hero card never disagree — nothing is "finished" at the walkthrough.
+    expect(s.headline).toBe("Your painting at 12 Acacia Street is ready for your look around");
   });
 
   it("a closed job with nothing newer reads as finished, records kept", () => {
     const s = homeState([est({ status: "accepted" })], [wo({ stage: "closed" })], TODAY, PHONE);
     expect(s.key).toBe("finished");
+    expect(s.headline).toBe("Your painting at 12 Acacia Street is finished");
   });
 
   it("a work order for someone else's estimate is ignored", () => {

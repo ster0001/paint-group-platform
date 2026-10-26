@@ -60,3 +60,17 @@ Shipped:
 Checked: lint clean; `vitest lib/portal lib/progress-preview` 148/148; Home and Profile viewed at 400px.
 
 ⚑ None.
+
+## Stage 3 — Home (C1–C5)
+
+Shipped:
+- C1: `homeState` headlines follow the stage: walkthrough → "Your painting at X is ready for your look around"; in progress → "…is underway"; closed → "…is finished". Pinned in `lib/portal/home.test.ts`.
+- C2: `lib/portal/homeList.ts addressChips()` — identical addresses (address + suburb + postcode, case and spacing ignored) collapse to one chip with an estimate count badge ("13 Leamington Cres · 4"); the four most recently active lead, the rest sit behind "More (n)" (`?all=1`, server-rendered, no script); a selected hidden chip is pulled into view; selecting a merged chip filters to every record behind it. Nothing merged or deleted (locked default).
+- C3: `groupEstimates()` — Needs you (Ready for you · Keep shaping · Not yet submitted) / With us (Being checked, "We're checking the details — you'll hear from us within one business day") / Done (Accepted · Complete when the work order is closed · Declined · history records), each newest activity first by `estimates.updated_at` (now selected), with a relative date on every card ("Updated 2 days ago", Melbourne calendar days). Done is a native `<details>`, collapsed unless it is the only group. The estimate cards are whole-card links with a chevron (B4).
+- C4 (locked default): one button, "Get an estimate for another property" → `/estimate` (address step first). "Add an address" had its own working destination (`/account/addresses/new`, registers a property with no estimate) so it stays as a text link, "Add a property (no estimate yet)".
+- C5: Documents card settled in stage 2 (whole-card link + chevron, no OPEN pill).
+- Specs: new `e2e/portal-home-groups.spec.ts` (groups, chips, dedupe, two-row cap, whole-card tap, one CTA, light background, phone + desktop screenshots into `docs/briefs/portal-ux-light-screens/`). `airtable-import` opens Done before looking for history records; `portal-builder` asserts the new CTA.
+
+Checked: `tsc` clean, lint clean, `vitest lib/portal` 79/79. **e2e not yet run** — the test project lock was held by CI run 40261115241 at the first try (one wait, then report: the rule). Retried once with the stage 5–7 specs below.
+
+⚑ C4: the Home button no longer aims the wizard at the selected property (`/estimate?property=…`); that door is unchanged inside the wizard and from the trade portfolio, only the Home shortcut is gone.
