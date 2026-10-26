@@ -134,3 +134,13 @@ Checked: `tsc` clean, lint clean, `vitest lib/portal` green (colours 12/12). The
 
 ⚑ E1: brand comes off the product name. If the office wants a separate brand/finish field on the colour record, that is a schema change and out of this run.
 ⚑ E4: "Need touch-up paint?" still rings the office rather than opening Messages with a prefilled line.
+
+## Stage 8 — Profile + accessibility (H1–H3, A3)
+
+Shipped:
+- H1–H3 landed in stage 2 (body-font helper text; the Notifications card is a whole-card link; Sign out already at the foot of Profile).
+- A3 contrast: no axe or Lighthouse is installed in this repo, so every token text/background pair was measured directly (WCAG 2 relative luminance, `scratchpad/contrast.mjs`). Three of the brief's tokens missed AA for normal text and were darkened: `--ink-3` #8A939E → **#636D7B** (2.9:1 → 4.8:1 on paper), `--ok` #1B7F56 → **#17704C** (4.4 → 5.4 on its tint), `--warn` #9A6A0F → **#8C600D** (4.2 → 4.9). Everything else passes: ink 16:1, ink-2 5.6:1, accent-ink 4.9–5.4:1 (4.6 on surface-2), info 4.7:1, danger 5.1:1, ink on the accent button 10:1, white on accent-ink (badge) 5.4:1.
+- Screenshots are taken by the specs into `docs/briefs/portal-ux-light-screens/` (home phone + desktop, project, payments, messages, thread, colours) — they land when the e2e batch runs.
+- Help: new `docs/help/customer-portal/customer.md` (Home, Payments, Messages, My colours, Profile); `work-orders/customer.md` (switcher, extras row, past tense, lightbox), `invoicing/customer.md` (Payments / Pay now / Invoice PDF), `imported-history/customer.md` (Done group). `npm run help:index -- --check` passes. `docs/ARCHITECTURE.md` carries the paragraph.
+
+⚑ A3: the three darkened tokens differ from the brief's table by one or two shades; the brief's values did not pass AA at the sizes they are used.

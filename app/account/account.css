@@ -10,11 +10,11 @@
   --border: #e3e1da;
   --ink: #14181d;         /* headings, primary text */
   --ink-2: #5a6370;       /* secondary text, helper copy */
-  --ink-3: #8a939e;       /* timestamps, meta */
+  --ink-3: #636d7b;       /* timestamps, meta — 4.8:1 on paper (the brief's #8A939E read 2.9:1, under AA) */
   --accent: #35d5ef;      /* logo dot, primary button fill */
   --accent-ink: #0e7490;  /* links, active nav, cyan text on white */
-  --ok: #1b7f56;     --ok-bg: #e6f4ec;
-  --warn: #9a6a0f;   --warn-bg: #fbf1dc;
+  --ok: #17704c;     --ok-bg: #e6f4ec;   /* 5.4:1 on its tint (#1B7F56 was 4.4) */
+  --warn: #8c600d;   --warn-bg: #fbf1dc; /* 4.9:1 on its tint (#9A6A0F was 4.2) */
   --info: #0e7490;   --info-bg: #ddf4f8;
   --danger: #b3362a; --danger-bg: #fbe7e4;
   --shadow: 0 1px 2px rgba(20, 24, 29, 0.06);

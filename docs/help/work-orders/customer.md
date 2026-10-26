@@ -15,11 +15,11 @@ Once your job is booked, **Your project, day by day** in your account is the rec
 - The page fills as the job happens. Before the first day it says **Nothing to show just yet**.
 
 ## Steps
-1. Open your account and choose **My project**.
-2. **Where everything is up to** lists each area with **Not started**, **Being prepped**, **First coat** or **Done ✓**, and a **Day 3 of 6** chip while the job runs.
-3. **Who's at your home** names your painter by first name, and **Who is managing and overseeing the job** names your project coordinator with **Message me**.
+1. Open your account and choose **My project**. With more than one job, the chips above the title switch between them (a card on Home opens its own job here).
+2. **Where everything is up to** lists each area with **Not started**, **Being prepped**, **First coat** or **Done ✓**, and a **Day 3 of 6** chip while the job runs. Once you have approved an extra, the list carries one line for it — **Extra work · 1 approved · $250.00 inc GST** — instead of a Variations area.
+3. **Who's at your home** names your painter by first name, and **Who is managing and overseeing the job** names your project coordinator with **Message me**. After you sign off, the same two cards read **Who painted your home** and **Who looked after your job**.
 4. **Day by day** is the feed, newest first. A card headed **From your painting team** is an update the office checked and sent you (it says **Checked and sent by the office** underneath). The photos the office attached to that update sit on that card, whatever day they were taken (since 14 Oct 2026). Other site photos from that day sit under the same card; a day with photos but no update gets its own **Photos from the site** or **Before photos — how it started** card.
-5. Tap a photo to see it full size. Tap **Close** to come back.
+5. Each card with photos says how many (**4 photos · tap to view**). Tap one to see it full size with its room name and **2 of 4**; swipe, use the arrows or the ← → keys to move between the photos of that card; tap **Close** to come back.
 
 ## Updates from the office
 Since 24 Oct 2026 the office sends short notes to your timeline as the job moves: when a whole surface is prepped or painted right through (*Walls are painted right through the house. Ceilings are up next.*) and a quick summary at the end of a working day. Part-way through a longer job you also get a short check-in asking how you are finding things, and on the morning the painters start marking up touch-ups a message saying so, by text and email as well as here (put a bit of tape on anything you want looked at). Each one carries who it is from — **Felipe, Paint Group** — under the words. There is one **Reply to Felipe** button for the whole timeline; it opens your message thread with the office, where every reply is read.

@@ -10,7 +10,7 @@ verified_at_commit: 61a5b3a953
 Every invoice we send you — the deposit, a payment request during the job or the final balance — has one **Pay** button. Press it and everything you need for a bank transfer is in front of you.
 
 ## Before you start
-- Open the invoice from the email we sent, or from **Invoicing** in your account with **View & pay**.
+- Open the invoice from the email we sent, or from **Payments** in your account with **Pay now** (an unpaid invoice) or **Invoice PDF** (any invoice).
 - The invoice shows its **Issued** date and **Due** date at the top right, under the invoice number. They stay on the invoice after it is paid.
 
 ## Steps
