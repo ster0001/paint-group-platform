@@ -104,3 +104,16 @@ Shipped:
 Checked: `tsc` clean, lint clean, `vitest lib/portal` 102/102; `/account/money` viewed at 400px on the seeded preview account (two projects, paid + due rows).
 
 ⚑ F1: the trade portal's money tab and title now also read "Payments" (the tab component is shared). If trade customers should keep "Invoicing", it is one label in `AccountTabs.tsx` and one `<h1>` in `TradeMoneyScreen.tsx`.
+
+## Stage 6 — Messages (G1–G4)
+
+Shipped:
+- G1: only threads with a message list; the sent estimates with nothing in them sit behind one "Start a conversation about…" native select at the top (`messages/StartConversation.tsx`), which opens the empty thread.
+- G2: the badge is UNREAD staff replies — counted from the `messages` mirror (`provider = portal, direction = out, read_at is null`), cyan, hidden at zero; an unread preview reads bold. `getPortalThreads` no longer stamps anything; `markPortalThreadOpened(estimateId)` runs on the thread page only, and only when there is something unread. No new field.
+- G3: thread header = address + the estimate's status chip; "Open the estimate" and "Ask the assistant" are small secondary buttons under it (the assistant keeps its `ask-assistant` test id for `support.spec.ts`); sender · time on one body-font meta line; staff bubbles carry an initial (Robyn / Felipe tell apart); the composer is sticky above the tab bar on phones (16px from the bottom on desktop) and the thread scrolls behind it. Customer bubbles are ink-on-white inverted, staff bubbles white with a border (the mockup).
+- G4: confirmed with B3 — the floating widget is gone from the portal, Messages is the one chat. Message rows are whole-card links with a chevron (B4, deferred from stage 2).
+- Spec: new `e2e/portal-messages.spec.ts` — 21 messages seeded, one quiet estimate; asserts the single row, the picker, the badge = mirrored unread replies, bold preview, header chip + Open the estimate, initials R/F, composer and Send in the viewport at 400×860, a send, the badge cleared after opening, the picker opening the empty thread; saves `messages-phone.png` and `thread-phone.png`. `lib/portal/messages.test.ts` pins `groupThreads`.
+
+Checked: `tsc` clean, lint clean, `vitest lib/portal` green; list + thread viewed at 400px on the preview account (badge 2, composer on screen).
+
+⚑ G3: a chip for "Open the estimate" in the header (the brief's words) made the header three lines at 400px with a long address; it is a small secondary button on the row under the title instead.

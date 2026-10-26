@@ -378,3 +378,22 @@
 .acct .inv .amt { font-size: 18px; }
 .acct .acts { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
 .acct .btn.sm { display: inline-flex; width: auto; padding: 9px 13px; font-size: 13.5px; border-radius: 9px; }
+
+/* ===== Messages (G1–G3) ===== */
+.acct .job .meta.unread { color: var(--ink); font-weight: 600; }
+.acct .badge { display: inline-flex; align-items: center; justify-content: center; min-width: 22px; height: 22px; padding: 0 7px; border-radius: 999px; background: var(--accent-ink); color: #fff; font-size: 12px; font-weight: 700; }
+.acct .thread-head { align-items: flex-start; }
+.acct .thread-head h1 { font-size: 22px; }
+.acct .msg { display: flex; align-items: flex-end; gap: 8px; max-width: 88%; }
+.acct .msg.theirs { align-self: flex-start; }
+.acct .msg.mine { align-self: flex-end; text-align: right; }
+.acct .msg-bubble { min-width: 0; }
+.acct .msg-av { width: 28px; height: 28px; border-radius: 50%; flex: none; display: flex; align-items: center; justify-content: center; background: var(--info-bg); color: var(--accent-ink); font-size: 12px; font-weight: 700; margin-bottom: 20px; }
+.acct .composer {
+  position: sticky; bottom: calc(82px + env(safe-area-inset-bottom)); z-index: 30;
+  display: flex; gap: 8px; align-items: flex-end; margin-top: 16px; padding: 8px;
+  background: var(--surface); border: 1px solid var(--border); border-radius: 14px; box-shadow: var(--shadow);
+}
+.acct .composer textarea.field { flex: 1; min-height: 44px; padding: 10px 12px; font-size: 15.5px; border-radius: 10px; }
+.acct .composer .btn { width: auto; padding: 12px 16px; flex: none; }
+@media (min-width: 900px) { .acct .composer { bottom: 16px; } }
