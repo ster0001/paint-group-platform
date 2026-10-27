@@ -7,6 +7,11 @@ import {
   mobileProgress, mobileScreensFor, roomChips, roomsTicked, surfaceChips, toggleListedRoom, toggleSurface, type MobileScreen,
 } from "@/lib/wizard/mobileScreens";
 import { jobTypesFor, propertyKindsFor, type WizardBrand } from "@/lib/wizard/brand";
+import type { ExteriorQuickLook } from "@/lib/wizard/exterior-quick-look";
+import { togglePart } from "@/lib/wizard/exterior-model";
+import type { InteriorExcludable } from "@/lib/wizard/quick-look";
+import { outsideSheetChips, pictureStateFor, ribbonFor } from "@/lib/wizard/mobilePicture";
+import MobileStrip, { type StripChip } from "./MobileStrip";
 import { brandFor } from "@/lib/marketing/brand";
 import { sendWizardEvent } from "@/lib/wizard/wizardEvents";
 import { AddRoomInline } from "./QuickLook";
@@ -37,9 +42,12 @@ import { AddRoomInline } from "./QuickLook";
  * mode) with the bar underneath.
  */
 export default function MobileQuickLook({
-  brand, logo, steps, step, quick, onQuick, address, contact, onContact, marketing, onMarketing, roomNames, addedRooms, onAddRoom, onRemoveAdded,
+  brand, logo, steps, step, quick, onQuick, outside, onOutside, address, contact, onContact, marketing, onMarketing, roomNames, addedRooms, onAddRoom, onRemoveAdded,
   error, busy, canContinue, whyNot, onNext, onBack, canBack, onContactOpen, renderStep, resumed, onStartAgain,
 }: {
+  /** S3: the outside answers, for the house in the strip; the sheet's chips tick the exterior brief's parts through it. */
+  outside: ExteriorQuickLook;
+  onOutside: (patch: Partial<ExteriorQuickLook>) => void;
   brand: WizardBrand;
   logo: ReactNode;
   /** `stepsFor()` for the answers so far — the order of record. */
@@ -140,6 +148,30 @@ export default function MobileQuickLook({
     : current.id === "rooms" ? ticked > 0
     : true;
   const barLabel = current.id === "details" ? "Show my range" : step === "com_book" ? "Book it" : "Continue";
+  // S3 (brief §3): one picture state for the strip and the sheet; the ribbon from the answers so far.
+  const surfacesAt = screens.findIndex((s) => s.id === "surfaces");
+  const surfacesReached = surfacesAt >= 0 && index >= surfacesAt;
+  const picture = pictureStateFor(quick, outside, surfacesReached);
+  const ribbon = ribbonFor({ quick, outside, screens, index, roomsTicked: ticked });
+  const toggleInside = (key: InteriorExcludable) => {
+    const next = toggleSurface(quick, key);
+    onQuick(next);
+    sendWizardEvent("surface_toggled", { surface: key, on: !(next.excluded ?? []).includes(key) });
+  };
+  const outsideChips = quick.jobType === "exterior" && outside.v2 ? outsideSheetChips(outside.v2, picture.property) : null;
+  const sheetChips: StripChip[] | null = quick.jobType === "exterior"
+    ? outsideChips
+    : surfacesReached ? surfaceChips(quick).map((c) => ({ key: c.key, label: c.label, on: c.on })) : null;
+  const toggleSheetChip = (key: string) => {
+    if (quick.jobType === "exterior") {
+      const chip = outsideChips?.find((c) => c.key === key);
+      if (!chip || !outside.v2) return;
+      onOutside({ v2: togglePart(outside.v2, chip.part) });
+      sendWizardEvent("surface_toggled", { surface: chip.part, on: !chip.on });
+      return;
+    }
+    toggleInside(key as InteriorExcludable);
+  };
   const showBar = current.advance === "bar";
   const pct = mobileProgress(index, screens.length);
 
@@ -153,12 +185,8 @@ export default function MobileQuickLook({
       <div className="wzm-bar" role="progressbar" aria-label="Progress" aria-valuemin={0} aria-valuemax={100} aria-valuenow={pct}>
         <i style={{ width: `${pct}%` }} data-testid="wzm-bar" />
       </div>
-      {/* §3 — the live strip. Session 3 draws the thumbnail, the ribbon and the sheet; this is its place. */}
-      <div className="wzm-strip" data-testid="wzm-strip" aria-hidden="true">
-        <span className="thumb" />
-        <span className="txt"><b>Your place</b><span>Updates as you answer</span></span>
-        <span className="chev">›</span>
-      </div>
+      {/* §3 — the live strip: the thumbnail, the ribbon, and the sheet behind it. */}
+      <MobileStrip state={picture} ribbon={ribbon} chips={sheetChips} onToggle={toggleSheetChip} />
 
       <main className={`wzm-main ${showBar ? "has-bar" : ""}`}>
         {resumed && (
@@ -243,7 +271,7 @@ export default function MobileQuickLook({
             <div className="wzm-chips" data-testid="ql-surfaces">
               {surfaceChips(quick).map((c) => (
                 <button key={c.key} type="button" className={`wzm-chip ${c.on ? "on" : ""}`} aria-pressed={c.on}
-                  data-testid={`ql-surface-${c.key}`} onClick={() => onQuick(toggleSurface(quick, c.key))}>{c.label}</button>
+                  data-testid={`ql-surface-${c.key}`} onClick={() => toggleInside(c.key)}>{c.label}</button>
               ))}
             </div>
           )}

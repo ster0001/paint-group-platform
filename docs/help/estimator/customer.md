@@ -3,7 +3,7 @@ feature: estimator
 role: customer
 title: Get a painting price online, in about two minutes
 summary: A few quick screens give you a guide range; then you can tighten it room by room or side by side, and send it to your estimator to fix the price — or book a visit at any point.
-sources: app/estimate/page.tsx, app/wizard/WizardApp.tsx, app/wizard/QuickLook.tsx, app/wizard/MobileQuickLook.tsx, app/wizard/PictureCard.tsx, app/wizard/Reveal.tsx, app/estimate/scope/ScopeEditor.tsx, app/estimate/scope/SidesEditor.tsx, app/estimate/finish/Finish.tsx, app/estimate/sent/Sent.tsx
+sources: app/estimate/page.tsx, app/wizard/WizardApp.tsx, app/wizard/QuickLook.tsx, app/wizard/MobileQuickLook.tsx, app/wizard/MobileStrip.tsx, app/wizard/pictures/MobilePicture.tsx, app/wizard/PictureCard.tsx, app/wizard/Reveal.tsx, app/estimate/scope/ScopeEditor.tsx, app/estimate/scope/SidesEditor.tsx, app/estimate/finish/Finish.tsx, app/estimate/sent/Sent.tsx
 verified_at_commit: bb273c9122
 ---
 
@@ -33,20 +33,20 @@ Have the address handy and know roughly what you want painted — inside, outsid
 ## On a phone
 On a phone (any screen narrower than about 770px) the same questions come one at a time, each on its own screen, so a thumb can answer them. Nothing you answer on a phone is different from a laptop — only the way it is laid out.
 
-1. The top of every screen is the same: a **‹** back chevron on the left (it retraces your screens one at a time; it is hidden on the first), the logo in the middle, and **Contact** on the right. Under them a thin bar fills as you go, and a strip for a picture of your job — on this version it is a placeholder that will show your home as you answer.
+1. The top of every screen is the same: a **‹** back chevron on the left (it retraces your screens one at a time; it is hidden on the first), the logo in the middle, and **Contact** on the right. Under them a thin bar fills as you go, and a strip with a small picture of your job beside a line of your answers so far ("Inside · House · 3 bed · Two storeys …"). The picture is the room for an inside job and the house for an outside one; it follows your answers — a unit or apartment is a block, a townhouse a pair, two storeys adds a window row, the colours tint the walls and the condition marks them. Tap the strip to see it full width with the same surface chips.
 2. **What are we painting?** — your address sits in a chip with **Change** (tap it to type a different address; if the address came through as words only, the suburb and postcode boxes appear here). Tap **Inside** or **Outside**.
 3. **What kind of place is it?** — House, Townhouse, Unit or apartment. A single-choice screen like this moves on by itself a moment after you tap; there is no Continue button to find.
 4. **How many bedrooms?** — 1 to 5+. This builds your room list for you.
 5. **One storey or two?** — skipped for a unit or apartment.
 6. **What's the job?** — The whole interior, Some rooms, or Doors, windows and trims.
-7. **What's being painted?** — the surfaces as chips, pre-ticked from the job you chose (Doors, windows and trims pre-ticks skirtings, doors and window frames only). Untick anything we are not painting, then **Continue**.
+7. **What's being painted?** — the surfaces as chips, pre-ticked from the job you chose (Doors, windows and trims pre-ticks skirtings, doors and window frames only). Each tick rolls that surface's paint on in the little picture (and off again when you untick); the strip's second line counts the surfaces ticked. Untick anything we are not painting, then **Continue**.
 8. **We're painting these rooms** (or **Which rooms?** after Some rooms, which pre-ticks the first two) — the rooms we have guessed from your bedrooms and storeys, each a chip you can untick; Study, Ensuite and Garage are offered unticked; **+ Another room** adds one by name. **Continue** waits until at least one room is ticked.
 9. **Colours?** — New colours, Same colours, or Still deciding (priced as new colours).
 10. **How are the walls looking?** — Good, just tired · Some wear · Needs work.
 11. **Anyone living there while we paint?** — No, it'll be empty · Yes, we'll be there.
 12. **Where shall we send your range?** — your name, mobile and email, and an optional offers tick. **Show my range** lights up once the three are in; your range appears instantly on the next screen, exactly as it does on a laptop.
 
-- **Outside** on a phone asks the place, then the outside questions as they are (what kind of home, what we are painting, about it, each side) with a **Continue** bar under each — the drawn house sits above the question.
+- **Outside** on a phone asks the place, then the outside questions as they are (what kind of home, what we are painting, about it, each side) with a **Continue** bar under each — the drawn house sits above the question, and the strip's small house paints in the parts you tick (walls, eaves and fascia, gutters and downpipes, window frames, doors, verandah); the strip's chips tick those parts too.
 - **Back** keeps every answer, and so does closing the page: come back on the same phone and **Welcome back** lands you on the screen you left, with your answers in place. **Start again** clears them.
 - **Contact** opens the same options as the laptop's talk-it-through bar: request a call (or a site visit on the Paint Group site), ring us, or send a message.
 
@@ -77,6 +77,7 @@ On a phone (any screen narrower than about 770px) the same questions come one at
 
 ## Changes on 28 Oct 2026
 - **On a phone the quick look is one question per screen** — see *On a phone* above. The picture panel pinned under the step bar and the floating talk-it-through pill are gone on phones; the laptop layout is unchanged.
+- **The strip under the bar shows your place** — a small picture that paints each surface in as you tick it, with your answers so far beside it; tap it for the full-width picture and the same chips.
 
 ## Changes on 27 Oct 2026
 - **On Paint Home, a job over the phone-close ceiling** shows the "bigger than we can price from your phone" screen with Book a site visit and Send us a message only; the editor is not offered there.
