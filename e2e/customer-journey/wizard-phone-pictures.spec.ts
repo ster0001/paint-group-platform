@@ -30,8 +30,9 @@ test("between 768 and 900px every kind of property draws its whole building insi
     const cases: Array<[string, string, "single" | "double"]> = [...Object.entries(building).map(([k, s]) => [k, s, "single"] as [string, string, "single"]), ["house", building.house, "double"]];
     for (const [kind, sel, storeys] of cases) {
       await page.getByTestId(`ql-kind-${kind}`).click();
-      await page.getByTestId(`ql-storeys-${storeys}`).click();
-      await expect(page.locator(`[data-testid='pic-house'][data-kind='${kind}'][data-storeys='${storeys}']`)).toBeVisible();
+      // a commercial place asks no storeys (its segment screens do); the picture keeps the last answer
+      if (kind !== "commercial") await page.getByTestId(`ql-storeys-${storeys}`).click();
+      await expect(page.locator(`[data-testid='pic-house'][data-kind='${kind}']${kind === "commercial" ? "" : `[data-storeys='${storeys}']`}`)).toBeVisible();
       await page.waitForTimeout(800); // the picture's transition (the two-storey roof lifts over .6s)
       const box = await page.evaluate((s) => {
         const art = document.querySelector(".wz-pic-art")!.getBoundingClientRect();

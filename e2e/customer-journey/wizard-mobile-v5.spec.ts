@@ -250,7 +250,7 @@ test.describe("Wizard mobile v5 — the phone's screens (session 2)", () => {
       const head = r(document.querySelector("[data-testid='wzm-head']"))!;
       const h1 = r(document.querySelector("[data-testid='wzm-h1']"))!;
       const foot = r(document.querySelector("[data-testid='wzm-foot']"));
-      const opts = [...document.querySelectorAll("[data-mobile-screen] [data-testid^='ql-']")].map((e) => e.getBoundingClientRect()).filter((b) => b.width > 0);
+      const opts = [...document.querySelectorAll(".wzm-screen [data-testid^='ql-']")].map((e) => e.getBoundingClientRect()).filter((b) => b.width > 0);
       const overlapsFoot = foot ? opts.some((o) => o.bottom > foot.top && o.top < foot.bottom && o.right > foot.left && o.left < foot.right) : false;
       let safeArea = false;
       for (const sheet of [...document.styleSheets]) {

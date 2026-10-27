@@ -140,7 +140,7 @@ export default function MobileQuickLook({
   const pct = mobileProgress(index, screens.length);
 
   return (
-    <div className="wzm" data-testid="wzm" data-mobile-screen={current.id} data-quick-step={step}>
+    <div className="wzm" data-testid="wzm" data-mobile-screen={current.id}>
       <header className="wzm-head" data-testid="wzm-head">
         <button type="button" className="wzm-back" aria-label="Back" disabled={first && !canBack} onClick={back} data-testid="wzm-back">‹</button>
         <span className="wzm-logo">{logo}</span>
@@ -163,7 +163,8 @@ export default function MobileQuickLook({
             <button type="button" className="wz-linkish" onClick={onStartAgain} data-testid="wz-start-again">Start again</button>
           </div>
         )}
-        <section className="wzm-screen" key={current.id}>
+        {/* `data-quick-step` names the step for the specs: on a screen of our own it is here; a step rendered as it is carries its own pane. */}
+        <section className="wzm-screen" key={current.id} data-quick-step={current.heading != null ? step : undefined}>
           {current.heading && <h1 data-testid="wzm-h1">{current.heading}</h1>}
           {current.sub && <p className="wzm-sub" data-testid="wzm-sub">{current.sub}</p>}
 
@@ -226,7 +227,8 @@ export default function MobileQuickLook({
             <div className="wzm-opts" data-testid="ql-scope">
               {JOB_CHOICES.map((o) => (
                 <button key={o.value} type="button" className={`wzm-opt ${quick.scope === o.value ? "on" : ""}`} aria-pressed={quick.scope === o.value}
-                  data-testid={`ql-scope-${o.value}`} onClick={() => pick(applyJobChoice(o.value as ScopePreset, roomNames))}>
+                  // the same job again keeps the surfaces and rooms as ticked; a different one pre-ticks afresh (§2.6)
+                  data-testid={`ql-scope-${o.value}`} onClick={() => pick(o.value === quick.scope ? {} : applyJobChoice(o.value as ScopePreset, roomNames))}>
                   <span><span className="t">{o.label}</span><span className="d">{o.hint}</span></span>
                 </button>
               ))}
