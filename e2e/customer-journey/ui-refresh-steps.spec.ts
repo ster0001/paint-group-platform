@@ -1,7 +1,7 @@
 import { test, expect, devices, type Page } from "@playwright/test";
 import { stepsFor, type QuickLook } from "../../lib/wizard/quick-look";
 import { STEP_LABELS } from "../../app/wizard/stepRail";
-import { driveNoPlanWizard, fillQuickAddress, openQuickLook, openScopeEditor, passGateIfShown, quickNext, MONEY_RANGE, answerOutsideQuick, passDetailsSheetIfShown, openTalk, lookAtEverySide } from "./drive";
+import { driveNoPlanWizard, fillQuickAddress, openQuickLook, openScopeEditor, passGateIfShown, quickNext, MONEY_RANGE, answerOutsideQuick, passDetailsSheetIfShown, openTalk, lookAtEverySide, onMobileShell } from "./drive";
 
 /**
  * Wizard UI refresh, S1 — the shell, on every path (brief §7.1, §7.7, §10).
@@ -131,23 +131,37 @@ test.describe("UI refresh S1 · the shell's layout contract", () => {
     });
   }
 
-  test("at 390px: one column, the progress row, no sideways scroll, Continue in a fixed bottom bar", async ({ page }) => {
+  /**
+   * Wizard mobile v5 (S2, 28 Oct 2026): under 768px the quick look is the phone's
+   * shell — one question per screen, the picture panel and the pill gone, the
+   * bar only where there is something to continue (e2e/customer-journey/wizard-mobile-v5.spec.ts
+   * is the full contract). What S1 promised at 390px still holds: one column, no
+   * sideways scroll, no rail, and a bar on the bottom edge where one is drawn.
+   */
+  test("at 390px: the phone's shell — one column, no sideways scroll, the bar on the bottom edge", async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
-    await toPlace(page);
-    await expect(page.getByTestId("wz-mprog")).toContainText(/Step 2 of \d+ · The place/);
-    await expect(page.locator(".wz-rail")).toBeHidden();
-    // S2: the picture sits ABOVE the question, about a fifth of the screen; "Your job so far" is hidden.
-    const pic = (await page.getByTestId("ql-picture").boundingBox())!;
-    const h1 = (await page.locator(".wz-pane h1").boundingBox())!;
-    expect(pic.y + pic.height).toBeLessThanOrEqual(h1.y);
-    expect(pic.height, "the phone picture stays small").toBeLessThanOrEqual(844 * 0.22);
-    await expect(page.getByTestId("ql-sofar")).toBeHidden();
+    await openQuickLook(page);
+    await fillQuickAddress(page);
+    await page.getByTestId("ql-jobtype-interior").click();
+    await expect(page.locator("[data-mobile-screen='property']")).toBeVisible({ timeout: 20_000 });
+    await expect(page.locator(".wz-rail")).toHaveCount(0);
+    await expect(page.getByTestId("ql-picture")).toHaveCount(0);
+    await expect(page.getByTestId("ql-sofar")).toHaveCount(0);
+    await expect(page.getByTestId("ql-talk")).toHaveCount(0);
+    await expect(page.getByTestId("ql-next")).toHaveCount(0);
     const sw = await page.evaluate(() => document.documentElement.scrollWidth);
     expect(sw, "no horizontal scroll").toBeLessThanOrEqual(390);
-    const head = (await page.getByTestId("wz-head").boundingBox())!;
-    expect(head.height, "56px header plus the progress row").toBeLessThanOrEqual(56 + 50);
-    await page.mouse.wheel(0, 600);
-    const nav = (await page.locator(".wz-nav--col").boundingBox())!;
+    const head = (await page.getByTestId("wzm-head").boundingBox())!;
+    expect(head.height, "a slim header").toBeLessThanOrEqual(56);
+    await page.getByTestId("ql-kind-house").click();
+    await expect(page.locator("[data-mobile-screen='beds']")).toBeVisible({ timeout: 20_000 });
+    await page.getByTestId("ql-bedrooms-3").click();
+    await expect(page.locator("[data-mobile-screen='storeys']")).toBeVisible({ timeout: 20_000 });
+    await page.getByTestId("ql-storeys-single").click();
+    await expect(page.locator("[data-mobile-screen='job']")).toBeVisible({ timeout: 20_000 });
+    await page.getByTestId("ql-scope-whole").click();
+    await expect(page.locator("[data-mobile-screen='surfaces']")).toBeVisible({ timeout: 20_000 });
+    const nav = (await page.getByTestId("wzm-foot").boundingBox())!;
     expect(nav.y + nav.height, "the bar sits on the bottom edge").toBeGreaterThanOrEqual(844 - 1);
     expect(nav.y + nav.height).toBeLessThanOrEqual(844 + 1);
   });
@@ -255,13 +269,32 @@ test.describe("UI refresh · on a real phone (iPhone 13 emulation) no screen is 
     await fits("address");
     await fillQuickAddress(page);
     await fits("address, with the suburb and postcode boxes"); // the row that tipped S2 over
+    // Wizard mobile v5 (S2): the phone's screens, one question each; a commercial
+    // place leaves for the segment screen (rendered as it is, with the bar).
+    const at = async (id: string) => { await expect(page.locator(`[data-mobile-screen='${id}']`)).toBeVisible({ timeout: 30_000 }); await fits(id); };
+    await page.getByTestId("ql-jobtype-interior").click();
+    await at("property");
+    await page.getByTestId("ql-kind-commercial").click();
+    await at("segment");
+    await page.getByTestId("wzm-back").click();
+    await at("property");
+    await page.getByTestId("ql-kind-house").click();
+    await at("beds");
+    await page.getByTestId("ql-bedrooms-3").click();
+    await at("storeys");
+    await page.getByTestId("ql-storeys-single").click();
+    await at("job");
+    await page.getByTestId("ql-scope-whole").click();
+    await at("surfaces");
     await quickNext(page);
-    for (const step of ["place", "job", "rooms", "condition"]) {
-      await expect(page.locator(`[data-quick-step='${step}']`)).toBeVisible({ timeout: 30_000 });
-      await fits(step);
-      if (step === "place") { await page.getByTestId("ql-kind-commercial").click(); await fits("place, commercial"); await page.getByTestId("ql-kind-house").click(); }
-      await quickNext(page);
-    }
+    await at("rooms");
+    await quickNext(page);
+    await at("colours");
+    await page.getByTestId("ql-colours-new").click();
+    await at("condition");
+    await page.getByTestId("ql-condition-wear").click();
+    await at("living");
+    await page.getByTestId("ql-occupied-no").click();
     const gate = page.locator("[data-quick-step='gate']");
     if (await gate.count()) await fits("gate");
     await ctx.close();
@@ -580,12 +613,12 @@ test.describe("UI refresh S5 · home outside", () => {
     await quickNext(page);
     await expect(page.locator("[data-quick-step='sides']")).toBeVisible({ timeout: 20_000 });
     await fits();
-    // 21 Oct: the talk-it-through BAR floats above the Continue bar on a phone with the three options in it.
-    await expect(page.getByTestId("ql-talk")).toBeVisible();
-    await expect(page.getByTestId("ql-book")).toBeVisible();
-    await expect(page.getByTestId("ql-message")).toBeVisible();
-    const talkBox = (await page.getByTestId("ql-talk").boundingBox())!;
-    expect(talkBox.height, "a bar, not a card").toBeLessThan(80);
+    // Wizard mobile v5 (S2): on a phone the floating pill is gone — Contact in the header is the way to a person,
+    // and the shell's Continue bar sits on the bottom edge.
+    await expect(page.getByTestId("ql-talk")).toHaveCount(0);
+    await expect(page.getByTestId("wzm-contact")).toBeVisible();
+    const bar = (await page.getByTestId("wzm-foot").boundingBox())!;
+    expect(Math.round(bar.y + bar.height), "the bar sits on the bottom edge").toBe(page.viewportSize()!.height);
     await lookAtEverySide(page);
     await quickNext(page);
     await passGateIfShown(page);
@@ -759,8 +792,9 @@ test.describe("UI refresh S8a · the sheet pattern", () => {
     const ctx = await browser.newContext({ ...devices["iPhone 13"] });
     const page = await ctx.newPage();
     await toPlace(page);
-    await openTalk(page);
-    await page.getByTestId("ql-book").click();
+    // Wizard mobile v5 (S2): on a phone Contact in the header opens the sheet straight away (no pill).
+    if (await onMobileShell(page)) await page.getByTestId("wzm-contact").click();
+    else { await openTalk(page); await page.getByTestId("ql-book").click(); }
     await expect(page.getByTestId("talk-sheet")).toBeVisible({ timeout: 15_000 });
     await page.waitForTimeout(400);
     const b = await sheetBox(page, "[data-testid='talk-sheet'] .wz-sheet");

@@ -7,10 +7,16 @@ import { fillQuickAddress, openQuickLook, quickNext } from "./drive";
  * the 400 × 300 house drawing is zoomed to fill it; a unit is a tall block and
  * the zoom cut its roof and door off. Every kind of property on the place step
  * must draw its building wholly inside the band.
+ *
+ * Wizard mobile v5 (S2, 28 Oct 2026): under 768px the sticky picture panel is
+ * gone — the phone's shell has the live strip instead (brief §3, session 3) —
+ * so the band and its zoom now exist between 768 and 900px (a small tablet,
+ * a split screen). That is where this runs; e2e/customer-journey/wizard-mobile-v5.spec.ts
+ * proves the panel is absent on a phone.
  */
-test("on a phone every kind of property draws its whole building inside the picture band", async ({ browser }) => {
+test("between 768 and 900px every kind of property draws its whole building inside the picture band", async ({ browser }) => {
   test.setTimeout(120_000);
-  const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
+  const ctx = await browser.newContext({ viewport: { width: 800, height: 1000 }, isMobile: true, hasTouch: true });
   const page = await ctx.newPage();
   try {
     await openQuickLook(page);
@@ -24,8 +30,9 @@ test("on a phone every kind of property draws its whole building inside the pict
     const cases: Array<[string, string, "single" | "double"]> = [...Object.entries(building).map(([k, s]) => [k, s, "single"] as [string, string, "single"]), ["house", building.house, "double"]];
     for (const [kind, sel, storeys] of cases) {
       await page.getByTestId(`ql-kind-${kind}`).click();
-      await page.getByTestId(`ql-storeys-${storeys}`).click();
-      await expect(page.locator(`[data-testid='pic-house'][data-kind='${kind}'][data-storeys='${storeys}']`)).toBeVisible();
+      // a commercial place asks no storeys (its segment screens do); the picture keeps the last answer
+      if (kind !== "commercial") await page.getByTestId(`ql-storeys-${storeys}`).click();
+      await expect(page.locator(`[data-testid='pic-house'][data-kind='${kind}']${kind === "commercial" ? "" : `[data-storeys='${storeys}']`}`)).toBeVisible();
       await page.waitForTimeout(800); // the picture's transition (the two-storey roof lifts over .6s)
       const box = await page.evaluate((s) => {
         const art = document.querySelector(".wz-pic-art")!.getBoundingClientRect();

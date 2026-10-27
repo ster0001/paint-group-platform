@@ -184,46 +184,48 @@ test("the rest of the outside path still reaches a range, and the sides editor's
 });
 
 /**
- * Tom, 25 Oct 2026 (on his phone): the drawn house stays pinned at the top on
- * every outside step while the questions scroll under it, drawn larger than
- * the band's letterbox, but the pinned card takes well under half the screen so
- * the page still scrolls; the talk bar is a compact pill at the bottom right,
- * on screen, above the Continue bar — not a full-width bar over the answers.
+ * Tom, 25 Oct 2026 (on his phone): the drawn house drawn larger, the page
+ * still scrolling, the talk bar not over the answers. Wizard mobile v5 (S2,
+ * 28 Oct 2026): under 768px the quick look is the phone's shell — Outside,
+ * then the place, then the exterior brief's screens rendered as they are
+ * (§2.4) with the shell's Continue bar; the sticky panel and the floating
+ * pill are gone (§3), so the drawn house sits above the question (not
+ * pinned — the live strip takes that job in session 3) and the only control
+ * at the foot is Continue, clear of the answers.
  */
-test("on a phone the house is pinned under the step bar, larger, and the page still scrolls", async ({ browser }) => {
+test("on a phone the outside screens render inside the shell: the house above the question, a Continue bar, no pill, nothing wider than the phone", async ({ browser }) => {
   test.setTimeout(150_000);
   const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
   const page = await ctx.newPage();
   try {
-    await toHome(page);
+    await openQuickLook(page);
+    await fillQuickAddress(page);
+    await page.getByTestId("ql-jobtype-exterior").click();
+    await expect(page.locator("[data-mobile-screen='property']")).toBeVisible({ timeout: 20_000 });
+    await page.getByTestId("ql-kind-house").click();
+    await expect(page.locator("[data-mobile-screen='home']")).toBeVisible({ timeout: 20_000 });
     await page.getByTestId("ql-ext-type-cal").click();
     await page.getByTestId("ql-ext-size-md").click();
     const measure = () => page.evaluate(() => {
-      const box = (sel: string) => document.querySelector(sel)!.getBoundingClientRect();
-      const pic = box("[data-testid='ql-picture']"), head = box(".wz-head"), talk = box("[data-testid='ql-talk']"), nav = box(".wz-nav--col");
-      const svg = document.querySelector(".wz-pic-art > svg")?.getBoundingClientRect();
+      const box = (sel: string) => document.querySelector(sel)?.getBoundingClientRect() ?? null;
+      const pic = box("[data-testid='ql-picture']"), head = box("[data-testid='wzm-head']"), h1 = box(".wz-pane h1"), foot = box("[data-testid='wzm-foot']");
       return {
-        picTop: pic.top, picH: pic.height, headBottom: head.bottom, svgW: svg?.width ?? 0,
-        talkRight: talk.right, talkW: talk.width, talkBottom: talk.bottom, navTop: nav.top,
-        scrollY: window.scrollY, docW: document.documentElement.scrollWidth,
-        maxScroll: document.documentElement.scrollHeight - window.innerHeight,
+        picTop: pic?.top ?? -1, picBottom: pic?.bottom ?? -1, headBottom: head?.bottom ?? -1, h1Top: h1?.top ?? -1,
+        footTop: foot?.top ?? -1, footBottom: foot?.bottom ?? -1, pill: document.querySelector("[data-testid='ql-talk']") != null,
+        docW: document.documentElement.scrollWidth, maxScroll: document.documentElement.scrollHeight - window.innerHeight,
       };
     });
     const check = async (step: string) => {
       await expect(page.locator(`[data-quick-step='${step}']`)).toBeVisible({ timeout: 20_000 });
       await page.evaluate(() => window.scrollTo({ top: 0, behavior: "instant" as ScrollBehavior }));
-      const top = await measure();
-      expect(top.docW, `${step}: nothing wider than the phone`).toBeLessThanOrEqual(390);
-      expect(top.picH, `${step}: the pinned card is well under half the screen`).toBeLessThan(844 * 0.4);
-      expect(top.maxScroll, `${step}: the questions still scroll`).toBeGreaterThan(80);
-      expect(top.svgW, `${step}: the house is drawn wider than the letterbox`).toBeGreaterThan(400);
-      expect(top.talkRight, `${step}: the talk pill is on the screen`).toBeLessThanOrEqual(390);
-      expect(top.talkW, `${step}: the talk pill is compact`).toBeLessThan(260);
-      expect(top.talkBottom, `${step}: the talk pill sits above the Continue bar`).toBeLessThanOrEqual(top.navTop + 1);
-      await page.evaluate(() => window.scrollTo({ top: document.documentElement.scrollHeight, behavior: "instant" as ScrollBehavior }));
-      await expect.poll(async () => (await measure()).scrollY).toBeGreaterThan(60);
-      const down = await measure();
-      expect(Math.abs(down.picTop - down.headBottom), `${step}: the house is pinned right under the step bar`).toBeLessThanOrEqual(2);
+      const m = await measure();
+      expect(m.docW, `${step}: nothing wider than the phone`).toBeLessThanOrEqual(390);
+      expect(m.picTop, `${step}: the house is drawn, under the header`).toBeGreaterThanOrEqual(m.headBottom);
+      expect(m.picBottom, `${step}: the house sits above the question`).toBeLessThanOrEqual(m.h1Top + 1);
+      expect(m.pill, `${step}: no floating pill`).toBe(false);
+      expect(m.footBottom, `${step}: the Continue bar sits on the bottom edge`).toBeGreaterThanOrEqual(843);
+      expect(m.maxScroll, `${step}: the questions still scroll`).toBeGreaterThan(80);
+      await expect(page.getByTestId("ql-next")).toHaveText("Continue");
     };
     await check("home");
     await quickNext(page);
