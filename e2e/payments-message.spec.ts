@@ -65,7 +65,7 @@ test.describe("Payments → Message — as staff", () => {
     const invoice = inv as { id: string; token: string };
 
     await signIn(page, staff!, /\/(home|estimates)/);
-    await page.goto(`${PAGE}?q=${encodeURIComponent(j.address)}`);
+    await page.goto(`${PAGE}?view=chase&q=${encodeURIComponent(j.address)}`);
     await card(page, j).getByRole("button", { name: "Message" }).click();
 
     const dock = page.getByTestId("staff-dock");
@@ -107,7 +107,7 @@ test.describe("Payments → Message — as staff", () => {
     });
     made.push(j);
     await signIn(page, staff!, /\/(home|estimates)/);
-    await page.goto(`${PAGE}?q=${encodeURIComponent(j.address)}`);
+    await page.goto(`${PAGE}?view=chase&q=${encodeURIComponent(j.address)}`);
     await card(page, j).getByRole("button", { name: "Message" }).click();
     const dock = page.getByTestId("staff-dock");
     await expect(dock.getByTestId("dock-templates").getByRole("button")).toHaveText(["Deposit reminder", "Overdue", "Payment received"]);

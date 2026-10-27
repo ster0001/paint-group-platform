@@ -89,7 +89,7 @@ function InvoiceCard({ d, i, base, today, termsDays }: { d: PanelData; i: PanelI
           <span className="mono">{money(p.amountCents)}</span>
         </div>
       ))}
-      <InvoiceCardActions c={cardSpec(base, d, i, today, termsDays)} today={today} />
+      <InvoiceCardActions c={cardSpec(base, d, i, today, termsDays)} />
     </div>
   );
 }

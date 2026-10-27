@@ -69,7 +69,7 @@ export default async function PaymentsPage({ searchParams }: { searchParams: Pro
     view: raw.view ?? (raw.f === "overdue" || raw.f === "paid" ? "table" : undefined),
   };
   const tab: Tab = pick(sp.tab, TABS, "cust");
-  const view: View = pick(sp.view, VIEWS, "chase");
+  const view: View = pick(sp.view, VIEWS, "table");   // Tom, 27 Oct: the page opens on All jobs
   const stage: Lane | null = (LANES as readonly string[]).includes(sp.stage ?? "") ? (sp.stage as Lane) : null;
   const q = (sp.q ?? "").slice(0, 120);
   const showPaid = sp.paid === "1";
@@ -81,7 +81,7 @@ export default async function PaymentsPage({ searchParams }: { searchParams: Pro
   const brandFilter = parseBrandFilter(sp.brand);
 
   const current: Record<string, string | null> = {
-    tab: tab === "cust" ? null : tab, view: view === "chase" ? null : view, stage, q: q || null, paid: showPaid ? "1" : null, f: filter === "all" ? null : filter, brand: brandFilter === "all" ? null : brandFilter,
+    tab: tab === "cust" ? null : tab, view: view === "table" ? null : view, stage, q: q || null, paid: showPaid ? "1" : null, f: filter === "all" ? null : filter, brand: brandFilter === "all" ? null : brandFilter,
     cby: cby === "inv" ? null : cby,
   };
   const href = (over: Record<string, string | null>) => {
@@ -180,7 +180,7 @@ export default async function PaymentsPage({ searchParams }: { searchParams: Pro
           <div className="tools">
             <div className="views">
               {VIEWS.map((v) => (
-                <Link key={v} className={view === v ? "on" : undefined} href={href({ view: v === "chase" ? null : v })}>
+                <Link key={v} className={view === v ? "on" : undefined} href={href({ view: v === "table" ? null : v })}>
                   {v === "chase" ? "To chase" : v === "board" ? "By job stage" : "All jobs"}
                 </Link>
               ))}
