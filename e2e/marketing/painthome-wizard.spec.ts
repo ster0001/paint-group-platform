@@ -121,7 +121,7 @@ test.describe("Paint Home — the wizard brand branch (session 3)", () => {
     // Lower the phone-close ceiling for this run; restored in afterAll.
     const { data: row } = await db!.from("settings").select("value").eq("key", "wizard_policy").maybeSingle();
     policyBefore = row ? row.value : null;
-    const value = { ...((policyBefore as Record<string, unknown> | null) ?? {}), remoteConfirmCapCents: 100 };
+    const value = { ...((policyBefore as Record<string, unknown> | null) ?? {}), paintHomeCapCents: 100 };
     const { error } = await db!.from("settings").upsert({ key: "wizard_policy", value }, { onConflict: "key" });
     if (error) throw error;
 
@@ -130,6 +130,8 @@ test.describe("Paint Home — the wizard brand branch (session 3)", () => {
     await expect(handoff).toBeVisible();
     await expect(handoff).toContainText("This one's bigger than we can price from your phone.");
     await expect(page.getByTestId("painthome-handoff-team")).toContainText("You'll hear from the Paint Group team");
+    // Tom, 27 Oct 2026: the hand-off still offers Tighten my price
+    await expect(handoff.getByTestId("door-tighten")).toBeVisible();
     await expect(page.getByTestId("door-call")).toHaveCount(0);
     // the answers are kept: the estimate exists with its range, and the basis line reads them back
     await expect(page.getByTestId("reveal-restatement")).toContainText(/bed|room|storey|house/i);

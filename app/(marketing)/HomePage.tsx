@@ -128,8 +128,8 @@ export function localBusinessLd(brand: Brand, serviceType: string, url: string) 
 export default async function HomePage({ audience }: { audience: Audience }) {
   const [content, logoUrl, siteCopy, brand, policyRow] = await Promise.all([getWebsiteContent(), getSiteLogo(), getSiteCopy(audience), getBrand(audience), audience === "painthome" ? getSettingValue("wizard_policy") : Promise.resolve(null)]);
   // Paint Home brief §4–5: its cards never exceed the phone-close tier — the
-  // existing Settings value (wizard_policy.remoteConfirmCapCents, ⚑ P7).
-  const maxHighCents = audience === "painthome" ? policyFromSettings(policyRow).remoteConfirmCapCents : null;
+  // Settings value wizard_policy.paintHomeCapCents (its own number since 27 Oct 2026; ⚑ P7 had tied it to the remote-confirmation cap).
+  const maxHighCents = audience === "painthome" ? policyFromSettings(policyRow).paintHomeCapCents : null;
   const c = copyFor(siteCopy, audience);
   const prefix = audiencePrefix(audience);
   // ⚑ D2: the wizard lives on the residential domain; from the commercial
