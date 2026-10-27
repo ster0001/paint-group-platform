@@ -117,10 +117,14 @@ export default function MobileQuickLook({
     pendingRef.current = "first";
     onNext();
   };
+  // The timer fires after the answer has re-rendered the screen list (a commercial place has one
+  // place screen, a house three), so it must call THAT render's `go`, never the tap's.
+  const goRef = useRef(go);
+  goRef.current = go;
   const pick = (patch: Partial<QuickLook>) => {
     onQuick(patch);
     if (timer.current) clearTimeout(timer.current);
-    timer.current = setTimeout(go, 250);
+    timer.current = setTimeout(() => goRef.current(), 250);
   };
   const back = () => {
     if (timer.current) clearTimeout(timer.current);

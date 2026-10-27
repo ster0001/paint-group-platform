@@ -1,7 +1,7 @@
 import { test, expect, devices, type Page } from "@playwright/test";
 import { stepsFor, type QuickLook } from "../../lib/wizard/quick-look";
 import { STEP_LABELS } from "../../app/wizard/stepRail";
-import { driveNoPlanWizard, fillQuickAddress, openQuickLook, openScopeEditor, passGateIfShown, quickNext, MONEY_RANGE, answerOutsideQuick, passDetailsSheetIfShown, openTalk, lookAtEverySide } from "./drive";
+import { driveNoPlanWizard, fillQuickAddress, openQuickLook, openScopeEditor, passGateIfShown, quickNext, MONEY_RANGE, answerOutsideQuick, passDetailsSheetIfShown, openTalk, lookAtEverySide, onMobileShell } from "./drive";
 
 /**
  * Wizard UI refresh, S1 — the shell, on every path (brief §7.1, §7.7, §10).
@@ -613,12 +613,12 @@ test.describe("UI refresh S5 · home outside", () => {
     await quickNext(page);
     await expect(page.locator("[data-quick-step='sides']")).toBeVisible({ timeout: 20_000 });
     await fits();
-    // 21 Oct: the talk-it-through BAR floats above the Continue bar on a phone with the three options in it.
-    await expect(page.getByTestId("ql-talk")).toBeVisible();
-    await expect(page.getByTestId("ql-book")).toBeVisible();
-    await expect(page.getByTestId("ql-message")).toBeVisible();
-    const talkBox = (await page.getByTestId("ql-talk").boundingBox())!;
-    expect(talkBox.height, "a bar, not a card").toBeLessThan(80);
+    // Wizard mobile v5 (S2): on a phone the floating pill is gone — Contact in the header is the way to a person,
+    // and the shell's Continue bar sits on the bottom edge.
+    await expect(page.getByTestId("ql-talk")).toHaveCount(0);
+    await expect(page.getByTestId("wzm-contact")).toBeVisible();
+    const bar = (await page.getByTestId("wzm-foot").boundingBox())!;
+    expect(Math.round(bar.y + bar.height), "the bar sits on the bottom edge").toBe(844);
     await lookAtEverySide(page);
     await quickNext(page);
     await passGateIfShown(page);
@@ -792,8 +792,9 @@ test.describe("UI refresh S8a · the sheet pattern", () => {
     const ctx = await browser.newContext({ ...devices["iPhone 13"] });
     const page = await ctx.newPage();
     await toPlace(page);
-    await openTalk(page);
-    await page.getByTestId("ql-book").click();
+    // Wizard mobile v5 (S2): on a phone Contact in the header opens the sheet straight away (no pill).
+    if (await onMobileShell(page)) await page.getByTestId("wzm-contact").click();
+    else { await openTalk(page); await page.getByTestId("ql-book").click(); }
     await expect(page.getByTestId("talk-sheet")).toBeVisible({ timeout: 15_000 });
     await page.waitForTimeout(400);
     const b = await sheetBox(page, "[data-testid='talk-sheet'] .wz-sheet");

@@ -429,8 +429,9 @@ export async function mobileQuickNext(page: Page) {
     const now = await shell.getAttribute("data-mobile-screen");
     if ((await stepOf()) !== stepBefore) return;
     if (now === screen) {
-      await expect.poll(() => shell.getAttribute("data-mobile-screen"), { timeout: 10_000 }).not.toBe(screen);
-      if ((await stepOf()) !== stepBefore) return;
+      // the screen moves on, or the shell goes (a booking, the range, the processing screen)
+      await expect.poll(async () => ((await shell.count()) ? shell.getAttribute("data-mobile-screen") : null), { timeout: 10_000 }).not.toBe(screen);
+      if (!(await shell.count()) || (await stepOf()) !== stepBefore) return;
     }
   }
   throw new Error(`mobileQuickNext: the ${stepBefore} step did not finish`);

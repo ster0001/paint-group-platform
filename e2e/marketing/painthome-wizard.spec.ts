@@ -125,6 +125,8 @@ test.describe("Paint Home — the wizard brand branch (session 3)", () => {
     await expect(sheet).toBeVisible();
     if (await sheet.getByTestId("talk-mobile").count()) {
       await sheet.getByTestId("talk-name").fill("Paint Home Tester");
+      // the hero handed over words only (no Places on the test stack), so the sheet asks where the property is
+      if (await sheet.getByTestId("talk-address").count()) await sheet.getByTestId("talk-address").fill("14 Acacia Street, Northcote");
       await sheet.getByTestId("talk-email").fill(`ph.${run}@example.com`);
       await sheet.getByTestId("talk-mobile").fill(`04${String(Date.now()).slice(-8)}`);
     }
