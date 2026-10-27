@@ -42,15 +42,20 @@ export function allowedForBrand(brand: WizardBrand | null | undefined, patch: Pa
 /**
  * THE PHONE-CLOSE TIER (brief §5). Paint Home only takes jobs a person can
  * confirm on the phone: the top of the range at or under the phone-close
- * ceiling (Settings → wizard_policy.remoteConfirmCapCents, ⚑ P7 = Paint
- * Group's value), nothing the guardrails say must be seen, and nothing the
+ * ceiling (Settings → wizard_policy.paintHomeCapCents — its own number since
+ * 27 Oct 2026, $25,000; ⚑ P7 had tied it to Paint Group's $12,000
+ * remote-confirmation cap), nothing the guardrails say must be seen, and nothing the
  * job itself needs a person on site for (`requires_site_check`). Anything
  * else is a VISIT — the polite hand-off to the Paint Group team, with every
  * answer kept.
  */
 export type PaintHomeTier = { tier: "call" | "visit"; why: string | null };
 
-const MUST_SEE = new Set(["over_self_serve_cap", "asbestos_unsure", "lead_paint_disturbance", "mixed_scope"]);
+// Tom, 27 Oct 2026: `over_self_serve_cap` is NOT here any more — that cap is about fixing a price online
+// with nobody looking (interior $6,000), which Paint Home never does (one call always). It was sending
+// every inside job over $6,000 to the hand-off while the ceiling said $12,000. The phone-close ceiling
+// (policy.paintHomeCapCents, $25,000) is Paint Home's one size rule.
+const MUST_SEE = new Set(["asbestos_unsure", "lead_paint_disturbance", "mixed_scope"]);
 
 export function paintHomeTier(i: { hiCents: number | null | undefined; capCents: number; reasons: ReadonlyArray<string>; requiresSiteCheck: boolean }): PaintHomeTier {
   if (i.hiCents == null || !Number.isFinite(i.hiCents) || i.hiCents <= 0) return { tier: "visit", why: "no range" };
