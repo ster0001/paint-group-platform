@@ -7,12 +7,15 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 
-const { signPhotosByIds } = vi.hoisted(() => ({
-  signPhotosByIds: vi.fn<() => Promise<Map<string, never>>>(async () => { throw new Error("the sample path must never sign a photo"); }),
+const { portalPhotoRefs } = vi.hoisted(() => ({
+  portalPhotoRefs: vi.fn<() => Map<string, never>>(() => { throw new Error("the sample path must never resolve a portal photo"); }),
 }));
 vi.mock("@/lib/portal/data", () => ({
   melbourneTodayYmd: () => "2026-09-19",
-  signPhotosByIds,
+}));
+vi.mock("@/lib/portal/photos", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/portal/photos")>()),
+  portalPhotoRefs,
 }));
 
 import JobTimeline from "@/app/account/(portal)/JobTimeline";
@@ -30,7 +33,7 @@ const input: ProgressPreviewInput = {
 describe("JobTimeline in sample mode", () => {
   // A block body on purpose: a hook that RETURNS the mock hands vitest a
   // "cleanup function" it then calls — which looked like a storage call.
-  beforeEach(() => { signPhotosByIds.mockClear(); });
+  beforeEach(() => { portalPhotoRefs.mockClear(); });
 
   it("renders the five sample updates through the real feed markup, with the estimate's own photo URLs, and touches no storage", async () => {
     const preview = buildProgressPreview(input, "residential")!;
@@ -46,13 +49,13 @@ describe("JobTimeline in sample mode", () => {
     expect(html).not.toContain("Day by day");
     expect(html).not.toContain("Who&#x27;s at your home");
     expect(html).not.toContain("Checked and sent by the office");
-    expect(signPhotosByIds).not.toHaveBeenCalled();
+    expect(portalPhotoRefs).not.toHaveBeenCalled();
   });
 
-  it("the portals' own path still signs through storage exactly as before", async () => {
-    signPhotosByIds.mockImplementationOnce(async () => new Map<string, never>());
+  it("the portals' own path resolves photos through the on-demand route — once, and never storage (27 Oct 2026)", async () => {
+    portalPhotoRefs.mockImplementationOnce(() => new Map<string, never>());
     const html = renderToStaticMarkup(await JobTimeline({ project: SAMPLE_PROJECT, companyPhone: "" }));
-    expect(signPhotosByIds).toHaveBeenCalledTimes(1);
+    expect(portalPhotoRefs).toHaveBeenCalledTimes(1);
     expect(html).toContain("Day by day");
   });
 });
