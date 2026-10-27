@@ -56,7 +56,7 @@ Have the address handy and know roughly what you want painted — inside, outsid
 - estimator/trade — agencies and building managers with a trade account
 
 ## Changes on 27 Oct 2026
-- **An address outside the areas we cover stops on the first screen.** Continue takes you to a screen that says so and lets you ask for a call back; the questions are not asked.
+- **On Paint Home, a job over the phone-close ceiling** shows the "bigger than we can price from your phone" screen with Book a site visit and Send us a message only; the editor is not offered there.
 - **Walls inside a built-in robe** read as *No* in a bedroom until you say otherwise, so you only answer it when you want them painted.
 - **Window sizes** in the editor: each room's windows carry a size (small, medium, large) with the measurements spelled out under the buttons, the same as the outside sides.
 - **The size question on each outside side** — Looks right, Adjust it, Not sure — all three buttons now carry a line under them saying what each does.
