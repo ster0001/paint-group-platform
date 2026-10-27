@@ -2,7 +2,7 @@ import Link from "next/link";
 import { reportError } from "@/lib/monitoring/report";
 import { createClient } from "@/lib/supabase/server";
 import { loadConsole } from "@/lib/workorder/consoleData";
-import { buildQueue, headline, pcCardSnoozeKey, pulseTiles, sparkline, variationsForApproval } from "@/lib/workorder/console";
+import { buildQueue, headline, needsYouItems, pcCardSnoozeKey, pulseTiles, sparkline, variationsForApproval } from "@/lib/workorder/console";
 import DismissCard from "./DismissCard";
 import ReofferDialog from "./ReofferDialog";
 import BonusHandover from "./BonusHandover";
@@ -42,7 +42,9 @@ export default async function DashboardPage() {
   // page until its day — the same queue, drawn in its own place, so it is not
   // also a card in Needs you now.
   const qaToBook = checkins.items.filter((i) => i.kind === "qa_check_to_book");
-  const needsYou = checkins.items.filter((i) => i.kind !== "qa_check_to_book");
+  // Tom, 27 Oct 2026: movements reminders and "Agreement not signed" are off this list —
+  // the board and the Contractors tab carry them (needsYouItems says which kinds).
+  const needsYou = needsYouItems(checkins.items.filter((i) => i.kind !== "qa_check_to_book"));
   // Tom, 8 Oct 2026: a short note on each reminder, kept against its key.
   const itemNotes = await loadWorkItemNotes(supabase, [
     ...checkins.items.map((i) => i.key), ...queue.map((c) => c.key),
