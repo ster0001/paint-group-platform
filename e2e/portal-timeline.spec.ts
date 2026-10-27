@@ -205,7 +205,9 @@ test.describe("portal timeline (3a-4)", () => {
     await expect(page.locator(".pgrid img")).toHaveCount(2);
     expect(await page.getByText(/QA close-up/).count()).toBe(0);
     const src = await page.locator(".pgrid img").first().getAttribute("src");
-    expect(src).toContain("/render/image/"); // a rendition, not the original object path
+    expect(src).toMatch(/^\/account\/photo\/[0-9a-f-]{36}\?size=thumb$/); // minted on demand (27 Oct 2026)
+    const hop = await page.request.get(src!, { maxRedirects: 0 });
+    expect(hop.headers()["location"]).toContain("/render/image/"); // a rendition, not the original object path
 
     // Quality check: the pass milestone only.
     await expect(page.getByText("Quality check passed").first()).toBeVisible();

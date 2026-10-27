@@ -1,5 +1,6 @@
 import Link from "next/link";
-import { melbourneTodayYmd, signPhotosByIds, type PortalProject } from "@/lib/portal/data";
+import { melbourneTodayYmd, type PortalProject } from "@/lib/portal/data";
+import { portalPhotoRefs } from "@/lib/portal/photos";
 import { areaRollups, buildTimeline, dayHeading, type TimelineInput } from "@/lib/portal/timeline";
 import { dayOfJob } from "@/lib/portal/home";
 import { moneyFmt } from "@/lib/portal/money";
@@ -40,12 +41,14 @@ export default async function JobTimeline({ project, companyPhone, coordinatorNa
   sample?: SampleTimeline;
 }) {
   const today = melbourneTodayYmd();
-  // Sign only what renders: at most 4 photos per card and 12 on the first
-  // screen of the feed (volume law §10.3 — each signature is a storage call).
-  // Sample items arrive already capped (≤2 per update) and are not ours to change.
-  const items = sample ? sample.items : capPhotos(buildTimeline({ ...project.timeline, todayYmd: today, tradeEvents }));
-  // Sample photos are the estimate's own public URLs — nothing to sign.
-  const photosById = sample ? sample.photos : await signPhotosByIds(project.photoRows, items.flatMap((i) => i.photoIds));
+  // Every photo renders (27 Oct 2026 — Chris, Rose Street: "I can't see the
+  // photos"). Nothing is signed here: each tile points at
+  // /account/photo/[id]?size=thumb and the browser fetches only what scrolls
+  // into view (volume law §10.3 — one storage call per photo SEEN). The old
+  // 12-signatures-per-page budget left every older day's card empty.
+  const items = sample ? sample.items : buildTimeline({ ...project.timeline, todayYmd: today, tradeEvents });
+  // Sample photos are the estimate's own public URLs — nothing to resolve.
+  const photosById = sample ? sample.photos : portalPhotoRefs(project.photoRows);
   // D2: approved extras become one honest row (count + total) in place of "Variations · Not started".
   const rollups = areaRollups(project.timeline.surfaces, project.timeline.variations);
   const dayChip = dayOfJob(project.startDate, project.endDate, today);
@@ -207,13 +210,4 @@ export default async function JobTimeline({ project, companyPhone, coordinatorNa
       {feed}
     </div>
   );
-}
-
-function capPhotos(items: TimelineItem[]): TimelineItem[] {
-  let signBudget = 12;
-  return items.map((item) => {
-    const photoIds = item.photoIds.slice(0, Math.min(4, signBudget));
-    signBudget -= photoIds.length;
-    return { ...item, photoIds };
-  });
 }

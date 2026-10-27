@@ -191,7 +191,6 @@ export async function getPortalMoney(accountIds: string[]): Promise<PortalMoney>
 }
 
 import type { TimelineInput } from "./timeline";
-import { signPortalPhotos, type PortalPhoto } from "./photos";
 
 export type PortalProject = {
   estimateId: string;
@@ -205,21 +204,10 @@ export type PortalProject = {
   /** The signed completion report's /s token — null until signed off. */
   reportToken: string | null;
   timeline: Omit<TimelineInput, "todayYmd">;
-  /** Unsigned rows — the page signs ONLY the ids it will render (the volume
-   * gate's finding: signing every fetched photo doubled the timeline p95). */
+  /** Unsigned rows — the page signs NOTHING (27 Oct 2026): every tile is the
+   * on-demand route /account/photo/[id]?size=thumb, minted as it scrolls in. */
   photoRows: Array<{ id: string; kind: string; area: string; caption: string; storage_path: string }>;
 };
-
-/** Sign exactly the photos a page will render. */
-export async function signPhotosByIds(
-  rows: PortalProject["photoRows"],
-  ids: readonly string[],
-): Promise<Map<string, PortalPhoto>> {
-  const svc = createServiceClient();
-  if (!svc) return new Map();
-  const wanted = new Set(ids);
-  return signPortalPhotos(svc, rows.filter((r) => wanted.has(r.id)));
-}
 
 const PROJECT_STAGE_ORDER = ["walkthrough", "in_progress", "qa", "completion_prep", "pre_start", "offered", "closed"];
 
@@ -245,8 +233,12 @@ export async function getPortalProjects(accountIds: string[]): Promise<Array<Por
     .select("id, estimate_id, stage, start_date, end_date, contractor_id, issued_at")
     .in("estimate_id", [...estById.keys()])
     .not("issued_at", "is", null);
+  // Stage order first; on a tie the most recently issued job, so two jobs at
+  // the same stage never swap by whatever order the rows came back in.
   return ((wos ?? []) as ProjectWoRow[])
-    .sort((a, b) => PROJECT_STAGE_ORDER.indexOf(a.stage) - PROJECT_STAGE_ORDER.indexOf(b.stage))
+    .sort((a, b) =>
+      PROJECT_STAGE_ORDER.indexOf(a.stage) - PROJECT_STAGE_ORDER.indexOf(b.stage) ||
+      String(b.issued_at ?? "").localeCompare(String(a.issued_at ?? "")))
     .map((wo) => ({
       workOrderId: wo.id,
       estimateId: wo.estimate_id,
@@ -307,7 +299,9 @@ async function projectForWo(
         .eq("work_order_id", wo.id).eq("status", "sent").not("sent_at", "is", null),
       svc.from("wo_photos").select("id, kind, area, caption, storage_path, created_at")
         .eq("work_order_id", wo.id).in("kind", ["before", "progress", "completion"])
-        .order("created_at", { ascending: false }).limit(40),
+        // Rows only — nothing is signed up front (27 Oct 2026), so a long job's
+        // every day fits; 400 is a bound, not a budget.
+        .order("created_at", { ascending: false }).limit(400),
       svc.from("wo_variations")
         .select("id, status, category, comment, price_cents, credit, customer_token, customer_responded_at, created_at")
         .eq("work_order_id", wo.id),
