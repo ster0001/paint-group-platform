@@ -101,8 +101,8 @@ export default function ExteriorWalkStep({ v2, rows = [], at, onAt, onChange, on
               </p>
               <p className="wz-hint" data-testid="ext-size-line"><b>{sd.w} m</b> across × <b>{sd.h} m</b> high{!sd.adjusted && sd.w !== typicalW ? "" : ""}.</p>
               <div className="wz-chips" data-testid="ext-size-answer">
-                <button type="button" className={`wz-tile ${sd.size === "yes" ? "on" : ""}`} aria-pressed={sd.size === "yes"} data-testid="ext-size-yes" onClick={() => onChange(setSideSize(v2, at, "yes"))}>Looks right</button>
-                <button type="button" className={`wz-tile ${sd.size === "adj" ? "on" : ""}`} aria-pressed={sd.size === "adj"} data-testid="ext-size-adj" onClick={() => onChange(setSideSize(v2, at, "adj", { w: sd.w, h: sd.h }))}>Adjust it</button>
+                <button type="button" className={`wz-tile ${sd.size === "yes" ? "on" : ""}`} aria-pressed={sd.size === "yes"} data-testid="ext-size-yes" onClick={() => onChange(setSideSize(v2, at, "yes"))}>Looks right<span className="wz-tilesub">keeps these numbers</span></button>
+                <button type="button" className={`wz-tile ${sd.size === "adj" ? "on" : ""}`} aria-pressed={sd.size === "adj"} data-testid="ext-size-adj" onClick={() => onChange(setSideSize(v2, at, "adj", { w: sd.w, h: sd.h }))}>Adjust it<span className="wz-tilesub">type your own, to the half metre</span></button>
                 <button type="button" className={`wz-tile ${sd.size === "ns" ? "on" : ""}`} aria-pressed={sd.size === "ns"} data-testid="ext-size-ns" onClick={() => onChange(setSideSize(v2, at, "ns"))}>Not sure<span className="wz-tilesub">keeps the typical, checked on the visit</span></button>
               </div>
               {sd.size === "adj" && (
