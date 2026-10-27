@@ -1,6 +1,7 @@
 "use client";
 
 import type { ExteriorTypicalRow } from "@/lib/wizard/exterior-typicals";
+import { GUARDRAIL_MESSAGES } from "@/lib/wizard/policy";
 import { aboutMissing, allSidesConfirmed, exteriorV2Answered, paintedSides } from "@/lib/wizard/exterior-model";
 import PictureCard from "./PictureCard";
 import type { ExteriorSideKey } from "@/lib/wizard/exterior-typicals";
@@ -1607,6 +1608,17 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
      * the service-area check runs on — an empty one reads as "outside the
      * area" and hands off a job we could have priced.
      */
+    /**
+     * Tom, 27 Oct 2026: an address outside the areas we cover STOPS here — the
+     * same outside-area screen the gate would give six screens later (request
+     * a call back, nothing to edit), instead of "send it anyway" and a walk
+     * into the estimator that ends at a refusal.
+     */
+    if (quickStep === "start" && quickOutOfArea) {
+      setOutcome({ outcome: "outside_area", message: GUARDRAIL_MESSAGES.outside_area, canRetry: false });
+      setScreen("editor"); // the result screen takes over
+      return;
+    }
     if (quickStep === "start" && !state.address
         && !(state.customer?.suburb.trim() && state.customer.postcode.trim())) {
       setError(quickAddress.trim()
@@ -2174,8 +2186,8 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
                       </div>
                     )}
                     {quickOutOfArea && (
-                      <div className="wz-err">
-                        That looks to be outside the areas we cover — send it anyway and we&rsquo;ll tell you honestly.
+                      <div className="wz-err" data-testid="ql-out-of-area">
+                        That looks to be outside the areas we cover. Continue and we&rsquo;ll take your details and tell you honestly.
                       </div>
                     )}
                     {/* ⚑14 stands: nothing was demoted. The other two ways in

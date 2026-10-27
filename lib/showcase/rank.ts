@@ -9,7 +9,7 @@ import type { Audience } from "@/lib/marketing/audience";
  *
  * Paint Home (brief §4): property_type home AND the top of the price range
  * at or under the phone-close ceiling (`maxHighCents`, Settings →
- * wizard_policy.remoteConfirmCapCents), by featured_rank_painthome first,
+ * wizard_policy.paintHomeCapCents), by featured_rank_painthome first,
  * then newest. Never a commercial job; a job with no price never qualifies
  * (the ceiling cannot be checked).
  */

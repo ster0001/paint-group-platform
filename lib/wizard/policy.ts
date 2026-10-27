@@ -46,6 +46,15 @@ export type WizardPolicySettings = {
   /** ⚑7 — exterior never, in v1. `false` opens it, and is Tom's call to make. */
   remoteConfirmInteriorOnly: boolean;
   /**
+   * Tom, 27 Oct 2026: Paint Home's phone-close ceiling — the top of the range a
+   * Paint Home job may reach and still be confirmed on one call; over it, the
+   * hand-off to the Paint Group team. $25,000 ("I keep getting this is too big
+   * to price"). Its own number: ⚑7's remote-confirmation cap above stays the
+   * office desk-check rule ($12,000, interior only) and is NOT Paint Home's.
+   * The Paint Home project cards read the same ceiling.
+   */
+  paintHomeCapCents: number;
+  /**
    * Tom, 25 Oct 2026: an EXTERIOR range reaches 5% further under its price
    * than the band alone — "the pricing usually sits at the lower end of the
    * range, and I want some flexibility for it to be 5% cheaper if required".
@@ -64,6 +73,7 @@ export const DEFAULT_POLICY: WizardPolicySettings = {
   // ⚑7's own numbers, as the plan proposed them.
   remoteConfirmCapCents: 1_200_000,
   remoteConfirmInteriorOnly: true,
+  paintHomeCapCents: 2_500_000,
   exteriorUnderPct: 5,
 };
 
@@ -99,6 +109,7 @@ export function policyFromSettings(value: unknown): WizardPolicySettings {
       ? v.remoteConfirmInteriorOnly
       : DEFAULT_POLICY.remoteConfirmInteriorOnly,
     exteriorUnderPct: Math.max(0, num(v.exteriorUnderPct, DEFAULT_POLICY.exteriorUnderPct)),
+    paintHomeCapCents: num(v.paintHomeCapCents, DEFAULT_POLICY.paintHomeCapCents),
   };
 }
 

@@ -477,7 +477,9 @@ export function roomLoopViews(blocks: LooseBlock[], cupboardCodes: ReadonlySet<s
       cupboardInterior: interiorCfg ? {
         question: interiorCfg.question,
         unit: interiorCfg.unit,
-        on: c.cupInterior ?? null,
+        // Tom, 27 Oct 2026: "auto tick paint the walls inside the walk-in robe as no" — a bedroom's robe
+        // interior reads as answered No until the customer says otherwise; the other rooms still ask.
+        on: c.cupInterior ?? (interiorCfg.code === "Robe Interior" ? false : null),
         count: Number(interiorLine?.count) || interiorCfg.defaultCount,
         note: interiorCfg.note,
       } : null,

@@ -7,14 +7,14 @@ The site is live at painthome.com.au and hidden from search. This is the order t
 1. **Clarity.** Create a second Clarity project, "Paint Home". In Vercel → Settings → Environment Variables add `NEXT_PUBLIC_CLARITY_ID_PAINTHOME` = its id (Production + Preview). Redeploy. Paint Group's `NEXT_PUBLIC_CLARITY_ID` stays as it is; each site loads only its own project, and only after "Allow analytics".
 2. **Resend.** Add painthome.com.au as a sending domain in Resend and verify it. Until then Paint Home emails come from the Paint Group mailbox with "Paint Home" as the display name, which is deliberate and works.
 3. **Settings → Brands.** Check the Paint Home phone number (P10: Paint Group's 1300 for launch) and the legal line.
-4. **Settings → Showcase jobs.** Give three home jobs priced at or under $12,000 the Paint Home rank 1–3 (P4: real anonymised jobs).
+4. **Settings → Showcase jobs.** Give three home jobs priced at or under $25,000 the Paint Home rank 1–3 (P4: real anonymised jobs).
 5. **Settings → Website copy → Paint Home.** Read the ten FAQs once more as a customer would.
 
 ## The 90-second walk (on your phone)
 
 1. painthome.com.au → the Paint Home mark, "powered by Paint Group" in small print, *Your qualified local painters.*
 2. Tap **Outside**. The chip lights.
-3. Three job cards, every price at or under $12,000, none commercial.
+3. Three job cards, every price at or under $25,000, none commercial.
 4. Scroll to the FAQ: ten questions, the first *Who is Paint Home?*, the fifth *My job is larger than a few rooms*.
 5. Type an address → **See my price** → the wizard on painthome.com.au with the Paint Home mark, Outside pre-selected, no Both, no Commercial.
 6. Tap through to the range → **Confirm my price. Book a call** → request the call.

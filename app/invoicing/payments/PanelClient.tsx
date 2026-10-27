@@ -28,7 +28,7 @@ export type CardSpec = {
   spec: ActionSpec;
 };
 
-export function InvoiceCardActions({ c, today }: { c: CardSpec; today: string }) {
+export function InvoiceCardActions({ c }: { c: CardSpec }) {
   const ui = usePaymentsUi();
   const router = useRouter();
   const [busy, start] = useTransition();
@@ -46,7 +46,7 @@ export function InvoiceCardActions({ c, today }: { c: CardSpec; today: string })
         {c.isDeposit && c.kindIsDeposit && c.spec.depositDraft ? <div className="inset"><DepositAdjust spec={c.spec} inSheet /></div> : null}
         <div className="due">
           <label htmlFor={`due-${c.invoiceId}`}>Due date<small>Change it any time before sending</small></label>
-          <input type="date" id={`due-${c.invoiceId}`} defaultValue={c.dueOn ?? ""} min={today} disabled={busy}
+          <input type="date" id={`due-${c.invoiceId}`} defaultValue={c.dueOn ?? ""} disabled={busy}
             onChange={(e) => { const v = e.target.value; if (v) run(() => setDraftDueAction({ invoiceId: c.invoiceId, estimateId: c.estimateId, dueOn: v })); }} />
         </div>
         {err ? <div className="err">{err}</div> : null}

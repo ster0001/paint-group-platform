@@ -54,6 +54,11 @@ describe("range bands", () => {
     expect(policyFromSettings({ exteriorUnderPct: 7 }).exteriorUnderPct).toBe(7);
     expect(policyFromSettings({ exteriorUnderPct: -3 }).exteriorUnderPct).toBe(5);
     expect(policyFromSettings({}).exteriorUnderPct).toBe(5);
+    // Tom, 27 Oct 2026: Paint Home's own ceiling, $25,000, apart from the $12,000 remote-confirmation cap
+    expect(DEFAULT_POLICY.paintHomeCapCents).toBe(2_500_000);
+    expect(DEFAULT_POLICY.remoteConfirmCapCents).toBe(1_200_000);
+    expect(policyFromSettings({ paintHomeCapCents: 3_000_000 }).paintHomeCapCents).toBe(3_000_000);
+    expect(policyFromSettings({ remoteConfirmCapCents: 1_200_000 }).paintHomeCapCents).toBe(2_500_000);
   });
 
   it("settings parsing survives garbage and keeps defaults", () => {

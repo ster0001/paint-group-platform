@@ -100,3 +100,14 @@ describe("cupboard interiors — their own question (Tom, 25 Oct 2026, item 6: a
     expect(confirmRoom([sized], 1, true).ok).toBe(true);
   });
 });
+
+describe("Tom, 27 Oct 2026: the walls inside a built-in robe read as No until the customer says otherwise", () => {
+  it("a bedroom's robe interior is pre-answered No; a kitchen's stays unasked; a Yes still wins", () => {
+    const bedView = roomLoopViews([bedroom()], allCodes)[0];
+    expect(bedView.cupboardInterior).toMatchObject({ question: "Paint the walls inside the built-in robe?", on: false });
+    expect(roomLoopViews([kitchen()], allCodes)[0].cupboardInterior).toMatchObject({ on: null });
+    let id = 10;
+    const yes = applyCupboardInterior([bedroom()], 2, true, null, () => id++);
+    expect(yes.ok && roomLoopViews(yes.blocks, allCodes)[0].cupboardInterior?.on).toBe(true);
+  });
+});
