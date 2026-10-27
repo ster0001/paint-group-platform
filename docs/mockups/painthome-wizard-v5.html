@@ -1,0 +1,508 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Paint Home — estimator v4</title>
+<style>
+:root{
+  --ink:#1c232c;--grey:#5c6672;--mute:#98a2ad;--line:#e6eaee;--bg:#f7f8f9;--card:#ffffff;
+  --teal:#2fd3df;--teal-ink:#0e7f8a;--teal-soft:#e4f8fa;--green:#5f9a73;--green-soft:#edf4ee;--pink:#f5e1dc;
+  --mono:ui-monospace,"Martian Mono",Menlo,monospace;--r:16px;
+}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:-apple-system,"Inter",system-ui,Segoe UI,Roboto,sans-serif;-webkit-font-smoothing:antialiased;font-size:16px}
+button{font:inherit;color:inherit}
+
+.app{min-height:100vh;display:flex;flex-direction:column}
+header{display:flex;align-items:center;justify-content:space-between;padding:14px 20px 0}
+.logo{font-weight:800;letter-spacing:.06em;font-size:13px}.logo span{color:var(--teal-ink)}
+.back{width:40px;height:40px;border:0;background:transparent;border-radius:50%;font-size:22px;line-height:1;margin-left:-10px;color:var(--grey)}
+.back[disabled]{opacity:0;pointer-events:none}
+.help{border:1px solid var(--line);background:#fff;border-radius:999px;padding:8px 14px;font-size:13px;font-weight:600}
+.bar{height:3px;background:var(--line);margin:14px 20px 0;border-radius:3px;overflow:hidden}
+.bar i{display:block;height:100%;width:0;background:var(--teal);transition:width .35s ease}
+
+/* ---------- live strip (mobile) ---------- */
+.strip{display:flex;align-items:center;gap:12px;margin:12px 20px 0;background:#fff;border:1px solid var(--line);border-radius:14px;padding:6px 12px 6px 6px;text-align:left;width:calc(100% - 40px)}
+.strip .thumb{width:76px;height:52px;border-radius:9px;overflow:hidden;background:#eef2f5;flex:0 0 auto}
+.strip .thumb svg{width:100%;height:100%;display:block}
+.strip .txt{flex:1;min-width:0;font-size:12px;color:var(--mute);line-height:1.35}
+.strip .txt b{display:block;font-size:13px;color:var(--ink);font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.strip .chev{color:var(--mute);font-size:20px;padding-right:2px}
+.strip.gate-hide{display:none}
+
+main{flex:1;padding:18px 20px 120px;position:relative}
+.screen{display:none;animation:in .28s ease both}.screen.on{display:block}
+@keyframes in{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+h1{font-size:28px;line-height:1.15;letter-spacing:-.015em;margin:10px 0 6px;font-weight:700}
+.sub{color:var(--grey);font-size:15px;margin:0 0 22px;line-height:1.45}
+
+.opts{display:grid;gap:10px}.opts.two{grid-template-columns:1fr 1fr}
+.opt{display:flex;align-items:center;gap:14px;border:1.5px solid var(--line);background:var(--card);border-radius:var(--r);padding:18px 16px;text-align:left;width:100%;min-height:64px;transition:border-color .15s,background .15s,transform .1s}
+.opt:active{transform:scale(.985)}
+.opt.sel{border-color:var(--teal-ink);background:var(--teal-soft)}
+.opt .ic{width:28px;height:28px;flex:0 0 auto;color:var(--teal-ink)}
+.opt .t{font-weight:600;font-size:16px;line-height:1.2}.opt .d{font-size:13px;color:var(--grey);margin-top:3px}
+.opts.two .opt{flex-direction:column;align-items:flex-start;gap:10px;padding:16px}
+.nums{display:grid;grid-template-columns:repeat(5,1fr);gap:8px}
+.nums .opt{justify-content:center;padding:0;height:64px;font-weight:600;font-size:18px}
+.chips{display:flex;flex-wrap:wrap;gap:8px}
+.chip{border:1.5px solid var(--line);background:#fff;border-radius:999px;padding:12px 16px;font-weight:600;font-size:15px;display:flex;align-items:center;gap:8px}
+.chip.sel{border-color:var(--teal-ink);background:var(--teal-soft)}
+.chip.sel:before{content:"";width:8px;height:8px;border-radius:50%;background:var(--teal-ink)}
+.chip.add{border-style:dashed;color:var(--grey);font-weight:500}
+.addr{display:inline-flex;align-items:center;gap:8px;background:#fff;border:1px solid var(--line);border-radius:999px;padding:8px 8px 8px 14px;font-size:14px;margin-bottom:18px}
+.addr a{font-size:12px;color:var(--teal-ink);font-weight:600;background:var(--teal-soft);padding:5px 10px;border-radius:999px}
+.swatch{width:44px;height:44px;border-radius:10px;flex:0 0 auto;border:1px solid var(--line)}
+
+.field{display:block;background:#fff;border:1.5px solid var(--line);border-radius:14px;padding:10px 16px 12px;margin-bottom:10px}
+.field span{display:block;font-size:12px;color:var(--mute);margin-bottom:2px}
+.field input{border:0;outline:0;width:100%;font:inherit;font-size:17px;padding:4px 0;background:transparent;color:var(--ink)}
+.field:focus-within{border-color:var(--teal-ink)}
+.opt-in{font-size:13px;color:var(--grey);display:flex;gap:8px;align-items:center;margin-top:8px}
+
+.foot{position:fixed;left:0;right:0;bottom:0;background:linear-gradient(transparent,var(--bg) 30%);padding:24px 20px calc(16px + env(safe-area-inset-bottom));display:none}
+.foot.on{display:block}
+.cta{display:block;width:100%;border:0;border-radius:999px;background:var(--ink);color:#fff;font-weight:700;font-size:17px;padding:18px;text-align:center}
+.cta.teal{background:var(--teal);color:var(--ink)}.cta[disabled]{opacity:.35}
+.cta small{display:block;font-weight:500;font-size:12px;opacity:.75;margin-top:3px}
+.hint{text-align:center;font-size:12px;color:var(--mute);margin-top:10px}
+
+/* gate */
+.gate .label{font-size:13px;color:var(--teal-ink);font-weight:600}
+.price{font:700 40px/1 var(--mono);letter-spacing:-.03em;margin:8px 0 10px}
+.basis{font-size:15px;color:var(--grey);line-height:1.45;margin:0 0 14px}
+.fine{font-size:12px;color:var(--mute);line-height:1.5;margin:0 0 26px}
+.ask{margin:0 0 6px;font-size:22px;letter-spacing:-.01em}
+.ask-sub{color:var(--grey);font-size:15px;line-height:1.45;margin:0 0 18px}
+.steps{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin:26px 0 8px}
+.step{background:#fff;border:1px solid var(--line);border-radius:14px;padding:12px 12px 14px;font-size:12px;line-height:1.35;color:var(--grey)}
+.step b{display:block;color:var(--ink);font-size:13px;margin:6px 0 2px}
+.step .k{display:inline-flex;width:22px;height:22px;border-radius:50%;align-items:center;justify-content:center;font-size:11px;font-weight:700;border:1.5px solid var(--line)}
+.step.done .k{background:var(--green);border-color:var(--green);color:#fff}
+.step.now{border-color:var(--teal-ink)}.step.now .k{background:var(--teal-soft);border-color:var(--teal-ink);color:var(--teal-ink)}
+.alt{text-align:center;font-size:14px;color:var(--grey);margin:14px 0 0}.alt a{color:var(--teal-ink);font-weight:600;text-decoration:underline}
+.sarah{display:flex;align-items:center;gap:12px;margin:28px 0 0;padding-top:20px;border-top:1px solid var(--line);font-size:14px;color:var(--grey)}
+.sarah b{color:var(--ink);display:block}
+.av{width:40px;height:40px;border-radius:50%;background:var(--teal);display:inline-flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;color:var(--ink);flex:0 0 auto}
+.trust{font-size:13px;color:var(--mute);margin:18px 0 0}
+.incl{margin-top:22px;border-top:1px solid var(--line);padding-top:16px}
+.incl summary{font-weight:600;font-size:14px;cursor:pointer;list-style:none;display:flex;justify-content:space-between}
+.incl summary:after{content:"›";color:var(--mute);transform:rotate(90deg)}
+.incl[open] summary:after{transform:rotate(-90deg)}
+.incl ul{margin:12px 0 0;padding:0;list-style:none;font-size:13px;color:var(--grey)}
+.incl li{display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--line)}
+.incl li span{font:600 11px var(--mono);color:var(--teal-ink)}
+
+/* sheets */
+.sheet-bg{position:fixed;inset:0;background:rgba(28,35,44,.4);display:none;z-index:40}
+.sheet{position:fixed;left:0;right:0;bottom:0;background:#fff;border-radius:22px 22px 0 0;padding:12px 20px calc(24px + env(safe-area-inset-bottom));z-index:41;display:none;max-height:88vh;overflow:auto}
+.sheet.open,.sheet-bg.open{display:block}
+.grab{width:40px;height:4px;background:var(--line);border-radius:4px;margin:0 auto 14px}
+.srow{display:flex;align-items:center;gap:12px;padding:14px 0;border-bottom:1px solid var(--line);font-weight:600}
+.srow small{display:block;font-weight:400;color:var(--grey);font-size:12px}.srow:last-child{border:0}
+.bigpic{border-radius:14px;overflow:hidden;background:#eef2f5;aspect-ratio:5/3}
+.bigpic svg{width:100%;height:100%;display:block}
+.sheet .cap{font-size:13px;color:var(--grey);margin:12px 0 6px}
+.sheet .chips{margin-top:8px}
+.sheet .chip{padding:10px 14px;font-size:14px}
+
+/* SVG paint styles */
+.pic .base{fill:#e4e8ec;stroke:#cfd5db;stroke-width:1}
+.pic .trimbase{fill:#dfe3e7;stroke:#c9cfd5;stroke-width:1}
+.pic .roller{opacity:0;transition:opacity .15s}
+.pic .roller.on{opacity:1}
+
+/* desktop: unchanged two-column wizard is out of scope here; prototype just centres */
+@media (min-width:900px){
+  body{background:#eef1f4}
+  .app{max-width:1040px;margin:0 auto;background:var(--bg);min-height:100vh}
+  header{padding:22px 48px 0}.bar{margin:18px 48px 0}
+  .strip{margin:16px 48px 0;width:auto;max-width:544px}
+  main{padding:40px 48px 140px;max-width:640px}
+  h1{font-size:34px}
+  .foot{position:static;background:none;padding:28px 0 0;max-width:544px;margin-left:48px}.foot.on{display:block}
+  main.gate{max-width:none}
+  .gate .grid{display:grid;grid-template-columns:1.2fr 1fr;gap:48px;align-items:start}
+  .price{font-size:52px}
+  .steps{grid-template-columns:1fr;margin-top:0}
+  .step{display:grid;grid-template-columns:auto 1fr;gap:12px;align-items:center;padding:14px 16px}.step b{margin:0 0 2px}
+}
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <button class="back" id="back" aria-label="Back">‹</button>
+    <div class="logo">PAINT <span>HOME</span></div>
+    <button class="help" onclick="openContact()">Contact</button>
+  </header>
+  <div class="bar"><i id="bar"></i></div>
+
+  <button class="strip" id="strip" onclick="openSheet('pic')">
+    <div class="thumb" id="thumb"></div>
+    <div class="txt"><b id="strip-b">Your place</b><span id="strip-s">Tap to see it</span></div>
+    <div class="chev">›</div>
+  </button>
+
+  <main id="main">
+    <section class="screen" data-id="what">
+      <div class="addr">15 Westgarth St, Northcote <a>Change</a></div>
+      <h1>What are we painting?</h1>
+      <p class="sub">Your range in under a minute.</p>
+      <div class="opts two">
+        <button class="opt" data-k="what" data-v="Inside"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 10l9-7 9 7v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1z"/><path d="M9 21v-6h6v6"/></svg><div><div class="t">Inside</div><div class="d">Rooms, walls, ceilings, trims</div></div></button>
+        <button class="opt" data-k="what" data-v="Outside"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M2 20h20M4 20V9l8-6 8 6v11"/><path d="M9 20v-5h6v5"/></svg><div><div class="t">Outside</div><div class="d">Walls, eaves, trims, doors</div></div></button>
+      </div>
+    </section>
+
+    <section class="screen" data-id="property">
+      <h1>What kind of place is it?</h1>
+      <p class="sub">Near enough is fine.</p>
+      <div class="opts">
+        <button class="opt" data-k="property" data-v="House"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 11l9-8 9 8v9H3z"/></svg><div class="t">House</div></button>
+        <button class="opt" data-k="property" data-v="Townhouse"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M2 20V9l5-4 5 4v11M12 20V9l5-4 5 4v11"/></svg><div class="t">Townhouse</div></button>
+        <button class="opt" data-k="property" data-v="Unit or apartment"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="5" y="3" width="14" height="18" rx="1"/><path d="M9 7h2M13 7h2M9 11h2M13 11h2M9 15h2M13 15h2"/></svg><div class="t">Unit or apartment</div></button>
+      </div>
+    </section>
+
+    <section class="screen" data-id="beds">
+      <h1>How many bedrooms?</h1>
+      <p class="sub">This builds your room list for you.</p>
+      <div class="nums">
+        <button class="opt" data-k="beds" data-v="1">1</button><button class="opt" data-k="beds" data-v="2">2</button><button class="opt" data-k="beds" data-v="3">3</button><button class="opt" data-k="beds" data-v="4">4</button><button class="opt" data-k="beds" data-v="5+">5+</button>
+      </div>
+    </section>
+
+    <section class="screen" data-id="storeys">
+      <h1>One storey or two?</h1>
+      <p class="sub" id="storeys-sub">Two adds the stairwell and upper hall.</p>
+      <div class="opts two">
+        <button class="opt" data-k="storeys" data-v="Single storey"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 13l9-7 9 7v7H3z"/></svg><div class="t">One</div></button>
+        <button class="opt" data-k="storeys" data-v="Two storeys"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 9l9-6 9 6v12H3z"/><path d="M3 14h18"/></svg><div class="t">Two</div></button>
+      </div>
+    </section>
+
+    <section class="screen" data-id="job">
+      <h1>What's the job?</h1>
+      <p class="sub">Coats and preparation come from this.</p>
+      <div class="opts">
+        <button class="opt" data-k="job" data-v="Whole interior"><div><div class="t">The whole interior</div><div class="d">Walls, ceilings, skirtings, doors, frames</div></div></button>
+        <button class="opt" data-k="job" data-v="Some rooms"><div><div class="t">Some rooms</div><div class="d">You pick which, next</div></div></button>
+        <button class="opt" data-k="job" data-v="Doors, windows and trims"><div><div class="t">Doors, windows and trims</div><div class="d">No walls or ceilings</div></div></button>
+      </div>
+    </section>
+
+    <section class="screen" data-id="surfaces">
+      <h1>What's being painted?</h1>
+      <p class="sub">Tap a surface and watch it paint in.</p>
+      <div class="chips" id="surf-chips"></div>
+    </section>
+
+    <section class="screen" data-id="rooms">
+      <h1 id="rooms-h">Which rooms?</h1>
+      <p class="sub">We've guessed from the bedrooms. Untick any, add any.</p>
+      <div class="chips" id="chips"></div>
+    </section>
+
+    <section class="screen" data-id="colours">
+      <h1>Colours?</h1>
+      <p class="sub">Still deciding is fine.</p>
+      <div class="opts">
+        <button class="opt" data-k="colours" data-v="New colours"><div class="swatch" style="background:linear-gradient(135deg,#dfe8e3,#b9d0c2)"></div><div><div class="t">New colours</div><div class="d">A change — we allow for an undercoat</div></div></button>
+        <button class="opt" data-k="colours" data-v="Same colours"><div class="swatch" style="background:#f3f3f1"></div><div><div class="t">Same colours</div><div class="d">A fresh coat of what's there</div></div></button>
+        <button class="opt" data-k="colours" data-v="Still deciding"><div class="swatch" style="background:linear-gradient(90deg,#f5e1dc 50%,#e4f8fa 50%)"></div><div><div class="t">Still deciding</div><div class="d">We'll allow for new colours</div></div></button>
+      </div>
+    </section>
+
+    <section class="screen" data-id="condition">
+      <h1 id="cond-h">How are the walls looking?</h1>
+      <p class="sub">Honest is best — it sets the prep.</p>
+      <div class="opts">
+        <button class="opt" data-k="condition" data-v="Good"><div class="swatch" style="background:#f6f6f4"></div><div><div class="t">Good, just tired</div><div class="d">Light sand and go</div></div></button>
+        <button class="opt" data-k="condition" data-v="Some wear"><div class="swatch" style="background:#f6f6f4;background-image:radial-gradient(#d9d9d4 1px,transparent 1.5px);background-size:9px 9px"></div><div><div class="t">Some wear</div><div class="d">Scuffs, nail holes, the odd crack</div></div></button>
+        <button class="opt" data-k="condition" data-v="Needs work"><div class="swatch" style="background:#f6f6f4;background-image:linear-gradient(135deg,transparent 46%,#cfcfc8 46%,#cfcfc8 54%,transparent 54%)"></div><div><div class="t">Needs work</div><div class="d">Flaking, cracked plaster, water marks</div></div></button>
+      </div>
+    </section>
+
+    <section class="screen" data-id="living">
+      <h1>Anyone living there while we paint?</h1>
+      <p class="sub">We work room by room and pack down each day.</p>
+      <div class="opts two">
+        <button class="opt" data-k="living" data-v="Empty"><div class="t">No, it'll be empty</div></button>
+        <button class="opt" data-k="living" data-v="Living there"><div class="t">Yes, we'll be there</div></button>
+      </div>
+    </section>
+
+    <section class="screen" data-id="details">
+      <h1>Where shall we send your range?</h1>
+      <p class="sub">It shows on the next screen. We text you the link so you can come back to it.</p>
+      <label class="field"><span>Name</span><input id="f-name" placeholder="First name is fine" autocomplete="given-name"></label>
+      <label class="field"><span>Mobile</span><input id="f-mobile" placeholder="04" inputmode="tel" autocomplete="tel"></label>
+      <label class="field"><span>Email</span><input id="f-email" placeholder="For your quote" inputmode="email" autocomplete="email"></label>
+      <label class="opt-in"><input type="checkbox"> Occasional offers from Paint Home</label>
+    </section>
+
+    <section class="screen gate" data-id="gate">
+      <div class="grid">
+        <div>
+          <div class="label" id="g-label">Your range today</div>
+          <div class="price" id="g-price">$7,040 – $9,860</div>
+          <p class="basis" id="g-basis"></p>
+          <p class="fine">Based on what you've told us — anything different on the day changes the price. Sarah confirms it with you before anything is fixed. Includes GST.</p>
+          <h2 class="ask">Want the exact number?</h2>
+          <p class="ask-sub">Ten minutes, room by room, nothing to measure. Then Sarah visits to run through the finer details and confirm it.</p>
+          <button class="cta teal">Get my exact price<small>Room by room · about 10 min</small></button>
+          <p class="alt">Or <a href="#" onclick="openContact();return false">book a time with Sarah</a> first</p>
+        </div>
+        <div>
+          <div class="steps">
+            <div class="step done"><span class="k">✓</span><b>Your range</b>Just now</div>
+            <div class="step now"><span class="k">2</span><b>Your exact price</b>Online, today</div>
+            <div class="step"><span class="k">3</span><b>Sarah confirms</b>In person, 40 min</div>
+          </div>
+          <div class="sarah"><span class="av">SR</span><div><b>Sarah Reid, your estimator</b>Looks after Northcote. Ask her anything.</div></div>
+          <p class="trust">5.0 · 93 Google reviews · 2-year warranty · $20M insured<br><span style="font-size:11px">Reviews powered by Paint Group</span></p>
+          <details class="incl"><summary>What's in the range</summary><ul id="incl-list"></ul></details>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <div class="foot" id="foot"><button class="cta" id="next">Continue</button><div class="hint" id="hint"></div></div>
+</div>
+
+<div class="sheet-bg" id="sbg" onclick="closeSheets()"></div>
+<div class="sheet" id="sheet-contact">
+  <div class="grab"></div>
+  <div id="c-menu">
+    <div class="srow" style="border:0;padding-top:4px"><span class="av">SR</span><div>Sarah Reid<small>Your estimator for Northcote</small></div></div>
+    <button class="cta teal" style="margin:8px 0 14px" onclick="bookStart()">Book a visit<small>Sarah comes to you. About 40 minutes, no charge.</small></button>
+    <a class="srow" href="tel:0388409414" style="text-decoration:none;color:inherit">Call 03 8840 9414<small>Mon–Fri, 8–6</small></a>
+    <div class="srow">Send a message<small>We reply the same day</small></div>
+    <div class="srow">Save and come back later<small>We text you the link</small></div>
+  </div>
+  <div id="c-form" style="display:none">
+    <h1 style="font-size:22px;margin:4px 0 6px">Book a visit</h1>
+    <p class="sub" style="margin-bottom:16px">Just a name and a mobile. Sarah texts you to confirm.</p>
+    <label class="field"><span>Name</span><input id="c-name" placeholder="First name is fine" autocomplete="given-name"></label>
+    <label class="field"><span>Mobile</span><input id="c-mobile" placeholder="04" inputmode="tel" autocomplete="tel"></label>
+    <button class="cta" id="c-next" disabled onclick="bookSlots()" style="margin-top:6px">Choose a time</button>
+  </div>
+  <div id="c-slots" style="display:none">
+    <h1 style="font-size:22px;margin:4px 0 6px">When suits?</h1>
+    <p class="sub" style="margin-bottom:14px">Sarah is in Northcote on these days.</p>
+    <div class="opts" id="slot-list"></div>
+  </div>
+  <div id="c-done" style="display:none;text-align:center;padding:10px 0 6px">
+    <div class="av" style="width:56px;height:56px;margin:0 auto 12px;font-size:16px">SR</div>
+    <h1 style="font-size:22px;margin:0 0 6px">Booked</h1>
+    <p class="sub" id="c-done-sub" style="margin-bottom:16px"></p>
+    <button class="cta" onclick="closeSheets()">Keep going with my range</button>
+  </div>
+</div>
+<div class="sheet" id="sheet-pic">
+  <div class="grab"></div>
+  <div class="bigpic" id="bigpic"></div>
+  <div class="cap" id="bigcap">Tap a surface to paint it in or out.</div>
+  <div class="chips" id="bigchips"></div>
+</div>
+
+<script>
+/* ---------------- state ---------------- */
+const S=[...document.querySelectorAll('.screen')], order=S.map(s=>s.dataset.id);
+const A={}; let i=0;
+const $=id=>document.getElementById(id);
+const bar=$('bar'),foot=$('foot'),next=$('next'),hint=$('hint'),back=$('back');
+
+const IN_SURF=[['walls','Walls'],['ceilings','Ceilings'],['skirtings','Skirtings'],['doors','Doors'],['windows','Window frames']];
+const OUT_SURF=[['walls','Walls'],['eaves','Eaves & fascia'],['gutters','Gutters & downpipes'],['windows','Window frames'],['doors','Doors'],['verandah','Verandah']];
+const surfList=()=>A.what==='Outside'?OUT_SURF:IN_SURF;
+
+function skip(id){
+  if(id==='storeys'&&A.property==='Unit or apartment')return true;
+  if(A.what==='Outside'&&(id==='job'||id==='rooms'))return true;
+  return false;
+}
+function show(n){
+  while(skip(order[n])&&n>i)n++; while(skip(order[n])&&n<i)n--;
+  i=n; S.forEach((s,k)=>s.classList.toggle('on',k===i));
+  const id=order[i];
+  back.disabled=i===0;
+  bar.style.width=(id==='gate'?55:Math.round(i/(S.length-1)*55))+'%';
+  foot.classList.toggle('on',id==='rooms'||id==='details'||id==='surfaces');
+  if(id==='surfaces'){ensureSurf();buildSurfChips();next.textContent='Continue';hint.textContent='';next.disabled=false;}
+  if(id==='rooms'){buildChips();next.textContent='Continue';hint.textContent='';}
+  if(id==='details'){if(A.name&&A.name!=='there'&&!$('f-name').value)$('f-name').value=A.name;if(A.mobile&&!$('f-mobile').value)$('f-mobile').value=A.mobile;next.textContent='Show my range';hint.textContent='Appears instantly';validate();}
+  if(id==='condition')$('cond-h').textContent=A.what==='Outside'?'How is the outside looking?':'How are the walls looking?';
+  if(id==='storeys')$('storeys-sub').textContent=A.what==='Outside'?'Two means more wall and some height work.':'Two adds the stairwell and upper hall.';
+  $('main').classList.toggle('gate',id==='gate');
+  $('strip').classList.toggle('gate-hide',id==='gate');
+  if(id==='gate')renderGate();
+  updatePics();
+  window.scrollTo(0,0);
+}
+document.querySelectorAll('.opt[data-k]').forEach(b=>b.onclick=()=>{
+  A[b.dataset.k]=b.dataset.v;
+  b.parentElement.querySelectorAll('.opt').forEach(x=>x.classList.remove('sel'));b.classList.add('sel');
+  if(b.dataset.k==='job'){A.surf=null;}
+  if(b.dataset.k==='what'){A.surf=null;A.rooms=null;}
+  updatePics();
+  setTimeout(()=>show(i+1),260);
+});
+back.onclick=()=>show(i-1);
+next.onclick=()=>{if(order[i]==='details'){A.name=$('f-name').value.trim()||'there';A.mobile=$('f-mobile').value.trim();}show(i+1);};
+
+/* ---------------- surfaces ---------------- */
+function ensureSurf(){
+  if(A.surf)return;
+  A.surf={};
+  if(A.what==='Outside'){OUT_SURF.forEach(([k])=>A.surf[k]=k!=='verandah');}
+  else if(A.job==='Doors, windows and trims'){IN_SURF.forEach(([k])=>A.surf[k]=['skirtings','doors','windows'].includes(k));}
+  else IN_SURF.forEach(([k])=>A.surf[k]=true);
+}
+function buildSurfChips(){
+  const html=surfList().map(([k,l])=>`<button class="chip ${A.surf[k]?'sel':''}" data-s="${k}">${l}</button>`).join('');
+  $('surf-chips').innerHTML=html; $('bigchips').innerHTML=html;
+  document.querySelectorAll('.chip[data-s]').forEach(c=>c.onclick=()=>toggleSurf(c.dataset.s));
+}
+function toggleSurf(k){
+  A.surf[k]=!A.surf[k];
+  document.querySelectorAll(`.chip[data-s="${k}"]`).forEach(c=>c.classList.toggle('sel',A.surf[k]));
+  paint(k,A.surf[k],true);
+  stripText();
+}
+
+/* ---------------- pictures ---------------- */
+/* Each surface = base layer + painted layer inside a clipPath whose rect we animate 0→200 (the roller sweep). */
+const PAINT={walls:()=>A.colours==='Same colours'?'#f1efe9':A.colours==='Still deciding'?'#dcecef':'#cfe3d6',ceilings:()=>'#fafaf8',skirtings:()=>'#ffffff',doors:()=>'#ffffff',windows:()=>'#ffffff',eaves:()=>'#ffffff',gutters:()=>'#f4f4f2',verandah:()=>'#ffffff'};
+function surf(p,k,shapes,trim){
+  const fill=PAINT[k](), b=trim?'trimbase':'base';
+  return `<g data-surf="${k}"><g class="${b}">${shapes}</g>
+  <clipPath id="cp-${p}-${k}"><rect class="cprect" x="0" y="0" width="${A.surf&&A.surf[k]?200:0}" height="120"/></clipPath>
+  <g clip-path="url(#cp-${p}-${k})" fill="${fill}" stroke="#c4cad0" stroke-width="1">${shapes}</g>
+  <g class="roller"><rect x="-6" y="-3" width="12" height="6" rx="2" fill="#0e7f8a"/><rect x="5" y="-1" width="7" height="2" fill="#6b7580"/></g></g>`;
+}
+function roomSVG(p){
+  const walls=`<polygon points="0,0 50,30 50,90 0,120"/><rect x="50" y="30" width="100" height="60"/><polygon points="200,0 150,30 150,90 200,120"/>`;
+  const ceil=`<polygon points="0,0 200,0 150,30 50,30"/>`;
+  const skirt=`<rect x="50" y="86" width="100" height="4"/><polygon points="0,120 50,90 50,86 0,114"/><polygon points="200,120 150,90 150,86 200,114"/>`;
+  const door=`<rect x="60" y="48" width="18" height="42" rx="1"/>`;
+  const win=`<rect x="104" y="42" width="34" height="26" rx="1"/><rect x="108" y="46" width="12" height="18" fill="#dbeaf0" stroke="none"/><rect x="122" y="46" width="12" height="18" fill="#dbeaf0" stroke="none"/>`;
+  const wear=A.condition==='Needs work'?`<g stroke="#b9bfc5" stroke-width=".8" fill="none"><path d="M70,40 l4,6 -2,5 3,6"/><path d="M130,70 l5,-4 3,5"/><path d="M20,60 l4,8"/></g>`:A.condition==='Some wear'?`<g fill="#c3c9cf"><circle cx="90" cy="60" r="1"/><circle cx="140" cy="50" r="1"/><circle cx="30" cy="70" r="1"/></g>`:'';
+  return `<svg class="pic" viewBox="0 0 200 120" xmlns="http://www.w3.org/2000/svg"><rect width="200" height="120" fill="#eef2f5"/>
+  <polygon points="0,120 50,90 150,90 200,120" fill="#d9c9b2"/>
+  ${surf(p,'ceilings',ceil)}${surf(p,'walls',walls)}${wear}${surf(p,'skirtings',skirt,true)}${surf(p,'doors',door,true)}${surf(p,'windows',win,true)}
+  <g><rect x="150" y="84" width="10" height="8" rx="1" fill="#2fd3df"/><rect x="151" y="82" width="8" height="2" fill="#0e7f8a"/></g></svg>`;
+}
+function houseSVG(p){
+  const two=A.storeys==='Two storeys', unit=A.property==='Unit or apartment', th=A.property==='Townhouse';
+  const top=unit?20:(two?30:60);
+  const walls=unit?`<rect x="30" y="20" width="140" height="90"/>`:`<rect x="40" y="${top}" width="120" height="${110-top}"/>`;
+  const roof=unit?`<rect x="26" y="16" width="148" height="5" fill="#5b6672"/>`:`<polygon points="34,${top} 100,${top-28} 166,${top}" fill="#5b6672"/>${th?`<line x1="100" y1="${top}" x2="100" y2="110" stroke="#c9cfd5"/>`:''}`;
+  const eaves=unit?`<rect x="26" y="21" width="148" height="3"/>`:`<rect x="34" y="${top-1}" width="132" height="4"/>`;
+  const gut=unit?`<rect x="30" y="24" width="3" height="86"/><rect x="167" y="24" width="3" height="86"/>`:`<rect x="41" y="${top+3}" width="3" height="${107-top}"/><rect x="156" y="${top+3}" width="3" height="${107-top}"/>`;
+  let wins='';
+  const row=y=>`<rect x="56" y="${y}" width="22" height="16"/><rect x="122" y="${y}" width="22" height="16"/>`;
+  if(unit){wins=row(30)+row(56)+row(82);}
+  else{wins=row(top+14);if(two)wins+=row(top+50);}
+  const door=unit?`<rect x="92" y="86" width="16" height="24"/>`:th?`<rect x="84" y="86" width="12" height="24"/><rect x="104" y="86" width="12" height="24"/>`:`<rect x="92" y="84" width="16" height="26"/>`;
+  const ver=(!unit&&!th)?`<rect x="70" y="80" width="60" height="3"/><rect x="72" y="83" width="3" height="27"/><rect x="125" y="83" width="3" height="27"/>`:'';
+  const balc=unit?`<rect x="52" y="48" width="30" height="2" fill="#aab2ba"/><rect x="118" y="48" width="30" height="2" fill="#aab2ba"/>`:'';
+  return `<svg class="pic" viewBox="0 0 200 120" xmlns="http://www.w3.org/2000/svg"><rect width="200" height="120" fill="#eef2f5"/><rect y="110" width="200" height="10" fill="#cfdccf"/>
+  ${surf(p,'walls',walls)}${roof}${balc}${surf(p,'eaves',eaves,true)}${surf(p,'gutters',gut,true)}${surf(p,'windows',wins,true)}${surf(p,'doors',door,true)}${ver?surf(p,'verandah',ver,true):''}
+  <circle cx="18" cy="104" r="9" fill="#9fbfa8"/><circle cx="184" cy="106" r="7" fill="#9fbfa8"/></svg>`;
+}
+function picHTML(p){return A.what==='Outside'?houseSVG(p):roomSVG(p);}
+function updatePics(){
+  if(!A.surf){ // before the surfaces step, show the place unpainted (or the type chosen)
+    const tmp=A.surf; A.surf={}; $('thumb').innerHTML=picHTML('t'); $('bigpic').innerHTML=picHTML('b'); A.surf=tmp||null;
+  } else { $('thumb').innerHTML=picHTML('t'); $('bigpic').innerHTML=picHTML('b'); }
+  $('bigchips').innerHTML= A.surf? surfList().map(([k,l])=>`<button class="chip ${A.surf[k]?'sel':''}" data-s="${k}">${l}</button>`).join('') : '';
+  $('bigchips').querySelectorAll('.chip[data-s]').forEach(c=>c.onclick=()=>toggleSurf(c.dataset.s));
+  $('bigcap').textContent=A.surf?'Tap a surface to paint it in or out.':'Updates as you answer.';
+  stripText();
+}
+function stripText(){
+  const parts=[A.what,A.property,A.beds&&A.beds+' bed',A.storeys,A.job,A.rooms&&A.rooms.length+' rooms',A.colours,A.condition].filter(Boolean);
+  const n=A.surf?Object.values(A.surf).filter(Boolean).length:0;
+  $('strip-b').textContent=parts.length?parts.join(' · '):'Your place';
+  $('strip-s').textContent=A.surf?`${n} surface${n===1?'':'s'} ticked · tap to see`:'Updates as you answer · tap to see';
+}
+/* roller sweep: animate the clip rect for every copy of this surface */
+const anims=new WeakMap();
+function paint(k,on,animate){
+  document.querySelectorAll(`[data-surf="${k}"]`).forEach(g=>{
+    const r=g.querySelector('.cprect'), roller=g.querySelector('.roller');
+    const from=+r.getAttribute('width'), to=on?200:0;
+    if(!animate){r.setAttribute('width',to);return;}
+    const y=yFor(g); const t0=performance.now(), dur=520;
+    roller.classList.add('on');
+    if(anims.has(g))cancelAnimationFrame(anims.get(g));
+    const step=now=>{const t=Math.min(1,(now-t0)/dur), e=1-Math.pow(1-t,3); const w=from+(to-from)*e;
+      r.setAttribute('width',w); roller.setAttribute('transform',`translate(${w},${y})`);
+      if(t<1)anims.set(g,requestAnimationFrame(step)); else roller.classList.remove('on');};
+    anims.set(g,requestAnimationFrame(step));
+  });
+}
+function yFor(g){try{const b=g.querySelector('.base,.trimbase').getBBox();return b.y+b.height/2;}catch(e){return 60;}}
+
+/* ---------------- rooms ---------------- */
+function buildChips(){
+  const c=$('chips');
+  if(!A.rooms){const beds=A.beds==='5+'?5:+A.beds||3;A.rooms=[];for(let b=1;b<=beds;b++)A.rooms.push('Bed '+b);
+    A.rooms.push('Living room','Kitchen / Meals','Bathroom','Laundry','Hall & Entry');if(A.storeys==='Two storeys')A.rooms.push('Stairwell','Upstairs hall');
+    if(A.job==='Some rooms')A.rooms=A.rooms.slice(0,2);}
+  const all=[...new Set([...A.rooms,'Living room','Kitchen / Meals','Bathroom','Laundry','Hall & Entry','Study','Ensuite','Garage'])];
+  c.innerHTML=all.map(r=>`<button class="chip ${A.rooms.includes(r)?'sel':''}" data-r="${r}">${r}</button>`).join('')+'<button class="chip add" id="addroom">+ Another room</button>';
+  c.querySelectorAll('.chip[data-r]').forEach(ch=>ch.onclick=()=>{const r=ch.dataset.r;A.rooms=A.rooms.includes(r)?A.rooms.filter(x=>x!==r):[...A.rooms,r];buildChips();stripText();});
+  $('addroom').onclick=()=>{const r=prompt('Room name');if(r){A.rooms.push(r);buildChips();stripText();}};
+  next.disabled=!A.rooms.length;
+  $('rooms-h').textContent=A.job==='Some rooms'?'Which rooms?':"We're painting these rooms";
+}
+/* ---------------- details ---------------- */
+['f-name','f-mobile','f-email'].forEach(id=>$(id).addEventListener('input',validate));
+function validate(){const m=$('f-mobile').value.replace(/\s/g,'');next.disabled=!($('f-name').value.trim()&&m.length>=10);}
+
+/* ---------------- gate ---------------- */
+function renderGate(){
+  const beds=A.beds==='5+'?5:+A.beds||3;
+  let base=1500+beds*950+(A.rooms?A.rooms.length*420:beds*700);
+  const n=A.surf?Object.values(A.surf).filter(Boolean).length:5; base*=0.6+0.08*n;
+  if(A.job==='Doors, windows and trims')base*=.7;if(A.job==='Some rooms')base*=.7;
+  if(A.colours!=='Same colours')base*=1.12;if(A.condition==='Some wear')base*=1.08;if(A.condition==='Needs work')base*=1.22;
+  if(A.storeys==='Two storeys')base*=1.15;if(A.what==='Outside')base*=1.3;
+  const lo=Math.round(base*.86/10)*10,hi=Math.round(base*1.18/10)*10,f=x=>'$'+x.toLocaleString('en-AU');
+  $('g-price').textContent=f(lo)+' – '+f(hi);
+  $('g-label').textContent=(A.name&&A.name!=='there'?A.name+', your':'Your')+' range today';
+  $('g-basis').textContent=[A.beds&&A.beds+'-bedroom',(A.property||'house').toLowerCase(),A.storeys&&A.storeys.toLowerCase(),A.what==='Outside'?'the outside':(A.job||'').toLowerCase(),A.colours&&A.colours.toLowerCase(),A.condition&&A.condition.toLowerCase()].filter(Boolean).join(' · ')+". If that's about right, this is about right.";
+  $('incl-list').innerHTML=surfList().filter(([k])=>A.surf&&A.surf[k]).map(([k,l])=>`<li>${l}<span>${k==='ceilings'?'1–2':'2 coats'}</span></li>`).join('');
+}
+/* ---------------- sheets ---------------- */
+function openSheet(w){$('sbg').classList.add('open');$('sheet-'+w).classList.add('open');if(w==='pic')updatePics();}
+function openContact(){['c-menu','c-form','c-slots','c-done'].forEach(x=>$(x).style.display=x==='c-menu'?'':'none');openSheet('contact');}
+function bookStart(){
+  if(A.name&&A.name!=='there'&&A.mobile){bookSlots();return;}
+  $('c-menu').style.display='none';$('c-form').style.display='';
+  if(A.name&&A.name!=='there')$('c-name').value=A.name;
+  cval();
+}
+['c-name','c-mobile'].forEach(id=>$(id).addEventListener('input',cval));
+function cval(){$('c-next').disabled=!($('c-name').value.trim()&&$('c-mobile').value.replace(/\s/g,'').length>=10);}
+function bookSlots(){
+  if($('c-name').value.trim()){A.name=$('c-name').value.trim();A.mobile=$('c-mobile').value.trim();}
+  $('c-form').style.display='none';$('c-slots').style.display='';
+  const slots=[['Thu 30 Oct','9:00 am'],['Thu 30 Oct','1:30 pm'],['Tue 4 Nov','10:30 am'],['Tue 4 Nov','3:00 pm']];
+  $('slot-list').innerHTML=slots.map(([d,t])=>`<button class="opt" onclick="bookDone('${d}, ${t}')"><div><div class="t">${d}</div><div class="d">${t}</div></div></button>`).join('');
+}
+function bookDone(s){
+  A.visit=s;$('c-slots').style.display='none';$('c-done').style.display='';
+  $('c-done-sub').textContent=`Sarah, ${s}, at 15 Westgarth St. We've texted the details to ${A.mobile||'your mobile'}. Your answers so far are saved.`;
+}
+function closeSheets(){document.querySelectorAll('.sheet,.sheet-bg').forEach(x=>x.classList.remove('open'));}
+show(0);
+</script>
+</body>
+</html>

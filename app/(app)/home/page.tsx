@@ -9,7 +9,7 @@ import { loadDashboard, loadRoles } from "@/lib/reporting/load";
 import { METRICS, SECTION_TITLE, SWITCHES_ON, metricsForSection } from "@/lib/reporting/registry";
 import { ROLE_LABEL, sectionsFor, seesMoney, type DashboardSection } from "@/lib/reporting/roles";
 import { buildTarget } from "@/lib/reporting/metrics/target";
-import { buildFunnel, buildGateReport, hasPaintHomeSessions } from "@/lib/reporting/metrics/funnel";
+import { buildFunnel, buildGateReport, buildWizardRates, hasPaintHomeSessions } from "@/lib/reporting/metrics/funnel";
 import { activityRows, familiesFor } from "@/lib/reporting/metrics/activity";
 import TargetCard from "./TargetCard";
 import FunnelCard from "./FunnelCard";
@@ -85,6 +85,9 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
     ? { paintgroup: buildFunnel(metricInput.input, range, "paintgroup"), painthome: buildFunnel(metricInput.input, range, "painthome") }
     : null;
   const gateReport = metricInput && sections.includes("funnel") ? buildGateReport(metricInput.input, range) : [];
+  // Wizard mobile v5 §8: gate → exact price and Contact → booked, per shopfront when the funnel is split.
+  const rates = metricInput && sections.includes("funnel") ? buildWizardRates(metricInput.input, range) : null;
+  const ratesSplit = metricInput && funnelSplit ? { paintgroup: buildWizardRates(metricInput.input, range, "paintgroup"), painthome: buildWizardRates(metricInput.input, range, "painthome") } : null;
   const activityAll = metricInput && sections.includes("activity") ? activityRows(metricInput.input, range) : null;
 
   const tilesBySection = new Map<DashboardSection, TileData[]>();
@@ -178,12 +181,12 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
                   funnelSplit ? (
                     <div className="funnel-split" data-testid="funnel-split">
                       <h3 style={{ margin: "0 0 6px", fontSize: 14 }}>Paint Group</h3>
-                      <FunnelCard data={funnelSplit.paintgroup} exportHref={exportHrefFor("funnel.wizard_sessions")} gate={gateReport} gateExportHref={exportHrefFor("funnel.gate_sessions")} />
+                      <FunnelCard data={funnelSplit.paintgroup} exportHref={exportHrefFor("funnel.wizard_sessions")} gate={gateReport} gateExportHref={exportHrefFor("funnel.gate_sessions")} rates={ratesSplit?.paintgroup} />
                       <h3 style={{ margin: "12px 0 6px", fontSize: 14 }}>Paint Home</h3>
-                      <FunnelCard data={funnelSplit.painthome} exportHref={exportHrefFor("funnel.wizard_sessions")} />
+                      <FunnelCard data={funnelSplit.painthome} exportHref={exportHrefFor("funnel.wizard_sessions")} rates={ratesSplit?.painthome} />
                     </div>
                   ) : (
-                    <FunnelCard data={funnel} exportHref={exportHrefFor("funnel.wizard_sessions")} gate={gateReport} gateExportHref={exportHrefFor("funnel.gate_sessions")} />
+                    <FunnelCard data={funnel} exportHref={exportHrefFor("funnel.wizard_sessions")} gate={gateReport} gateExportHref={exportHrefFor("funnel.gate_sessions")} rates={rates} />
                   )
                 ) : (
                   <HomeTiles tiles={tiles} />

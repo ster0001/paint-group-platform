@@ -64,6 +64,7 @@ import { RESUME_KEY, RESTART_KEY, decodeResume, encodeResume, restartedSince, re
 import Wordmark from "./Wordmark";
 import { allowedForBrand, type WizardBrand } from "@/lib/wizard/brand";
 import { brandFor } from "@/lib/marketing/brand";
+import { breakpointNow, markScopeFromGate, sendWizardEvent } from "@/lib/wizard/wizardEvents";
 import ChatWidget from "./ChatWidget";
 import WizardHeader from "./WizardHeader";
 import { UI_FLAGS } from "@/lib/wizard/ui-flags";
@@ -236,6 +237,8 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
   const [page, setPage] = useState(1);
   const [screen, setScreen] = useState<Screen>("pages");
   const isCustomer = mode === "customer";
+  // Paint Home brief §5: the one display name every piece of chrome that names the company reads.
+  const brandName = brandFor(brand === "painthome" ? "painthome" : "home").name;
   const [outcome, setOutcome] = useState<CustomerOutcome | null>(null);
 
   /**
@@ -1460,6 +1463,11 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
     const t = setTimeout(() => { void import("./Reveal"); void import("./TalkSheet"); void import("./CustomerResult"); }, 800);
     return () => clearTimeout(t);
   }, [isCustomer, pastFirst]);
+  // Wizard mobile v5 §8: one `wizard_step_viewed` per step per session (the route dedupes), with the breakpoint it was seen on.
+  useEffect(() => {
+    if (!isCustomer || !quickActive) return;
+    sendWizardEvent("wizard_step_viewed", { step: quickStep, breakpoint: breakpointNow() });
+  }, [isCustomer, quickActive, quickStep]);
   useEffect(() => {
     if (screen !== "reveal") return;
     const t = setTimeout(() => { void import("./ExteriorWalk"); }, 800);
@@ -1843,7 +1851,7 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
       <div data-ready="1" className="wz-shell">
         {/* UI refresh S3 (brief §7.1): after the details, the rail is the three accuracy steps. */}
         <WizardHeader
-          brandName={brandFor(brand === "painthome" ? "painthome" : "home").name}
+          brandName={brandName}
           logo={<Wordmark logoUrl={logoUrl} brand={brand} />}
           steps={[]}
           at="gate"
@@ -1856,7 +1864,7 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
             ],
           }}
           phone={companyPhone}
-          chat={UI_FLAGS.chatInHeader ? <ChatWidget ready place="header" /> : undefined}
+          chat={UI_FLAGS.chatInHeader ? <ChatWidget ready place="header" brandName={brandName} /> : undefined}
           onSaveBook={() => setBookOpen(true)}
         />
         <SaveAndBookSheet
@@ -1919,12 +1927,12 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
           onTighten={() => {
             void recordRangeOption(reveal.estimateId, "tighten");
             // Tom, 21 Oct (item 8): Tighten opens the customer editor on every path — the drawn house too (the walk-around step is retired).
-            const go = () => { clearResume(); router.push(`/estimate/scope?id=${reveal.estimateId}`); };
+            const go = () => { clearResume(); markScopeFromGate(); router.push(`/estimate/scope?id=${reveal.estimateId}`); };
             // R7 (range first): any option asks for the details before going further.
             if (!contactKnown) { setTalk({ mode: "details", then: go }); return; }
             go();
           }}
-          onEditor={() => { void recordRangeOption(reveal.estimateId, "tighten"); clearResume(); router.push(`/estimate/scope?id=${reveal.estimateId}`); }}
+          onEditor={() => { void recordRangeOption(reveal.estimateId, "tighten"); clearResume(); markScopeFromGate(); router.push(`/estimate/scope?id=${reveal.estimateId}`); }}
           onBook={() => { void recordRangeOption(reveal.estimateId, "visit"); clearResume(); router.push(`/estimate/visit?id=${reveal.estimateId}`); }}
           speakWithUs={Boolean((reveal.payload as { speakWithUs?: boolean }).speakWithUs)}
           brand={brand}
@@ -1952,13 +1960,13 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
         // UI refresh S1: the slim header with the step rail, built from the
         // same `stepsFor()` list the screens walk. ⚑ 10: the chat is its icon.
         <WizardHeader
-          brandName={brandFor(brand === "painthome" ? "painthome" : "home").name}
+          brandName={brandName}
           logo={<Wordmark logoUrl={logoUrl} brand={brand} />}
           steps={quickSteps}
           at={quickStep}
           done={screen === "processing"}
           phone={companyPhone}
-          chat={UI_FLAGS.chatInHeader ? <ChatWidget ready={ready} place="header" onDescribe={quickActive ? describeJob : undefined} /> : undefined}
+          chat={UI_FLAGS.chatInHeader ? <ChatWidget ready={ready} place="header" onDescribe={quickActive ? describeJob : undefined} brandName={brandName} /> : undefined}
           onSaveBook={screen !== "processing" ? openBook : undefined}
         />
       ) : (
@@ -2096,8 +2104,8 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
                 estimatorName={estimatorName}
                 onNext={quickNext}
                 // Paint Home brief §5: the mid-flow door asks for a call, never a site visit.
-                onBook={() => { flushDraft(lastScreen); setTalk({ mode: brand === "painthome" ? "call" : "visit" }); }}
-                onMessage={() => { flushDraft(lastScreen); setTalk({ mode: "message" }); }}
+                onBook={() => { flushDraft(lastScreen); sendWizardEvent("contact_opened", { step: quickStep }); setTalk({ mode: brand === "painthome" ? "call" : "visit" }); }}
+                onMessage={() => { flushDraft(lastScreen); sendWizardEvent("contact_opened", { step: quickStep }); setTalk({ mode: "message" }); }}
                 gate={hasGate ? {
                   contact: state.contact,
                   onContact: (c) => set({ contact: c }),
@@ -2287,7 +2295,7 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
           {nav.note && <span className="wz-navnote">{nav.note}</span>}
         </nav>
       )}
-      {isCustomer && !(newShell && UI_FLAGS.chatInHeader) && <ChatWidget ready={ready} onDescribe={quickActive ? describeJob : undefined} />}
+      {isCustomer && !(newShell && UI_FLAGS.chatInHeader) && <ChatWidget ready={ready} onDescribe={quickActive ? describeJob : undefined} brandName={brandName} />}
     </div>
   );
 }

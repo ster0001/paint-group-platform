@@ -12,6 +12,7 @@ import { alreadySentFrom, useAutoSend } from "./useAutoSend";
 import { afterLayout, scrollCardToTop } from "./scrollCard";
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { useRouter } from "next/navigation";
+import { sendWizardEvent, takeScopeFromGate } from "@/lib/wizard/wizardEvents";
 import type { CustomerPayload } from "@/lib/wizard/view";
 import { assertCustomerShape } from "@/lib/wizard/contract";
 import type { CustomerExteriorView, CustomerScopeRoom } from "@/lib/wizard/scope-editor";
@@ -224,6 +225,14 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
     return "";
   });
   const router = useRouter();
+  // Wizard mobile v5 §8: arrived here from the gate's "exact price" door — the gate left a one-shot mark.
+  useEffect(() => {
+    if (chatMode || !takeScopeFromGate()) return;
+    sendWizardEvent("scope_viewed", { from: "gate" });
+    // Mount only: the mark says where they ARRIVED from.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   /**
    * C10 — deep links from the reveal's assume list (`#rooms`, `#details`,
    * `#access`, `#missed`, `#systems`). A hash names a card; the card opens and

@@ -13,6 +13,12 @@ export async function wizardBrand(param?: string | null): Promise<WizardBrand> {
   return (await getAudience()) === "painthome" ? "painthome" : "paintgroup";
 }
 
+/** The brand's display name — "Paint Home" on its host, "Paint Group" otherwise — for chrome that names the company (the chat panels). */
+export async function wizardBrandName(param?: string | null): Promise<string> {
+  const b = await wizardBrand(param);
+  return brandFor(b === "painthome" ? "painthome" : "home").name;
+}
+
 /** "Get your painting estimate · Paint Home" — the page title in the brand's name. */
 export async function wizardTitle(base: string, param?: string | null): Promise<string> {
   const b = await wizardBrand(param);

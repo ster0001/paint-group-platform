@@ -96,6 +96,8 @@ test.describe("Paint Home — the wizard brand branch (session 3)", () => {
     await expect(page.getByTestId("painthome-handoff")).toHaveCount(0);
     await expect(page.getByTestId("reveal-tiers-visit")).toContainText("Then one call.");
     await expect(page.getByTestId("reveal")).not.toContainText("Paint Group");
+    // wizard mobile v5 R10: nothing on the page — header, chat, strip — names Paint Group (the hand-off's one line is test 2's)
+    await expect(page.locator("body")).not.toContainText("Paint Group");
     await call.tap();
     const sheet = page.getByTestId("talk-sheet");
     await expect(sheet).toBeVisible();

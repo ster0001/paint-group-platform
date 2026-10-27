@@ -8,7 +8,7 @@
  * acceptance (`outcome_tier`, B2 "with wizard R5") is not captured yet and is
  * said so, not guessed.
  */
-import { inRange, melbourneDay, type MetricDef, type MetricInput, type Range } from "../core";
+import { inRange, melbourneDay, type MetricDef, type MetricInput, type Range, type WizardEventRow } from "../core";
 
 export type FunnelRow = {
   started_on: string; email_captured: boolean; saved: boolean; sent: boolean; viewed: boolean; accepted: boolean;
@@ -166,4 +166,54 @@ export const gateSessions: MetricDef<GateSessionRow> = {
 /** Paint Home brief §6: does the range hold any Paint Home session? Decides whether the dashboard draws the funnel per shopfront. */
 export function hasPaintHomeSessions(input: MetricInput, range: Range): boolean {
   return (input.funnel?.drafts ?? []).some((d) => inRange(d.started_at, range) && brandOfDraft(d) === "painthome");
+}
+
+
+// ---- wizard mobile v5 §8 — the two rates the home dashboard reads ---------------
+
+/** The event types the funnel slice reads for the rates (lib/reporting/load.ts). */
+export const WIZARD_RATE_EVENT_TYPES = ["gate_viewed", "gate_cta_clicked", "contact_opened", "visit_booked"] as const;
+
+export type WizardRates = {
+  /** Sessions that saw their range. */
+  gate_viewed: number;
+  /** …of which tapped the exact-price door. */
+  gate_exact: number;
+  gate_exact_pct: number | null;
+  /** Sessions that opened Contact from a step. */
+  contact_opened: number;
+  /** …of which booked a visit from the Contact sheet. */
+  contact_booked: number;
+  contact_booked_pct: number | null;
+};
+
+/**
+ * Gate → exact price and Contact → booked, counted in SESSIONS (the wizard
+ * draft the route pinned on each event), never taps — a customer who taps
+ * the door twice is one session. An event with no session is not a session
+ * and is left out. `brand` keeps one shopfront, by the session's draft;
+ * a session whose draft is outside the window keeps its events for the
+ * unsplit figure and is left out of a split one (its brand is unknown here).
+ */
+export function buildWizardRates(input: MetricInput, range: Range, brand: "paintgroup" | "painthome" | null = null): WizardRates {
+  const f = input.funnel;
+  const brandOf = new Map((f?.drafts ?? []).map((d) => [d.id, brandOfDraft(d)]));
+  const sessions = (pick: (e: WizardEventRow) => boolean): number => {
+    const ids = new Set<string>();
+    for (const e of f?.wizardEvents ?? []) {
+      if (!e.session_id || !inRange(e.occurred_at, range) || !pick(e)) continue;
+      if (brand != null && brandOf.get(e.session_id) !== brand) continue;
+      ids.add(e.session_id);
+    }
+    return ids.size;
+  };
+  const pct = (part: number, whole: number): number | null => (whole > 0 ? Math.round((part / whole) * 100) : null);
+  const gateViewed = sessions((e) => e.type === "gate_viewed");
+  const gateExact = sessions((e) => e.type === "gate_cta_clicked" && e.cta === "exact");
+  const contactOpened = sessions((e) => e.type === "contact_opened");
+  const contactBooked = sessions((e) => e.type === "visit_booked" && e.from === "contact");
+  return {
+    gate_viewed: gateViewed, gate_exact: gateExact, gate_exact_pct: pct(gateExact, gateViewed),
+    contact_opened: contactOpened, contact_booked: contactBooked, contact_booked_pct: pct(contactBooked, contactOpened),
+  };
 }

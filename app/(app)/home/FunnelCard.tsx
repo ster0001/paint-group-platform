@@ -1,7 +1,9 @@
-import type { FunnelData, GateVersionReport } from "@/lib/reporting/metrics/funnel";
+import type { FunnelData, GateVersionReport, WizardRates } from "@/lib/reporting/metrics/funnel";
 
 /** Session 3 — Where estimates go (mockup `.funnel`). Server component: numbers in, bars out. */
-export default function FunnelCard({ data, exportHref, gate = [], gateExportHref = "" }: { data: FunnelData; exportHref: string; gate?: GateVersionReport[]; gateExportHref?: string }) {
+export default function FunnelCard({ data, exportHref, gate = [], gateExportHref = "", rates = null }: { data: FunnelData; exportHref: string; gate?: GateVersionReport[]; gateExportHref?: string;
+  /** Wizard mobile v5 §8: gate → exact price and Contact → booked, in sessions. Drawn once a session has reached either. */
+  rates?: WizardRates | null }) {
   return (
     <div className="card" data-testid="funnel-card">
       <div className="funnel">
@@ -14,6 +16,14 @@ export default function FunnelCard({ data, exportHref, gate = [], gateExportHref
           </div>
         ))}
       </div>
+      {/* Wizard mobile v5 §8: the hinge of the platform, as two rates — sessions, never taps. */}
+      {rates && (rates.gate_viewed > 0 || rates.contact_opened > 0) && (
+        <p className="funnel-rates" data-testid="funnel-rates" style={{ margin: "12px 0 0", fontSize: 13 }}>
+          <span data-testid="funnel-rate-gate">Range → exact price: <b>{rates.gate_exact}</b> of {rates.gate_viewed} session{rates.gate_viewed === 1 ? "" : "s"}{rates.gate_exact_pct != null ? ` (${rates.gate_exact_pct}%)` : ""}</span>
+          {" · "}
+          <span data-testid="funnel-rate-contact">Contact → booked: <b>{rates.contact_booked}</b> of {rates.contact_opened}{rates.contact_booked_pct != null ? ` (${rates.contact_booked_pct}%)` : ""}</span>
+        </p>
+      )}
       {/* S6 (§4.7): the gate, by version — reached, completed, lost, saw the range, what next. */}
       {gate.length > 0 && (
         <div className="funnel-gate" data-testid="funnel-gate" style={{ marginTop: 12 }}>
