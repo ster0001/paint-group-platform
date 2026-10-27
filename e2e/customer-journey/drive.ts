@@ -53,80 +53,14 @@ export type DriveOptions = {
 export async function driveNoPlanWizard(page: Page, opts: DriveOptions = {}) {
   await openQuickLook(page);
 
-  // Screen 1 — the address. Places is not available in the test stack, so the
-  // lookup degrades to a plain input and the suburb/postcode fallback appears.
-  // That fallback is the thing under test as much as anything: without a
-  // postcode the service-area check hands the job off.
-  await page.getByPlaceholder(/Your address/).fill("14 Acacia Street, Northcote");
-  await page.getByPlaceholder("Suburb").fill(opts.suburb ?? "Murrumbeena");
-  await page.getByPlaceholder("Postcode").fill(opts.postcode ?? "3163");
-  if (opts.jobType && opts.jobType !== "interior") {
-    await page.getByTestId(`ql-jobtype-${opts.jobType}`).click();
-  }
-  await quickNext(page);
-  // C8: a "both" job meets the choice screen (prototype `s-both`) — the drive
-  // prices them itself, one after the other.
-  if (opts.jobType === "both") {
-    await page.getByTestId("ql-both-self").click();
-  }
-
-  // Screen 2 — the place.
-  if (opts.propertyKind) await page.getByTestId(`ql-kind-${opts.propertyKind}`).click();
-  if (opts.bedrooms) await page.getByTestId(`ql-bedrooms-${opts.bedrooms}`).click();
-  if (opts.storeys) await page.getByTestId(`ql-storeys-${opts.storeys}`).click();
-  await quickNext(page);
-
-  /**
-   * A COMMERCIAL property and an OUTSIDE-ONLY job both leave the quick look
-   * here, by design — commercial for the segment question and its seven
-   * routing gates, exterior for the elevation questions. Neither can be
-   * answered by the interior screens, and skipping them is the safety check
-   * missing rather than a shortcut. The caller drives what follows.
-   */
-  if (opts.propertyKind === "commercial" || opts.jobType === "exterior") return;
-
-  // Screen 3 — the job.
-  if (opts.scope) await page.getByTestId(`ql-scope-${opts.scope}`).click();
-  // C9: the single colour picker is gone. "same" = untick the walls (the
-  // default tick); "new" = the default; "bold" = walls ticked + "Yes" to bold.
-  // 14 Sep: every tile starts ticked, so "same" = untick all three.
-  if (opts.colour === "same") for (const k of ["walls", "ceilings", "trims", "windows"]) await page.getByTestId(`ql-changing-${k}`).click();
-  if (opts.colour === "bold") {
-    await page.getByTestId("ql-bold-yes").click();
-    // Tom, 15 Sep: "Yes" then WHICH — the walls, as the old assumption had it.
-    await page.getByTestId("ql-bold-which-walls").click();
-  }
-  await quickNext(page);
-
-  // 14 Sep (evening): confirm the rooms — the starter list, accepted as it is.
-  await expect(page.locator("[data-quick-step='rooms']")).toBeVisible({ timeout: 30_000 });
-  await quickNext(page);
-
-  // Screen 4 — condition.
-  if (opts.condition) await page.getByTestId(`ql-condition-${opts.condition}`).click();
-  if (opts.occupied) await page.getByTestId(`ql-occupied-${opts.occupied}`).click();
-  if (opts.settleAfterContactMs) await page.waitForTimeout(opts.settleAfterContactMs);
-  await quickNext(page);
-
-  /**
-   * Screen 5 — the OUTSIDE screen, which a BOTH job also walks: `stepsFor`
-   * returns all five for "both", because a mixed job has an outside to size as
-   * well as rooms and the exterior quick look (prototype `s-ext-job`) is where
-   * that is asked. This helper used to stop after the condition screen and wait
-   * for a reveal that was one screen away, so every both-job spec sat on the
-   * outside screen until it timed out — which read as "a both job can't get a
-   * price" and was really "nobody answered screen 5".
-   *
-   * The prototype's defaults ARE an answer — weatherboards, the house, sound
-   * condition — so this accepts them, exactly as a customer who changes nothing
-   * would. A spec that cares about the exterior answers drives them itself.
-   */
-  if (opts.jobType === "both") {
-    // The plainest outside answers, on whichever screens the flag puts there
-    // (S3); it lands on "Which sides?" — all four start ticked, so Continue
-    // is the answer (Tom, 15 Sep, late).
-    await answerOutsideQuick(page);
-    await quickNext(page);
+  // Wizard mobile v5 (S2): on a phone the quick look is one question per screen;
+  // the same answers, walked screen by screen, then the gate and the range below.
+  if (await onMobileShell(page)) {
+    const inside = await driveMobileQuickLook(page, opts);
+    if (!inside) return;
+  } else {
+    await driveDesktopQuickLook(page, opts);
+    if (opts.propertyKind === "commercial" || opts.jobType === "exterior") return;
   }
 
   /**
@@ -319,6 +253,10 @@ export async function fillQuickAddress(page: Page, opts: { suburb?: string; post
 /** Advance one quick-look screen, failing loudly on a gate rather than
  *  silently sitting on the same screen until a later assertion times out. */
 export async function quickNext(page: Page) {
+  // Wizard mobile v5 (S2): under 768px the quick look is the phone's shell — one
+  // question per screen, single choices advancing themselves. "Continue" there
+  // means: finish THIS quick-look step with the answers as they stand.
+  if (await page.getByTestId("wzm").count()) { await mobileQuickNext(page); return; }
   // Wait for it to be ENABLED, not merely present. Continue is disabled while
   // the anonymous session connects, and a spec that clicks in that window sits
   // on the same screen until a later assertion times out — which reads as a
@@ -328,6 +266,173 @@ export async function quickNext(page: Page) {
   await next.click();
   const err = page.getByTestId("ql-error");
   if (await err.count()) throw new Error(`quick look gate: ${await err.first().innerText()}`);
+}
+
+/** The desktop quick look (≥ 768px): the address, then one screen per step, Continue between them. */
+async function driveDesktopQuickLook(page: Page, opts: DriveOptions) {
+  // Screen 1 — the address. Places is not available in the test stack, so the
+  // lookup degrades to a plain input and the suburb/postcode fallback appears.
+  // That fallback is the thing under test as much as anything: without a
+  // postcode the service-area check hands the job off.
+  await page.getByPlaceholder(/Your address/).fill("14 Acacia Street, Northcote");
+  await page.getByPlaceholder("Suburb").fill(opts.suburb ?? "Murrumbeena");
+  await page.getByPlaceholder("Postcode").fill(opts.postcode ?? "3163");
+  if (opts.jobType && opts.jobType !== "interior") {
+    await page.getByTestId(`ql-jobtype-${opts.jobType}`).click();
+  }
+  await quickNext(page);
+  // C8: a "both" job meets the choice screen (prototype `s-both`) — the drive
+  // prices them itself, one after the other.
+  if (opts.jobType === "both") {
+    await page.getByTestId("ql-both-self").click();
+  }
+
+  // Screen 2 — the place.
+  if (opts.propertyKind) await page.getByTestId(`ql-kind-${opts.propertyKind}`).click();
+  if (opts.bedrooms) await page.getByTestId(`ql-bedrooms-${opts.bedrooms}`).click();
+  if (opts.storeys) await page.getByTestId(`ql-storeys-${opts.storeys}`).click();
+  await quickNext(page);
+
+  /**
+   * A COMMERCIAL property and an OUTSIDE-ONLY job both leave the quick look
+   * here, by design — commercial for the segment question and its seven
+   * routing gates, exterior for the elevation questions. Neither can be
+   * answered by the interior screens, and skipping them is the safety check
+   * missing rather than a shortcut. The caller drives what follows.
+   */
+  if (opts.propertyKind === "commercial" || opts.jobType === "exterior") return;
+
+  // Screen 3 — the job.
+  if (opts.scope) await page.getByTestId(`ql-scope-${opts.scope}`).click();
+  // C9: the single colour picker is gone. "same" = untick the walls (the
+  // default tick); "new" = the default; "bold" = walls ticked + "Yes" to bold.
+  // 14 Sep: every tile starts ticked, so "same" = untick all three.
+  if (opts.colour === "same") for (const k of ["walls", "ceilings", "trims", "windows"]) await page.getByTestId(`ql-changing-${k}`).click();
+  if (opts.colour === "bold") {
+    await page.getByTestId("ql-bold-yes").click();
+    // Tom, 15 Sep: "Yes" then WHICH — the walls, as the old assumption had it.
+    await page.getByTestId("ql-bold-which-walls").click();
+  }
+  await quickNext(page);
+
+  // 14 Sep (evening): confirm the rooms — the starter list, accepted as it is.
+  await expect(page.locator("[data-quick-step='rooms']")).toBeVisible({ timeout: 30_000 });
+  await quickNext(page);
+
+  // Screen 4 — condition.
+  if (opts.condition) await page.getByTestId(`ql-condition-${opts.condition}`).click();
+  if (opts.occupied) await page.getByTestId(`ql-occupied-${opts.occupied}`).click();
+  if (opts.settleAfterContactMs) await page.waitForTimeout(opts.settleAfterContactMs);
+  await quickNext(page);
+
+  /**
+   * Screen 5 — the OUTSIDE screen, which a BOTH job also walks: `stepsFor`
+   * returns all five for "both", because a mixed job has an outside to size as
+   * well as rooms and the exterior quick look (prototype `s-ext-job`) is where
+   * that is asked. This helper used to stop after the condition screen and wait
+   * for a reveal that was one screen away, so every both-job spec sat on the
+   * outside screen until it timed out — which read as "a both job can't get a
+   * price" and was really "nobody answered screen 5".
+   *
+   * The prototype's defaults ARE an answer — weatherboards, the house, sound
+   * condition — so this accepts them, exactly as a customer who changes nothing
+   * would. A spec that cares about the exterior answers drives them itself.
+   */
+  if (opts.jobType === "both") {
+    // The plainest outside answers, on whichever screens the flag puts there
+    // (S3); it lands on "Which sides?" — all four start ticked, so Continue
+    // is the answer (Tom, 15 Sep, late).
+    await answerOutsideQuick(page);
+    await quickNext(page);
+  }
+}
+
+/**
+ * Wizard mobile v5 (S2): the phone's screens — what · property · beds · storeys ·
+ * job · surfaces · rooms · colours · condition · living — with the same answers
+ * `driveNoPlanWizard` takes. Returns false where the caller drives what follows
+ * (an outside job's exterior screens, a commercial place's segment screens).
+ */
+export async function driveMobileQuickLook(page: Page, opts: DriveOptions): Promise<boolean> {
+  const at = async (id: string) => { await expect(page.locator(`[data-mobile-screen='${id}']`)).toBeVisible({ timeout: 30_000 }); };
+  await at("what");
+  // the address: a plain input on the test stack (no Places), so the suburb and postcode boxes appear
+  if (await page.getByTestId("wzm-addr-change").count()) await page.getByTestId("wzm-addr-change").click();
+  await page.getByPlaceholder(/Your address/).fill("14 Acacia Street, Northcote");
+  await page.getByPlaceholder("Suburb").fill(opts.suburb ?? "Murrumbeena");
+  await page.getByPlaceholder("Postcode").fill(opts.postcode ?? "3163");
+  await page.getByTestId(`ql-jobtype-${opts.jobType ?? "interior"}`).click();
+  if (opts.jobType === "both") {
+    await at("both");
+    await page.getByTestId("ql-both-self").click();
+  }
+  await at("property");
+  await page.getByTestId(`ql-kind-${opts.propertyKind ?? "house"}`).click();
+  if (opts.propertyKind === "commercial" || opts.jobType === "exterior") return false;
+  await at("beds");
+  await page.getByTestId(`ql-bedrooms-${opts.bedrooms ?? 3}`).click();
+  if ((opts.propertyKind ?? "house") !== "unit_apartment") {
+    await at("storeys");
+    await page.getByTestId(`ql-storeys-${opts.storeys ?? "single"}`).click();
+  }
+  await at("job");
+  // the phone offers three jobs; "walls and ceilings only" is the desktop's
+  await page.getByTestId(`ql-scope-${opts.scope && opts.scope !== "walls_ceilings" ? opts.scope : "whole"}`).click();
+  await at("surfaces");
+  await quickNext(page);
+  await at("rooms");
+  await quickNext(page);
+  await at("colours");
+  // bold is not asked on a phone — it prices as new colours
+  await page.getByTestId(`ql-colours-${opts.colour === "same" ? "same" : "new"}`).click();
+  await at("condition");
+  await page.getByTestId(`ql-condition-${opts.condition ?? "wear"}`).click();
+  await at("living");
+  if (opts.settleAfterContactMs) await page.waitForTimeout(opts.settleAfterContactMs);
+  await page.getByTestId(`ql-occupied-${opts.occupied ?? "no"}`).click();
+  if (opts.jobType === "both") {
+    await answerOutsideQuick(page);
+    await quickNext(page);
+  }
+  return true;
+}
+
+/** The phone's shell (wizard mobile v5): is the quick look showing as one question per screen? */
+export async function onMobileShell(page: Page): Promise<boolean> {
+  return (await page.getByTestId("wzm").count()) > 0;
+}
+
+/**
+ * Wizard mobile v5 (S2): one quick-look STEP on the phone's shell, with the
+ * answers as they stand — a single-choice screen is passed by tapping its
+ * selected option (it advances itself), a screen with a bar by Continue —
+ * until the shell shows the next step, the range, or an error.
+ */
+export async function mobileQuickNext(page: Page) {
+  const shell = page.getByTestId("wzm");
+  const stepBefore = await shell.getAttribute("data-quick-step");
+  for (let i = 0; i < 6; i++) {
+    const screen = await shell.getAttribute("data-mobile-screen");
+    const bar = page.getByTestId("ql-next");
+    if (await bar.count()) {
+      await expect(bar).toBeEnabled({ timeout: 30_000 });
+      await bar.click();
+    } else {
+      await page.locator("[data-mobile-screen] [aria-pressed='true']").first().click();
+    }
+    const err = page.getByTestId("ql-error");
+    await page.waitForTimeout(350); // the ~250ms auto-advance
+    if (await err.count()) throw new Error(`quick look gate: ${await err.first().innerText()}`);
+    if (!(await shell.count())) return; // the range, or the processing screen
+    const now = await shell.getAttribute("data-mobile-screen");
+    const stepNow = await shell.getAttribute("data-quick-step");
+    if (stepNow !== stepBefore) return;
+    if (now === screen) {
+      await expect.poll(() => shell.getAttribute("data-mobile-screen"), { timeout: 10_000 }).not.toBe(screen);
+      if ((await shell.getAttribute("data-quick-step")) !== stepBefore) return;
+    }
+  }
+  throw new Error(`mobileQuickNext: the ${stepBefore} step did not finish`);
 }
 
 /** Ensure the scope editor is open and hydrated (P1: pre-hydration clicks

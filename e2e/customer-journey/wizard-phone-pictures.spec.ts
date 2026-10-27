@@ -7,10 +7,16 @@ import { fillQuickAddress, openQuickLook, quickNext } from "./drive";
  * the 400 × 300 house drawing is zoomed to fill it; a unit is a tall block and
  * the zoom cut its roof and door off. Every kind of property on the place step
  * must draw its building wholly inside the band.
+ *
+ * Wizard mobile v5 (S2, 28 Oct 2026): under 768px the sticky picture panel is
+ * gone — the phone's shell has the live strip instead (brief §3, session 3) —
+ * so the band and its zoom now exist between 768 and 900px (a small tablet,
+ * a split screen). That is where this runs; e2e/customer-journey/wizard-mobile-v5.spec.ts
+ * proves the panel is absent on a phone.
  */
-test("on a phone every kind of property draws its whole building inside the picture band", async ({ browser }) => {
+test("between 768 and 900px every kind of property draws its whole building inside the picture band", async ({ browser }) => {
   test.setTimeout(120_000);
-  const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
+  const ctx = await browser.newContext({ viewport: { width: 800, height: 1000 }, isMobile: true, hasTouch: true });
   const page = await ctx.newPage();
   try {
     await openQuickLook(page);
