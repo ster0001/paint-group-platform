@@ -2197,6 +2197,8 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
             step={quickStep}
             quick={quick}
             onQuick={setQuick}
+            outside={outside}
+            onOutside={setOutside}
             address={{
               text: state.address?.formatted ?? quickAddress,
               known: Boolean(state.address) || Boolean(state.customer?.suburb.trim() && state.customer.postcode.trim()),

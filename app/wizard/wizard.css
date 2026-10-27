@@ -2590,3 +2590,20 @@
   .wz .wzm-screen { animation: none; }
   .wz .wzm-bar i, .wz .wzm-opt { transition: none; }
 }
+
+/* ── WIZARD MOBILE V5 — S3: the live strip, the thumbnail and the roller (brief §3) ── */
+.wz .wzm-strip { cursor: pointer; font-family: inherit; color: inherit; width: calc(100% - 40px); }
+.wz .wzm-strip .thumb { overflow: hidden; }
+.wz .wzm-strip .thumb svg, .wz .wzm-bigpic svg { width: 100%; height: 100%; display: block; }
+.wz .wzm-pic .base { fill: #e4e8ec; stroke: #cfd5db; stroke-width: 1; }
+.wz .wzm-pic .trimbase { fill: #dfe3e7; stroke: #c9cfd5; stroke-width: 1; }
+.wz .wzm-pic .roller { opacity: 0; transition: opacity .15s; }
+.wz .wzm-pic .roller.on { opacity: 1; }
+.wz .wzm-sheetback { z-index: 70; }
+.wz .wzm-sheet { padding-top: 16px; }
+.wz .wzm-grab { width: 40px; height: 4px; background: var(--line); border-radius: 4px; margin: 0 auto 14px; }
+.wz .wzm-bigpic { border-radius: 14px; overflow: hidden; background: #eef2f5; aspect-ratio: 5 / 3; }
+.wz .wzm-cap { font-size: 13px; color: var(--muted); margin: 12px 0 6px; }
+.wz .wzm-sheet .wzm-chips { margin-top: 8px; }
+.wz .wzm-sheet .wzm-chip { padding: 10px 14px; font-size: 14px; }
+@media (prefers-reduced-motion: reduce) { .wz .wzm-pic .roller { transition: none; } }
