@@ -52,6 +52,15 @@ const CABINETRY = new Set([
 const isAllowance = (subCategory: string | null | undefined) =>
   (subCategory ?? "").trim().toLowerCase() === "allowances";
 
+/**
+ * Tom, 25 Oct 2026 (item 16): the "Custom surface (imported)" row exists so an
+ * imported estimate can carry a line the card has no code for (20270152). It
+ * is an import artefact priced at an hour, not a thing a customer adds — never
+ * offered, on either side.
+ */
+const isImported = (subCategory: string | null | undefined) =>
+  (subCategory ?? "").trim().toLowerCase() === "imported";
+
 /** Whole-job exterior items that belong to the sweep, not to one side. */
 const WHOLE_JOB_EXTERIOR = new Set(["Shed", "Pressure Washing", "Access Allowance", "Minor Fascia Rot Allowance"]);
 
@@ -93,7 +102,7 @@ export function interiorAddOptions(rateItems: ReadonlyArray<LooseRateItem>): Add
   for (const r of rateItems) {
     const code = r.code;
     if (!code || r.category !== "Interior") continue;
-    if (CABINETRY.has(code) || isAllowance(r.sub_category)) continue;
+    if (CABINETRY.has(code) || isAllowance(r.sub_category) || isImported(r.sub_category)) continue;
     // Style variants ride their family tile (Doors / Windows), and anything
     // a substrate tick governs is already offered above.
     if (substrateKeyForRateCode(code) != null) continue;
@@ -112,7 +121,7 @@ export function exteriorAddOptions(rateItems: ReadonlyArray<LooseRateItem>): Add
   for (const r of rateItems) {
     const code = r.code;
     if (!code || r.category !== "Exterior") continue;
-    if (WHOLE_JOB_EXTERIOR.has(code) || isAllowance(r.sub_category)) continue;
+    if (WHOLE_JOB_EXTERIOR.has(code) || isAllowance(r.sub_category) || isImported(r.sub_category)) continue;
     if ((r.sub_category ?? "") === "Cladding") continue;
     out.push({ via: "code", key: code, label: prettify(code), group: r.sub_category || "Also on our card" });
   }
@@ -137,7 +146,7 @@ export function perItemChargeOut(
   const item = rateItems.find((r) => r.code === code && r.category === category);
   if (!item || item.charge_out_cents == null) return null;
   const rows = rateItems.filter((r) => r.category === category);
-  const base = rows.find((r) => !/extras|allowances/i.test(r.sub_category ?? "")) ?? rows[0];
+  const base = rows.find((r) => !/extras|allowances|imported/i.test(r.sub_category ?? "")) ?? rows[0];
   if (base?.charge_out_cents === item.charge_out_cents) return null;
   return item.charge_out_cents / 100;
 }

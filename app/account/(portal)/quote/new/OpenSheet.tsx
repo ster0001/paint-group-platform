@@ -35,7 +35,7 @@ export default function OpenSheet({ state, label = "Open the sheet" }: { state: 
       <button type="button" className="btn btn-cyan" onClick={open} disabled={busy} data-testid="open-sheet" style={{ width: "100%" }}>
         {busy ? "Opening…" : label}
       </button>
-      {error && <p className="sub" role="alert" style={{ marginTop: 8, color: "var(--clay, #b45309)" }}>{error}</p>}
+      {error && <p className="sub" role="alert" style={{ marginTop: 8, color: "var(--danger)" }}>{error}</p>}
     </div>
   );
 }

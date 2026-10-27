@@ -158,8 +158,10 @@ export default function WalkthroughCard({
       {!signedAt && walkthroughRequired && staffSignsOff && stage === "walkthrough" && (
         <div style={{ marginTop: 10, paddingTop: 10, borderTop: "1px solid var(--line)" }} data-testid="staff-complete">
           <p className="note">
-            The quality check passed, so <b>the office signs this job off</b> — the customer isn&rsquo;t
-            asked to sign and isn&rsquo;t chased. They receive the completion report the moment it&rsquo;s signed.
+            The quality check passed, so <b>the office can sign this job off</b> — the customer isn&rsquo;t
+            chased for a signature. The painter can still start the walkthrough on their phone and
+            have the customer sign there (Tom, 26 Oct 2026); whichever happens first closes the job.
+            They receive the completion report the moment it&rsquo;s signed.
           </p>
           <textarea className="edit" rows={2} value={completeNote} data-testid="staff-complete-note"
             placeholder="Note for the record (optional) — e.g. checked on site 3:10pm, all standards met"

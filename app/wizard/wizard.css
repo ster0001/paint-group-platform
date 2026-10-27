@@ -287,6 +287,23 @@
 .wz .sc-pen:hover { border-color: var(--cyan, #39D9E6); color: var(--cyan, #39D9E6); }
 .wz .sc-rn { display: flex; gap: 6px; align-items: center; flex: 1; min-width: 0; }
 .wz .sc-rn input { flex: 1; min-width: 0; background: var(--panel2); border: 1px solid var(--line); color: inherit; border-radius: 8px; padding: 6px 9px; font: inherit; font-size: 14px; }
+/* Tom, 25 Oct 2026 (item 11): the room's name is the rename control — a button that looks like the name. */
+.wz .sc-name { background: none; border: 0; padding: 0; margin: 0; color: inherit; font: inherit; cursor: text; text-decoration: underline dotted transparent; text-underline-offset: 3px; }
+.wz .sc-name:hover, .wz .sc-name:focus-visible { text-decoration-color: var(--cyan, #39D9E6); outline: none; }
+/* Tom, 25 Oct 2026 (item 17): the size boxes sit in the question, prefilled. */
+.wz .sd-mrow.sd-mrow--inline { flex-wrap: wrap; row-gap: 6px; }
+.wz .sd-mrow.sd-mrow--inline input { width: 84px; }
+.wz .sd-mrow.sd-mrow--inline input[data-testid^="size-height-"] { width: 128px; }
+/* Phone (390 wide, beside the room outline): two boxes on the first line, the ceiling on the second. */
+@media (max-width: 640px) {
+  .wz .sd-mrow.sd-mrow--inline { gap: 6px; }
+  .wz .sd-mrow.sd-mrow--inline input { width: 64px; min-width: 0; padding: 9px 8px; font-size: 15px; }
+}
+/* Tom, 25 Oct 2026 (item 13): a ticked whole-job extra carries its − / + beside the chip. */
+.wz .sc-extra-chip { display: inline-flex; align-items: center; gap: 6px; }
+.wz .sc-extra-chip .sc-st { display: inline-flex; align-items: center; gap: 4px; margin-top: 0; }
+/* Tom, 25 Oct 2026 (item 10): "Something else" opens a note box. */
+.wz .sc-spot-note { display: block; width: 100%; margin-top: 8px; background: var(--panel2); border: 1px solid var(--line); color: inherit; border-radius: 9px; padding: 9px 11px; font: inherit; font-size: 14px; }
 .wz .sc-tgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(148px, 1fr)); gap: 8px; margin-top: 13px; }
 .wz .sc-tl { position: relative; min-width: 0; border: 1px solid var(--line); background: var(--panel2); border-radius: 10px; padding: 11px 12px; cursor: pointer; font-size: 13.5px; color: var(--muted); user-select: none; }
 .wz .sc-tl.on { border-color: var(--cyan); color: var(--text); background: rgba(59,216,233,.07); }
@@ -1541,6 +1558,9 @@
 .wz .wz-room .shade { fill: #0d161c; opacity: .07; pointer-events: none; }
 .wz .wz-room .floor { fill: #b79c78; }
 .wz .wz-room .s.hl { stroke: var(--cyan); stroke-opacity: 1; stroke-width: 3; animation: wzpulse 1s 2; }
+/* Tom, 25 Oct 2026 (item 2): a surface ticked as going much lighter or bold paints DEEP BLUE. */
+.wz .wz-room .s.on.bold { fill: #1f3a93; }
+.wz .wz-room .s-wall.on.bold { fill: #1f3a93; }
 @keyframes wzpulse { 50% { stroke-width: 5.5; } }
 .wz .wz-room .marks > g { opacity: 0; transition: opacity .4s; }
 .wz .wz-room .marks > g.show { opacity: 1; }
@@ -1628,7 +1648,15 @@
   .wz .wz-pic-art { aspect-ratio: auto; height: 170px; overflow: hidden; }
   .wz .wz-pic-art > svg.wz-house, .wz .wz-pic-art > svg.wz-outhouse { transform: scale(1.75); transform-origin: 50% 64%; }
   /* two storeys is a taller drawing: a little less zoom, pivoted higher, so the roof stays in the band */
-  .wz .wz-pic-art > svg.wz-house.two, .wz .wz-pic-art > svg.wz-outhouse.two { transform: scale(1.4); transform-origin: 50% 52%; }
+  .wz .wz-pic-art > svg.wz-house.two { transform: scale(1.25); transform-origin: 50% 23%; }
+  .wz .wz-pic-art > svg.wz-outhouse.two { transform: scale(1.4); transform-origin: 50% 52%; }
+  /* Tom, 25 Oct (evening): a zoom about a point shows the band's 170px as 300/k units of the
+     drawing starting at origin × (1 − 1/k): ×1.75 at 64% shows y 82–253 (the roof peak at 88, the
+     door's foot at 250); the two-storey roof lifts 70 units to y 18, so ×1.25 at 23% shows 14–254.
+     e2e/customer-journey/wizard-phone-pictures.spec.ts measures every kind. */
+  /* Tom, 25 Oct (evening): a unit or apartment is a block 210 of the frame's 300 tall — at ×1.75 its
+     roof and door were cut off. A little zoom about the ground line keeps the whole block in. */
+  .wz .wz-pic-art > svg.wz-house[data-kind="unit_apartment"] { transform: scale(1.12); transform-origin: 50% 100%; }
   .wz .wz-pic-note { padding: 7px 14px 8px; min-height: 0; font-size: 13.5px; line-height: 1.35; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
   .wz .wz-stage .wz-cards--col { gap: 8px; }
   .wz .wz-stage .wz-cards--col .wz-card { min-height: 104px; padding: 12px 10px; gap: 8px; }

@@ -142,13 +142,13 @@ export default async function TradeNewQuotePage({ searchParams }: { searchParams
       <div className="card" data-testid="spec-tiles">
         {specs.map((s) => (
           <Link key={s.id} href={specHref(s.id)} className="job" data-testid="spec-tile" aria-current={spec?.id === s.id ? "true" : undefined}
-            style={{ display: "block", marginBottom: 8, outline: spec?.id === s.id ? "2px solid var(--cyan, #0891b2)" : undefined }}>
+            style={{ display: "block", marginBottom: 8, outline: spec?.id === s.id ? "2px solid var(--accent-ink)" : undefined }}>
             <div className="addr" style={{ fontWeight: 600 }}>{s.name}</div>
             <div className="meta">{specSummary(s)}{s.usedCount ? ` · used ${s.usedCount}×` : ""}</div>
           </Link>
         ))}
         <Link href={specHref(null)} className="job" data-testid="spec-blank" aria-current={!spec ? "true" : undefined}
-          style={{ display: "block", outline: !spec ? "2px solid var(--cyan, #0891b2)" : undefined }}>
+          style={{ display: "block", outline: !spec ? "2px solid var(--accent-ink)" : undefined }}>
           <div className="addr" style={{ fontWeight: 600 }}>Start blank</div>
           <div className="meta">Build the sheet yourself</div>
         </Link>

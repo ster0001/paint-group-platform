@@ -85,7 +85,7 @@ export default async function TeamPage() {
       <div className="card" style={{ marginTop: 14 }} data-testid="team-list">
         <h3 style={{ marginTop: 0 }}>People</h3>
         {members.map((m, i) => (
-          <div key={m.accountUserId} style={{ display: "flex", flexWrap: "wrap", justifyContent: "space-between", alignItems: "center", gap: 10, padding: "10px 0", borderTop: i ? "1px solid var(--line)" : "none" }}>
+          <div key={m.accountUserId} style={{ display: "flex", flexWrap: "wrap", justifyContent: "space-between", alignItems: "center", gap: 10, padding: "10px 0", borderTop: i ? "1px solid var(--border)" : "none" }}>
             <div style={{ minWidth: 0 }}>
               <b style={{ fontSize: 13 }}>{m.name}</b>{m.email ? <span className="sub" style={{ fontSize: 12 }}> · {m.email}</span> : null}
               <div className="refline">

@@ -18,9 +18,11 @@ import { useEffect, useRef, useState } from "react";
  */
 export type RoomSurface = "walls" | "ceilings" | "cornices" | "skirting" | "architraves" | "doors" | "windows";
 
-export default function RoomPicture({ painted, today = false, condition = "wear", occupied = false, swatch, highlight = null }: {
+export default function RoomPicture({ painted, bold = [], today = false, condition = "wear", occupied = false, swatch, highlight = null }: {
   /** The surfaces being painted. */
   painted: readonly string[];
+  /** Tom, 25 Oct 2026 (item 2): the surfaces going much lighter or bold — painted DEEP BLUE, so the tick is visible in the picture. */
+  bold?: readonly string[];
   /** The Condition step: the room as it is now, marks and all. */
   today?: boolean;
   condition?: "good" | "wear" | "needs_work";
@@ -33,8 +35,10 @@ export default function RoomPicture({ painted, today = false, condition = "wear"
   const on = (s: RoomSurface) => !today && painted.includes(s);
   // Cornices ride with the ceiling when a scope does not name them separately.
   const cornice = !today && (painted.includes("cornices") || painted.includes("ceilings"));
-  const cls = (s: RoomSurface, extra = "") => `s s-${s === "cornices" ? "cornice" : s === "architraves" ? "arch" : s === "windows" ? "win" : s === "doors" ? "door" : s === "ceilings" ? "ceiling" : s === "walls" ? "wall" : s} ${(s === "cornices" ? cornice : on(s)) ? "on" : ""} ${highlight === s ? "hl" : ""} ${extra}`;
+  const isBold = (s: RoomSurface) => !today && (s === "cornices" ? cornice : on(s)) && bold.includes(s);
+  const cls = (s: RoomSurface, extra = "") => `s s-${s === "cornices" ? "cornice" : s === "architraves" ? "arch" : s === "windows" ? "win" : s === "doors" ? "door" : s === "ceilings" ? "ceiling" : s === "walls" ? "wall" : s} ${(s === "cornices" ? cornice : on(s)) ? "on" : ""} ${isBold(s) ? "bold" : ""} ${highlight === s ? "hl" : ""} ${extra}`;
   const dataOn = (s: RoomSurface) => ((s === "cornices" ? cornice : on(s)) ? "1" : "0");
+  const dataBold = (s: RoomSurface) => (isBold(s) ? "1" : "0");
 
   // The roller sweeps once when the walls go ON (not on every render).
   const wallsOn = on("walls");
@@ -47,13 +51,13 @@ export default function RoomPicture({ painted, today = false, condition = "wear"
 
   const marks = today ? (condition === "good" ? 1 : condition === "wear" ? 2 : 3) : 0;
   return (
-    <svg className="wz-room" viewBox="0 0 400 300" aria-hidden="true" data-testid="pic-room" data-today={today ? "1" : "0"}
+    <svg className="wz-room" viewBox="0 0 400 300" aria-hidden="true" data-testid="pic-room" data-today={today ? "1" : "0"} data-bold-count={today ? 0 : (["walls", "ceilings", "cornices", "skirting", "architraves", "doors", "windows"] as RoomSurface[]).filter(isBold).length}
       style={swatch ? ({ ["--swatch" as string]: swatch } as React.CSSProperties) : undefined}>
       <polygon className="floor" points="0,300 400,300 310,220 90,220" />
-      <polygon className={cls("ceilings")} data-s="ceilings" data-on={dataOn("ceilings")} points="0,0 400,0 310,70 90,70" />
-      <polygon className={cls("walls")} data-s="walls" data-on={dataOn("walls")} points="0,0 90,70 90,220 0,300" />
-      <polygon className={cls("walls")} data-s="walls" data-on={dataOn("walls")} points="400,0 310,70 310,220 400,300" />
-      <rect className={cls("walls")} data-s="walls" data-on={dataOn("walls")} x="90" y="70" width="220" height="150" />
+      <polygon className={cls("ceilings")} data-s="ceilings" data-on={dataOn("ceilings")} data-bold={dataBold("ceilings")} points="0,0 400,0 310,70 90,70" />
+      <polygon className={cls("walls")} data-s="walls" data-on={dataOn("walls")} data-bold={dataBold("walls")} points="0,0 90,70 90,220 0,300" />
+      <polygon className={cls("walls")} data-s="walls" data-on={dataOn("walls")} data-bold={dataBold("walls")} points="400,0 310,70 310,220 400,300" />
+      <rect className={cls("walls")} data-s="walls" data-on={dataOn("walls")} data-bold={dataBold("walls")} x="90" y="70" width="220" height="150" />
       <polygon className="shade" points="0,0 90,70 90,220 0,300" />
       <polygon className="shade" points="400,0 310,70 310,220 400,300" style={{ opacity: 0.11 }} />
       <g className="marks">
@@ -61,19 +65,19 @@ export default function RoomPicture({ painted, today = false, condition = "wear"
         <g className={marks >= 2 ? "show" : ""}><path d="M300 78l-9 22 5 14-7 20" stroke="#6B5D43" strokeWidth="1.4" fill="none" /><ellipse cx="60" cy="150" rx="9" ry="14" fill="#A99A78" opacity=".6" /><path d="M335 200q12-8 24 0" stroke="#7E6F50" strokeWidth="2.5" fill="none" opacity=".55" /></g>
         <g className={marks >= 3 ? "show" : ""}><path d="M236 84l14 8-4 12 12 6-2 12" stroke="#5B4E38" strokeWidth="1.8" fill="none" /><path d="M150 76q20 14 4 30 22 0 30-14-12-4-34-16z" fill="#EFE8D6" stroke="#8B7B5B" strokeWidth="1" /><path d="M356 60q14 30 4 64" stroke="#8C7A52" strokeWidth="7" fill="none" opacity=".35" /></g>
       </g>
-      <polygon className={cls("cornices")} data-s="cornices" data-on={dataOn("cornices")} points="0,0 90,70 90,80 0,13" />
-      <polygon className={cls("cornices")} data-s="cornices" data-on={dataOn("cornices")} points="400,0 310,70 310,80 400,13" />
-      <rect className={cls("cornices")} data-s="cornices" data-on={dataOn("cornices")} x="90" y="70" width="220" height="10" />
-      <polygon className={cls("skirting")} data-s="skirting" data-on={dataOn("skirting")} points="0,300 90,220 90,210 0,285" />
-      <polygon className={cls("skirting")} data-s="skirting" data-on={dataOn("skirting")} points="400,300 310,220 310,210 400,285" />
-      <rect className={cls("skirting")} data-s="skirting" data-on={dataOn("skirting")} x="90" y="210" width="220" height="10" />
-      <path className={cls("architraves")} data-s="architraves" data-on={dataOn("architraves")} d="M108 220V112h64v108h-8V120h-48v100z" />
-      <rect className={cls("doors")} data-s="doors" data-on={dataOn("doors")} x="116" y="120" width="48" height="100" />
+      <polygon className={cls("cornices")} data-s="cornices" data-on={dataOn("cornices")} data-bold={dataBold("cornices")} points="0,0 90,70 90,80 0,13" />
+      <polygon className={cls("cornices")} data-s="cornices" data-on={dataOn("cornices")} data-bold={dataBold("cornices")} points="400,0 310,70 310,80 400,13" />
+      <rect className={cls("cornices")} data-s="cornices" data-on={dataOn("cornices")} data-bold={dataBold("cornices")} x="90" y="70" width="220" height="10" />
+      <polygon className={cls("skirting")} data-s="skirting" data-on={dataOn("skirting")} data-bold={dataBold("skirting")} points="0,300 90,220 90,210 0,285" />
+      <polygon className={cls("skirting")} data-s="skirting" data-on={dataOn("skirting")} data-bold={dataBold("skirting")} points="400,300 310,220 310,210 400,285" />
+      <rect className={cls("skirting")} data-s="skirting" data-on={dataOn("skirting")} data-bold={dataBold("skirting")} x="90" y="210" width="220" height="10" />
+      <path className={cls("architraves")} data-s="architraves" data-on={dataOn("architraves")} data-bold={dataBold("architraves")} d="M108 220V112h64v108h-8V120h-48v100z" />
+      <rect className={cls("doors")} data-s="doors" data-on={dataOn("doors")} data-bold={dataBold("doors")} x="116" y="120" width="48" height="100" />
       <g pointerEvents="none"><rect x="122" y="128" width="36" height="34" fill="none" stroke="#16212A" strokeOpacity=".14" /><rect x="122" y="170" width="36" height="42" fill="none" stroke="#16212A" strokeOpacity=".14" /><circle cx="156" cy="170" r="2.6" fill="#8C97A0" /></g>
-      <rect className={cls("windows")} data-s="windows" data-on={dataOn("windows")} x="212" y="102" width="82" height="68" />
+      <rect className={cls("windows")} data-s="windows" data-on={dataOn("windows")} data-bold={dataBold("windows")} x="212" y="102" width="82" height="68" />
       <rect x="219" y="109" width="68" height="54" fill="#BFE3F2" />
       <path d="M219 150q20-14 34-4t34-8v25h-68z" fill="#9CCFA8" opacity=".8" />
-      <path className={cls("windows")} data-s="windows" data-on={dataOn("windows")} d="M251 109h4v54h-4z" />
+      <path className={cls("windows")} data-s="windows" data-on={dataOn("windows")} data-bold={dataBold("windows")} d="M251 109h4v54h-4z" />
       {occupied && today && (
         <g><ellipse cx="282" cy="262" rx="46" ry="8" fill="#0D161C" opacity=".1" /><rect x="244" y="228" width="78" height="26" rx="8" fill="#E9EEF1" stroke="#16212A" strokeOpacity=".25" /><rect x="238" y="238" width="90" height="22" rx="6" fill="#DCE3E7" stroke="#16212A" strokeOpacity=".25" /></g>
       )}

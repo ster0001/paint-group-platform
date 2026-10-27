@@ -43,7 +43,7 @@ export default function AddAddressForm({ hasExisting }: { hasExisting: boolean }
       <input type="hidden" name="state" value={fields.state} />
 
       {hasExisting && (
-        <label style={{ display: "flex", gap: 10, alignItems: "flex-start", margin: "16px 0 0", fontSize: 16, color: "var(--text)" }}>
+        <label style={{ display: "flex", gap: 10, alignItems: "flex-start", margin: "16px 0 0", fontSize: 16, color: "var(--ink)" }}>
           <input type="checkbox" name="makePrimary" style={{ marginTop: 5 }} />
           <span>
             This replaces my old address as my main one

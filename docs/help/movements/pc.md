@@ -115,6 +115,7 @@ The board scrolls sideways with the lane names pinned on the left. The tray is a
 - Each lane has its own colour dot; the same colour labels its movements everywhere.
 
 ## If something goes wrong
+- **No movements reminders on the PC Command dashboard** — since 27 Oct 2026 the orders to place, deliveries to confirm, overdue or problem movements, stranded gear, hire returns, moved jobs and materials changed after ordering are worked from this board and the map's icons, not from Needs you now.
 - **A line at the top says something could not be read** (the movements, the schedule, Google Calendar, the branches). The board draws what it could; nothing is silently empty. Reload; if it stays, send the line to Tom.
 - **"That branch does not deliver to site"** — open the chip and pick a delivering shop, or drop the chip on a painter who can pick it up.
 - **"The supplier lane is for orders. Drop our own gear on a person."** — our ladders and sprayers move with a person, never a supplier.

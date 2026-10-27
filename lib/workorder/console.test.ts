@@ -2,8 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   variationsForApproval,
   buildQueue, headline, melbourneDate, melbourneDayStartUtc, pulseTiles, rankQueue, sparkline,
-  type ConsoleInput, type QueueCard,
-} from "./console";
+  type ConsoleInput, type QueueCard, HIDDEN_FROM_NEEDS_YOU, needsYouItems } from "./console";
 import { pcCardSnoozeKey } from "./console";
 
 const now = new Date("2026-08-21T09:00:00+10:00");
@@ -475,5 +474,13 @@ describe("a card put away until a date", () => {
     expect(k).toBe("pc_card:work_order:3f2c1a00-0000-4000-8000-000000000001:qa-due-3f2c1a00-0000-4000-8000-000000000001");
     expect(k).toMatch(/^[a-z_]+:[a-z_]+:[^:]+:[a-zA-Z0-9_-]+$/);
     expect(pcCardSnoozeKey("w", "collect:a.b/c")).toMatch(/:collect-a-b-c$/);
+  });
+});
+
+describe("Needs you now leaves the movements reminders and Agreement not signed to their own screens (Tom, 27 Oct 2026)", () => {
+  it("drops every movement kind and agreement_unsigned, keeps the rest in order", () => {
+    const kinds = ["job_checkin", "movements_unplanned", "order_unplaced", "delivery_unconfirmed", "movement_overdue", "movement_problem", "equipment_stranded", "hire_off_due", "job_moved", "materials_changed_after_order", "agreement_unsigned", "agreement_expiring", "qa_check_due", "site_visit_due", "callback_unbooked"];
+    expect(needsYouItems(kinds.map((kind) => ({ kind }))).map((i) => i.kind)).toEqual(["job_checkin", "agreement_expiring", "qa_check_due", "site_visit_due", "callback_unbooked"]);
+    expect([...HIDDEN_FROM_NEEDS_YOU]).toHaveLength(10);
   });
 });

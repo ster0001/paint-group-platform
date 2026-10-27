@@ -127,14 +127,34 @@ test.describe("portal aftercare (3a-5)", () => {
     await openMagicLink(page, await magicLinkFor(sb, email));
     await page.goto("/account/colours");
 
-    await expect(page.getByText("Natural White")).toBeVisible();
-    await expect(page.getByText(/WALLS · LOW SHEEN · 2 COATS · CODE PN1E4/)).toBeVisible();
+    // Portal UX E1–E3 (25 Oct 2026): by colour first — brand · line · finish, the real
+    // manufacturer code, the surfaces and where; never an id dressed up as a code.
+    const card = page.getByTestId("colour-card").filter({ hasText: "Natural White" });
+    await expect(card).toHaveCount(1);
+    await expect(card).toContainText("Dulux · Wash&Wear · low sheen · 2 coats");
+    await expect(card).toContainText("Code PN1E4");
+    await expect(card).toContainText("Walls — Hallway & stairs");
+    expect(await card.locator(".sw").evaluate((el) => getComputedStyle(el).backgroundColor)).toBe("rgb(242, 239, 230)");
+    await expect(page.getByTestId("colours-tbc-card")).toContainText("Colours to be confirmed");
+    await expect(page.getByTestId("applied-by")).toContainText(/Applied by \d+ \w+ \d{4}/);
+    // E4: the actions sit under the property heading, not at the foot of the page.
+    const actions = page.getByTestId("colour-actions");
+    await expect(actions.getByRole("button", { name: "Download PDF" })).toBeVisible();
+    await expect(actions.getByRole("link", { name: "Need touch-up paint?" })).toHaveAttribute("href", /^tel:/);
+    // E6: "for good" once, in the intro.
+    expect(await page.getByText(/for good/).count()).toBe(1);
+    // E2: the old per-area view is one tap away.
+    await page.getByRole("tab", { name: "By area" }).click();
+    await expect(page).toHaveURL(/view=area/);
+    await expect(page.getByRole("heading", { name: "Hallway & stairs" })).toBeVisible();
+    await expect(page.getByText("Walls · Dulux · Wash&Wear · low sheen · 2 coats")).toBeVisible();
     await expect(page.getByText("Colour to be confirmed")).toBeVisible();
-    await expect(page.getByText(/TRIM & DOORS · SEMI-GLOSS/)).toBeVisible();
-    await expect(page.getByRole("button", { name: "Download as PDF" })).toBeVisible();
+    await expect(page.getByText(/Trim & doors · Dulux · Aquanamel · semi gloss/)).toBeVisible();
+    await page.goto("/account/colours");
 
     await page.setViewportSize({ width: 390, height: 900 });
     await page.screenshot({ path: "test-results/look-portal/phone-colours.png", fullPage: true });
+    await page.screenshot({ path: "docs/briefs/portal-ux-light-screens/colours-phone.png", fullPage: true });
   });
 
   test("warranty card, credentials and the DRAFT watermark", async ({ page, request }) => {

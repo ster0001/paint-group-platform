@@ -431,8 +431,8 @@ export function assumptionSwings(doc: ScopeDoc, deps: ScopeDeps): Record<string,
       if (r.ok) out[`room.${Number(b.id)}.presence`] = Math.abs(totalOf(r.doc) - base);
     }
     const cfg = CUPBOARD_INTERIOR_BY_ROOM_TYPE[String(b.roomType ?? "")];
-    // The insides follow the doors (Tom, 7 Sep): no swing to show until the doors are a Yes.
-    if (!cfg || !deps.ctx.rateItems.some((r) => r.code === cfg.code) || b.customer?.cup !== true || b.customer?.cupInterior != null) continue;
+    // The insides are their own question (Tom, 25 Oct 2026, item 6): a swing to show whatever the doors say.
+    if (!cfg || !deps.ctx.rateItems.some((r) => r.code === cfg.code) || b.customer?.cupInterior != null) continue;
     let n = 100000;
     const r = applyCupboardInterior(docBlocks(doc) as unknown as RoomBlock[], Number(b.id), true, null, () => n++);
     if (r.ok) out[`room.${Number(b.id)}.cupboard_interiors`] = Math.abs(priceEstimateTotals(r.blocks as unknown as BlockInput[], deps.ctx, adj).totalCents - base);

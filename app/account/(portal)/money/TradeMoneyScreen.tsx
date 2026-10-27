@@ -11,7 +11,7 @@ export default function TradeMoneyScreen({ view, orgName }: { view: TradeMoneyVi
   return (
     <div>
       <div className="greet">{orgName}</div>
-      <h1>Invoicing</h1>
+      <h1>Payments</h1>
 
       <div className="tiles" style={{ gridTemplateColumns: "1fr 1fr", marginTop: 14 }}>
         <div className="tile">
@@ -19,7 +19,7 @@ export default function TradeMoneyScreen({ view, orgName }: { view: TradeMoneyVi
           <div className="lb">Outstanding · {view.outstandingCount} invoice{view.outstandingCount === 1 ? "" : "s"}</div>
         </div>
         <div className="tile">
-          <div className="num money" style={{ color: view.overdueCents > 0 ? "var(--clay)" : undefined }} data-testid="money-overdue">
+          <div className="num money" style={{ color: view.overdueCents > 0 ? "var(--danger)" : undefined }} data-testid="money-overdue">
             {moneyFmt(view.overdueCents)}
           </div>
           <div className="lb">Overdue · {view.overdueCount} invoice{view.overdueCount === 1 ? "" : "s"}</div>
@@ -34,7 +34,7 @@ export default function TradeMoneyScreen({ view, orgName }: { view: TradeMoneyVi
           <b style={{ fontSize: 14 }}>{g.address}</b>
           {g.refLine && <div className="refline">{g.refLine}</div>}
           {g.rows.map((r) => (
-            <div key={r.invoiceId} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, padding: "10px 0", borderTop: "1px solid var(--line)", marginTop: 8 }}>
+            <div key={r.invoiceId} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, padding: "10px 0", borderTop: "1px solid var(--border)", marginTop: 8 }}>
               <div style={{ minWidth: 0 }}>
                 <b style={{ fontSize: 13, textTransform: "capitalize" }}>{r.kind}</b>
                 <div className="refline">

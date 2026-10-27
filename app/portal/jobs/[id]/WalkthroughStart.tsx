@@ -14,7 +14,7 @@ import { startWalkthroughMode } from "./tickActions";
  * the customer's behalf — the phone changes hands, not the signature.
  */
 export default function WalkthroughStart({
-  workOrderId, finalDate, qaOpen = false,
+  workOrderId, finalDate, qaOpen = false, officeMaySign = false,
 }: {
   workOrderId: string;
   /** The booked final, if any — shown so the painter knows the plan. */
@@ -26,6 +26,12 @@ export default function WalkthroughStart({
    * in its own time.
    */
   qaOpen?: boolean;
+  /**
+   * Tom, 26 Oct 2026 (28 Logan Street): the quality check has PASSED. The
+   * office can sign the job off from its side (24 Sep) — but that no longer
+   * hides this button: the painter hands the customer the phone any time.
+   */
+  officeMaySign?: boolean;
 }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
@@ -53,6 +59,12 @@ export default function WalkthroughStart({
         sign with their own name, right there.
         {qaOpen && " Paint Group's quality check is still to come — it doesn't hold the walkthrough up."}
       </p>
+      {officeMaySign && (
+        <p className="hint" style={{ padding: 0, marginTop: 6 }} data-testid="walkthrough-start-office">
+          Paint Group&rsquo;s quality check has passed, so the office can also sign this job off from
+          their side. You don&rsquo;t have to wait for that — if the customer is with you, start it here.
+        </p>
+      )}
       {message && <p className="tick-msg" role="status" data-testid="walkthrough-start-msg">{message}</p>}
       <button type="button" className="btn" disabled={busy} onClick={() => void start()}
         data-testid="start-walkthrough" style={{ marginTop: 10 }}>

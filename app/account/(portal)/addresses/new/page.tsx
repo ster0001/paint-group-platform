@@ -22,15 +22,15 @@ export default async function AddAddressPage({
       </p>
 
       {error === "address" && (
-        <div className="card" style={{ borderColor: "rgba(224,168,60,.5)" }}>
+        <div className="card" style={{ borderColor: "var(--warn)" }}>
           <p className="sub">We need at least the street address — have another look below.</p>
         </div>
       )}
       {error === "failed" && (
-        <div className="card" style={{ borderColor: "rgba(224,168,60,.5)" }}>
+        <div className="card" style={{ borderColor: "var(--warn)" }}>
           <p className="sub">
             That didn&rsquo;t save — please try again
-            {ctx.companyPhone ? <>, or ring us on <b style={{ color: "var(--text)" }}>{ctx.companyPhone}</b></> : null}.
+            {ctx.companyPhone ? <>, or ring us on <b style={{ color: "var(--ink)" }}>{ctx.companyPhone}</b></> : null}.
           </p>
         </div>
       )}

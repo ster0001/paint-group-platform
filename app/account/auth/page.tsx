@@ -48,7 +48,7 @@ export default async function AccountAuthPage({
         {phone ? (
           <p className="sub" style={{ marginTop: 14 }}>
             Trouble getting in? Ring us on{" "}
-            <a href={`tel:${phone.replace(/\s+/g, "")}`} style={{ color: "var(--text)", fontWeight: 700 }}>{phone}</a>.
+            <a href={`tel:${phone.replace(/\s+/g, "")}`} style={{ color: "var(--ink)", fontWeight: 700 }}>{phone}</a>.
           </p>
         ) : null}
       </div>

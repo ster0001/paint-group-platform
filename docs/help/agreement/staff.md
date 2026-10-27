@@ -32,7 +32,7 @@ One place to see who has a current subcontractor agreement, to ask a contractor 
 - **Not signed · asked date · no offers** / **Not signed · no offers** (red) — the gate is on; `send_offer` answers `error:agreement_unsigned`.
 - **… expired date · no offers** (red) — the agreement has ended; `error:agreement_expired`.
 - **Agreement not signed** — the tag on PC Command → Contractors and the dashboard's *Agreement not signed* count; it reads the same facts as the gate.
-- **Agreement not signed** / **Agreement expiring** on Today and PC Command — the work items; Request signature, an upload or the next signature clears them.
+- **Agreement not signed** (the Contractors tag; off the PC Command dashboard since 27 Oct 2026) / **Agreement expiring** on PC Command — the work items; Request signature, an upload or the next signature clears them.
 
 ## If something goes wrong
 - **"They already have a signed, current agreement"** — Request signature only applies to a contractor with nothing current on file. To replace a current one, wait for the renewal window or upload the new paper copy.

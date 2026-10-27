@@ -219,10 +219,26 @@ export function envelopeFor(input: {
   const confirmedShare = areas ? Math.min(1, confirmedCount / areas) : 0;
   const residual = (sizeResidualPct(confirmedShare, input.bands) + (input.widenPct ?? 0)) / 100;
   const loCents = roundLo(Math.min(cheap, dear) * (1 - residual - (input.underPct ?? 0) / 100));
-  const hiCents = roundHi(Math.max(cheap, dear) * (1 + residual));
+  const hiCents = capSpread(loCents, roundHi(Math.max(cheap, dear) * (1 + residual)), input.bands);
   const mid = (loCents + hiCents) / 2;
   const bandPct = mid > 0 ? Math.round(((hiCents - loCents) / 2 / mid) * 100) : 0;
   return { loCents, hiCents, bandPct, open, confirmedShare, closesCents };
+}
+
+/**
+ * Tom, 25 Oct 2026 (item 3): the guide range is never wider than the low end
+ * plus `guideMaxSpreadPct` — *"6000–10000 should be more like 6000–8400"*. The
+ * open questions and the size residual still set the dear end; this only stops
+ * it running away when several are open at once. The low end is untouched, so
+ * the floor stays honest, and the cap is rounded the same way the dear end is.
+ * ⚑ What it trades away: a job that resolves EVERY open question the dear way
+ * can land above the guide's top — the Detailed range (after the tighten) is
+ * not capped, so the customer sees the true number the moment they answer.
+ */
+export function capSpread(loCents: number, hiCents: number, bands: Pick<BandSettings, "guideMaxSpreadPct">): number {
+  const pct = bands.guideMaxSpreadPct;
+  if (!(pct > 0) || loCents <= 0) return hiCents;
+  return Math.min(hiCents, roundHi(loCents * (1 + pct / 100)));
 }
 
 /** Tom, 14 Sep: a "both" job's headline is the SUM of its two parts' envelopes. */

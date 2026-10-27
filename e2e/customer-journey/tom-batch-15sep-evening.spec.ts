@@ -81,9 +81,9 @@ test("3 · the exclusions are inline under the preset, and 2 · bold asks which 
   await expect(doLines).toContainText(/Walls\s*3 coats \+ undercoat/);
   await expect(doLines).not.toContainText(/Skirtings, architraves and doors\s*3 coats/);
   const id = await toEditor(page);
-  // The editor's card shows the same ticks.
-  await expect(page.getByTestId("darklight-walls")).toHaveAttribute("aria-pressed", "true");
-  await expect(page.getByTestId("darklight-doors")).toHaveAttribute("aria-pressed", "false");
+  // Tom, 25 Oct 2026 (item 4): the editor asks NOTHING about dark to light again — the quick
+  // look's answer is the one answer, and it is on the estimate (below).
+  await expect(page.getByTestId("darklight-card")).toHaveCount(0);
   if (url && serviceKey) {
     const db = createClient(url, serviceKey);
     const { data } = await db.from("estimates").select("builder_state").eq("id", id).single();

@@ -323,12 +323,17 @@ test.describe("Airtable → CRM import", () => {
     const sb = db!;
     await openMagicLink(page, await magicLinkFor(sb, JUSTIN));
     await page.waitForURL(/\/account/);
-    await expect(page.getByText("My estimates")).toBeVisible();
+    // Portal UX (25 Oct 2026): the list groups into Needs you / With us / Done; history
+    // records sit under Done, which starts collapsed — open it first.
+    const done = page.getByTestId("group-done");
+    if (await done.count()) await done.locator("summary").click();
     await expect(page.getByTestId("portal-history").first()).toContainText("From our records");
     await expect(page.locator(".job", { hasText: "56 Main Street" }).first()).toBeVisible();
 
     await openMagicLink(page, await magicLinkFor(sb, MELISSA));
     await page.waitForURL(/\/account/);
+    const done2 = page.getByTestId("group-done");
+    if (await done2.count()) await done2.locator("summary").click();
     await page.locator(".job", { hasText: "2 Example Crescent stage 3" }).first().click();
     await expect(page).toHaveURL(new RegExp(`/e/${bookedShareToken}`));
     await expect(page.locator("body")).toContainText("2,032.80");

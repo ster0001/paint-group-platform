@@ -19,7 +19,6 @@ import RoomSpots from "./RoomSpots";
 import RoomExtras from "./RoomExtras";
 import EstimatorStrip from "@/app/wizard/EstimatorStrip";
 import { roomTypeForName } from "@/lib/wizard/quick-look";
-import Offer from "@/app/wizard/Offer";
 import JobExtras from "./JobExtras";
 import type { JobExtra } from "@/lib/wizard/extras";
 import type { SiteAccess } from "@/lib/wizard/site-access";
@@ -32,18 +31,6 @@ import type { EstimateDocuments } from "@/lib/wizard/documents";
 
 import { TIER_LABEL, type Ladder } from "@/lib/wizard/ladder";
 
-/**
- * The surfaces a customer can say are going dark → light, in their words.
- * Substrate keys, so the answer means the same thing to the engine as every
- * other surface answer does.
- */
-const DARK_TO_LIGHT_SURFACES: Array<[string, string]> = [
-  ["walls", "All walls"],
-  ["doors", "Doors"],
-  ["architraves", "Architraves"],
-  ["skirting", "Skirting boards"],
-  ["windows", "Window frames"],
-];
 
 /**
  * Part B (interior + shared): the customer scope editor, matching
@@ -84,7 +71,7 @@ type Payload = CustomerPayload & {
   paintSystems?: PaintSystemLine[];
   roomExtras?: Record<string, RoomExtrasView>;
   siteAccess?: SiteAccess;
-  jobExtras?: { on: string[]; colourHelp: boolean; note: string };
+  jobExtras?: { on: string[]; counts?: Record<string, number>; colourHelp: boolean; note: string };
   exterior?: CustomerExteriorView | null;
   ladder?: Ladder;
   interiorLoop?: InteriorLoopView;
@@ -125,7 +112,7 @@ const snapshotFalse = () => false;
 
 const fmtMoney = (cents: number) => `$${Math.round(cents / 100).toLocaleString("en-AU")}`;
 
-export default function ScopeEditor({ estimateId, initial, initialRooms, initialExterior = null, initialSides = null, initialLadder, initialInteriorLoop = null, initialDarkToLight = { asked: false, surfaces: [], someWalls: false, ceilings: null, ceilingRooms: [] }, initialColourTier = "change", initialSystems = [], initialRoomExtras = {}, estimator = null, customerSuburb = null, initialAccess = { answers: {}, asksLift: false }, initialCornices = null, initialExtras = { offer: [], on: [], colourHelp: false, note: "" }, roomTypes, liveRange, docs = { plan: null, photos: [] }, logoUrl = null, companyPhone = null, chatMode = false }: {
+export default function ScopeEditor({ estimateId, initial, initialRooms, initialExterior = null, initialSides = null, initialLadder, initialInteriorLoop = null, initialColourTier = "change", initialSystems = [], initialRoomExtras = {}, estimator = null, customerSuburb = null, initialAccess = { answers: {}, asksLift: false }, initialCornices = null, initialExtras = { offer: [], on: [], counts: {}, colourHelp: false, note: "" }, roomTypes, liveRange, docs = { plan: null, photos: [] }, logoUrl = null, companyPhone = null, chatMode = false }: {
   estimateId: string;
   initial: CustomerPayload;
   initialRooms: CustomerScopeRoom[];
@@ -176,7 +163,7 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
   /** Tom, 14 Sep (evening, item 9). */
   initialCornices?: "none" | "standard" | "decorative" | null;
   /** §4.5 — the extras on offer, which are on, the colour tick and the note. */
-  initialExtras?: { offer: JobExtra[]; on: string[]; colourHelp: boolean; note: string };
+  initialExtras?: { offer: JobExtra[]; on: string[]; counts?: Record<string, number>; colourHelp: boolean; note: string };
 }) {
   const [payload, setPayload] = useState<CustomerPayload>(initial);
   const [rooms, setRooms] = useState<CustomerScopeRoom[]>(initialRooms);
@@ -192,27 +179,13 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
    * has no card to render into. Keeping the state would be a list nothing shows.
    */
   /**
-   * ⚑ Tom, 10 Sep. The one job-wide coat question that survived the systems
-   * card: which surfaces are going dark → light, and therefore take three
-   * coats. Job-wide and not per room is Tom's own ruling — prep varies room to
-   * room, a colour change does not.
+   * ⚑ Tom, 25 Oct 2026 (item 4): the dark-to-light card and the ceilings row
+   * are GONE from the customer's tighten screen. The quick look already asked
+   * which groups are going much lighter or bold ("Which ones?"), and that
+   * answer reaches `condition.darkToLightSurfaces` on the way in
+   * (lib/wizard/quick-look.ts) — asking it again here was the second copy of
+   * one answer. `set_paint_system` stays on the route for staff.
    */
-  const darkToLightAsked = initialDarkToLight.asked;
-  const [darkToLight, setDarkToLight] = useState<string[]>(initialDarkToLight.surfaces);
-  /** "Some walls" — an answer we record and a person prices; never a guess. */
-  const [someWalls, setSomeWalls] = useState(initialDarkToLight.someWalls);
-  /**
-   * CEILINGS — the one surface where "some" is answerable (Tom, 11 Sep: *"it
-   * isn't typical for a ceiling to go from dark to light… ceilings some rooms,
-   * or all ceilings — if it's some rooms, then it adds an option to choose the
-   * rooms in the room builder"*).
-   *
-   * "Some walls" has to stay a note because we cannot know which walls. The
-   * rooms, by contrast, are right there on the screen — so this one earns a real
-   * price instead of an estimator's follow-up.
-   */
-  const [ceilingScope, setCeilingScope] = useState<"all" | "some" | null>(initialDarkToLight.ceilings);
-  const [ceilingRooms, setCeilingRooms] = useState<number[]>(initialDarkToLight.ceilingRooms);
   const [access, setAccess] = useState<SiteAccess>(initialAccess.answers);
   /** Tom, 14 Sep (evening, item 9): the cornice answer as stored; "yes" is the customer's first tap before the type. */
   const [cornices, setCornices] = useState<"none" | "standard" | "decorative" | null>(initialCornices);
@@ -223,11 +196,18 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
   // Tom, 7 Oct 2026 (item 7): a typed name is enough — the kind is read off the
   // words (the quick look's own guesser); a tile only corrects it.
   const addRoomType = addRoom.type ?? (addRoom.name.trim() ? roomTypeForName(addRoom.name) : null);
-  const [extras, setExtras] = useState({ on: initialExtras.on, colourHelp: initialExtras.colourHelp, note: initialExtras.note });
+  const [extras, setExtras] = useState({ on: initialExtras.on, counts: initialExtras.counts ?? {}, colourHelp: initialExtras.colourHelp, note: initialExtras.note });
   const [sidesProg, setSidesProg] = useState<SidesView["progress"] | null>(initialSides?.progress ?? null);
   // UI refresh S6: the outside half's sides, for the jump chips, the checklist and the house from above.
   const [sidesView, setSidesView] = useState<SidesView | null>(initialSides);
-  const [sizeDrafts, setSizeDrafts] = useState<Record<number, { L: string; W: string; H?: string; open: boolean }>>({});
+  /** Tom, 25 Oct 2026 (item 17): what the size boxes show while the customer is typing — absent = the room's own numbers. */
+  const [sizeDrafts, setSizeDrafts] = useState<Record<number, { L: string; W: string; H: string }>>({});
+  const sizeDraft = (areaId: number, loop: { lengthM: number; widthM: number }) =>
+    sizeDrafts[areaId] ?? { L: String(loop.lengthM), W: String(loop.widthM), H: "" };
+  const sizeDirty = (areaId: number, loop: { lengthM: number; widthM: number }) => {
+    const d = sizeDrafts[areaId];
+    return !!d && (d.L.trim() !== String(loop.lengthM) || d.W.trim() !== String(loop.widthM) || d.H.trim() !== "");
+  };
   // Tom, 7 Oct 2026 (item 7): "Add room" opens the new room straight away,
   // size boxes ready — the ids on screen before the add, so the newcomer is
   // the one that is not in this set when the rooms come back.
@@ -454,7 +434,7 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
         if (Array.isArray(j.paintSystems)) setSystems(j.paintSystems);
         if (j.roomExtras) setRoomExtras(j.roomExtras);
         if (j.siteAccess) setAccess(j.siteAccess);
-        if (j.jobExtras) setExtras(j.jobExtras);
+        if (j.jobExtras) setExtras({ ...j.jobExtras, counts: j.jobExtras.counts ?? {} });
         if (j.ladder) setLadder(j.ladder);
         if (j.interiorLoop) setIloop(j.interiorLoop);
         if (liveRange) setFlash((n) => n + 1);
@@ -552,7 +532,7 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
         if (Array.isArray(j.paintSystems)) setSystems(j.paintSystems);
         if (j.roomExtras) setRoomExtras(j.roomExtras);
         if (j.siteAccess) setAccess(j.siteAccess);
-        if (j.jobExtras) setExtras(j.jobExtras);
+        if (j.jobExtras) setExtras({ ...j.jobExtras, counts: j.jobExtras.counts ?? {} });
         if (j.interiorLoop) setIloop(j.interiorLoop);
         if (j.ladder) setLadder(j.ladder);
         say(done);
@@ -669,6 +649,26 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
   function stepCupboard(room: CustomerScopeRoom, cup: { count: number; unit: string }, dir: 1 | -1) {
     stepBy(`${room.areaId}:cup`, cup.count, dir, 40,
       (count) => ({ action: "room_cupboard", areaId: room.areaId, on: true, count }), cup.unit);
+  }
+
+  /** Tom, 25 Oct 2026 (item 17): the typed size lands — the gentle clamp (1–15 m a side, 2–6 m high) mirrors the server so the toast reports what was recorded. */
+  function saveSize(room: CustomerScopeRoom, loop: { lengthM: number; widthM: number; heightM: number }) {
+    const d = sizeDraft(room.areaId, loop);
+    const rawL = parseFloat(d.L);
+    const rawW = parseFloat(d.W);
+    const rawH = d.H.trim() === "" ? null : parseFloat(d.H);
+    if (isNaN(rawL) || isNaN(rawW)) { say("Length and width in metres — the ceiling height is optional."); return; }
+    if (rawH != null && isNaN(rawH)) { say("The ceiling height is just a number in metres — 2.4, 2.7, 3 — or leave it blank."); return; }
+    const L = Math.min(15, Math.max(1, rawL));
+    const W = Math.min(15, Math.max(1, rawW));
+    const H = rawH == null ? null : Math.min(6, Math.max(2, Math.round(rawH * 20) / 20));
+    const clamped = L !== rawL || W !== rawW || (rawH != null && H !== rawH);
+    const high = H != null ? ` with ${H} m ceilings` : "";
+    act({ action: "room_dims", areaId: room.areaId, lengthM: L, widthM: W, ...(H != null ? { heightM: H } : {}) }, `dims:${room.areaId}`,
+      () => clamped
+        ? `${room.name} set to ${L} × ${W} m${high} (rooms run 1–15 m a side, ceilings 2–6 m) — repriced.`
+        : `${room.name} updated to ${L} × ${W} m${high} — repriced for the new size.`);
+    setSizeDrafts((cur) => { const n = { ...cur }; delete n[room.areaId]; return n; });
   }
 
   /** R3: a named custom surface — an amber flag tile, recorded on the
@@ -1037,151 +1037,13 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
           in conversation instead.
         */}
         {/*
-          ⚑ "HOW WE'LL PAINT EACH SURFACE" IS GONE (Tom, 10 Sep).
-
-          *"It doesn't provide a great deal of value — the client has already
-          confirmed if they want a colour change, colour match or dark to
-          light."* He is right, and the card was answering a question nobody
-          had asked twice: it restated a derivation from answers already given,
-          then offered corrections most people never made. What actually
-          decides the price is the EXCEPTIONS, and those are per room.
-
-          What replaced it:
-            · the one job-wide question that genuinely changes coats — which
-              surfaces are going dark to light — asked here, once (below)
-            · everything else per room, in the room's own prep question
-
-          The derivation itself is untouched. lib/pricing/systems.ts still
-          works the coats out per surface group; it is the SCREEN that has gone,
-          not the thinking behind it.
+          ⚑ "HOW WE'LL PAINT EACH SURFACE" IS GONE (Tom, 10 Sep), and so is the
+          dark-to-light card that replaced it (Tom, 25 Oct 2026, item 4): the
+          customer said which groups are going much lighter or bold on the quick
+          look, and that answer prices the third coat. The derivation itself is
+          untouched — lib/pricing/systems.ts still works the coats out per
+          surface group; it is the SCREEN that has gone, not the thinking.
         */}
-        {!chatMode && darkToLightAsked && (
-          <section className="sc-rc il-card sc-darklight" data-card="darklight" data-testid="darklight-card">
-            <div className="sc-hd il-hd">
-              <b>Which surfaces are going from dark to light?</b>
-              <span className="il-pill">THREE COATS</span>
-            </div>
-            <p className="wz-note" style={{ margin: "2px 0 12px" }}>
-              Covering a dark colour with a light one takes a third coat. Tick everything that applies —
-              anything you don&rsquo;t tick is quoted at two coats as standard.
-            </p>
-            <div className="sc-chips">
-              {DARK_TO_LIGHT_SURFACES.map(([key, label]) => {
-                const on = darkToLight.includes(key);
-                return (
-                  <button
-                    key={key}
-                    className={`sd-chip il-chip ${sel(`d2l:${key}`, on, on ? "on" : "off") ? "on" : ""}`}
-                    aria-pressed={on}
-                    data-testid={`darklight-${key}`}
-                    onClick={() => {
-                      setDarkToLight((cur) => (on ? cur.filter((k) => k !== key) : [...cur, key]));
-                      act(
-                      { action: "set_paint_system", field: "darkToLight", group: key, value: !on },
-                      `d2l:${key}`,
-                      (d) => `${label} ${!on ? "in three coats" : "back to two"}${liveRange && Math.abs(d) >= 100 ? ` — about ${d > 0 ? "+" : "−"}${fmt(Math.abs(d))}` : ""}`,
-                      [`d2l:${key}`, !on ? "on" : "off"],
-                      );
-                    }}
-                  >{label}</button>
-                );
-              })}
-              {/*
-                ⚑ "SOME WALLS" IS NOT A QUANTITY, so it must not become one.
-                Ticking every wall for a third coat when one feature wall is
-                changing over-quotes a whole house; leaving it at two
-                under-quotes the wall that is. Neither is a number we know, so
-                this records the answer, prices the standard, and puts it in
-                front of a person — the same rule the rest of the estimate
-                follows when a customer tells us something we cannot measure.
-              */}
-              <button
-                className={`sd-chip il-chip ${someWalls ? "on" : ""}`}
-                aria-pressed={someWalls}
-                data-testid="darklight-some-walls"
-                onClick={() => {
-                  setSomeWalls((v) => !v);
-                  act(
-                    { action: "set_paint_system", field: "surfaceFlag", group: "walls", flag: "some_dark_to_light", value: !someWalls },
-                    "d2l:some",
-                    () => !someWalls
-                      ? "Noted — your estimator confirms which walls need the third coat before your price is fixed"
-                      : "Removed",
-                    ["d2l:some", !someWalls ? "on" : "off"],
-                  );
-                }}
-              >Some walls</button>
-            </div>
-            {someWalls && (
-              <p className="wz-note" data-testid="darklight-some-note">
-                We&rsquo;ve quoted the walls at the standard two coats. Your estimator confirms which ones are
-                going dark to light and adds the third coat to those — you&rsquo;ll see it before the price is fixed.
-              </p>
-            )}
-            {/*
-              ⚑ CEILINGS GET THEIR OWN ROW, and Tom's reason is the right one:
-              *"it isn't typical for a ceiling to go from dark to light."* A plain
-              chip alongside the walls and doors would invite a tap that adds a
-              third coat to every ceiling in the house — so the question is asked
-              as the two answers that are actually true, and the unusual one
-              (some rooms) hands the choice to the room cards where the rooms are.
-            */}
-            <div className="sc-d2lceil" data-testid="darklight-ceilings-row">
-              <p className="il-ql">The ceilings — any of them going dark to light?</p>
-              {/*
-                ⚑ Says "the extra coat", NOT "three coats". The ceilings row of
-                the paint-system table reads "a new ceiling colour — two coats of
-                flat ceiling paint", where a wall going dark to light is three.
-                That row is Tom's to set in Settings, so the card describes what
-                it does rather than quoting a number the table might not agree
-                with. Promising three and charging two is how a quote and an
-                estimate stop matching.
-              */}
-              <p className="wz-note" style={{ margin: "2px 0 8px" }}>
-                Not common — a ceiling is usually white over white. Where one is going lighter we allow the
-                extra coat it needs.
-              </p>
-              <div className="sc-chips">
-                {([["all", "All ceilings"], ["some", "Some rooms"]] as const).map(([v, label]) => {
-                  const on = ceilingScope === v;
-                  return (
-                    <button
-                      key={v}
-                      className={`sd-chip il-chip ${on ? "on" : ""}`}
-                      aria-pressed={on}
-                      data-testid={`darklight-ceilings-${v}`}
-                      onClick={() => {
-                        // Tapping the chip that is already on turns it OFF —
-                        // the usual answer is "none", and it must be reachable
-                        // without a third chip that says nothing.
-                        const value = on ? null : v;
-                        setCeilingScope(value);
-                        if (value !== "some") setCeilingRooms([]);
-                        act(
-                          { action: "set_paint_system", field: "darkToLightCeilings", value },
-                          "d2l:ceilings",
-                          (d) => value === "all"
-                            ? `Every ceiling gets the extra coat${liveRange && Math.abs(d) >= 100 ? ` — about ${d > 0 ? "+" : "−"}${fmt(Math.abs(d))}` : ""}`
-                            : value === "some"
-                              ? "Pick the rooms on the cards below — the rest stay at the standard"
-                              : "Ceilings back to the standard",
-                          ["d2l:ceilings", value ?? "off"],
-                        );
-                      }}
-                    >{label}</button>
-                  );
-                })}
-              </div>
-              {ceilingScope === "some" && (
-                <p className="wz-note" data-testid="darklight-ceilings-some-note">
-                  {ceilingRooms.length === 0
-                    ? "Tick the ceiling on each room below. Until you do, every ceiling is quoted at the standard — we'd rather ask than add a coat you didn't."
-                    : `${ceilingRooms.length} ${ceilingRooms.length === 1 ? "ceiling" : "ceilings"} with the extra coat; the rest at the standard.`}
-                </p>
-              )}
-            </div>
-          </section>
-        )}
         {/* ⚑ Tom, 10 Sep: "'anything we haven't listed' and 'site and access'
             can move to underneath the rooms — they shouldn't be at the top."
             He is right about the order of the work: the rooms ARE the estimate,
@@ -1222,7 +1084,9 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
                       {/* UI refresh S4b: a number until it is checked, then a tick (the word is beside it too). */}
                       {/* The number is drawn by CSS (data-n), so the card's text still starts with the room's name. */}
                       {loop && <span className={`sc-badge ${loop.confirmed ? "ok" : ""}`} aria-hidden="true" data-n={loop.confirmed ? "✓" : String(roomIndex + 1)} />}
-                      {room.name}
+                      {/* Tom, 25 Oct 2026 (item 11): the name IS the rename control — tap it to retype it; no pencil. */}
+                      <button type="button" className="sc-name" aria-label={`Rename ${room.name}`} data-testid={`room-rename-btn-${room.areaId}`}
+                        onClick={(e) => { e.stopPropagation(); setRenaming({ areaId: room.areaId, value: room.name }); }}>{room.name}</button>
                       {loop && (
                         <span className="il-hm"> · {loop.sizeLabel}{loop.heightAdjusted ? ` · ${loop.heightM} m ceilings` : ""}{loop.size === "adjusted" ? " · updated by you" : ""}</span>
                       )}
@@ -1237,10 +1101,6 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
                     ) : (
                       room.m2 != null && `${room.m2.toFixed(1)} m²`
                     )}
-                    <button
-                      className="sc-pen" aria-label={`Rename ${room.name}`} data-testid={`room-rename-btn-${room.areaId}`}
-                      onClick={(e) => { e.stopPropagation(); setRenaming({ areaId: room.areaId, value: room.name }); }}
-                    >✎</button>
                     <button
                       className="sc-x" aria-label={`Remove ${room.name}`}
                       onClick={() => act({ action: "remove_room", areaId: room.areaId }, `rm:${room.areaId}`, deltaText(room.name, false))}
@@ -1257,19 +1117,38 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
                   <div className={`il-q il-first ${loop.size != null ? "ok" : ""}`}>
                     <p className="il-kick il-blk"><i aria-hidden="true">{loop.size != null ? "✓" : "1"}</i><span className="il-blk-t">FIRST — THE SIZE OF THIS ROOM</span></p>
                     <RoomOutline label={loop.sizeLabel} />
+                    {/* Tom, 25 Oct 2026 (item 17): the measurements are IN the question, as boxes — tap a
+                        number and retype it; "Looks right" agrees with what is there. No "Adjust it" step. */}
                     <p className="il-ql">
-                      Is <span className="il-size">{loop.sizeLabel}{loop.heightAdjusted ? ` · ${loop.heightM} m ceilings` : ""}{loop.size === "adjusted" ? " · updated by you" : ""}</span> about
-                      the size of this room? <span className="il-req">REQUIRED</span><span className="il-okc">✓</span>
+                      Is this room about <span className="il-size" data-testid={`size-inline-${room.areaId}`}>{loop.sizeLabel}{loop.heightAdjusted ? ` · ${loop.heightM} m ceilings` : ""}{loop.size === "adjusted" ? " · updated by you" : ""}</span>?
+                      {" "}<span className="il-req">REQUIRED</span><span className="il-okc">✓</span>
                     </p>
+                    <div className="sd-mrow sd-mrow--inline" data-testid={`size-form-${room.areaId}`}>
+                      <input placeholder="length m" inputMode="decimal" aria-label="Length in metres" value={sizeDraft(room.areaId, loop).L} data-testid={`size-length-${room.areaId}`}
+                        onChange={(e) => setSizeDrafts((d) => ({ ...d, [room.areaId]: { ...sizeDraft(room.areaId, loop), L: e.target.value } }))}
+                        onKeyDown={(e) => { if (e.key === "Enter") saveSize(room, loop); }} />
+                      <span>×</span>
+                      <input placeholder="width m" inputMode="decimal" aria-label="Width in metres" value={sizeDraft(room.areaId, loop).W} data-testid={`size-width-${room.areaId}`}
+                        onChange={(e) => setSizeDrafts((d) => ({ ...d, [room.areaId]: { ...sizeDraft(room.areaId, loop), W: e.target.value } }))}
+                        onKeyDown={(e) => { if (e.key === "Enter") saveSize(room, loop); }} />
+                      <span>m</span>
+                      {/* Tom, 7 Oct 2026 (item 8): this room's own ceiling — optional; blank keeps the job's height. */}
+                      <span>·</span>
+                      <input placeholder={`ceiling ${loop.heightM} m`} inputMode="decimal" value={sizeDraft(room.areaId, loop).H} data-testid={`size-height-${room.areaId}`}
+                        aria-label="Ceiling height in metres, this room only"
+                        onChange={(e) => setSizeDrafts((d) => ({ ...d, [room.areaId]: { ...sizeDraft(room.areaId, loop), H: e.target.value } }))}
+                        onKeyDown={(e) => { if (e.key === "Enter") saveSize(room, loop); }} />
+                    </div>
                     <div className="sc-chips">
-                      <button className={`sd-chip ${sel(`sz:${room.areaId}`, loop.size === "yes", "yes") ? "on" : ""}`}
-                        onClick={() => act({ action: "room_size_ok", areaId: room.areaId }, `sz:${room.areaId}`, undefined, [`sz:${room.areaId}`, "yes"])}>
-                        Looks right
-                      </button>
-                      <button className={`sd-chip ${loop.size === "adjusted" || sizeDrafts[room.areaId]?.open ? "on" : ""}`}
-                        onClick={() => setSizeDrafts((d) => ({ ...d, [room.areaId]: { L: "", W: "", H: "", open: true } }))} data-testid={`size-adjust-${room.areaId}`}>
-                        Adjust it
-                      </button>
+                      {sizeDirty(room.areaId, loop) ? (
+                        <button className="sd-chip on" data-testid={`size-save-${room.areaId}`} onClick={() => saveSize(room, loop)}>Update size</button>
+                      ) : (
+                        <button className={`sd-chip ${sel(`sz:${room.areaId}`, loop.size === "yes", "yes") ? "on" : ""}`} data-testid={`size-ok-${room.areaId}`}
+                          onClick={() => act({ action: "room_size_ok", areaId: room.areaId }, `sz:${room.areaId}`, undefined, [`sz:${room.areaId}`, "yes"])}>
+                          Looks right
+                        </button>
+                      )}
+                      <span className="il-unit">metres — pace it out, near enough is fine</span>
                     </div>
                     {/* C16 (b): a reader's size proposal beside a confirmed size — offered, never applied. */}
                     {room.proposed && room.proposed.L != null && room.proposed.W != null && (
@@ -1277,40 +1156,6 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
                         <span>We read about {room.proposed.L} × {room.proposed.W} m from your {room.proposed.by === "brief" ? "description" : "photo"} — use that instead?</span>
                         <button type="button" onClick={() => act({ action: "room_dims", areaId: room.areaId, lengthM: room.proposed!.L!, widthM: room.proposed!.W! }, `dims:${room.areaId}`, () => `${room.name} updated to ${room.proposed!.L} × ${room.proposed!.W} m — repriced.`)}>Use it</button>
                         <button type="button" onClick={() => act({ action: "room_size_ok", areaId: room.areaId }, `sz:${room.areaId}`, undefined, [`sz:${room.areaId}`, "yes"])}>Keep mine</button>
-                      </div>
-                    )}
-                    {sizeDrafts[room.areaId]?.open && (
-                      <div className="sd-mrow" data-testid={`size-form-${room.areaId}`}>
-                        <input placeholder="length m" inputMode="decimal" value={sizeDrafts[room.areaId].L} data-testid={`size-length-${room.areaId}`}
-                          onChange={(e) => setSizeDrafts((d) => ({ ...d, [room.areaId]: { ...d[room.areaId], L: e.target.value } }))} />
-                        <span>×</span>
-                        <input placeholder="width m" inputMode="decimal" value={sizeDrafts[room.areaId].W} data-testid={`size-width-${room.areaId}`}
-                          onChange={(e) => setSizeDrafts((d) => ({ ...d, [room.areaId]: { ...d[room.areaId], W: e.target.value } }))} />
-                        {/* Tom, 7 Oct 2026 (item 8): this room's own ceiling — optional; blank keeps the job's height. */}
-                        <span>·</span>
-                        <input placeholder={`ceiling ${loop.heightM} m`} inputMode="decimal" value={sizeDrafts[room.areaId].H ?? ""} data-testid={`size-height-${room.areaId}`}
-                          aria-label="Ceiling height in metres, this room only"
-                          onChange={(e) => setSizeDrafts((d) => ({ ...d, [room.areaId]: { ...d[room.areaId], H: e.target.value } }))} />
-                        <button data-testid={`size-save-${room.areaId}`} onClick={() => {
-                          const rawL = parseFloat(sizeDrafts[room.areaId].L);
-                          const rawW = parseFloat(sizeDrafts[room.areaId].W);
-                          const rawH = (sizeDrafts[room.areaId].H ?? "").trim() === "" ? null : parseFloat(sizeDrafts[room.areaId].H!);
-                          if (isNaN(rawL) || isNaN(rawW)) { say("Length and width in metres — the ceiling height is optional."); return; }
-                          if (rawH != null && isNaN(rawH)) { say("The ceiling height is just a number in metres — 2.4, 2.7, 3 — or leave it blank."); return; }
-                          // The gentle clamp (1–15 m a side, 2–6 m high) — mirrors the
-                          // server so the toast reports what was recorded.
-                          const L = Math.min(15, Math.max(1, rawL));
-                          const W = Math.min(15, Math.max(1, rawW));
-                          const H = rawH == null ? null : Math.min(6, Math.max(2, Math.round(rawH * 20) / 20));
-                          const clamped = L !== rawL || W !== rawW || (rawH != null && H !== rawH);
-                          const high = H != null ? ` with ${H} m ceilings` : "";
-                          act({ action: "room_dims", areaId: room.areaId, lengthM: L, widthM: W, ...(H != null ? { heightM: H } : {}) }, `dims:${room.areaId}`,
-                            () => clamped
-                              ? `${room.name} set to ${L} × ${W} m${high} (rooms run 1–15 m a side, ceilings 2–6 m) — repriced.`
-                              : `${room.name} updated to ${L} × ${W} m${high} — repriced for the new size.`);
-                          setSizeDrafts((d) => ({ ...d, [room.areaId]: { ...d[room.areaId], open: false } }));
-                        }}>Update size</button>
-                        <span className="il-unit">metres — pace it out, near enough is fine</span>
                       </div>
                     )}
                   </div>
@@ -1488,7 +1333,7 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
                     {loop.customs.map((name, i) => <div className="sc-tl on custom" key={i}>{name}</div>)}
                   </div>
                 )}
-                {loop?.cupboard && <p className="il-kick il-blk"><i aria-hidden="true">3</i><span className="il-blk-t">Cupboards and robes</span></p>}
+                {(loop?.cupboard || loop?.cupboardInterior) && <p className="il-kick il-blk"><i aria-hidden="true">3</i><span className="il-blk-t">Cupboards and robes</span></p>}
                 {loop?.cupboard && (
                   <div className={`il-q il-cup ${loop.cupboard.on != null ? "ok" : ""}`}>
                     <p className="il-ql">{loop.cupboard.question} <span className="il-req">REQUIRED</span><span className="il-okc">✓</span></p>
@@ -1572,38 +1417,6 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
                 {noteChips[room.areaId] && (
                   <div className="sc-notechip">⚑ &ldquo;{noteChips[room.areaId]}&rdquo; — we&rsquo;ll confirm this area on the site visit</div>
                 )}
-                {/*
-                  ⚑ Tom, 11 Sep — the per-room half of the ceilings answer.
-                  It appears ONLY when the job-wide card says "some rooms", and
-                  only on a room whose ceiling is actually being painted. On every
-                  other job it costs nothing and is not on the screen: a tick that
-                  cannot change a price is noise on a card somebody is trying to
-                  read.
-                */}
-                {!chatMode && ceilingScope === "some" && room.tiles.some((t) => t.key === "ceilings" && t.on) && (() => {
-                  const on = ceilingRooms.includes(room.areaId);
-                  return (
-                    <div className={`il-q ${on ? "ok" : ""}`} data-testid={`room-ceiling-d2l-${room.areaId}`}>
-                      <p className="il-ql">Is this ceiling going from dark to light?</p>
-                      <div className="sc-chips">
-                        <button
-                          className={`sd-chip il-chip ${on ? "on" : ""}`}
-                          aria-pressed={on}
-                          data-testid={`room-ceiling-d2l-btn-${room.areaId}`}
-                          onClick={() => {
-                            setCeilingRooms((cur) => on ? cur.filter((r) => r !== room.areaId) : [...cur, room.areaId]);
-                            act(
-                              { action: "set_paint_system", field: "darkToLightCeilingRoom", areaId: room.areaId, value: !on },
-                              `d2lc:${room.areaId}`,
-                              (d) => `${room.name}'s ceiling ${!on ? "gets the extra coat" : "back to the standard"}${liveRange && Math.abs(d) >= 100 ? ` — about ${d > 0 ? "+" : "−"}${fmt(Math.abs(d))}` : ""}`,
-                              [`d2lc:${room.areaId}`, !on ? "on" : "off"],
-                            );
-                          }}
-                        >{on ? "Yes — the extra coat is in" : "Yes, this one"}</button>
-                      </div>
-                    </div>
-                  );
-                })()}
                 <div className="sc-inc">Includes filling minor cracks and sanding — allowances set by us</div>
                 {room.allowances?.map((a) => <div className="sc-inc" key={a} data-testid="room-allowance">🔒 {a} — allowed for by us</div>)}
                 {/* C10 — extras in this room: feature walls counted, wallpaper, something else. */}
@@ -1636,8 +1449,8 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
                     condition={room.condition}
                     colourTier={initialColourTier}
                     busy={pendingCount > 0}
-                    onAdd={(tag, extent, severity, sourceId) => act(
-                      { action: "add_spot", areaId: room.areaId, tag, extent, severity, sourceId },
+                    onAdd={(tag, extent, severity, sourceId, note) => act(
+                      { action: "add_spot", areaId: room.areaId, tag, extent, severity, sourceId, ...(note ? { note } : {}) },
                       `spot:${room.areaId}:${tag}`,
                       () => `Noted in ${room.name} — your painter sees it before day one`,
                     )}
@@ -1646,7 +1459,6 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
                       `spotrm:${room.areaId}:${surfaceId}`,
                       () => "Spot removed",
                     )}
-                    offer={<Offer kind="damage" estimator={estimator?.name ?? null} onBook={() => scrollToReach()} />}
                   />
                 )}
                 {/* Tom, 14 Sep (item 19): Confirm on an unconfirmed size reads the measurements back first. */}
@@ -1657,7 +1469,7 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
                       <button type="button" className="sd-chip il-chip on" data-testid={`size-confirm-ok-${room.areaId}`}
                         onClick={() => { setSizeConfirm(null); confirmAct({ action: "confirm_room_loop", areaId: room.areaId, sizeOk: true }, `room:${room.areaId}`, `${room.name} confirmed ✓`); }}>Confirm</button>
                       <button type="button" className="sd-chip" data-testid={`size-confirm-change-${room.areaId}`}
-                        onClick={() => { setSizeConfirm(null); setSizeDrafts((d) => ({ ...d, [room.areaId]: { L: "", W: "", open: true } })); afterLayout(() => scrollCardToTop(document.querySelector(`[data-card="room:${room.areaId}"]`))); }}>Change it</button>
+                        onClick={() => { setSizeConfirm(null); afterLayout(() => { scrollCardToTop(document.querySelector(`[data-card="room:${room.areaId}"]`)); (document.querySelector(`[data-testid="size-length-${room.areaId}"]`) as HTMLInputElement | null)?.focus(); }); }}>Change it</button>
                     </div>
                   </div>
                 )}
@@ -1700,13 +1512,20 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
           <JobExtras
             offer={initialExtras.offer}
             on={extras.on}
+            counts={extras.counts}
             colourHelp={extras.colourHelp}
             note={extras.note}
             busy={pendingCount > 0}
             onToggle={(code, on) => {
-              setExtras((e) => ({ ...e, on: on ? [...e.on, code] : e.on.filter((c) => c !== code) }));
+              setExtras((e) => ({ ...e, on: on ? [...e.on, code] : e.on.filter((c) => c !== code), counts: on ? e.counts : Object.fromEntries(Object.entries(e.counts).filter(([k]) => k !== code)) }));
               act({ action: "toggle_job_extra", code, on }, `extra:${code}`,
                 () => (on ? `${code} added` : `${code} removed`));
+            }}
+            onCount={(code, count) => {
+              // Tom, 25 Oct 2026 (item 13): the count moves the moment it is tapped; the server's answer replaces it.
+              setExtras((e) => ({ ...e, counts: { ...e.counts, [code]: count } }));
+              act({ action: "toggle_job_extra", code, on: true, count }, `extra:${code}:n`,
+                (d) => `${code} ×${count}${liveRange && Math.abs(d) >= 100 ? ` — about ${d > 0 ? "+" : "−"}${fmt(Math.abs(d))}` : ""}`);
             }}
             onColourHelp={(want) => {
               setExtras((e) => ({ ...e, colourHelp: want }));

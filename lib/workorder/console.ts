@@ -623,6 +623,21 @@ export function variationsForApproval(input: ConsoleInput): VariationForApproval
   return rows.sort((a, b) => order[a.waitingOn] - order[b.waitingOn] || b.ageHours - a.ageHours);
 }
 
+/**
+ * Tom, 27 Oct 2026: "remove all movements reminders from the dashboard" and "remove
+ * subcontractor agreement not signed". The queue still BUILDS these (the Movements map's
+ * icon ladder and the Contractors tag read them); PC Command's Needs you now does not draw
+ * them. Movements are worked from the board, the agreement from PC Command → Contractors.
+ */
+export const HIDDEN_FROM_NEEDS_YOU: ReadonlySet<string> = new Set([
+  "movements_unplanned", "order_unplaced", "delivery_unconfirmed", "movement_overdue", "movement_problem",
+  "equipment_stranded", "hire_off_due", "job_moved", "materials_changed_after_order",
+  "agreement_unsigned",
+]);
+export function needsYouItems<T extends { kind: string }>(items: readonly T[]): T[] {
+  return items.filter((i) => !HIDDEN_FROM_NEEDS_YOU.has(i.kind));
+}
+
 export function rankQueue(cards: QueueCard[]): QueueCard[] {
   const order: Record<Severity, number> = { critical: 0, warning: 1, info: 2 };
   return [...cards].sort((a, b) =>

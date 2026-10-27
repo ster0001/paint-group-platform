@@ -105,7 +105,9 @@ export async function getPortalContext(): Promise<PortalContext | null> {
     properties,
     companyName: company.name,
     companyPhone: company.phone,
-    logoUrl: company.logoUrl,
+    // The portal is light only (25 Oct 2026): the header wears the dark-lettering
+    // mark. getCompanyContact() falls back to the main mark when none is set.
+    logoUrl: company.logoUrlLight,
     coordinatorName: company.coordinatorName,
   };
 }
@@ -125,7 +127,7 @@ export async function getPortalJobs(accountIds: string[]): Promise<PortalJobs> {
   // One round trip: the work order rides its estimate (volume gate finding).
   const { data: estimates } = await svc
     .from("estimates")
-    .select("id, title, status, source, total_cents, share_token, sent_at, created_at, property_id, brand, work_orders(estimate_id, stage, start_date, end_date)")
+    .select("id, title, status, source, total_cents, share_token, sent_at, created_at, updated_at, property_id, brand, work_orders(id, estimate_id, stage, start_date, end_date)")
     .in("account_id", accountIds)
     .order("created_at", { ascending: false })
     .limit(50);
@@ -221,32 +223,51 @@ export async function signPhotosByIds(
 
 const PROJECT_STAGE_ORDER = ["walkthrough", "in_progress", "qa", "completion_prep", "pre_start", "offered", "closed"];
 
-/** The account's current project — the WO the customer would call "my job".
- * All reads via the service client scoped to PROVEN account ids; only
- * customer-safe columns are selected (no pay, no margins, no QA workings —
- * a FAILED check is never fetched, so it cannot render). */
-export async function getPortalProject(accountIds: string[]): Promise<PortalProject | null> {
-  if (!accountIds.length) return null;
+type ProjectWoRow = { id: string; estimate_id: string; stage: string; start_date: string | null; end_date: string | null; contractor_id: string | null; issued_at: string | null };
+
+export type PortalProjectSummary = { workOrderId: string; estimateId: string; title: string; stage: string };
+
+/** Every issued work order the account owns, the one the customer would call
+ * "my job" first (D1, portal UX brief: the project switcher lists these). */
+export async function getPortalProjects(accountIds: string[]): Promise<Array<PortalProjectSummary & { wo: ProjectWoRow }>> {
+  if (!accountIds.length) return [];
   const svc = createServiceClient();
-  if (!svc) return null;
+  if (!svc) return [];
 
   const { data: ests } = await svc
     .from("estimates").select("id, title").in("account_id", accountIds)
     .order("created_at", { ascending: false }).limit(100);
   const estById = new Map((ests ?? []).map((e) => [e.id as string, e]));
-  if (!estById.size) return null;
+  if (!estById.size) return [];
 
   const { data: wos } = await svc
     .from("work_orders")
     .select("id, estimate_id, stage, start_date, end_date, contractor_id, issued_at")
     .in("estimate_id", [...estById.keys()])
     .not("issued_at", "is", null);
-  const sorted = (wos ?? []).sort(
-    (a, b) => PROJECT_STAGE_ORDER.indexOf(a.stage as string) - PROJECT_STAGE_ORDER.indexOf(b.stage as string),
-  );
-  const wo = sorted[0];
-  if (!wo) return null;
-  return projectForWo(svc, wo, (estById.get(wo.estimate_id as string)?.title as string | null) ?? null);
+  return ((wos ?? []) as ProjectWoRow[])
+    .sort((a, b) => PROJECT_STAGE_ORDER.indexOf(a.stage) - PROJECT_STAGE_ORDER.indexOf(b.stage))
+    .map((wo) => ({
+      workOrderId: wo.id,
+      estimateId: wo.estimate_id,
+      title: ((estById.get(wo.estimate_id)?.title as string | null) ?? "").trim() || "Your project",
+      stage: wo.stage,
+      wo,
+    }));
+}
+
+/** The account's current project — the WO the customer would call "my job".
+ * All reads via the service client scoped to PROVEN account ids; only
+ * customer-safe columns are selected (no pay, no margins, no QA workings —
+ * a FAILED check is never fetched, so it cannot render). */
+export async function getPortalProject(accountIds: string[], workOrderId: string | null = null): Promise<PortalProject | null> {
+  const svc = createServiceClient();
+  if (!svc) return null;
+  const list = await getPortalProjects(accountIds);
+  // An unknown ?project= falls back to the first — never a dead end, never someone else's job.
+  const pick = (workOrderId && list.find((p) => p.workOrderId === workOrderId)) || list[0];
+  if (!pick) return null;
+  return projectForWo(svc, pick.wo, pick.title);
 }
 
 /**

@@ -188,7 +188,7 @@ test.describe("trade money + team + digest (trade portal v2, session 6)", () => 
     await page.goto("/account");
     await page.waitForURL(/\/account\/money/); // home redirects straight to money
     // One tab only.
-    await expect(page.locator(".tabbar a, nav a").filter({ hasText: "Invoicing" })).toHaveCount(1);
+    await expect(page.locator(".tabbar a, nav a").filter({ hasText: "Payments" })).toHaveCount(1);
     await expect(page.locator(".tabbar a, nav a").filter({ hasText: "Properties" })).toHaveCount(0);
     // Job-detail surfaces bounce or refuse.
     await page.goto(`/account/properties/${propA}`);

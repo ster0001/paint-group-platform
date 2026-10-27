@@ -134,10 +134,12 @@ export function applyRoomDims(blocks: LooseBlock[], areaId: number, lengthM: num
 }
 
 /**
- * Tom, 7 Oct 2026: the cupboard questions start ANSWERED — kitchen cupboards,
- * vanities and laundry cupboards as No (they are rarely painted), built-in robe
- * doors as Yes with the standard count (they nearly always are). The customer
- * changes either with one tap; a room that already carries an answer is left
+ * Tom, 7 Oct 2026: the cupboard questions start ANSWERED. Tom, 25 Oct 2026
+ * (item 5): every one of them starts as **No** — kitchen cupboards, vanities,
+ * laundry cupboards AND the built-in robe doors (the 7 Oct default had robe
+ * doors as Yes). Cupboard doors are rarely part of a repaint, and a Yes we
+ * assumed is a line the customer has to notice and take off. The customer
+ * changes it with one tap; a room that already carries an answer is left
  * alone, as is a room type whose cupboard code is not on the active card.
  */
 export function applyCupboardDefaults(blocks: LooseBlock[], cupboardCodes: ReadonlySet<string>, nextId: () => number): LooseBlock[] {
@@ -147,16 +149,9 @@ export function applyCupboardDefaults(blocks: LooseBlock[], cupboardCodes: Reado
     const cfg = CUPBOARD_BY_ROOM_TYPE[String(b.roomType ?? "")];
     if (!cfg || !cupboardCodes.has(cfg.code)) continue;
     if (b.customer && b.customer.cup != null) continue;
-    const yes = String(b.roomType) === "bedroom";
-    const r = applyCupboard(out, Number(b.id), yes, null, nextId);
+    const r = applyCupboard(out, Number(b.id), false, null, nextId);
     if (!r.ok) continue;
     out = r.blocks;
-    // A default is an assumption, not the customer's word: the robe line is
-    // tagged so the accuracy score and the review queue treat it as one.
-    const room = out.find((x) => Number(x.id) === Number(b.id));
-    for (const s of room?.surfaces ?? []) {
-      if (String(s.code) === cfg.code) { s.origin = "ai_assumed"; s.assumedFields = ["included"]; }
-    }
   }
   return out;
 }
@@ -165,26 +160,26 @@ export function applyCupboardDefaults(blocks: LooseBlock[], cupboardCodes: Reado
  * by room type); No records the answer and removes any line — a recorded
  * answer, never an omission.
  *
- * Tom, 7 Sep 2026: the doors come FIRST. The insides (walls inside the
- * cupboard, inside face of the doors) are only asked once the doors are a
- * Yes; a No on the doors drops any inside lines and un-asks those questions,
- * so a later Yes asks them fresh. */
+ * Tom, 7 Sep 2026: the doors come first, and the INSIDE FACE of the doors
+ * follows them — a No on the doors drops that line and un-asks it, so a later
+ * Yes asks it fresh. Tom, 25 Oct 2026 (item 6): the walls INSIDE the cupboard
+ * no longer follow the doors — a mirrored robe keeps its doors and still wants
+ * the inside painted — so a No here leaves the interior answer and its line
+ * exactly where they are. */
 export function applyCupboard(
   blocks: LooseBlock[], areaId: number, on: boolean, count: number | null, nextId: () => number,
 ): RoomsLoopResult {
   return withRoom(blocks, areaId, (b) => {
     const cfg = CUPBOARD_BY_ROOM_TYPE[String(b.roomType ?? "")];
     if (!cfg) return "This room has no cupboard question.";
-    const interiorCode = CUPBOARD_INTERIOR_BY_ROOM_TYPE[String(b.roomType ?? "")]?.code;
-    const surfaces = (b.surfaces ?? []).filter((s) => String(s.code) !== cfg.code
-      && (on || (String(s.code) !== interiorCode && s.cupInside !== true)));
+    const surfaces = (b.surfaces ?? []).filter((s) => String(s.code) !== cfg.code && (on || s.cupInside !== true));
     if (on) {
       const n = Math.min(40, Math.max(1, count ?? cfg.defaultCount));
       const line = makeDraftSurface(nextId(), cfg.code, cfg.unit, n, "customer_stated", 0.85, []) as unknown as LooseSurface;
       surfaces.push(line);
     }
     b.surfaces = surfaces;
-    b.customer = on ? { ...customerOf(b), cup: true } : { ...customerOf(b), cup: false, cupInterior: null, cupDoorInside: null };
+    b.customer = on ? { ...customerOf(b), cup: true } : { ...customerOf(b), cup: false, cupDoorInside: null };
   });
 }
 
@@ -195,6 +190,13 @@ export function applyCupboard(
  * It is a TIGHTENING question, never a gate: a room confirms without it, and
  * the assistant lists "cupboard interiors not included" as an assumption chip
  * until it is answered.
+ *
+ * Tom, 25 Oct 2026 (item 6): asked on its OWN, beside the doors question and
+ * whatever its answer — *"if the customer has a mirrored wardrobe, they might
+ * still want the inside painted, but there is no option to add unless they
+ * tick yes to cupboard doors."* This reverses the 7 Sep "insides follow the
+ * doors" rule for the walls inside; the inside FACE of the robe doors still
+ * follows the doors, because without the doors there is no face to paint.
  */
 export const CUPBOARD_INTERIOR_BY_ROOM_TYPE: Record<string, {
   code: string; question: string; unit: string; defaultCount: number; note: string;
@@ -230,15 +232,13 @@ export const CUPBOARD_INTERIOR_BY_ROOM_TYPE: Record<string, {
 
 /** The cupboard-interior answer — same shape as applyCupboard: Yes adds the
  * priced line at the room's default count, No records the answer and removes
- * any line. It FOLLOWS the doors answer (Tom, 7 Sep 2026 — this replaces the
- * 2 Sep "independent answers" ruling): a Yes here needs the doors on first. */
+ * any line. Independent of the doors answer (Tom, 25 Oct 2026, item 6). */
 export function applyCupboardInterior(
   blocks: LooseBlock[], areaId: number, on: boolean, count: number | null, nextId: () => number,
 ): RoomsLoopResult {
   return withRoom(blocks, areaId, (b) => {
     const cfg = CUPBOARD_INTERIOR_BY_ROOM_TYPE[String(b.roomType ?? "")];
     if (!cfg) return "This room has no cupboard-interior question.";
-    if (on && customerOf(b).cup !== true) return "Tick the cupboard doors first — the insides follow that answer.";
     const surfaces = (b.surfaces ?? []).filter((s) => String(s.code) !== cfg.code);
     if (on) {
       const n = Math.min(40, Math.max(1, count ?? cfg.defaultCount));
@@ -285,9 +285,9 @@ export function applyCupboardDoorInside(
 
 /**
  * The sweep's "inside the cupboards" chips (Tom, 7 Sep): every interior room
- * whose type has the question AND whose cupboard doors are a Yes — the
- * insides follow the doors. Returns how many rooms it reached — none is an
- * honest refusal upstream.
+ * whose type has the question. The inside FACE of the doors still needs the
+ * doors on; the walls inside do not (Tom, 25 Oct 2026, item 6). Returns how
+ * many rooms it reached — none is an honest refusal upstream.
  */
 export function applyCupboardsEverywhere(
   blocks: LooseBlock[], kind: "interior" | "door_inside", rateCodes: ReadonlySet<string>, nextId: () => number,
@@ -295,7 +295,8 @@ export function applyCupboardsEverywhere(
   let out = blocks;
   let rooms = 0;
   for (const b of blocks) {
-    if (!isInteriorRoom(b) || customerOf(b).cup !== true) continue;
+    if (!isInteriorRoom(b)) continue;
+    if (kind === "door_inside" && customerOf(b).cup !== true) continue;
     const type = String(b.roomType ?? "");
     const cfg = kind === "interior" ? CUPBOARD_INTERIOR_BY_ROOM_TYPE[type] : CUPBOARD_DOOR_INSIDE_BY_ROOM_TYPE[type];
     if (!cfg || !rateCodes.has(cfg.code)) continue;
@@ -421,6 +422,9 @@ export function interiorProgress(blocks: LooseBlock[], meta: InteriorLoopMeta): 
 export type RoomLoopView = {
   areaId: number;
   sizeLabel: string; // "3.5 × 3.25 m" — L × W, never m²
+  /** Tom, 25 Oct 2026 (item 17): the numbers themselves, for the inline size boxes. */
+  lengthM: number;
+  widthM: number;
   /** The room's own ceiling height in metres (Tom, 7 Oct 2026: adjustable per room). */
   heightM: number;
   heightAdjusted: boolean;
@@ -456,6 +460,8 @@ export function roomLoopViews(blocks: LooseBlock[], cupboardCodes: ReadonlySet<s
     out.push({
       areaId: Number(b.id) || 0,
       sizeLabel: `${Number(b.L) || 0} × ${Number(b.W) || 0} m`,
+      lengthM: Number(b.L) || 0,
+      widthM: Number(b.W) || 0,
       heightM: Number(b.H) || 2.4,
       heightAdjusted: c.heightAdjusted === true,
       size: c.size,
@@ -467,8 +473,8 @@ export function roomLoopViews(blocks: LooseBlock[], cupboardCodes: ReadonlySet<s
         count: Number(cupLine?.count) || applicable.defaultCount,
         note: applicable.note,
       } : null,
-      // Tom, 7 Sep: the insides are asked only once the doors are a Yes.
-      cupboardInterior: interiorCfg && c.cup === true ? {
+      // Tom, 25 Oct 2026 (item 6): the insides are asked on their own, whatever the doors say.
+      cupboardInterior: interiorCfg ? {
         question: interiorCfg.question,
         unit: interiorCfg.unit,
         on: c.cupInterior ?? null,

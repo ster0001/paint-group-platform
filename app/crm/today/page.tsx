@@ -47,6 +47,7 @@ const KIND_TAG: Record<WorkItem["kind"], string> = {
   hold_pending: "Held dates", qa_check_due: "Quality check", qa_check_final_cancelled: "Quality check", qa_check_to_book: "Quality check", site_visit_due: "Site check-in",
   painter_message: "Painter message",
   material_request: "Materials request",
+  colour_match_outstanding: "Colour match codes",
   no_work_requested: "No work today",
   insurance_missing: "No insurance on file",
   agreement_unsigned: "Agreement not signed", agreement_expiring: "Agreement expiring",

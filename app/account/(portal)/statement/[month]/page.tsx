@@ -48,7 +48,7 @@ export default async function StatementPage({
       <div className="card">
         {rows.length === 0 && <p className="sub">No invoices were issued in {monthName}.</p>}
         {rows.map((i) => (
-          <div className="row" key={i.id} style={{ padding: "10px 0", borderBottom: "1px solid var(--line)" }}>
+          <div className="row" key={i.id} style={{ padding: "10px 0", borderBottom: "1px solid var(--border)" }}>
             <div style={{ minWidth: 0 }}>
               <div className="note">{i.number ?? "INVOICE"} · {fmtDay(i.issued_on)}</div>
               <div style={{ fontSize: 16, fontWeight: 700 }}>{titleByEstimate.get(i.estimate_id) ?? "Property"}</div>

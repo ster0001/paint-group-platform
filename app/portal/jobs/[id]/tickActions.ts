@@ -156,8 +156,10 @@ export async function startWalkthroughMode(raw: unknown): Promise<WalkthroughMod
   if (s === "error:not_at_walkthrough") return { ok: false, message: "The job isn't at the walkthrough stage yet." };
   if (s === "error:not_yours") return { ok: false, message: "That job isn't yours." };
   // Tom, 21 Oct 2026: from Quality check the server delivers the pack first;
-  // the one thing that can still refuse is the gate (colour-match codes).
+  // the gate can still refuse in words (finishing-up items still to tick).
+  // Colour-match codes stopped being one of those on 26 Oct 2026 (20270306).
   if (s.startsWith("error:gate:")) return { ok: false, message: `Not yet — ${s.slice("error:gate:".length)}.` };
+  if (s === "error:surfaces_first") return { ok: false, message: "Tick off every surface first — then this opens the walkthrough." };
   return { ok: false, message: "Couldn't start the walkthrough just now." };
 }
 

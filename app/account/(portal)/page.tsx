@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getPortalContext, getPortalJobs, melbourneGreeting, melbourneTodayYmd, portalBrandOf } from "@/lib/portal/data";
 import { homeState } from "@/lib/portal/home";
+import { addressChips, groupEstimates, type HomeCard, type OpenWizard } from "@/lib/portal/homeList";
 import { createServiceClient } from "@/lib/supabase/service";
 import { pageLabel } from "@/lib/wizard/journey";
 import { findOpenDraft } from "@/lib/wizard/draftOwner";
@@ -10,22 +11,16 @@ import TradePortfolioHome from "./TradePortfolioHome";
 
 export const dynamic = "force-dynamic";
 
-const STATUS_CHIP: Record<string, { cls: string; label: string }> = {
-  draft: { cls: "amber", label: "Being checked" },
-  sent: { cls: "cyan", label: "Ready for you" },
-  accepted: { cls: "emerald", label: "Accepted" },
-  declined: { cls: "mut", label: "Declined" },
-};
-
 /** State-aware Home: one headline, one primary action (§4-A3). With a
  * second address the switcher appears and everything else stays identical
- * (§3) — the chips just filter which property's story leads. */
+ * (§3) — the chips just filter which property's story leads. The estimate
+ * list reads Needs you / With us / Done (portal UX brief C3, 25 Oct 2026). */
 export default async function AccountHomePage({
   searchParams,
 }: {
-  searchParams: Promise<{ property?: string }>;
+  searchParams: Promise<{ property?: string; all?: string }>;
 }) {
-  const { property: propertyParam } = await searchParams;
+  const { property: propertyParam, all: allParam } = await searchParams;
   const ctx = await getPortalContext();
   if (!ctx) redirect("/account/login");
 
@@ -39,8 +34,13 @@ export default async function AccountHomePage({
 
   const all = await getPortalJobs(ctx.accounts.map((a) => a.id));
   const portalMixed = portalBrandOf(all.estimates).mixed;
-  const selected = ctx.properties.find((p) => p.id === propertyParam)?.id ?? null;
-  const estimates = selected ? all.estimates.filter((e) => e.property_id === selected) : all.estimates;
+  // C2: identical addresses are one chip; the four most active lead, the
+  // rest sit behind "More (n)". A chip stands for every merged id.
+  const selectedParam = ctx.properties.find((p) => p.id === propertyParam)?.id ?? null;
+  const strip = addressChips(ctx.properties, all.estimates, selectedParam, allParam === "1");
+  const estimates = strip.selectedIds
+    ? all.estimates.filter((e) => e.property_id && strip.selectedIds!.includes(e.property_id))
+    : all.estimates;
   const workOrders = all.workOrders;
   // Tom, 7 Sep: a half-finished wizard walk (the autosaved session for this
   // signed-in user) is the way back in — "pick up where I left off".
@@ -48,7 +48,7 @@ export default async function AccountHomePage({
   // session that started it — the account / verified-email door finds it
   // (lib/wizard/draftOwner). Reading it writes nothing: bucket, dropped_at
   // and the 45-minute "online now / dropped" rule stay the funnel's.
-  let openWizard: { pageLabel: string; where: string; lastSeen: string | null } | null = null;
+  let openWizard: OpenWizard | null = null;
   const svcForDraft = createServiceClient();
   if (svcForDraft) {
     const found = await findOpenDraft(svcForDraft, { userId: ctx.userId, verifiedEmail: ctx.email }, new Date());
@@ -61,13 +61,19 @@ export default async function AccountHomePage({
       };
     }
   }
-  const state = homeState(estimates, workOrders, melbourneTodayYmd(), ctx.companyPhone || "", openWizard);
+  const today = melbourneTodayYmd();
+  const state = homeState(estimates, workOrders, today, ctx.companyPhone || "", openWizard);
   const isTel = state.cta.href.startsWith("tel:");
+  const groups = groupEstimates(estimates, workOrders, openWizard, today, portalMixed);
+  const anyEstimates = groups.needsYou.length + groups.withUs.length + groups.done.length > 0;
 
-  const primaryProperty = ctx.properties.find((p) => p.id === selected) ?? ctx.properties[0] ?? null;
-  const wizardHref = primaryProperty ? `/estimate?property=${primaryProperty.id}` : "/estimate";
-  const propertyLabel = (p: { address: string | null; suburb: string | null }) =>
-    p.address?.trim() || p.suburb?.trim() || "My address";
+  const chipHref = (id: string | null) => {
+    const q = new URLSearchParams();
+    if (id) q.set("property", id);
+    if (allParam === "1") q.set("all", "1");
+    const s = q.toString();
+    return `/account${s ? `?${s}` : ""}`;
+  };
 
   return (
     <div>
@@ -75,17 +81,28 @@ export default async function AccountHomePage({
       <h1>{state.headline}</h1>
 
       {ctx.properties.length >= 2 && (
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", margin: "0 0 16px" }}>
-          <Link href="/account" className={`chip ${selected ? "mut" : "cyan"} nodot`}>Everything</Link>
-          {ctx.properties.map((p) => (
+        <div className="strip" data-testid="address-strip">
+          <Link href={chipHref(null)} className={`addr-chip${strip.selectedIds ? "" : " on"}`}>Everything</Link>
+          {strip.shown.map((c) => (
             <Link
-              key={p.id}
-              href={`/account?property=${p.id}`}
-              className={`chip ${selected === p.id ? "cyan" : "mut"} nodot`}
+              key={c.id}
+              href={chipHref(c.id)}
+              className={`addr-chip${strip.selectedIds && strip.selectedIds.includes(c.id) ? " on" : ""}`}
+              data-testid="address-chip"
             >
-              {propertyLabel(p)}
+              {c.label}{c.count > 1 ? <span className="n"> · {c.count}</span> : null}
             </Link>
           ))}
+          {strip.hidden.length > 0 && (
+            <Link href={`/account?all=1${selectedParam ? `&property=${selectedParam}` : ""}`} className="addr-chip more" data-testid="address-more">
+              More ({strip.hidden.length})
+            </Link>
+          )}
+          {allParam === "1" && ctx.properties.length > 5 && (
+            <Link href={chipHref(selectedParam).replace(/[?&]all=1/, "").replace(/\?$/, "")} className="addr-chip more" data-testid="address-fewer">
+              Fewer
+            </Link>
+          )}
         </div>
       )}
 
@@ -105,49 +122,27 @@ export default async function AccountHomePage({
         </div>
       </div>
 
-      {(estimates.length > 0 || openWizard) && (
+      {anyEstimates && (
         <>
-          <h2>My estimates</h2>
-          {/* Tom, 7 Sep: the unfinished walk is an estimate still to be
-              submitted — it sits in the list, and tapping it reopens the
-              wizard on the page it was left at. */}
-          {openWizard && (
-            <Link href="/estimate" className="job" data-testid="portal-unsubmitted-estimate">
-              <div className="row">
-                <div className="addr">{openWizard.where || "Your estimate"}</div>
-                <span className="chip amber">Not yet submitted</span>
-              </div>
-              <div className="meta">You were at {openWizard.pageLabel} — tap to finish it</div>
-            </Link>
+          {groups.needsYou.length > 0 && (
+            <section data-testid="group-needs-you">
+              <h2>Needs you</h2>
+              {groups.needsYou.map((c) => <EstimateCard key={c.key} card={c} />)}
+            </section>
           )}
-          {estimates.slice(0, 8).map((e) => {
-            const chip = STATUS_CHIP[e.status] ?? { cls: "mut", label: e.status };
-            // Paint Home brief §5 (⚑ P8): on a shared account the Paint Home jobs carry their brand.
-            const brandTag = portalMixed && e.brand === "painthome" ? <span className="chip mut nodot" data-testid="job-brand">Paint Home</span> : null;
-            // A wizard-built draft is the customer's to keep shaping — it opens
-            // the confirm-loop editor. A staff-built draft has no customer editor.
-            const shaping = e.status === "draft" && e.source === "customer_intake";
-            // Airtable history (16 Sep 2026): a record of a quote from before the
-            // platform — no document to open, so it lists with its status only.
-            const history = e.source === "airtable";
-            const open = !history && ((e.status !== "draft" && e.share_token && e.sent_at) || shaping);
-            const body = (
-              <>
-                <div className="row">
-                  <div className="addr">{e.title?.trim() || "Your estimate"}</div>
-                  {brandTag}
-                  <span className={`chip ${shaping ? "amber" : chip.cls}`}>{shaping ? "Keep shaping" : chip.label}</span>
-                </div>
-                {open ? <div className="meta">{shaping ? "Tap to confirm your rooms and finalise your price" : "Tap to open it"}</div> : null}
-                {history ? <div className="meta" data-testid="portal-history">From our records{e.sent_at ? ` · ${new Intl.DateTimeFormat("en-AU", { timeZone: "Australia/Melbourne", month: "short", year: "numeric" }).format(new Date(e.sent_at))}` : ""}</div> : null}
-              </>
-            );
-            return open ? (
-              <Link key={e.id} href={shaping ? `/estimate/scope?id=${e.id}` : `/e/${e.share_token}?portal=1`} className="job">{body}</Link>
-            ) : (
-              <div key={e.id} className="job">{body}</div>
-            );
-          })}
+          {groups.withUs.length > 0 && (
+            <section data-testid="group-with-us">
+              <h2>With us</h2>
+              {groups.withUs.map((c) => <EstimateCard key={c.key} card={c} />)}
+            </section>
+          )}
+          {groups.done.length > 0 && (
+            // C3: Done is collapsed by default — the native disclosure needs no script.
+            <details className="group" data-testid="group-done" open={groups.needsYou.length + groups.withUs.length === 0}>
+              <summary><h2>Done <span className="count">· {groups.done.length}</span></h2></summary>
+              {groups.done.map((c) => <EstimateCard key={c.key} card={c} />)}
+            </details>
+          )}
         </>
       )}
 
@@ -156,28 +151,28 @@ export default async function AccountHomePage({
         <p className="sub" style={{ marginBottom: 14 }}>
           Answer a few questions about the property and see your estimate in minutes.
         </p>
-        <div className="btn-row" style={{ marginTop: 0 }}>
-          <Link className="btn btn-ghost" href={wizardHref}>Get a new estimate</Link>
-          <Link className="btn btn-ghost" href="/account/addresses/new">Add an address</Link>
-        </div>
+        {/* C4 (locked default): one button, address step first. "Add a property" stays
+            because it has its own job — registering an address with no estimate yet. */}
+        <Link className="btn btn-ghost" href="/estimate">Get an estimate for another property</Link>
+        <Link href="/account/addresses/new" className="sub" style={{ display: "block", textAlign: "center", marginTop: 12, textDecoration: "underline" }}>
+          Add a property (no estimate yet)
+        </Link>
       </div>
 
       <h2>Documents &amp; warranty</h2>
-      <Link href="/account/documents" className="job">
-        <div className="row">
-          <div>
-            <div className="addr">Your documents</div>
-            <div className="meta">Warranty card, our insurance certificates, completion reports</div>
-          </div>
-          <span className="chip mut nodot">Open</span>
+      <Link href="/account/documents" className="job tap" data-testid="documents-card">
+        <div className="job-main">
+          <div className="addr">Your documents</div>
+          <div className="meta">Warranty card, our insurance certificates, completion reports</div>
         </div>
+        <span className="chev" aria-hidden="true">›</span>
       </Link>
 
       <h2>Prefer to talk?</h2>
       <div className="card">
         <p className="sub" style={{ marginBottom: ctx.companyPhone ? 14 : 0 }}>
           {ctx.companyPhone ? (
-            <>You can always ring us on <b style={{ color: "var(--text)" }}>{ctx.companyPhone}</b> — a person answers, and we&rsquo;re happy to talk anything through.</>
+            <>You can always ring us on <b style={{ color: "var(--ink)" }}>{ctx.companyPhone}</b> — a person answers, and we&rsquo;re happy to talk anything through.</>
           ) : (
             <>We&rsquo;re always happy to talk anything through — reply to any of our emails and a person answers.</>
           )}
@@ -191,5 +186,29 @@ export default async function AccountHomePage({
         <button type="submit" className="note" style={{ textDecoration: "underline" }}>Sign out</button>
       </form>
     </div>
+  );
+}
+
+/** One estimate card: address, status chip, the one-line next step and a
+ * relative date (C3) — the whole card is the link when there is one (B4). */
+function EstimateCard({ card }: { card: HomeCard }) {
+  const body = (
+    <>
+      <div className="job-main">
+        <div className="addr">{card.title}</div>
+        <div className="meta" data-testid={card.history ? "portal-history" : undefined}>{card.next}</div>
+        {card.when && <div className="when">{card.when}</div>}
+      </div>
+      <div className="job-side">
+        {card.paintHome && <span className="chip mut nodot" data-testid="job-brand">Paint Home</span>}
+        <span className={`chip ${card.chip.cls}`}>{card.chip.label}</span>
+        {card.href && <span className="chev" aria-hidden="true">›</span>}
+      </div>
+    </>
+  );
+  return card.href ? (
+    <Link href={card.href} className="job tap" data-testid={card.testId}>{body}</Link>
+  ) : (
+    <div className="job tap" data-testid={card.testId}>{body}</div>
   );
 }

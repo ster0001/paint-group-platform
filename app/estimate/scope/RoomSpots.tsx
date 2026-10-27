@@ -3,7 +3,7 @@
 import { useRef, useState } from "react";
 import { browserClient } from "@/lib/supabase/lazyClient";
 import {
-  EXTENT_LABEL, majorExtentNotice, prepPrompt, SPOT_EXTENTS, tagsFor,
+  EXTENT_LABEL, majorExtentNotice, OTHER_TAG_KEY, prepPrompt, SPOT_EXTENTS, tagsFor,
   type RoomCondition, type SpotExtent,
 } from "@/lib/wizard/spots";
 import { suggestionLine, type SuggestedSpot } from "@/lib/wizard/photo-defects";
@@ -28,10 +28,8 @@ import type { RoomSpot } from "@/lib/wizard/scope-editor";
  * answer because their photo failed would be the worst of both.
  */
 export default function RoomSpots({
-  estimateId, areaId, roomName, side, spots, colourTier = "change", busy, onAdd, onRemove, offer = null,
+  estimateId, areaId, roomName, side, spots, colourTier = "change", busy, onAdd, onRemove,
 }: {
-  /** C11 — the inline "damage is easier in person" offer, rendered in the panel. */
-  offer?: React.ReactNode;
   estimateId: string;
   areaId: number;
   roomName: string;
@@ -41,7 +39,8 @@ export default function RoomSpots({
   /** The job's colour intent — it decides what this room is asked to look for. */
   colourTier?: "fresh" | "change" | "dark_to_light";
   busy?: boolean;
-  onAdd: (tag: string, extent: SpotExtent, severity: 1 | 2 | 3 | undefined, sourceId: string | null) => void;
+  /** Tom, 25 Oct 2026 (item 10): `note` is the customer's own words behind "Something else". */
+  onAdd: (tag: string, extent: SpotExtent, severity: 1 | 2 | 3 | undefined, sourceId: string | null, note?: string) => void;
   onRemove: (surfaceId: number) => void;
   /** Kept on the contract for staff surfaces; the customer card no longer asks it (C10). */
   onCondition?: (c: RoomCondition) => void;
@@ -49,6 +48,10 @@ export default function RoomSpots({
   const prompt = prepPrompt(colourTier);
   const [open, setOpen] = useState(false);
   const [pending, setPending] = useState<string | null>(null);
+  // Tom, 25 Oct 2026 (items 9, 10): "What is it?" is asked FIRST and is a choice, not the add —
+  // the tag is picked, "Something else" opens a note box, then how much, then one Add.
+  const [tag, setTag] = useState<string | null>(null);
+  const [note, setNote] = useState("");
   const [error, setError] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement | null>(null);
   const [sourceId, setSourceId] = useState<string | null>(null);
@@ -122,13 +125,18 @@ export default function RoomSpots({
     return { sourceId: ids[0] ?? null, suggestion: per[0]?.suggestion ?? null };
   }
 
-  function addSpot(tag: string) {
-    if (busy || pending || reading) return;
+  const isOther = tag === OTHER_TAG_KEY;
+  const canAdd = tag != null && !(isOther && note.trim() === "") && !busy && !pending && !reading;
+
+  function addSpot() {
+    if (!canAdd || tag == null) return;
     setPending(tag);
-    onAdd(tag, extent, suggested?.severity, sourceId);
+    onAdd(tag, extent, suggested?.severity, sourceId, isOther ? note.trim().slice(0, 300) : undefined);
     setSourceId(null);
     setSuggested(null);
     setExtent("spots");
+    setTag(null);
+    setNote("");
     if (fileRef.current) fileRef.current.value = "";
     setPending(null);
     setOpen(false);
@@ -172,12 +180,8 @@ export default function RoomSpots({
         >{prompt.cta}</button>
       ) : (
         <div className="sc-spot-panel" data-testid={`spot-panel-${areaId}`}>
-          {offer}
-          <p className="sc-sys-why">{prompt.why}</p>
-          <p className="sc-sys-why">
-            A photo and a tap. With a photo we can price the repair straight away; without one we still
-            record it and one of our people prices it. Either way your painter sees it before day one.
-          </p>
+          {/* Tom, 25 Oct 2026 (items 7, 8): one line, no "easier in person" offer and no paragraph on coats. */}
+          <p className="sc-sys-why" data-testid={`spot-intro-${areaId}`}>Attach photos of areas that need attention.</p>
           <PhotoDrop
             inputRef={fileRef}
             testId={`spot-photo-${areaId}`}
@@ -190,6 +194,27 @@ export default function RoomSpots({
           {reading && <p className="sc-sys-why" data-testid={`spot-reading-${areaId}`}>Reading your photo…</p>}
           {suggested && (
             <p className="sc-spot-suggest" data-testid={`spot-suggestion-${areaId}`}>{suggestionLine(suggested)}</p>
+          )}
+          <p className="sc-sys-why" style={{ marginTop: 10, marginBottom: 4 }}>What is it?</p>
+          <div className="sc-chips">
+            {tagsFor(side).map((t) => (
+              <button
+                key={t.key} type="button" className={`sd-chip il-chip ${tag === t.key ? "on" : ""}`}
+                aria-pressed={tag === t.key}
+                disabled={pending != null}
+                data-testid={`spot-tag-${areaId}-${t.key}`}
+                onClick={() => setTag(tag === t.key ? null : t.key)}
+              >{t.label}</button>
+            ))}
+          </div>
+          {isOther && (
+            <input
+              className="sc-spot-note" type="text" maxLength={300} autoFocus
+              placeholder="Tell us what it is — e.g. a stain behind the fridge"
+              value={note} data-testid={`spot-note-${areaId}`}
+              onChange={(e) => setNote(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter") addSpot(); }}
+            />
           )}
           <p className="sc-sys-why" style={{ marginTop: 10, marginBottom: 4 }}>How much of it is there?</p>
           <div className="sc-chips">
@@ -211,19 +236,13 @@ export default function RoomSpots({
               {majorExtentNotice(sourceId != null)}
             </p>
           )}
-          <p className="sc-sys-why" style={{ marginTop: 10, marginBottom: 4 }}>What is it?</p>
-          <div className="sc-chips">
-            {tagsFor(side).map((t) => (
-              <button
-                key={t.key} type="button" className="sd-chip il-chip"
-                disabled={pending != null}
-                data-testid={`spot-tag-${areaId}-${t.key}`}
-                onClick={() => addSpot(t.key)}
-              >{pending === t.key ? "Adding…" : t.label}</button>
-            ))}
-          </div>
           {error && <p className="sc-spot-err" data-testid={`spot-error-${areaId}`}>{error}</p>}
-          <button type="button" className="wz-linkish" onClick={() => { setOpen(false); setError(null); }}>Cancel</button>
+          <div className="sc-chips" style={{ marginTop: 10 }}>
+            <button type="button" className="sd-chip il-chip on" disabled={!canAdd} data-testid={`spot-add-${areaId}`} onClick={addSpot}>
+              {pending ? "Adding…" : "Add it"}
+            </button>
+            <button type="button" className="wz-linkish" onClick={() => { setOpen(false); setError(null); setTag(null); setNote(""); }}>Cancel</button>
+          </div>
         </div>
       )}
     </div>

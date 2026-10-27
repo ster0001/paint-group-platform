@@ -2070,7 +2070,8 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
                 assumed={state.assistant?.wrote ?? []}
                 planUpload={quick.jobType !== "exterior" ? (
                   <div className="wz-planupload" data-testid="ql-plan">
-                    <p className="wz-qhead">Have a floorplan or the listing? <span className="wz-opttag">Optional</span></p>
+                    {/* Tom, 25 Oct 2026 (item 1): a floorplan only — the listing link is gone from this step. */}
+                    <p className="wz-qhead">Have a floorplan? <span className="wz-opttag">Optional</span></p>
                     <p className="wz-hint">We read the rooms and sizes off it.</p>
                     <input
                       ref={planInputRef} type="file" hidden accept="image/*,application/pdf"
@@ -2079,16 +2080,6 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
                     <button type="button" className={`wz-upload ${planFileCount ? "done" : ""}`} onClick={() => planInputRef.current?.click()} disabled={uploading} data-testid="ql-plan-upload">
                       {planUploadLabel({ planFileCount, uploading })}
                     </button>
-                    <input
-                      className="wz-field" data-testid="ql-plan-listing"
-                      placeholder="Or paste the listing URL — realestate.com.au or Domain"
-                      value={state.listingUrl} onChange={(e) => set({ listingUrl: e.target.value })}
-                    />
-                    {state.listingUrl.trim() !== "" && state.planRunIds.length === 0 && (
-                      <button type="button" className="wz-upload" onClick={() => void importListingPlan()} disabled={uploading} data-testid="ql-plan-listing-go">
-                        {uploading ? "Reading the listing…" : "📐 Read the floorplan from this listing"}
-                      </button>
-                    )}
                     {uploadNote && <p className="wz-chint">{uploadNote}</p>}
                     {planFileCount > 0 && <p className="wz-chint" data-testid="ql-plan-done">The rooms come off your plan — the next screens ask what&rsquo;s painted and the condition.</p>}
                   </div>

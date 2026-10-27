@@ -30,7 +30,7 @@ export default async function AccountLoginPage({
   const phoneLine = phone ? (
     <p className="sub" style={{ marginTop: 14 }}>
       Rather talk to a person? Ring us on{" "}
-      <a href={`tel:${phone.replace(/\s+/g, "")}`} style={{ color: "var(--text)", fontWeight: 700 }}>{phone}</a>
+      <a href={`tel:${phone.replace(/\s+/g, "")}`} style={{ color: "var(--ink)", fontWeight: 700 }}>{phone}</a>
       {" "}— we&rsquo;re happy to help.
     </p>
   ) : null;
@@ -45,7 +45,7 @@ export default async function AccountLoginPage({
             <h1>Check your email</h1>
             <div className="card raised">
               <p className="sub">
-                We&rsquo;ve sent a sign-in link to <b style={{ color: "var(--text)" }}>{sent}</b>.
+                We&rsquo;ve sent a sign-in link to <b style={{ color: "var(--ink)" }}>{sent}</b>.
                 Tap the button in that email and you&rsquo;ll land straight in your account — nothing else to do.
               </p>
               <div className="hr" />
@@ -53,7 +53,7 @@ export default async function AccountLoginPage({
                 Or type the code shown in that email here. Handy if the link says it has already been used.
               </p>
               {error === "code" && (
-                <p className="sub" style={{ color: "var(--amber, #e0a83c)", marginTop: 8 }}>
+                <p className="sub" style={{ color: "var(--warn)", marginTop: 8 }}>
                   That code didn&rsquo;t match or has run out. Check the newest email, or ask for another link below.
                 </p>
               )}
@@ -98,28 +98,28 @@ export default async function AccountLoginPage({
             </p>
 
             {error === "email" && (
-              <div className="card" style={{ borderColor: "rgba(224,168,60,.5)" }}>
+              <div className="card" style={{ borderColor: "var(--warn)" }}>
                 <p className="sub">That doesn&rsquo;t look like an email address — have another go below.</p>
               </div>
             )}
             {error === "slow" && (
-              <div className="card" style={{ borderColor: "rgba(224,168,60,.5)" }}>
+              <div className="card" style={{ borderColor: "var(--warn)" }}>
                 <p className="sub">
                   We&rsquo;ve sent a few links already — give your inbox a minute to catch up.
-                  {phone ? <> If nothing arrives, ring us on <b style={{ color: "var(--text)" }}>{phone}</b>.</> : null}
+                  {phone ? <> If nothing arrives, ring us on <b style={{ color: "var(--ink)" }}>{phone}</b>.</> : null}
                 </p>
               </div>
             )}
             {error === "off" && (
-              <div className="card" style={{ borderColor: "rgba(224,168,60,.5)" }}>
+              <div className="card" style={{ borderColor: "var(--warn)" }}>
                 <p className="sub">
                   We couldn&rsquo;t send the email just now.
-                  {phone ? <> Please ring us on <b style={{ color: "var(--text)" }}>{phone}</b> and we&rsquo;ll sort you out straight away.</> : " Please try again shortly."}
+                  {phone ? <> Please ring us on <b style={{ color: "var(--ink)" }}>{phone}</b> and we&rsquo;ll sort you out straight away.</> : " Please try again shortly."}
                 </p>
               </div>
             )}
             {error === "link" && (
-              <div className="card" style={{ borderColor: "rgba(224,168,60,.5)" }}>
+              <div className="card" style={{ borderColor: "var(--warn)" }}>
                 <p className="sub">
                   That sign-in link has expired or was already used — they only last an hour.
                   Pop your email in below and we&rsquo;ll send a fresh one.
@@ -149,7 +149,7 @@ export default async function AccountLoginPage({
             {phoneLine}
             <p className="note" style={{ marginTop: 22 }}>
               Set up a password with us before?{" "}
-              <Link href="/login" style={{ color: "var(--cyan)" }}>Sign in with it here</Link>.
+              <Link href="/login" style={{ color: "var(--accent-ink)" }}>Sign in with it here</Link>.
             </p>
           </>
         )}
