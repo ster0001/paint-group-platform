@@ -82,6 +82,9 @@ export default function Reveal({
   /** A signed-in member already gave us this — don't ask again. */
   prefillEmail?: string;
 }) {
+  // Tom, 27 Oct 2026: the Paint Home over-the-ceiling hand-off offers no door into the editor.
+  const handoffLocked = brand === "painthome" && paintHome?.tier === "visit";
+
   const [openAssumed, setOpenAssumed] = useState(false);
   const [keepOpen, setKeepOpen] = useState(false);
   const [email, setEmail] = useState(prefillEmail ?? "");
@@ -210,9 +213,10 @@ export default function Reveal({
           </div>
         </section>
 
-        {brand === "painthome" && paintHome?.tier === "visit" ? (
+        {handoffLocked ? (
           // Paint Home brief §5: over the phone-close ceiling (or a job that needs seeing) — the polite
           // hand-off, every answer kept. The first and only place the wizard names Paint Group.
+          // Tom, 27 Oct 2026: NO way into the editor from here — no Tighten door, no "Change this", no dock button.
           <div className="wz-rv-doors wz-ph-handoff" data-testid="painthome-handoff">
             <p className="wz-kick">{PAINT_HOME_WORDS.handoff.kicker}</p>
             <h2 className="wz-doors-head">{PAINT_HOME_WORDS.handoff.heading}</h2>
@@ -220,13 +224,6 @@ export default function Reveal({
             <p className="wz-sub" data-testid="painthome-handoff-team">{PAINT_HOME_WORDS.handoff.team}</p>
             <div className="wz-doors">
               <Door testId="door-book" icon="📍" title={PAINT_HOME_WORDS.handoff.button} onClick={onBook} body="Choose a time for us to see the property. About 40 minutes." hero />
-              {/* Tom, 27 Oct 2026: the hand-off still lets the customer tighten — tick every room or side and the range closes before anyone visits. */}
-              {exteriorOnly && outside?.v2 && walkChecked ? (
-                <Door testId="door-tighten" icon="✎" title="Change a side" onClick={onTighten} body="Go back round the house and adjust anything." />
-              ) : (
-                <Door testId="door-tighten" icon="◫" title="Tighten my price" onClick={onTighten}
-                  body={exteriorOnly && outside?.v2 ? "Side by side, a few minutes — confirm each side's size and the paintwork, and the range closes." : `Get a more accurate range now. A few minutes, ${how}.`} />
-              )}
               {onMessage && <Door testId="door-message" icon="✉" title="Send us a message" onClick={onMessage} body="Ask a question about your estimate" />}
             </div>
           </div>
@@ -372,7 +369,7 @@ export default function Reveal({
                     <span className="wz-assumed-open" data-testid={`reveal-open-${a.key}`}>Still open — answering it narrows the range</span>
                   )}
                   {/* C10: each line deep-links to the card that changes it. */}
-                  {a.rung && (
+                  {a.rung && !handoffLocked && (
                     <a className="wz-linkish" href={`/estimate/scope?id=${estimateId}#${a.rung}`} data-testid={`reveal-assumed-link-${a.key}`}>Change this</a>
                   )}
                 </li>
@@ -402,7 +399,7 @@ export default function Reveal({
 
       {/* Phone: the one thing to do next stays in reach while they read (a second way in, not a second door). */}
       <div className="wz-rv-dock">
-        <button type="button" className="wz-btn wz-bp wz-bpaint" onClick={onTighten} data-testid="reveal-dock-tighten">Tighten my price</button>
+        {!handoffLocked && <button type="button" className="wz-btn wz-bp wz-bpaint" onClick={onTighten} data-testid="reveal-dock-tighten">Tighten my price</button>}
       </div>
     </div>
   );

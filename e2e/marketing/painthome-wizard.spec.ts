@@ -130,8 +130,10 @@ test.describe("Paint Home — the wizard brand branch (session 3)", () => {
     await expect(handoff).toBeVisible();
     await expect(handoff).toContainText("This one's bigger than we can price from your phone.");
     await expect(page.getByTestId("painthome-handoff-team")).toContainText("You'll hear from the Paint Group team");
-    // Tom, 27 Oct 2026: the hand-off still offers Tighten my price
-    await expect(handoff.getByTestId("door-tighten")).toBeVisible();
+    // Tom, 27 Oct 2026: the hand-off offers NO way into the editor — no Tighten door, no Change-this links, no dock button
+    await expect(handoff.getByTestId("door-tighten")).toHaveCount(0);
+    await expect(page.locator("[data-testid^='reveal-assumed-link-']")).toHaveCount(0);
+    await expect(page.getByTestId("reveal-dock-tighten")).toHaveCount(0);
     await expect(page.getByTestId("door-call")).toHaveCount(0);
     // the answers are kept: the estimate exists with its range, and the basis line reads them back
     await expect(page.getByTestId("reveal-restatement")).toContainText(/bed|room|storey|house/i);
