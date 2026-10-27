@@ -25,9 +25,9 @@ verified_at_commit: 61a5b3a953
 ## Customers
 1. Use the **stage strip** to see money by job stage (Offered through Closed). Press a stage to show only those jobs; press it again to show them all.
 2. Choose a view:
-   - **To chase** (the default): overdue first, then deposits not in, then what is due. Jobs with nothing to collect are counted underneath.
+   - **To chase**: overdue first, then deposits not in, then what is due. Jobs with nothing to collect are counted underneath.
    - **By job stage**: a board, one column per stage.
-   - **All jobs**: a table with Deposit, Progress and Final for every job, and the filters **All · Overdue · Deposit not in · Final unpaid · Paid in full**. Paid jobs only show under **Show paid jobs** or **Paid in full**.
+   - **All jobs** (the default since 27 Oct 2026): a table with Deposit, Progress and Final for every job, and the filters **All · Overdue · Deposit not in · Final unpaid · Paid in full**. Paid jobs only show under **Show paid jobs** or **Paid in full**.
 3. Search by address, customer name or **invoice number** (INV-0049 finds its job).
 4. Under the list, **Aged receivables** splits the money on sent invoices by days overdue: not overdue, 1–7, 8–14, 15–30, over 30.
 
@@ -36,7 +36,7 @@ verified_at_commit: 61a5b3a953
 - **Record a payment** opens the payment sheet: Bank, Cash or Other, the amount, and the date it arrived (never in the future).
   - **Cash** against an invoice you have not sent: the invoice is not sent to the customer; the payment is still recorded against the job.
   - **Send notification of payment**: on means the customer gets an email confirming the cash; off means nothing is sent.
-- **Send** (a draft) asks for the due date first. A deposit due on or after the start date is flagged. The due date can be changed any time before sending.
+- **Send** (a draft) asks for the **Invoice date** and the **Due date** first. The invoice date is today unless you change it; it can be any earlier day (work billed after the fact) but never a later one. The due date can be any day, including one already past — the invoice is then overdue from midday the day after it. A deposit due on or after the start date is flagged. Both can be changed any time before sending.
 - **Adjust** (a deposit) offers 10%, 20%, 30%, 50% or a dollar amount, and shows what that leaves for later.
 - **Message** opens the customer's chat in the bottom-left corner with a message already written for you: a deposit reminder, a friendly reminder, an overdue note or a thank-you, with the pay link. Edit it if you like. Nothing goes until you press **Send**: the customer gets the whole message by email and a text with a link to the chat. The job then says "messaged today".
 

@@ -72,7 +72,8 @@ const WORDING: Record<string, string> = {
   stripe_refund_only: "A card payment is reversed by a refund in Stripe, not here.",
   receipt_sent: "The receipt has already gone to the customer, so this can't be undone here — record a correction instead.",
   undo_expired: "It's too late to undo that payment here.",
-  due_in_past: "Pick a due date from today on.",
+  no_due: "Pick a due date.",
+  issued_in_future: "The invoice date can be today or earlier, not later.",
   deposit_only: "Only a deposit can be changed this way.",
   not_changeable: "Only a sent, unpaid deposit can be changed.",
   has_payments: "Money has already been paid on it — it can't be changed now.",
@@ -272,14 +273,17 @@ export async function undoPaymentAction(raw: unknown): Promise<InvoicingResult> 
     { estimateId: p.data.estimateId }, "Undone — that payment no longer counts.");
 }
 
-/** Send a draft with the due date chosen in the confirm (R13: editable until now, locked after). */
+/** Send a draft with the dates chosen in the confirm (R13: editable until now, locked after).
+ * Tom, 27 Oct: both may sit before today — work billed after the fact carries its real
+ * date; the invoice date defaults to today on the server and is never after it. */
 export async function sendWithDueAction(raw: unknown): Promise<InvoicingResult> {
-  const p = invoiceRef.extend({ dueOn: z.string().regex(/^\d{4}-\d{2}-\d{2}$/) }).merge(sendOptions.partial()).safeParse(raw);
+  const day = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
+  const p = invoiceRef.extend({ dueOn: day, issuedOn: day.optional() }).merge(sendOptions.partial()).safeParse(raw);
   if (!p.success) return { ok: false, message: "Pick a due date and try again." };
   const ref = { estimateId: p.data.estimateId, invoiceId: p.data.invoiceId };
   const due = await call("invoice_set_draft_due", { p_invoice_id: p.data.invoiceId, p_due_on: p.data.dueOn }, ref);
   if (!due.ok) return due;
-  const issued = await call("invoice_issue", { p_invoice_id: p.data.invoiceId }, ref);
+  const issued = await call("invoice_issue", { p_invoice_id: p.data.invoiceId, p_issued_on: p.data.issuedOn ?? null }, ref);
   if (!issued.ok) return issued;
   return finishSend(p.data.invoiceId, p.data.estimateId, "Sent", p.data.message ?? "", p.data.via ?? "email");
 }

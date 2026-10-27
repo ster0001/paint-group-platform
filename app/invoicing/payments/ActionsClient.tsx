@@ -418,6 +418,9 @@ function SendSheet({ spec, onClose, onDone }: { spec: ActionSpec; onClose: () =>
   const ui = useUi();
   const p = spec.primary.kind === "send" ? spec.primary : null;
   const [due, setDue] = useState(p?.suggestedDueOn ?? ui.settings.today);
+  // Tom, 27 Oct: the invoice date is the day the work was billed — today unless changed,
+  // any earlier day allowed, never a later one. The due date may be earlier than today too.
+  const [issuedOn, setIssuedOn] = useState(ui.settings.today);
   const [err, setErr] = useState("");
   const [sending, setSending] = useState(false);
   if (!p) return null;
@@ -426,7 +429,7 @@ function SendSheet({ spec, onClose, onDone }: { spec: ActionSpec; onClose: () =>
   const send = () => {
     setSending(true);
     void (async () => {
-      const r = await sendWithDueAction({ invoiceId: p.invoiceId, estimateId: spec.estimateId, dueOn: due });
+      const r = await sendWithDueAction({ invoiceId: p.invoiceId, estimateId: spec.estimateId, dueOn: due, issuedOn });
       setSending(false);
       if (!r.ok) { setErr(r.message ?? "That didn't send."); return; }
       onClose();
@@ -439,7 +442,8 @@ function SendSheet({ spec, onClose, onDone }: { spec: ActionSpec; onClose: () =>
         <h3 id="sendT">Send {p.kindName.toLowerCase()} invoice</h3>
         <div className="who">{spec.address} · to {spec.customer}</div>
         {p.isDeposit && spec.depositDraft ? <DepositAdjust spec={spec} inSheet /> : <div className="adj"><p style={{ margin: 0 }}>{p.kindName} invoice <b>{fmt2(p.balanceCents)}</b></p></div>}
-        <div className="field"><label htmlFor="sDue">Due date</label><input id="sDue" type="date" value={due} min={ui.settings.today} onChange={(e) => setDue(e.target.value)} /></div>
+        <div className="field"><label htmlFor="sIssued">Invoice date</label><input id="sIssued" type="date" value={issuedOn} max={ui.settings.today} onChange={(e) => setIssuedOn(e.target.value)} /></div>
+        <div className="field"><label htmlFor="sDue">Due date</label><input id="sDue" type="date" value={due} onChange={(e) => setDue(e.target.value)} /></div>
         <div className={`hint${late ? " warn" : ""}`}>{late ? `${spec.startText}, so this due date falls on or after the start.` : `Emails the invoice and pay link to ${spec.first}. The due date locks once sent.`}</div>
         <div className="err">{err}</div>
         <button type="button" className="b pri wide" disabled={sending || ui.busy} onClick={send}>Send {fmt2(p.balanceCents)} invoice to {spec.first}</button>

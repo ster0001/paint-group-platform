@@ -72,10 +72,15 @@ test.describe("Payments page — the Customers block", () => {
     await expect(page.getByTestId("pm-headline")).toContainText(/no deposit in|Nothing is overdue|overdue/, { timeout: 30_000 });
     await expect(page.getByTestId("pm-ledger").getByRole("link")).toHaveCount(4);
     await expect(page.getByTestId("pm-strip").getByRole("link")).toHaveCount(7);
-    // Overdue is the first section whenever anything is overdue — and ours is.
+    // Tom, 27 Oct: the bare page opens on All jobs (the table), not To chase.
+    await expect(page.locator(".pm .views a.on").locator("visible=true")).toHaveText("All jobs");
+    await expect(page.locator(".pm .tr.head")).toBeVisible();
+    // Overdue is the first To chase section whenever anything is overdue — and ours is.
+    await page.goto(`${PAGE}?view=chase`);
+    await expect(page.locator(".pm .views a.on").locator("visible=true")).toHaveText("To chase");
     await expect(page.locator(".pm .sec h2").first()).toHaveText("Overdue");
 
-    await page.goto(`${PAGE}?q=${stamp}`);
+    await page.goto(`${PAGE}?view=chase&q=${stamp}`);
     const cards = page.locator(".pm .job");
     await expect(cards).toHaveCount(2);
     await expect(cards.nth(0)).toContainText(`${stamp} Overdue St`);
@@ -100,7 +105,7 @@ test.describe("Payments page — the Customers block", () => {
     await expect(inProgress.locator(".mini").first()).toContainText(`${stamp} Overdue St`);
 
     // The stage cell filters, as a link that can be shared.
-    await page.goto(`${PAGE}?q=${stamp}`);
+    await page.goto(`${PAGE}?view=chase&q=${stamp}`);
     await page.getByTestId("pm-strip").getByRole("link", { name: /Closed/ }).click();
     await expect(page).toHaveURL(/stage=closed/);
     await expect(page.locator(".pm .job")).toHaveCount(0);
@@ -108,7 +113,7 @@ test.describe("Payments page — the Customers block", () => {
 
   test("search is a query param and narrows every view", async ({ page }) => {
     await signIn(page, staff!, /\/(home|estimates)/);
-    await page.goto(PAGE);
+    await page.goto(`${PAGE}?view=chase`);
     await page.getByLabel("Search address, customer or invoice number").fill(`${stamp} Deposit`);
     await expect(page).toHaveURL(new RegExp(`q=${stamp}`), { timeout: 15_000 });
     await expect(page.locator(".pm .job")).toHaveCount(1);
@@ -126,7 +131,7 @@ test.describe("Payments page — the Customers block", () => {
     }
 
     await signIn(page, staff!, /\/(home|estimates)/);
-    await page.goto(`${PAGE}?q=${encodeURIComponent(p.number)}`);
+    await page.goto(`${PAGE}?view=chase&q=${encodeURIComponent(p.number)}`);
     await expect(page.locator(".pm .job")).toHaveCount(1, { timeout: 30_000 });
     await expect(page.locator(".pm .job")).toContainText(`${stamp} Overdue St`);
 

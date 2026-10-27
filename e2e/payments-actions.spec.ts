@@ -85,7 +85,7 @@ test.describe("Payments quick actions — as staff", () => {
     const [inv] = await invoicesOf(j);
     const staffId = await userIdFor(staff!);
     await signIn(page, staff!, /\/(home|estimates)/);
-    await page.goto(`${PAGE}?q=${encodeURIComponent(j.address)}`);
+    await page.goto(`${PAGE}?view=chase&q=${encodeURIComponent(j.address)}`);
 
     await card(page, j).getByRole("button", { name: "One-click paid $2,000.00" }).click();
     const toast = page.getByTestId("pm-toast");
@@ -135,7 +135,7 @@ test.describe("Payments quick actions — as staff", () => {
     const j = await job("Cashjob", { contractCents: 200_000, stage: "pre_start", startDate: isoDay(12), invoices: [{ kind: "deposit", status: "draft", total: 100_000, due: null }] });
     const [inv] = await invoicesOf(j);
     await signIn(page, staff!, /\/(home|estimates)/);
-    await page.goto(`${PAGE}?q=${encodeURIComponent(j.address)}`);
+    await page.goto(`${PAGE}?view=chase&q=${encodeURIComponent(j.address)}`);
     await card(page, j).getByRole("button", { name: "Already paid" }).click();
     const sheet = page.getByRole("dialog", { name: "Record a payment" });
     await sheet.getByRole("button", { name: "Cash" }).click();
@@ -167,7 +167,7 @@ test.describe("Payments quick actions — as staff", () => {
     const j = await job("Sendjob", { contractCents: 300_000, stage: "pre_start", startDate: start, invoices: [{ kind: "deposit", status: "draft", total: 150_000, due: null }] });
     const [inv] = await invoicesOf(j);
     await signIn(page, staff!, /\/(home|estimates)/);
-    await page.goto(`${PAGE}?q=${encodeURIComponent(j.address)}`);
+    await page.goto(`${PAGE}?view=chase&q=${encodeURIComponent(j.address)}`);
     await card(page, j).getByRole("button", { name: /^Send deposit/ }).click();
     const sheet = page.getByRole("dialog", { name: "Send deposit invoice" });
     const due = sheet.getByLabel("Due date");
@@ -185,10 +185,38 @@ test.describe("Payments quick actions — as staff", () => {
     expect((await invoicesOf(j))[0].due_on).toBe(isoDay(2));
   });
 
+  test("send can carry an invoice date and a due date before today (Tom, 27 Oct)", async ({ page }) => {
+    const j = await job("Backdate", { contractCents: 200_000, stage: "pre_start", startDate: isoDay(20), invoices: [{ kind: "deposit", status: "draft", total: 100_000, due: null }] });
+    const [inv] = await invoicesOf(j);
+    await signIn(page, staff!, /\/(home|estimates)/);
+    await page.goto(`${PAGE}?view=chase&q=${encodeURIComponent(j.address)}`);
+    await card(page, j).getByRole("button", { name: /^Send deposit/ }).click();
+    const sheet = page.getByRole("dialog", { name: "Send deposit invoice" });
+    const issued = sheet.getByLabel("Invoice date");
+    await expect(issued).toHaveValue(isoDay(0));                 // today unless changed
+    await issued.fill(isoDay(-6));
+    await sheet.getByLabel("Due date").fill(isoDay(-2));          // no floor any more
+    await sheet.getByRole("button", { name: /^Send \$1,000\.00 invoice to Backdate/ }).click();
+    await expect(sheet).toBeHidden({ timeout: 30_000 });
+
+    const { data: after, error } = await db!.from("invoices").select("number, status, issued_on, due_on").eq("id", inv.id).single();
+    expect(error).toBeNull();
+    expect(after).toMatchObject({ status: "issued", issued_on: isoDay(-6), due_on: isoDay(-2) });
+    expect((after as { number: string }).number).toMatch(/^INV-/);
+    const issuedEvent = (await eventsOf(inv.id)).find((e) => e.type === "issued");
+    expect(issuedEvent?.meta).toMatchObject({ issued_on: isoDay(-6), due_on: isoDay(-2) });
+    // The server, not the picker, refuses a future invoice date; a draft due date may be any day.
+    const j2 = await job("Future", { contractCents: 200_000, stage: "pre_start", startDate: isoDay(20), invoices: [{ kind: "deposit", status: "draft", total: 100_000, due: null }] });
+    const [d2] = await invoicesOf(j2);
+    expect(await rpcAs(staff!, "invoice_set_draft_due", { p_invoice_id: d2.id, p_due_on: isoDay(-30) })).toBe("ok:due_set");
+    expect(await rpcAs(staff!, "invoice_issue", { p_invoice_id: d2.id, p_issued_on: isoDay(1) })).toBe("error:issued_in_future");
+    expect((await invoicesOf(j2))[0].status).toBe("draft");
+  });
+
   test("the deposit percentage is computed by the server", async ({ page }) => {
     const j = await job("Depadj", { contractCents: 1_573_079, stage: "pre_start", startDate: isoDay(20), invoices: [{ kind: "deposit", status: "draft", total: 786_540, due: null }] });
     await signIn(page, staff!, /\/(home|estimates)/);
-    await page.goto(`${PAGE}?q=${encodeURIComponent(j.address)}`);
+    await page.goto(`${PAGE}?view=chase&q=${encodeURIComponent(j.address)}`);
     await card(page, j).getByRole("button", { name: "change" }).click();
     await card(page, j).getByRole("button", { name: "30%" }).click();
     await expect(card(page, j)).toContainText("$4,719.24", { timeout: 20_000 });
@@ -220,7 +248,7 @@ test.describe("Payments quick actions — as staff", () => {
   test("create deposit invoice on a booked job with none", async ({ page }) => {
     const j = await job("Noinv", { contractCents: 600_000, stage: "pre_start", startDate: isoDay(20), invoices: [] });
     await signIn(page, staff!, /\/(home|estimates)/);
-    await page.goto(`${PAGE}?q=${encodeURIComponent(j.address)}`);
+    await page.goto(`${PAGE}?view=chase&q=${encodeURIComponent(j.address)}`);
     await card(page, j).getByRole("button", { name: "Create deposit invoice" }).click();
     await expect(page.getByTestId("pm-toast")).toContainText("Deposit invoice drafted.");
     const all = await invoicesOf(j);
