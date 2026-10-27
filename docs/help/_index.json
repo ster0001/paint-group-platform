@@ -371,6 +371,7 @@
         "app/estimate/page.tsx",
         "app/wizard/WizardApp.tsx",
         "app/wizard/QuickLook.tsx",
+        "app/wizard/MobileQuickLook.tsx",
         "app/wizard/PictureCard.tsx",
         "app/wizard/Reveal.tsx",
         "app/estimate/scope/ScopeEditor.tsx",

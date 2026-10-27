@@ -88,8 +88,14 @@ export default function QuickLook({
   step, quick, onQuick, outside, onOutside, addressField, needsWork, error, canContinue, whyNot = null, busy, onBack, onNext,
   onBook, onMessage, onChooseBoth, phone, commercial = null, assumed = [], planUpload = null, gate = null,
   planRooms = null, planPreviewUrl = null, planPending = false, addedRooms = [], onAddRoom = () => undefined, onRemoveAdded = () => undefined,
-  steps = [], address = "", suburb = null, estimatorName = null, onGo = () => undefined, exteriorTypicals = [], brand = "paintgroup",
+  steps = [], address = "", suburb = null, estimatorName = null, onGo = () => undefined, exteriorTypicals = [], brand = "paintgroup", shell = "page",
 }: {
+  /**
+   * Wizard mobile v5 (S2): inside the phone's shell (`MobileQuickLook`) a step this file renders as it is
+   * keeps its question and its picture, but the shell owns the Continue bar, the "why not" line and Contact —
+   * so no nav, no talk card and no "Your job so far" are drawn here. `page` is the desktop, unchanged.
+   */
+  shell?: "page" | "mobile";
   /** Paint Home brief §5: Paint Home offers no commercial kind and no "both" — the cards are not rendered (lib/wizard/brand.ts). */
   brand?: WizardBrand;
   /** Exterior wizard v2 (S2): the shape typicals for the home step and the drawn house. */
@@ -747,8 +753,8 @@ export default function QuickLook({
       {/* UI refresh S1: Back and Continue sit INSIDE the column on a laptop and
           become a fixed bar on a phone. Continue is never silently unavailable —
           the reason is said in one line above it. */}
-      {whyNot && (!canContinue || busy) && <p className="wz-why" data-testid="ql-why" role="status">{whyNot}</p>}
-      <div className="wz-nav wz-nav--col">
+      {shell === "page" && whyNot && (!canContinue || busy) && <p className="wz-why" data-testid="ql-why" role="status">{whyNot}</p>}
+      {shell === "page" && <div className="wz-nav wz-nav--col">
         {onBack && (
           <button type="button" className="wz-btn wz-btxt" onClick={onBack} data-testid="ql-back">Back</button>
         )}
@@ -767,7 +773,7 @@ export default function QuickLook({
             <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4 10h12M11 5l5 5-5 5" /></svg>
           </button>
         )}
-      </div>
+      </div>}
     </div>
     {/* The picture column (brief §7.2): the live picture, "Your job so far", and
         "Talk it through" (addendum A, R3 — on every step before the range). On a
@@ -779,11 +785,11 @@ export default function QuickLook({
         sideAt={sideAt} onSide={setSideAt}
         segmentName={commercial?.segment?.name ?? null}
         com={commercial ? { segment: commercial.segment, answers: commercial.answers, segmentKey: commercial.segmentKey } : null} />
-      <JobSoFar steps={steps} at={step} quick={quick} outside={outside} address={address} roomCount={roomCount}
+      {shell === "page" && <JobSoFar steps={steps} at={step} quick={quick} outside={outside} address={address} roomCount={roomCount}
         segmentName={commercial?.segment?.name ?? null}
         areaCount={commercial?.answers ? Object.values(commercial.answers.counts).reduce((a, n) => a + n, 0) : 0}
-        briefCount={commercial?.brief?.what.length ?? 0} onGo={onGo} />
-      <TalkCard estimatorName={estimatorName} phone={phone} onBook={onBook} onMessage={onMessage} brand={brand} />
+        briefCount={commercial?.brief?.what.length ?? 0} onGo={onGo} />}
+      {shell === "page" && <TalkCard estimatorName={estimatorName} phone={phone} onBook={onBook} onMessage={onMessage} brand={brand} />}
     </aside>
     </div>
   );
@@ -854,7 +860,8 @@ function Cards<T extends string>({ options, value, onPick, name, pics = false, c
   );
 }
 
-function AddRoomInline({ onAdd }: { onAdd: (room: { name: string; roomType: string }) => void }) {
+/** Wizard mobile v5 (S2): shared with the phone's rooms screen, whose chip reads "+ Another room" (brief §2.3). */
+export function AddRoomInline({ onAdd, label = "+ Add a room" }: { onAdd: (room: { name: string; roomType: string }) => void; label?: string }) {
   const [open, setOpen] = useState(false);
   const [type, setType] = useState<string | null>(null);
   const [name, setName] = useState("");
@@ -871,7 +878,7 @@ function AddRoomInline({ onAdd }: { onAdd: (room: { name: string; roomType: stri
   return (
     <div className="wz-addroom" data-testid="ql-add-room">
       {!open ? (
-        <button type="button" className="wz-tile" data-testid="ql-add-room-open" onClick={() => setOpen(true)}>+ Add a room</button>
+        <button type="button" className="wz-tile" data-testid="ql-add-room-open" onClick={() => setOpen(true)}>{label}</button>
       ) : (
         <>
           <div className="wz-addroom-row">

@@ -1,0 +1,208 @@
+import {
+  changingForScope, exclusionOptions, visibleChanging,
+  type InteriorExcludable, type QuickLook, type QuickLookStep, type ScopePreset,
+} from "./quick-look";
+
+/**
+ * Wizard mobile v5, session 2 (brief §2) — the phone's screens, as data.
+ *
+ * On a phone (`< 768px`) the customer answers ONE question per screen (R7).
+ * The quick look's steps (`stepsFor`, lib/wizard/quick-look.ts) stay the
+ * one order of record — autosave, resume, the server's gate and every
+ * validation run on them — and this module only says how each step is
+ * SPLIT on a phone: the place step becomes "What kind of place is it?",
+ * "How many bedrooms?" and "One storey or two?"; the job step becomes
+ * "What's the job?" and "What's being painted?"; the condition step
+ * carries "Colours?", "How are the walls looking?" and "Anyone living
+ * there?". A step this module does not split (the "both" doors, the
+ * commercial screens, the exterior v2 steps — their order is the exterior
+ * brief's, §2.4) is one screen with a Continue bar, rendered as it is.
+ *
+ * The answers themselves are the quick look's (`QuickLook`), untouched:
+ * the data model is unchanged (§2.6). Nothing here renders or prices.
+ */
+export const MOBILE_SCREEN_IDS = ["what", "property", "beds", "storeys", "job", "surfaces", "rooms", "colours", "condition", "living", "details"] as const;
+export type MobileScreenId = (typeof MOBILE_SCREEN_IDS)[number];
+
+export type MobileScreen = {
+  /** One of the eleven, or the quick-look step's own name for a screen rendered as it is. */
+  id: MobileScreenId | QuickLookStep;
+  /** The quick-look step this screen belongs to (its validation and its autosave tag). */
+  step: QuickLookStep;
+  /** `auto`: a single choice that advances itself ~250ms after the tap; `bar`: a Continue (or Show my range) bar. */
+  advance: "auto" | "bar";
+  heading: string | null;
+  sub: string | null;
+};
+
+/** Brief §2 — the words, one heading and at most one grey line (R8). */
+const WORDS: Record<MobileScreenId, { heading: string; sub: string }> = {
+  what: { heading: "What are we painting?", sub: "Your range in under a minute." },
+  property: { heading: "What kind of place is it?", sub: "Near enough is fine." },
+  beds: { heading: "How many bedrooms?", sub: "This builds your room list for you." },
+  storeys: { heading: "One storey or two?", sub: "Two adds the stairwell and upper hall." },
+  job: { heading: "What's the job?", sub: "Coats and preparation come from this." },
+  surfaces: { heading: "What's being painted?", sub: "Tap a surface and watch it paint in." },
+  rooms: { heading: "We're painting these rooms", sub: "We've guessed from the bedrooms. Untick any, add any." },
+  colours: { heading: "Colours?", sub: "Still deciding is fine." },
+  condition: { heading: "How are the walls looking?", sub: "Honest is best — it sets the prep." },
+  living: { heading: "Anyone living there while we paint?", sub: "We work room by room and pack down each day." },
+  details: { heading: "Where shall we send your range?", sub: "It shows on the next screen. We text you the link so you can come back to it." },
+};
+
+const screen = (id: MobileScreenId, step: QuickLookStep, advance: MobileScreen["advance"], heading = WORDS[id].heading): MobileScreen =>
+  ({ id, step, advance, heading, sub: WORDS[id].sub });
+
+/**
+ * The phone's screens for these answers, in order — one list, derived from
+ * the step list it splits, so the two can never disagree on what comes next.
+ *
+ * Skip rules (§2): storeys is skipped for a unit or apartment; an outside
+ * job has no bedrooms or storeys here (the exterior brief asks them its own
+ * way) and no job or rooms screens — its steps follow the place screen as
+ * they are. A commercial place keeps its own screens.
+ */
+export function mobileScreensFor(steps: readonly QuickLookStep[], quick: QuickLook): MobileScreen[] {
+  const out: MobileScreen[] = [];
+  const interior = quick.jobType !== "exterior";
+  for (const step of steps) {
+    switch (step) {
+      case "start":
+        out.push(screen("what", step, "auto"));
+        break;
+      case "place":
+        out.push(screen("property", step, "auto"));
+        if (interior && quick.propertyKind !== "commercial") {
+          out.push(screen("beds", step, "auto"));
+          if (quick.propertyKind !== "unit_apartment") out.push(screen("storeys", step, "auto"));
+        }
+        break;
+      case "job":
+        out.push(screen("job", step, "auto"));
+        // "Walls and ceilings only" (a desktop preset) offers nothing to untick — no screen for it.
+        if (exclusionOptions(quick.scope).length > 0) out.push(screen("surfaces", step, "bar"));
+        break;
+      case "rooms":
+        out.push(screen("rooms", step, "bar", quick.scope === "some_rooms" ? "Which rooms?" : WORDS.rooms.heading));
+        break;
+      case "condition":
+        out.push(screen("colours", step, "auto"));
+        out.push(screen("condition", step, "auto"));
+        out.push(screen("living", step, "auto"));
+        break;
+      case "gate":
+        out.push(screen("details", step, "bar"));
+        break;
+      default:
+        out.push({ id: step, step, advance: step === "both" ? "auto" : "bar", heading: null, sub: null });
+    }
+  }
+  return out;
+}
+
+/**
+ * §2.1 — the 3px bar: `index / (screens − 1) × 55%`, where the screens
+ * include the gate, so the gate itself sits at 55% and the quote stage
+ * continues to 100%. `total` is the number of QUESTION screens.
+ */
+export function mobileProgress(index: number, total: number): number {
+  if (total <= 0) return 0;
+  return Math.round((Math.max(0, Math.min(index, total)) / total) * 55);
+}
+
+/** §2 — the three colour answers, derived from (and written back to) the quick look's colour tiles. */
+export type ColourChoice = "new" | "same" | "deciding";
+export const COLOUR_CHOICES: Array<{ value: ColourChoice; label: string; hint: string }> = [
+  { value: "new", label: "New colours", hint: "A change — we allow for an undercoat" },
+  { value: "same", label: "Same colours", hint: "A fresh coat of what's there" },
+  { value: "deciding", label: "Still deciding", hint: "We'll allow for new colours" },
+];
+export function colourChoiceOf(q: Pick<QuickLook, "changing" | "undecided" | "scope" | "excluded">): ColourChoice {
+  if (q.undecided) return "deciding";
+  return visibleChanging(q.scope, q.excluded ?? []).some((k) => q.changing[k]) ? "new" : "same";
+}
+export function applyColourChoice(q: Pick<QuickLook, "scope" | "excluded">, choice: ColourChoice): Partial<QuickLook> {
+  const all = changingForScope(q.scope, q.excluded ?? []);
+  if (choice === "same") return { changing: { walls: false, ceilings: false, trims: false, windows: false }, undecided: false, bold: false, boldGroups: [] };
+  return { changing: all, undecided: choice === "deciding", bold: false, boldGroups: [] };
+}
+
+/** §2 — the three job answers a phone offers (the desktop's "Walls and ceilings only" is not one of them). */
+export const JOB_CHOICES: Array<{ value: ScopePreset; label: string; hint: string }> = [
+  { value: "whole", label: "The whole interior", hint: "Walls, ceilings, skirtings, doors, frames" },
+  { value: "some_rooms", label: "Some rooms", hint: "You pick which, next" },
+  { value: "trims_doors", label: "Doors, windows and trims", hint: "No walls or ceilings" },
+];
+/**
+ * §2.6 — picking a job pre-ticks its surfaces: "Doors, windows and trims"
+ * pre-ticks skirtings, doors and windows only (the architraves chip is
+ * offered unticked); "Some rooms" pre-ticks the first two rooms (§2.3).
+ */
+export function applyJobChoice(scope: ScopePreset, roomNames: readonly string[]): Partial<QuickLook> {
+  const excluded: InteriorExcludable[] = scope === "trims_doors" ? ["architraves"] : [];
+  return { scope, excluded, changing: changingForScope(scope, excluded), rooms: scope === "some_rooms" ? roomNames.slice(0, 2) : null };
+}
+
+/** §3.2 / §2.6 — the surface chips, in the order a person thinks about a room; ticked = painted (the state is still `excluded`). */
+const SURFACE_ORDER: InteriorExcludable[] = ["walls", "ceilings", "skirting", "doors", "windows", "architraves"];
+const SURFACE_LABEL: Record<InteriorExcludable, string> = {
+  walls: "Walls", ceilings: "Ceilings", skirting: "Skirtings", doors: "Doors", windows: "Window frames", architraves: "Architraves", cornices: "Cornices",
+};
+export function surfaceChips(q: Pick<QuickLook, "scope" | "excluded">): Array<{ key: InteriorExcludable; label: string; on: boolean }> {
+  const offered = exclusionOptions(q.scope).map((o) => o.value);
+  return SURFACE_ORDER.filter((k) => offered.includes(k)).map((key) => ({ key, label: SURFACE_LABEL[key], on: !(q.excluded ?? []).includes(key) }));
+}
+export function toggleSurface(q: Pick<QuickLook, "scope" | "excluded">, key: InteriorExcludable): Partial<QuickLook> {
+  const cur = q.excluded ?? [];
+  const excluded = cur.includes(key) ? cur.filter((k) => k !== key) : [...cur, key];
+  return { excluded, changing: changingForScope(q.scope, excluded) };
+}
+/** "N surfaces ticked" — what the strip will say (S3); here for the ribbon's count and the tests. */
+export function surfacesTicked(q: Pick<QuickLook, "scope" | "excluded">): number {
+  return surfaceChips(q).filter((c) => c.on).length;
+}
+
+/**
+ * §2.3 — the rooms screen: the generated list (Bed 1…N, Living room,
+ * Kitchen / Meals, Bathroom, Laundry, Hall & Entry; two storeys adds the
+ * landing and stairs — the starter list's own names, so the submit finds
+ * them), ticked unless unticked; then the extra chips offered unticked
+ * (Study, Ensuite, Garage), which become rooms added by hand.
+ */
+export const EXTRA_ROOMS: Array<{ name: string; roomType: string }> = [
+  { name: "Study", roomType: "study" }, { name: "Ensuite", roomType: "bathroom" }, { name: "Garage", roomType: "garage" },
+];
+export type RoomChip = { name: string; on: boolean; kind: "listed" | "extra" | "added"; index: number };
+export function roomChips(q: Pick<QuickLook, "rooms">, names: readonly string[], added: ReadonlyArray<{ name: string }>): RoomChip[] {
+  const out: RoomChip[] = names.map((name, index) => ({ name, on: !q.rooms || q.rooms.includes(name), kind: "listed", index }));
+  const addedNames = added.map((r) => r.name);
+  for (const extra of EXTRA_ROOMS) {
+    if (names.includes(extra.name)) continue;
+    const at = addedNames.indexOf(extra.name);
+    out.push({ name: extra.name, on: at >= 0, kind: "extra", index: at });
+  }
+  added.forEach((r, index) => { if (!EXTRA_ROOMS.some((e) => e.name === r.name)) out.push({ name: r.name, on: true, kind: "added", index }); });
+  return out;
+}
+/** Tick or untick a listed room — `null` once every listed room is on again (the quick look's "all of them"). */
+export function toggleListedRoom(q: Pick<QuickLook, "rooms">, names: readonly string[], name: string): Partial<QuickLook> {
+  const cur = q.rooms ?? [...names];
+  const next = cur.includes(name) ? cur.filter((n) => n !== name) : [...cur, name];
+  return { rooms: next.length === names.length && names.every((n) => next.includes(n)) ? null : next };
+}
+export function roomsTicked(q: Pick<QuickLook, "rooms">, names: readonly string[], added: ReadonlyArray<{ name: string }>): number {
+  return roomChips(q, names, added).filter((c) => c.on).length;
+}
+
+/**
+ * §2 — the details screen's button. The brief enables it on a name and a
+ * 10-digit mobile; the server's gate (`/api/wizard/submit`, `gate_required`)
+ * still asks for an email too, so until that rule changes the email is
+ * required here as well — ⚑ flagged for Tom in the S2 ledger row.
+ */
+export function detailsReady(c: { name: string; email: string; phone: string }): boolean {
+  return c.name.trim().length >= 2 && c.phone.replace(/\D/g, "").length >= 10 && /.+@.+\..+/.test(c.email.trim());
+}
+
+/** Where the phone's screen id is kept between reloads, beside the resume record. */
+export const MOBILE_SCREEN_KEY = "pg-wizard-mobile-screen-v1";
