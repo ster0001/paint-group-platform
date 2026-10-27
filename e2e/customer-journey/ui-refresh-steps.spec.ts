@@ -618,7 +618,7 @@ test.describe("UI refresh S5 · home outside", () => {
     await expect(page.getByTestId("ql-talk")).toHaveCount(0);
     await expect(page.getByTestId("wzm-contact")).toBeVisible();
     const bar = (await page.getByTestId("wzm-foot").boundingBox())!;
-    expect(Math.round(bar.y + bar.height), "the bar sits on the bottom edge").toBe(844);
+    expect(Math.round(bar.y + bar.height), "the bar sits on the bottom edge").toBe(page.viewportSize()!.height);
     await lookAtEverySide(page);
     await quickNext(page);
     await passGateIfShown(page);
