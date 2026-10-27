@@ -1256,6 +1256,8 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
                             {z}
                           </button>
                         ))}
+                        {/* Tom, 27 Oct 2026: the size words, as the sides editor has them — they had gone missing from the rooms. */}
+                        <em className="sd-whint" data-testid={`room-win-hint-${w.id}`}>Small is under 50 × 50 cm · Medium 50 cm to 1.5 m · Large over 1.5 m</em>
                       </span>
                     </div>
                   ))}
