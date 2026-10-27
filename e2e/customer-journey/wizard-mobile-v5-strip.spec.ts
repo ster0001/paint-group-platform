@@ -131,10 +131,10 @@ test.describe("Wizard mobile v5 — the live strip, thumbnail and roller (sessio
     });
     await open(page);
     await toSurfaces(page);
-    // everything ticked: every painted layer is fully in
+    // everything ticked: on arrival the painted layers sweep in (unpainted before this screen, §3.5), then sit fully in
     for (const k of ["walls", "ceilings", "skirting", "doors", "windows"]) {
       await expect(thumb(page).locator(`[data-surf='${k}']`)).toHaveAttribute("data-on", "true");
-      expect(await rectWidth(page, "wzm-thumb", k)).toBe(200);
+      await expect.poll(() => rectWidth(page, "wzm-thumb", k), { timeout: 3_000 }).toBe(200);
     }
     await page.getByTestId("ql-surface-ceilings").tap();
     await expect(page.getByTestId("wzm-sheet")).toHaveCount(0);
