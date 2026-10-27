@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import WhatWeDo from "./WhatWeDo";
 import EstimatorStrip from "./EstimatorStrip";
 import { UI_FLAGS } from "@/lib/wizard/ui-flags";
@@ -11,6 +11,7 @@ import { DEFAULT_BANDS } from "@/lib/wizard/policy";
 import type { CustomerPayload } from "@/lib/wizard/view";
 import ExteriorRangeRows, { notInThisNumber } from "./ExteriorRangeRows";
 import { PAINT_HOME_WORDS, type WizardBrand } from "@/lib/wizard/brand";
+import { breakpointNow, sendWizardEvent } from "@/lib/wizard/wizardEvents";
 
 /**
  * THE GUIDE RANGE — estimator journey v2 §3, "the screen the redesign exists
@@ -85,6 +86,18 @@ export default function Reveal({
   // Tom, 27 Oct 2026: the Paint Home over-the-ceiling hand-off offers no door into the editor.
   const handoffLocked = brand === "painthome" && paintHome?.tier === "visit";
 
+  // Wizard mobile v5 §8: the gate writes `gate_viewed` once it is on screen (the route dedupes per
+  // session) and every door writes which it was — in ONE place, before the door does its job.
+  useEffect(() => {
+    sendWizardEvent("gate_viewed", { range_low: payload.rangeLoCents, range_high: payload.rangeHiCents, bigger_job: handoffLocked, breakpoint: breakpointNow() });
+  }, [estimateId, payload.rangeLoCents, payload.rangeHiCents, handoffLocked]);
+  const fire = (cta: "exact" | "visit" | "call" | "message" | "save") => sendWizardEvent("gate_cta_clicked", { cta, breakpoint: breakpointNow() });
+  const tighten = () => { fire("exact"); onTighten(); };
+  const editor = () => { fire("exact"); onEditor?.(); };
+  const book = () => { fire("visit"); onBook(); };
+  const speak = () => { fire("call"); onSpeak?.(); };
+  const message = () => { fire("message"); onMessage?.(); };
+
   const [openAssumed, setOpenAssumed] = useState(false);
   const [keepOpen, setKeepOpen] = useState(false);
   const [email, setEmail] = useState(prefillEmail ?? "");
@@ -119,6 +132,7 @@ export default function Reveal({
       const j = await res.json().catch(() => ({}));
       if (!res.ok) { setKeepError(j.error ?? "That didn't save — try again in a moment."); return; }
       setKept({ emailed: j.emailed === true });
+      fire("save");
     } catch {
       setKeepError("That didn't save — check your connection and try again.");
     } finally {
@@ -211,6 +225,14 @@ export default function Reveal({
               </p>
             )}
           </div>
+          {/* Wizard mobile v5 (session 1, v1 B1): the dock lives IN the range card. On a phone it is the fixed
+              bottom bar it always was; on a laptop it was hidden by a media query — now the same button, in the
+              card, under the ladder. The hand-off has no door into the editor (Tom, 27 Oct 2026). */}
+          {!handoffLocked && (
+            <div className="wz-rv-dock">
+              <button type="button" className="wz-btn wz-bp wz-bpaint" onClick={tighten} data-testid="reveal-dock-tighten">Tighten my price</button>
+            </div>
+          )}
         </section>
 
         {handoffLocked ? (
@@ -223,8 +245,8 @@ export default function Reveal({
             <p className="wz-sub">{PAINT_HOME_WORDS.handoff.body}</p>
             <p className="wz-sub" data-testid="painthome-handoff-team">{PAINT_HOME_WORDS.handoff.team}</p>
             <div className="wz-doors">
-              <Door testId="door-book" icon="📍" title={PAINT_HOME_WORDS.handoff.button} onClick={onBook} body="Choose a time for us to see the property. About 40 minutes." hero />
-              {onMessage && <Door testId="door-message" icon="✉" title="Send us a message" onClick={onMessage} body="Ask a question about your estimate" />}
+              <Door testId="door-book" icon="📍" title={PAINT_HOME_WORDS.handoff.button} onClick={book} body="Choose a time for us to see the property. About 40 minutes." hero />
+              {onMessage && <Door testId="door-message" icon="✉" title="Send us a message" onClick={message} body="Ask a question about your estimate" />}
             </div>
           </div>
         ) : (
@@ -233,17 +255,17 @@ export default function Reveal({
           <div className="wz-doors">
             {/* Paint Home brief §5: phone-close — one short call confirms the price; no site visit is offered. */}
             {brand === "painthome" && paintHome?.tier === "call" && onSpeak && (
-              <Door testId="door-call" icon="☎" title={PAINT_HOME_WORDS.confirmDoor.title} onClick={onSpeak} body={PAINT_HOME_WORDS.confirmDoor.body} hero />
+              <Door testId="door-call" icon="☎" title={PAINT_HOME_WORDS.confirmDoor.title} onClick={speak} body={PAINT_HOME_WORDS.confirmDoor.body} hero />
             )}
             {/* Exterior wizard v2 (⚑ 14): once every side is checked the walk door reads "Change a side" and the visit is the primary door. */}
             {exteriorOnly && outside?.v2 && walkChecked ? (
               <Door
-                testId="door-tighten" icon="✎" title="Change a side" onClick={onTighten}
+                testId="door-tighten" icon="✎" title="Change a side" onClick={tighten}
                 body="Go back round the house and adjust anything."
               />
             ) : (
               <Door
-                testId="door-tighten" icon="◫" title="Tighten my price" onClick={onTighten}
+                testId="door-tighten" icon="◫" title="Tighten my price" onClick={tighten}
                 body={exteriorOnly && outside?.v2
                   ? "Side by side, a few minutes — confirm each side's size and the paintwork, and the range closes to within a few percent."
                   : `Get a more accurate quote now. A few minutes, ${how}.`}
@@ -253,32 +275,32 @@ export default function Reveal({
             {/* Exterior wizard v2 (brief §7.5): Tighten, Book a site visit, Speak with us, Send us a message — in that order. */}
             {exteriorOnly && outside?.v2 && brand !== "painthome" && (
               <Door
-                testId="door-book" icon="📍" title="Book a site visit" onClick={onBook}
+                testId="door-book" icon="📍" title="Book a site visit" onClick={book}
                 body="Your estimator measures up and fixes the price with you — about 40 minutes."
                 hero={walkChecked}
               />
             )}
             {exteriorOnly && outside?.v2 && walkChecked && onEditor && (
               <Door
-                testId="door-editor" icon="☰" title="Change anything else" onClick={onEditor}
+                testId="door-editor" icon="☰" title="Change anything else" onClick={editor}
                 body="Every side's lines, with what you counted already filled in."
               />
             )}
             {speakWithUs && onSpeak && brand !== "painthome" && (
               <Door
-                testId="door-speak" icon="☎" title="Speak with us" onClick={onSpeak}
+                testId="door-speak" icon="☎" title="Speak with us" onClick={speak}
                 body="Request a call to finalise your booking"
               />
             )}
             {!(exteriorOnly && outside?.v2) && brand !== "painthome" && (
               <Door
-                testId="door-book" icon="📍" title="Book a site visit" onClick={onBook}
+                testId="door-book" icon="📍" title="Book a site visit" onClick={book}
                 body="Choose a time for us to see the property"
               />
             )}
             {onMessage && (
               <Door
-                testId="door-message" icon="✉" title="Send us a message" onClick={onMessage}
+                testId="door-message" icon="✉" title="Send us a message" onClick={message}
                 body="Ask a question about your estimate"
               />
             )}
@@ -396,11 +418,6 @@ export default function Reveal({
 
       {/* C9 — the coats and prep the engine derived, in plain English, no controls. */}
       <WhatWeDo lines={payload.systems ?? []} tellUsHref={`/estimate/book?id=${estimateId}`} />
-
-      {/* Phone: the one thing to do next stays in reach while they read (a second way in, not a second door). */}
-      <div className="wz-rv-dock">
-        {!handoffLocked && <button type="button" className="wz-btn wz-bp wz-bpaint" onClick={onTighten} data-testid="reveal-dock-tighten">Tighten my price</button>}
-      </div>
     </div>
   );
 }

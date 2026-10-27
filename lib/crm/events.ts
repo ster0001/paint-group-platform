@@ -94,7 +94,8 @@ export const CRM_EVENT_SCHEMAS = {
     when: z.string().max(40),
     who: z.string().max(80).optional(),
   }),
-  visit_booked: z.object({ when: z.string().max(40), who: z.string().max(80).optional(), visitId: z.string().uuid().optional(), kind: z.string().max(20).optional(), source: z.string().max(20).optional(), moved: z.boolean().optional(), rebooked: z.boolean().optional() }),
+  /** Wizard mobile v5 §8: `step`, `from` and `sessionId` ride on a visit booked from the wizard's Contact sheet or its gate, so the dashboard can rate contact → booked. */
+  visit_booked: z.object({ when: z.string().max(40), who: z.string().max(80).optional(), visitId: z.string().uuid().optional(), kind: z.string().max(20).optional(), source: z.string().max(20).optional(), moved: z.boolean().optional(), rebooked: z.boolean().optional(), step: z.string().max(40).optional(), from: z.enum(["contact", "gate"]).optional(), sessionId: z.string().uuid().optional() }),
   visit_completed: z.object({ outcome: z.string().max(2000).optional(), visitId: z.string().uuid().optional(), who: z.string().max(80).optional() }),
   /** CRM v2 P6: the visits table's other outcomes. A no-show raises the rebook item; a cancel clears the "visit booked" lane. */
   visit_no_show: z.object({ when: z.string().max(40).optional(), visitId: z.string().uuid().optional(), note: z.string().max(2000).optional() }),
@@ -103,6 +104,18 @@ export const CRM_EVENT_SCHEMAS = {
   job_completed: z.object({ workOrderNo: z.string().max(30).optional() }),
   invoice_sent: z.object({ invoiceNo: z.string().max(30).optional(), amountCents: money }),
   invoice_paid: z.object({ invoiceNo: z.string().max(30).optional(), amountCents: money }),
+
+  // ---- the wizard on a phone (mobile v5, brief §8) ------------------------
+  // Written by the customer's browser through /api/wizard/event, which pins
+  // `sessionId` (the wizard draft) on the server and dedupes per session —
+  // the home dashboard rates gate → exact price and contact → booked from
+  // these. `breakpoint` is the brief's one split: mobile is < 768px.
+  wizard_step_viewed: z.object({ step: z.string().max(40), breakpoint: z.enum(["mobile", "desktop"]), sessionId: z.string().uuid().optional() }),
+  surface_toggled: z.object({ surface: z.string().max(40), on: z.boolean(), sessionId: z.string().uuid().optional() }),
+  gate_viewed: z.object({ range_low: money, range_high: money, bigger_job: z.boolean(), breakpoint: z.enum(["mobile", "desktop"]), sessionId: z.string().uuid().optional() }),
+  gate_cta_clicked: z.object({ cta: z.enum(["exact", "visit", "call", "message", "save"]), breakpoint: z.enum(["mobile", "desktop"]), sessionId: z.string().uuid().optional() }),
+  contact_opened: z.object({ step: z.string().max(40), sessionId: z.string().uuid().optional() }),
+  scope_viewed: z.object({ from: z.literal("gate"), sessionId: z.string().uuid().optional() }),
 
   // ---- staff activity: the mockup's "Log something" chips -----------------
   call_no_answer: z.object({ note: shortText.optional(), voicemail: z.boolean().default(false) }),

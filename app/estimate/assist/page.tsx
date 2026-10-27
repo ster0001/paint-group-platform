@@ -1,5 +1,5 @@
 import { openAssistSession } from "@/lib/agent/session";
-import { wizardTitle } from "@/lib/wizard/brandServer";
+import { wizardBrandName, wizardTitle } from "@/lib/wizard/brandServer";
 import { getCompanyContact } from "@/lib/portal/data";
 import Wordmark from "@/app/wizard/Wordmark";
 import AssistView from "./AssistView";
@@ -24,7 +24,7 @@ export async function generateMetadata() {
 
 export default async function AssistPage({ searchParams }: { searchParams: Promise<{ c?: string; estimate?: string }> }) {
   const params = await searchParams;
-  const [session, company] = await Promise.all([openAssistSession(params), getCompanyContact()]);
+  const [session, company, brandName] = await Promise.all([openAssistSession(params), getCompanyContact(), wizardBrandName()]);
   if (session.kind === "holding") {
     return (
       <div className="wz">
@@ -45,6 +45,7 @@ export default async function AssistPage({ searchParams }: { searchParams: Promi
         initialTranscript={session.transcript}
         initialUi={session.ui}
         initialBundle={session.bundle}
+        brandName={brandName}
       />
     </div>
   );
