@@ -68,7 +68,11 @@ test.describe("Wizard mobile v5 — the phone's screens (session 2)", () => {
   };
   const at = (page: Page, id: string) => expect(page.locator(`[data-mobile-screen='${id}']`)).toBeVisible({ timeout: 10_000 });
   const heading = (page: Page) => page.getByTestId("wzm-h1");
-  const shot = async (page: Page, n: number, id: string) => { if (SHOTS) await page.screenshot({ path: `${SHOTS}/${String(n).padStart(2, "0")}-${id}.png` }); };
+  const shot = async (page: Page, n: number, id: string) => {
+    if (!SHOTS) return;
+    await page.waitForTimeout(450); // the screen's entrance (.28s) settles first
+    await page.screenshot({ path: `${SHOTS}/${String(n).padStart(2, "0")}-${id}.png`, animations: "disabled" });
+  };
 
   test("1 · the eleven question screens in order, Back retraces them with the answers kept, and the details show a range", async ({ page }) => {
     test.setTimeout(240_000);
