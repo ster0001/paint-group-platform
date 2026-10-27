@@ -220,6 +220,13 @@ export default function Reveal({
             <p className="wz-sub" data-testid="painthome-handoff-team">{PAINT_HOME_WORDS.handoff.team}</p>
             <div className="wz-doors">
               <Door testId="door-book" icon="📍" title={PAINT_HOME_WORDS.handoff.button} onClick={onBook} body="Choose a time for us to see the property. About 40 minutes." hero />
+              {/* Tom, 27 Oct 2026: the hand-off still lets the customer tighten — tick every room or side and the range closes before anyone visits. */}
+              {exteriorOnly && outside?.v2 && walkChecked ? (
+                <Door testId="door-tighten" icon="✎" title="Change a side" onClick={onTighten} body="Go back round the house and adjust anything." />
+              ) : (
+                <Door testId="door-tighten" icon="◫" title="Tighten my price" onClick={onTighten}
+                  body={exteriorOnly && outside?.v2 ? "Side by side, a few minutes — confirm each side's size and the paintwork, and the range closes." : `Get a more accurate range now. A few minutes, ${how}.`} />
+              )}
               {onMessage && <Door testId="door-message" icon="✉" title="Send us a message" onClick={onMessage} body="Ask a question about your estimate" />}
             </div>
           </div>

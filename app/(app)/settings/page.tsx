@@ -168,7 +168,7 @@ export default async function SettingsPage() {
   const showcaseJobs = await listShowcaseJobsForStaff();
   const videoJobs = showcaseJobs.filter((j) => j.video_url).map((j) => ({ id: j.id, title: j.title, suburb: j.suburb, published: j.published }));
   // Tom, 25 Oct 2026 — Settings → Paint Home website: the published home jobs and whether each can be a Paint Home card (lib/showcase/rank.ts's rule).
-  const paintHomeCap = policyFromSettings(allSettings.find((r) => r.key === "wizard_policy")?.value).remoteConfirmCapCents;
+  const paintHomeCap = policyFromSettings(allSettings.find((r) => r.key === "wizard_policy")?.value).paintHomeCapCents;
   const paintHomeProjects = showcaseJobs.filter((j) => j.published && j.property_type === "home").map((j) => ({
     id: j.id, title: j.title, suburb: j.suburb, priceHighCents: j.price_high_cents ?? null, rank: j.featured_rank_painthome ?? null,
     fits: j.price_high_cents != null && j.price_high_cents <= paintHomeCap,

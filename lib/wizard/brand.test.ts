@@ -36,7 +36,8 @@ describe("Paint Home wizard brand branch (paint-home brief §5)", () => {
     expect(paintHomeTier({ hiCents: 390_000, capCents: cap, reasons: [], requiresSiteCheck: false })).toEqual({ tier: "call", why: null });
     expect(paintHomeTier({ hiCents: cap, capCents: cap, reasons: [], requiresSiteCheck: false }).tier).toBe("call");
     expect(paintHomeTier({ hiCents: cap + 100, capCents: cap, reasons: [], requiresSiteCheck: false })).toEqual({ tier: "visit", why: "over the phone-close ceiling" });
-    expect(paintHomeTier({ hiCents: 500_000, capCents: cap, reasons: ["over_self_serve_cap"], requiresSiteCheck: false }).tier).toBe("visit");
+    // Tom, 27 Oct 2026: the self-serve cap no longer sends a Paint Home job to the hand-off — the ceiling is the one size rule
+    expect(paintHomeTier({ hiCents: 500_000, capCents: cap, reasons: ["over_self_serve_cap"], requiresSiteCheck: false }).tier).toBe("call");
     expect(paintHomeTier({ hiCents: 500_000, capCents: cap, reasons: ["asbestos_unsure"], requiresSiteCheck: false }).tier).toBe("visit");
     expect(paintHomeTier({ hiCents: 500_000, capCents: cap, reasons: [], requiresSiteCheck: true })).toEqual({ tier: "visit", why: "needs a person on site" });
     expect(paintHomeTier({ hiCents: null, capCents: cap, reasons: [], requiresSiteCheck: false }).tier).toBe("visit");

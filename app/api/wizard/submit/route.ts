@@ -1111,7 +1111,7 @@ export async function POST(request: Request) {
     // Paint Home brief §5: the phone-close tier, decided HERE from the top of the range, the policy
     // ceiling and the same guardrail decision — the browser only draws the door or the hand-off.
     const paintHome = state.brand === "painthome"
-      ? { ...paintHomeTier({ hiCents: cp.rangeHiCents, capCents: policy.remoteConfirmCapCents, reasons: decision.reasons, requiresSiteCheck: siteCheck }), capCents: policy.remoteConfirmCapCents }
+      ? { ...paintHomeTier({ hiCents: cp.rangeHiCents, capCents: policy.paintHomeCapCents, reasons: decision.reasons, requiresSiteCheck: siteCheck }), capCents: policy.paintHomeCapCents }
       : null;
     await db.from("estimates").update({ builder_state: { ...builderState, guideRange: { loCents: cp.rangeLoCents, hiCents: cp.rangeHiCents, jobType: effectiveState.jobType } } }).eq("id", estimateId)
       .then((r) => { if (r.error) reportError(r.error, { where: "wizard.submit.guideRange", bestEffort: true }); });
