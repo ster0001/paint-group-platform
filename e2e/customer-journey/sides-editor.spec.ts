@@ -31,7 +31,7 @@ test("5 Oct: weatherboards alone — the side confirms with no % tapped", async 
   // Tom, 25 Oct 2026: on the drawn house the side arrives IN — no "Yes" to tap.
   await front.getByPlaceholder("length m").fill("12");
   await front.getByPlaceholder("height m").fill("2.6");
-  await front.getByTestId("side-dims-front").getByRole("button", { name: "Update", exact: true }).click();
+  await front.getByPlaceholder("height m").blur(); // Tom, 28 Oct 2026: saves on blur, no Update button
   await expect(page.locator(".sd-saving")).toHaveCount(0, { timeout: 30_000 });
   await expect(front.locator(".sd-wall")).toHaveCount(1);
   await expect(front.locator(".sd-wall .sd-pc.on")).toHaveText("100");

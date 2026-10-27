@@ -93,12 +93,12 @@ test("5 + 6 + 11 + 17 · cupboards start No with the inside asked on its own, th
   await expect(length).toHaveValue(/^\d+(\.\d+)?$/);
   await expect(width).toHaveValue(/^\d+(\.\d+)?$/);
   await expect(first.getByTestId(`size-ok-${areaId}`)).toBeVisible();
-  await expect(first.getByTestId(`size-save-${areaId}`)).toHaveCount(0);
   const before = await page.locator(".sc-r").first().innerText();
   await width.fill("3.8");
-  // Typing swaps "Looks right" for "Update size"; saving reprices and reads back "updated by you".
-  await expect(first.getByTestId(`size-save-${areaId}`)).toBeVisible();
-  await first.getByTestId(`size-save-${areaId}`).click();
+  // Tom, 28 Oct 2026: typing shows the "saves when you click out" line; clicking out saves — no Update size button.
+  await expect(first.getByTestId(`size-saving-hint-${areaId}`)).toBeVisible();
+  await expect(first.getByTestId(`size-save-${areaId}`)).toHaveCount(0);
+  await width.blur();
   await expect(page.locator(".sc-toast")).toContainText(/3.8 m.*repriced/, { timeout: 30_000 });
   await expect(first.getByTestId(`size-inline-${areaId}`)).toContainText("3.8 m");
   await expect(first.getByTestId(`size-inline-${areaId}`)).toContainText("updated by you");
