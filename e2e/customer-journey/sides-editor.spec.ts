@@ -114,7 +114,7 @@ test("priced extras: condition/access, catalogue chips and sweep items move the 
   // clamp, never a refusal; the toast names the recorded size.
   await front.getByPlaceholder("length m").fill("50");
   await front.getByPlaceholder("height m").fill("9");
-  await front.getByTestId("side-dims-front").getByRole("button", { name: "Update", exact: true }).click();
+  await front.getByPlaceholder("height m").blur(); // Tom, 28 Oct 2026: saves on blur, no Update button
   await expect(page.locator(".sd-toast")).toContainText(/40 × 8.*3–40/, { timeout: 30_000 });
   await settled();
   await front.getByRole("button", { name: /Add a surface/ }).click();
