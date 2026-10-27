@@ -13,9 +13,9 @@ So the coordinator sees, before booking, which painters cannot be offered work b
 - Nothing. The items are derived from the agreement facts every time the queue builds.
 
 ## Steps
-1. **Agreement not signed** appears on PC Command for every active contractor with no signed, unexpired agreement. The detail says why: *A new contractor: no job offers until signed*; *not asked to sign yet* (an existing contractor — the office has not started the clock); *Asked [date]; job offers stop [date]*; or *the grace window has ended — no job offers*.
+1. **Agreement not signed** is a tag on PC Command → **Contractors** (since 27 Oct 2026 it is no longer a card on the dashboard's Needs you now — Tom: "remove subcontractor agreement not signed") for every active contractor with no signed, unexpired agreement. The detail says why: *A new contractor: no job offers until signed*; *not asked to sign yet* (an existing contractor — the office has not started the clock); *Asked [date]; job offers stop [date]*; or *the grace window has ended — no job offers*.
 2. **Open their record** (the item's action) → **Subcontractor agreement** → **Request signature** or **Add a signed agreement**. The item clears when a signed, unexpired agreement is on file.
-3. **Agreement expiring** appears from a month before the expiry date with the days left. The portal is already asking the contractor to sign the new term; after the date the item becomes **Agreement not signed** with *expired*.
+3. **Agreement expiring** still appears on the dashboard from a month before the expiry date with the days left. The portal is already asking the contractor to sign the new term; after the date the item becomes **Agreement not signed** with *expired*.
 4. **Booking a job** to a painter on either item answers `error:agreement_unsigned` or `error:agreement_expired`; the Schedule's offer refuses the same way. Clear the item first.
 
 ## What the colours and labels mean
