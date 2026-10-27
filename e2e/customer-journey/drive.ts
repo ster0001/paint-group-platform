@@ -410,7 +410,9 @@ export async function onMobileShell(page: Page): Promise<boolean> {
  */
 export async function mobileQuickNext(page: Page) {
   const shell = page.getByTestId("wzm");
-  const stepBefore = await shell.getAttribute("data-quick-step");
+  // the step is named on the screen (one of the shell's own) or on the pane of a step rendered as it is
+  const stepOf = () => page.locator("[data-testid='wzm'] [data-quick-step]").first().getAttribute("data-quick-step");
+  const stepBefore = await stepOf();
   for (let i = 0; i < 6; i++) {
     const screen = await shell.getAttribute("data-mobile-screen");
     const bar = page.getByTestId("ql-next");
@@ -425,11 +427,10 @@ export async function mobileQuickNext(page: Page) {
     if (await err.count()) throw new Error(`quick look gate: ${await err.first().innerText()}`);
     if (!(await shell.count())) return; // the range, or the processing screen
     const now = await shell.getAttribute("data-mobile-screen");
-    const stepNow = await shell.getAttribute("data-quick-step");
-    if (stepNow !== stepBefore) return;
+    if ((await stepOf()) !== stepBefore) return;
     if (now === screen) {
       await expect.poll(() => shell.getAttribute("data-mobile-screen"), { timeout: 10_000 }).not.toBe(screen);
-      if ((await shell.getAttribute("data-quick-step")) !== stepBefore) return;
+      if ((await stepOf()) !== stepBefore) return;
     }
   }
   throw new Error(`mobileQuickNext: the ${stepBefore} step did not finish`);
