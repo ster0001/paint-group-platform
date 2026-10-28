@@ -44,7 +44,7 @@ test("Tom, 8 Sep evening: rename a side, gutters twice, handrails by the metre, 
    */
   await front.getByPlaceholder("length m").fill("12");
   await front.getByPlaceholder("height m").fill("2.6");
-  await front.getByTestId("side-dims-front").getByRole("button", { name: "Update", exact: true }).click();
+  await front.getByPlaceholder("height m").blur(); // Tom, 28 Oct 2026: saves on blur, no Update button
   await expect(page.locator(".sd-saving")).toHaveCount(0, { timeout: 30_000 });
 
   // --- 2 · the customer's own name for a side --------------------------------

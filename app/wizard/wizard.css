@@ -2502,6 +2502,15 @@
   .wz .wz-btn.wz-btxt { min-height: 54px; padding: 0 10px; font-size: 17px; }
 }
 
+/* Tom, 28 Oct 2026: "A few details to settle" stands out and comes first in the tighten editor. */
+.wz .sc-ed .sc-details:not(.done) { border: 2px solid var(--cyan); border-left-width: 2px; background: rgba(59,216,233,.06); box-shadow: 0 0 0 4px rgba(59,216,233,.10), 0 14px 36px -18px rgba(13,22,28,.35); }
+.wz .sc-ed .sc-details:not(.done) .il-hd b { font-size: 19px; }
+.wz .sc-ed .sc-details .sc-start { display: block; font-family: var(--wz-mono); font-size: 10px; letter-spacing: .14em; text-transform: uppercase; color: var(--cyan); margin-bottom: 4px; }
+.wz .sc-ed .sc-details .sc-start-lead { margin: 2px 0 8px; font-size: 15px; font-weight: 500; color: var(--heading); }
+/* While a detail is open, everything after the card is dimmed — still there, still tappable, but clearly second. */
+.wz .sc-ed > .sc-wrap.sc-settle-first > *:not([data-card="details"]):not(.sc-jump):not(.wz-note) { opacity: .45; transition: opacity .35s; }
+.wz .sc-ed > .sc-wrap.sc-settle-first > *:not([data-card="details"]):not(.sc-jump):not(.wz-note):hover { opacity: .8; }
+
 /* ═════════════════════════════════════════════════════════════════════════
    WIZARD MOBILE V5 — S2: the phone's shell (brief §2; prototype
    docs/mockups/painthome-wizard-v5.html at 390px). Rendered only under
