@@ -156,7 +156,8 @@ test.describe("Wizard mobile v5 — Contact and early booking (session 5)", () =
     const sheet = page.getByTestId("wzm-contact-sheet");
     await expect(sheet).toBeVisible();
     await expect(sheet.getByTestId("wzm-contact-book")).toContainText("Book a visit");
-    await sheet.getByTestId("wzm-contact-x").tap();
+    await page.keyboard.press("Escape");
+    await expect(sheet).toHaveCount(0);
     if (await page.getByTestId("gate-visit").count()) {
       await page.getByTestId("gate-visit").tap();
       await expect(page).toHaveURL(/\/estimate\/visit\?id=/, { timeout: 20_000 });

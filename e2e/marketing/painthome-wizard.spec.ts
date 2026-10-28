@@ -139,6 +139,8 @@ test.describe("Paint Home — the wizard brand branch (session 3)", () => {
     const value = { ...((policyBefore as Record<string, unknown> | null) ?? {}), paintHomeCapCents: 100 };
     const { error } = await db!.from("settings").upsert({ key: "wizard_policy", value }, { onConflict: "key" });
     if (error) throw error;
+    // the server's pricing context caches settings for 20s per process (lib/pricing/context.ts): the phone's walk is faster than that
+    await page.waitForTimeout(21_000);
 
     const estimateId = await driveToRange(page, suburbs.visit, "Inside");
     // Wizard mobile v5 §4.2: over the ceiling the phone's gate is the bigger-job variant — no exact-price door, Book a visit only
