@@ -2511,3 +2511,108 @@
 .wz .sc-ed > .sc-wrap.sc-settle-first > *:not([data-card="details"]):not(.sc-jump):not(.wz-note) { opacity: .45; transition: opacity .35s; }
 .wz .sc-ed > .sc-wrap.sc-settle-first > *:not([data-card="details"]):not(.sc-jump):not(.wz-note):hover { opacity: .8; }
 
+/* ═════════════════════════════════════════════════════════════════════════
+   WIZARD MOBILE V5 — S2: the phone's shell (brief §2; prototype
+   docs/mockups/painthome-wizard-v5.html at 390px). Rendered only under
+   768px (WizardApp `useMobile`), so every rule hangs off .wzm and nothing
+   here can reach the desktop. The tokens are .wz's.
+   ═════════════════════════════════════════════════════════════════════════ */
+.wz .wzm { display: flex; flex-direction: column; min-height: 100vh; min-height: 100dvh; }
+.wz .wzm-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 14px 20px 0; }
+.wz .wzm-back { width: 40px; height: 40px; border: 0; background: transparent; border-radius: 50%; font-size: 28px; line-height: 1; margin-left: -10px; padding: 0 0 3px; color: var(--muted); font-family: inherit; cursor: pointer; }
+.wz .wzm-back[disabled] { opacity: 0; pointer-events: none; }
+.wz .wzm-logo { display: flex; align-items: center; justify-content: center; min-width: 0; }
+.wz .wzm-logo .wz-logo { max-height: 22px; max-width: 140px; height: 22px; width: auto; }
+.wz .wzm-contact { border: 1px solid var(--line); background: var(--panel); border-radius: 999px; padding: 8px 14px; font-size: 13px; font-weight: 600; color: var(--heading); font-family: inherit; cursor: pointer; }
+.wz .wzm-bar { height: 3px; background: var(--line); margin: 14px 20px 0; border-radius: 3px; overflow: hidden; }
+.wz .wzm-bar i { display: block; height: 100%; width: 0; background: var(--paint); transition: width .35s ease; }
+/* §3 — the live strip's place: 76 × 52 thumbnail · ribbon · chevron (session 3 fills it) */
+.wz .wzm-strip { display: flex; align-items: center; gap: 12px; margin: 12px 20px 0; background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 6px 12px 6px 6px; text-align: left; }
+.wz .wzm-strip .thumb { width: 76px; height: 52px; border-radius: 9px; background: var(--panel2); flex: 0 0 auto; }
+.wz .wzm-strip .txt { flex: 1; min-width: 0; font-size: 12px; color: var(--muted); line-height: 1.35; }
+.wz .wzm-strip .txt b { display: block; font-size: 13px; color: var(--heading); font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.wz .wzm-strip .chev { color: var(--muted); font-size: 20px; padding-right: 2px; }
+.wz .wzm-main { flex: 1; padding: 18px 20px 40px; }
+.wz .wzm-main.has-bar { padding-bottom: calc(130px + env(safe-area-inset-bottom)); }
+.wz .wzm-screen { animation: wzmin .28s ease both; }
+@keyframes wzmin { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+.wz .wzm h1 { font-size: 28px; line-height: 1.15; letter-spacing: -.015em; margin: 10px 0 6px; font-weight: 700; color: var(--heading); }
+.wz .wzm .wzm-sub { color: var(--muted); font-size: 15px; margin: 0 0 22px; line-height: 1.45; }
+.wz .wzm .wz-resume { margin-bottom: 14px; }
+/* options */
+.wz .wzm-opts { display: grid; gap: 10px; }
+.wz .wzm-opts.two { grid-template-columns: 1fr 1fr; }
+.wz .wzm-opt { display: flex; align-items: center; gap: 14px; border: 1.5px solid var(--line); background: var(--panel); border-radius: 16px; padding: 18px 16px; text-align: left; width: 100%; min-height: 64px; font-family: inherit; font-size: 16px; color: var(--text); cursor: pointer; transition: border-color .15s, background .15s, transform .1s; }
+.wz .wzm-opt:active { transform: scale(.985); }
+.wz .wzm-opt.on { border-color: var(--cyan); background: var(--wash); }
+.wz .wzm-opt > span { min-width: 0; }
+.wz .wzm-opt .ic { width: 28px; height: 28px; flex: 0 0 auto; color: var(--cyan); fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+.wz .wzm-opt .t { display: block; font-weight: 600; font-size: 16px; line-height: 1.2; }
+.wz .wzm-opt .d { display: block; font-size: 13px; color: var(--muted); margin-top: 3px; }
+.wz .wzm-opts.two .wzm-opt { flex-direction: column; align-items: flex-start; gap: 10px; padding: 16px; }
+.wz .wzm-nums { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; }
+.wz .wzm-nums .wzm-opt { justify-content: center; padding: 0; height: 64px; min-height: 0; font-weight: 600; font-size: 18px; }
+.wz .wzm-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.wz .wzm-chip { border: 1.5px solid var(--line); background: var(--panel); border-radius: 999px; padding: 12px 16px; font-weight: 600; font-size: 15px; display: flex; align-items: center; gap: 8px; font-family: inherit; color: var(--text); cursor: pointer; }
+.wz .wzm-chip.on { border-color: var(--cyan); background: var(--wash); }
+.wz .wzm-chip.on::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--cyan); }
+/* the rooms screen's "+ Another room" is the desktop's add-room control, as a dashed chip */
+.wz .wzm .wz-addroom { margin-top: 8px; }
+.wz .wzm .wz-addroom > .wz-tile { border: 1.5px dashed var(--line); background: var(--panel); border-radius: 999px; padding: 12px 16px; font-weight: 500; font-size: 15px; color: var(--muted); }
+.wz .wzm .wz-addroom > .wz-tile::after { content: none; }
+/* the address chip (screen 1) */
+.wz .wzm-addr { display: flex; align-items: center; gap: 8px; max-width: 100%; background: var(--panel); border: 1px solid var(--line); border-radius: 999px; padding: 8px 8px 8px 14px; font-size: 14px; margin-bottom: 18px; }
+.wz .wzm-addr > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wz .wzm-addr > button { flex: none; font-size: 12px; color: var(--cyan); font-weight: 600; background: var(--wash); padding: 5px 10px; border-radius: 999px; border: 0; font-family: inherit; cursor: pointer; }
+.wz .wzm-addrfield { margin-bottom: 18px; }
+.wz .wzm-addrfield .wz-field { margin-bottom: 8px; }
+.wz .wzm-addrfield .wz-crow { grid-template-columns: 1fr 1fr; margin-top: 8px; }
+.wz .wzm-addrfield .wz-crow .wz-in { width: 100%; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 13px 14px; font: inherit; font-size: 15px; color: var(--text); }
+/* swatches (colours, condition) */
+.wz .wzm-sw { width: 44px; height: 44px; border-radius: 10px; flex: 0 0 auto; border: 1px solid var(--line); background: #f6f6f4; }
+.wz .wzm-sw--new { background: linear-gradient(135deg, #dfe8e3, #b9d0c2); }
+.wz .wzm-sw--same { background: #f3f3f1; }
+.wz .wzm-sw--deciding { background: linear-gradient(90deg, #f5e1dc 50%, #e4f8fa 50%); }
+.wz .wzm-sw--wear { background-image: radial-gradient(#d9d9d4 1px, transparent 1.5px); background-size: 9px 9px; }
+.wz .wzm-sw--needs_work { background-image: linear-gradient(135deg, transparent 46%, #cfcfc8 46%, #cfcfc8 54%, transparent 54%); }
+/* the details screen */
+.wz .wzm-field { display: block; background: var(--panel); border: 1.5px solid var(--line); border-radius: 14px; padding: 10px 16px 12px; margin-bottom: 10px; cursor: text; }
+.wz .wzm-field > span { display: block; font-size: 12px; color: var(--muted); margin-bottom: 2px; }
+.wz .wzm-field > input { display: block; border: 0; outline: 0; width: 100%; font: inherit; font-size: 17px; padding: 4px 0; background: transparent; color: var(--text); }
+.wz .wzm-field:focus-within { border-color: var(--cyan); }
+.wz .wzm-optin { font-size: 13px; color: var(--muted); display: flex; gap: 8px; align-items: center; margin-top: 8px; }
+.wz .wzm .wz-err { margin-top: 14px; }
+/* the bottom bar — surfaces, rooms, details, and a step rendered as it is; clears the safe area */
+.wz .wzm-foot { position: fixed; left: 0; right: 0; bottom: 0; z-index: 40; background: linear-gradient(transparent, var(--ink) 30%); padding: 24px 20px calc(16px + env(safe-area-inset-bottom)); }
+.wz .wzm-cta { display: block; width: 100%; border: 0; border-radius: 999px; background: var(--heading); color: #fff; font-weight: 700; font-size: 17px; padding: 18px; text-align: center; font-family: inherit; cursor: pointer; }
+.wz .wzm-cta[disabled] { opacity: .35; cursor: default; }
+.wz .wzm-hint { text-align: center; font-size: 12px; color: var(--muted); margin: 10px 0 0; }
+.wz .wzm-why { margin: 0 0 8px; padding: 8px 12px; background: var(--amber-wash); border: 1px solid var(--amber-line); border-radius: 12px; font-size: 13.5px; color: var(--amber); }
+/* a step rendered as it is (the exterior brief's screens, the commercial screens, the two doors) inside the shell */
+.wz .wzm-generic .wz-stage { display: flex; flex-direction: column; align-items: stretch; gap: 0; }
+.wz .wzm-generic .wz-stage > *, .wz .wzm-generic .wz-side > * { width: 100%; min-width: 0; }
+.wz .wzm-generic .wz-stage > .wz-pane { max-width: none; padding: 0; }
+.wz .wzm-generic .wz-side { display: contents; }
+.wz .wzm-generic .wz-side .wz-pic { order: -1; position: static; top: auto; margin-bottom: 18px; }
+.wz .wzm-generic .wz-stage h1 { font-size: 28px; }
+@media (prefers-reduced-motion: reduce) {
+  .wz .wzm-screen { animation: none; }
+  .wz .wzm-bar i, .wz .wzm-opt { transition: none; }
+}
+
+/* ── WIZARD MOBILE V5 — S3: the live strip, the thumbnail and the roller (brief §3) ── */
+.wz .wzm-strip { cursor: pointer; font-family: inherit; color: inherit; width: calc(100% - 40px); }
+.wz .wzm-strip .thumb { overflow: hidden; }
+.wz .wzm-strip .thumb svg, .wz .wzm-bigpic svg { width: 100%; height: 100%; display: block; }
+.wz .wzm-pic .base { fill: #e4e8ec; stroke: #cfd5db; stroke-width: 1; }
+.wz .wzm-pic .trimbase { fill: #dfe3e7; stroke: #c9cfd5; stroke-width: 1; }
+.wz .wzm-pic .roller { opacity: 0; transition: opacity .15s; }
+.wz .wzm-pic .roller.on { opacity: 1; }
+.wz .wzm-sheetback { z-index: 70; }
+.wz .wzm-sheet { padding-top: 16px; }
+.wz .wzm-grab { width: 40px; height: 4px; background: var(--line); border-radius: 4px; margin: 0 auto 14px; }
+.wz .wzm-bigpic { border-radius: 14px; overflow: hidden; background: #eef2f5; aspect-ratio: 5 / 3; }
+.wz .wzm-cap { font-size: 13px; color: var(--muted); margin: 12px 0 6px; }
+.wz .wzm-sheet .wzm-chips { margin-top: 8px; }
+.wz .wzm-sheet .wzm-chip { padding: 10px 14px; font-size: 14px; }
+@media (prefers-reduced-motion: reduce) { .wz .wzm-pic .roller { transition: none; } }

@@ -51,11 +51,13 @@ export const websiteContentSchema = z.object({
     caption: z.string().trim().max(160).default(""),
     transcript: z.string().trim().max(20000).default(""),
     posterPath: mediaPath.nullable().default(null),
-  }).default({ url: "", caption: "", transcript: "", posterPath: null }),
+    /** Search Console (28 Oct 2026): the day the link was added — VideoObject.uploadDate, a required field. Written by the save; null on older rows. */
+    addedOn: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().default(null),
+  }).default({ url: "", caption: "", transcript: "", posterPath: null, addedOn: null }),
 });
 export type WebsiteContent = z.infer<typeof websiteContentSchema>;
 
-export const EMPTY_WEBSITE_CONTENT: WebsiteContent = { painters: [], demoPainter: null, promisePhotos: [], storyPhotos: [], heroPhoto: null, heroPhotoBusiness: null, heroPhotoPaintHome: null, featuredVideoJobId: null, featuredVideo: { url: "", caption: "", transcript: "", posterPath: null } };
+export const EMPTY_WEBSITE_CONTENT: WebsiteContent = { painters: [], demoPainter: null, promisePhotos: [], storyPhotos: [], heroPhoto: null, heroPhotoBusiness: null, heroPhotoPaintHome: null, featuredVideoJobId: null, featuredVideo: { url: "", caption: "", transcript: "", posterPath: null, addedOn: null } };
 
 /** Tolerant: an older or partial row still renders; garbage renders the defaults. */
 export function parseWebsiteContent(value: unknown): WebsiteContent {
