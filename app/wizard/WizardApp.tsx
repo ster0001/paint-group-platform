@@ -48,6 +48,7 @@ import AddressField from "./AddressField";
 import type { PickedAddress } from "@/app/components/useAddressLookup";
 import QuickLook from "./QuickLook";
 import MobileQuickLook from "./MobileQuickLook";
+import MobileGate from "./MobileGate";
 import { starterRoomNames } from "@/lib/wizard/some-rooms";
 import SaveAndBookSheet from "./SaveAndBookSheet";
 import type { TalkMode } from "./TalkSheet";
@@ -1869,9 +1870,9 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
   }
   if (screen === "reveal" && reveal) {
     return (
-      <div data-ready="1" className="wz-shell">
-        {/* UI refresh S3 (brief §7.1): after the details, the rail is the three accuracy steps. */}
-        <WizardHeader
+      <div data-ready="1" className={mobileShell && !walking && !sent ? "wz-shell wzm-root" : "wz-shell"}>
+        {/* UI refresh S3 (brief §7.1): after the details, the rail is the three accuracy steps. Wizard mobile v5 S4: the phone's gate has its own chrome. */}
+        {!(mobileShell && !walking && !sent) && <WizardHeader
           brandName={brandName}
           logo={<Wordmark logoUrl={logoUrl} brand={brand} />}
           steps={[]}
@@ -1887,7 +1888,7 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
           phone={companyPhone}
           chat={UI_FLAGS.chatInHeader ? <ChatWidget ready place="header" brandName={brandName} /> : undefined}
           onSaveBook={() => setBookOpen(true)}
-        />
+        />}
         <SaveAndBookSheet
           open={bookOpen}
           onClose={() => setBookOpen(false)}
@@ -1908,7 +1909,29 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
             onDone={(c) => { set({ contact: { name: c.name, email: c.email, phone: c.mobile } }); const then = talk.then; setTalk(null); then?.(); }}
           />
         )}
-        {walking && outside.v2 && !sent ? (
+        {mobileShell && !walking && !sent ? (
+          // Wizard mobile v5 S4 (brief §4): the gate on a phone — single column, no picture, the one question.
+          <MobileGate
+            payload={reveal.payload}
+            quick={quick}
+            outside={quick.jobType === "exterior" ? outside : null}
+            brand={brand}
+            estimateId={reveal.estimateId}
+            firstName={prefill?.name ?? state.contact.name}
+            suburb={state.address?.suburb || state.customer?.suburb || null}
+            trust={trust ? { rating: trust.rating, count: trust.count, warranty: trust.warranty } : null}
+            handoff={brand === "painthome" && (reveal.payload as { paintHome?: { tier: "call" | "visit" } }).paintHome?.tier === "visit"}
+            onExact={() => {
+              void recordRangeOption(reveal.estimateId, "tighten");
+              const go = () => { clearResume(); markScopeFromGate(); router.push(`/estimate/scope?id=${reveal.estimateId}`); };
+              if (!contactKnown) { setTalk({ mode: "details", then: go }); return; }
+              go();
+            }}
+            // Session 5 opens the Contact sheet at the slots; until then the talk sheet (a call on Paint Home, a visit request on Paint Group).
+            onVisit={() => { void recordRangeOption(reveal.estimateId, brand === "painthome" ? "speak" : "visit"); setTalk({ mode: brand === "painthome" ? "call" : "visit" }); }}
+            onBook={() => { void recordRangeOption(reveal.estimateId, "visit"); clearResume(); router.push(`/estimate/visit?id=${reveal.estimateId}`); }}
+          />
+        ) : walking && outside.v2 && !sent ? (
           <main className="wz-stage" data-testid="ext-walk">
             <div className="wz-wrap wz-quick wz-pane" data-quick-step="walk">
               <ExteriorWalkStep
