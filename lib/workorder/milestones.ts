@@ -226,4 +226,5 @@ export const UPDATE_KIND_LABEL: Record<string, string> = {
   surface_milestone: "Surface milestone",
   checkin_40: "40% check-in",
   defect_day: "Defect day",
+  manual: "Sent from the job page",
 };

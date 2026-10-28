@@ -362,7 +362,7 @@ jobs:
           npx playwright test e2e/customer-journey e2e/wo-rls.spec.ts e2e/account-rls.spec.ts e2e/ledger-parity.spec.ts e2e/trade-org-rls.spec.ts e2e/trade-walk-a.spec.ts \
             e2e/wo-ticks-by-surface.spec.ts e2e/wo-customer-updates.spec.ts e2e/wo-customer-notes.spec.ts \
             e2e/automation-morning-defect.spec.ts \
-            e2e/portal-photos-every-day.spec.ts e2e/portal-timeline.spec.ts
+            e2e/portal-photos-every-day.spec.ts e2e/portal-timeline.spec.ts e2e/wo-manual-update-twice.spec.ts
 
       # C7c acceptance: "a full run leaves the count it started with, ±0".
       # global-setup logged the count before and global-teardown deleted this

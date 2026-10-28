@@ -233,24 +233,22 @@ export async function sendCustomerUpdateAction(raw: unknown): Promise<PcResult> 
   if (!parsed.success) return { ok: false, message: "Write the update first." };
 
   const supabase = await createClient();
-  const today = melbourneDate(new Date());
-  const drafted = await supabase.rpc("wo_draft_update", {
+  // Tom, 25 Oct 2026: a manual update is its OWN row (kind manual, 20270304),
+  // never the day's end-of-day summary — which is one per job per day, so once
+  // it had gone the composer answered "already sent for today" and the finished
+  // photos could not go. The row is born approved with these words.
+  const drafted = await supabase.rpc("wo_draft_manual_update", {
     p_work_order_id: parsed.data.workOrderId,
-    p_for_date: today,
     p_text: parsed.data.body,
   });
   const draftedStr = String(drafted.data ?? "");
   if (drafted.error || !draftedStr.startsWith("ok:")) {
+    if (drafted.error && isMissingRpc(drafted.error.message, "wo_draft_manual_update")) {
+      return { ok: false, message: "This needs database migration 20270304 run first — nothing was sent." };
+    }
     return { ok: false, message: drafted.error?.message ?? draftedStr.replace("error:", "").replace(/_/g, " ") };
   }
   const updateId = draftedStr.slice(3);
-
-  const approved = await supabase.rpc("wo_approve_update", {
-    p_update_id: updateId, p_final_text: parsed.data.body,
-  });
-  if (approved.error || !String(approved.data ?? "").startsWith("ok")) {
-    return { ok: false, message: "Couldn't approve the update — is it already sent for today?" };
-  }
 
   // The chosen photos are RECORDED on the update (20270268) — the portal's
   // timeline shows the ones the office picked, not whatever was taken that
