@@ -15,8 +15,10 @@ type Msg = { id: string; role: "user" | "assistant" | "staff" | "system"; text: 
 
 const fmt = (c: number) => `$${Math.round(c / 100).toLocaleString("en-AU")}`;
 
-export default function AssistView({ conversationId, estimateId, disclosure, assistantName, logoUrl, initialTranscript, initialUi, initialBundle }: {
+export default function AssistView({ conversationId, estimateId, disclosure, assistantName, logoUrl, initialTranscript, initialUi, initialBundle, brandName = "Paint Group" }: {
   conversationId: string;
+  /** Paint Home brief §5 / wizard mobile v5 R10: whose person joins the chat, by the brand the page is served under. */
+  brandName?: string;
   estimateId: string;
   disclosure: string;
   assistantName: string;
@@ -88,7 +90,7 @@ export default function AssistView({ conversationId, estimateId, disclosure, ass
       </header>
 
       <section className="as-chat" aria-label={assistantName}>
-        <p className="as-disclosure">{disclosure}{handedOff ? " · A person from Paint Group is on this chat." : ""}</p>
+        <p className="as-disclosure">{disclosure}{handedOff ? ` · A person from ${brandName} is on this chat.` : ""}</p>
         <div className="as-log" data-testid="as-log">
           {transcript.map((m) => (
             <div key={m.id} className={`as-msg as-${m.role}`} data-testid={`as-msg-${m.role}`}>

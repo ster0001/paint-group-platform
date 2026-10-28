@@ -4,6 +4,7 @@ import VideoEmbed from "../_components/VideoEmbed";
 import { getGoogleReviews, trimReview } from "@/lib/marketing/googleReviews";
 import { showcaseJobById } from "@/lib/showcase/queries";
 import { parseVideoUrl } from "@/lib/marketing/video";
+import { melbourneDay, videoObjectLd, videoUploadDateFor } from "@/lib/marketing/videoLd";
 import { showcaseMediaUrl } from "@/lib/showcase/format";
 import type { WebsiteContent } from "@/lib/marketing/siteContent";
 import type { Audience } from "@/lib/marketing/audience";
@@ -44,16 +45,27 @@ export default async function Reviews({ featuredVideoJobId = null, featuredVideo
   const heading = picked?.fallback && copy?.fallbackH2 ? copy.fallbackH2 : h2;
   const video = videoJob?.video_url ? videoJob : null;
   const directRef = direct ? parseVideoUrl(direct.url) : null;
-  const directLd = direct && directRef ? {
-    "@context": "https://schema.org",
-    "@type": "VideoObject",
+  // Search Console (28 Oct 2026): uploadDate is required — the day the link was added (written by the
+  // Settings save; an older row reads as today until it is saved again). One builder for every video.
+  const directLd = direct && directRef ? videoObjectLd({
     name: direct.caption || "A Paint Group customer",
     description: direct.transcript ? direct.transcript.slice(0, 300) : direct.caption || "A customer talks about their painting job.",
-    thumbnailUrl: [direct.posterPath ? showcaseMediaUrl(direct.posterPath) : directRef.thumbnailUrl].filter(Boolean),
+    thumbnailUrl: [direct.posterPath ? showcaseMediaUrl(direct.posterPath) : directRef.thumbnailUrl],
     embedUrl: directRef.embedUrl,
     contentUrl: directRef.watchUrl,
-    transcript: direct.transcript || undefined,
-  } : null;
+    transcript: direct.transcript || null,
+    uploadDate: direct.addedOn ?? melbourneDay(),
+  }) : null;
+  const videoRef = video ? parseVideoUrl(video.video_url!) : null;
+  const videoLd = video && videoRef ? videoObjectLd({
+    name: video.video_caption || `${video.title} in ${video.suburb}`,
+    description: video.review_quote || video.summary || video.scope_line || `${video.title} in ${video.suburb}`,
+    thumbnailUrl: [video.video_poster_path ? showcaseMediaUrl(video.video_poster_path) : videoRef.thumbnailUrl],
+    embedUrl: videoRef.embedUrl,
+    contentUrl: videoRef.watchUrl,
+    transcript: video.video_transcript || null,
+    uploadDate: videoUploadDateFor(video),
+  }) : null;
   const cards = live && live.reviews.length > 0
     ? live.reviews.map((r) => { const t = trimReview(r.text); return { ...r, shown: t.text, trimmed: t.trimmed }; })
     : null;
@@ -80,6 +92,7 @@ export default async function Reviews({ featuredVideoJobId = null, featuredVideo
           <div className="rev-video" data-testid="featured-video">
             <VideoEmbed url={video.video_url!} caption={video.video_caption || `${video.review_name ? video.review_name.split("·")[0].trim() : "A customer"}, ${video.suburb} — ${video.title.toLowerCase()}`} posterPath={video.video_poster_path} transcript={video.video_transcript} testId="featured-video" />
             <p className="rev-video-link"><Link href={`/work/${video.slug}`}>See this job →</Link></p>
+            {videoLd && <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(videoLd) }} />}
           </div>
         )}
         <div data-testid="reviews" data-source={cards ? "google" : "placeholder"}>

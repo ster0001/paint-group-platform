@@ -23,6 +23,7 @@ import { numericSettingValue } from "@/lib/settings/numeric";
 import {
   addDays, melbourneDay, previousRange, type ActivitySlice, type AwaitingReplyRow, type ClosedJobRow, type ConsoleSlice, type ContractorSlice, type EstimateRow, type FunnelSlice, type InvoicingSlice, type MaterialsJobRow, type MetricInput, type PlSlice, type Range, type SalesSlice,
 } from "./core";
+import { WIZARD_RATE_EVENT_TYPES } from "./metrics/funnel";
 import { loadDashboard as loadInvoicingDashboard, toDerive, toDerivePayments, type InvoiceRow } from "@/app/invoicing/data";
 import { effectiveRoles, isDashboardRole, type DashboardRole, type DashboardSection } from "./roles";
 import { loadReportingExclusions, without, type ReportingExclusions } from "./exclusions";
@@ -318,7 +319,14 @@ async function loadFunnelSlice(supabase: SupabaseClient, range: Range, failures:
     .gte("occurred_at", fromIso).lte("occurred_at", toIso).order("occurred_at", { ascending: false }).order("id").range(from, to), 10);
   if (web.error) failure(failures, "website events", web.error);
   if (web.truncated) failure(failures, "website events", new Error("more than 10,000 website events in the window — the shopfront row counts the newest 10,000"));
+  // Wizard mobile v5 §8: the wizard's own events (the session id rides in the payload), for gate → exact and contact → booked. Newest 10,000.
+  type WizRow = { type: string; occurred_at: string; payload: { sessionId?: string; cta?: string; from?: string } | null };
+  const wiz = await pageAll<WizRow>((from, to) => realOnly(supabase.from("crm_events").select("type, occurred_at, payload")).in("type", [...WIZARD_RATE_EVENT_TYPES])
+    .gte("occurred_at", fromIso).lte("occurred_at", toIso).order("occurred_at", { ascending: false }).order("id").range(from, to), 10);
+  if (wiz.error) failure(failures, "wizard events", wiz.error);
+  if (wiz.truncated) failure(failures, "wizard events", new Error("more than 10,000 wizard events in the window — the rates count the newest 10,000"));
   return {
+    wizardEvents: (wiz.data ?? []).map((e) => ({ type: e.type, session_id: e.payload?.sessionId ?? null, cta: e.payload?.cta ?? null, from: e.payload?.from ?? null, occurred_at: e.occurred_at })),
     web: (web.data ?? []).map((e) => ({ name: e.payload?.name ?? "", audience: e.payload?.props?.audience ?? null, visitor_id: e.payload?.visitorId ?? null, occurred_at: e.occurred_at })),
     drafts: rows.map((d) => ({ id: d.id, started_at: d.started_at, email: d.email, estimate_id: d.estimate_id, converted_at: d.converted_at, last_seen_at: d.last_seen_at, lead_source: d.accounts?.lead_source ?? null, brand: d.brand ?? null,
       gate_version: d.gate_version ?? null, gate_shown_at: d.gate_shown_at ?? null, gate_completed_at: d.gate_completed_at ?? null, range_shown_at: d.range_shown_at ?? null, range_option: d.range_option ?? null })),

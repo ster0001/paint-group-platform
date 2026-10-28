@@ -1,0 +1,58 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import type { MobilePictureState, Ribbon } from "@/lib/wizard/mobilePicture";
+import MobilePicture from "./pictures/MobilePicture";
+
+/**
+ * Wizard mobile v5, session 3 (brief §3) — the live strip under the
+ * progress bar: thumbnail 76 × 52 · ribbon · chevron. Tapping it opens a
+ * bottom sheet with the same picture full width (5:3), the caption and the
+ * same surface chips as the step (§3.4 — one control, two places). The
+ * picture is drawn twice from the ONE state the shell passes; each copy
+ * animates on its own (MobilePicture). Hidden on the gate — the gate is a
+ * different screen (Reveal), so the shell never draws this there.
+ */
+export type StripChip = { key: string; label: string; on: boolean };
+
+export default function MobileStrip({ state, ribbon, chips, onToggle }: {
+  state: MobilePictureState;
+  ribbon: Ribbon;
+  /** The sheet's chips; null before there is anything to tick (the caption says so). */
+  chips: StripChip[] | null;
+  onToggle: (key: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setOpen(false); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [open]);
+  return (
+    <>
+      <button type="button" className="wzm-strip" data-testid="wzm-strip" onClick={() => setOpen(true)} aria-label={`${ribbon.line1}. ${ribbon.line2}`}>
+        <span className="thumb" data-testid="wzm-thumb"><MobilePicture state={state} testId="wzm-pic" /></span>
+        <span className="txt"><b data-testid="wzm-ribbon-1">{ribbon.line1}</b><span data-testid="wzm-ribbon-2">{ribbon.line2}</span></span>
+        <span className="chev" aria-hidden="true" data-testid="wzm-chev">›</span>
+      </button>
+      {open && (
+        <div className="wz-sheetback wzm-sheetback" role="dialog" aria-modal="true" aria-label="Your place" data-testid="wzm-sheet" onClick={(e) => { if (e.target === e.currentTarget) setOpen(false); }}>
+          <div className="wz-sheet wzm-sheet">
+            <button type="button" className="wz-sheet-x" aria-label="Close" onClick={() => setOpen(false)} data-testid="wzm-sheet-x">×</button>
+            <div className="wzm-grab" aria-hidden="true" />
+            <div className="wzm-bigpic" data-testid="wzm-bigpic"><MobilePicture state={state} testId="wzm-bigpic-pic" /></div>
+            <p className="wzm-cap" data-testid="wzm-cap">{chips ? "Tap a surface to paint it in or out." : "Updates as you answer."}</p>
+            {chips && (
+              <div className="wzm-chips" data-testid="wzm-sheet-chips">
+                {chips.map((c) => (
+                  <button key={c.key} type="button" className={`wzm-chip ${c.on ? "on" : ""}`} aria-pressed={c.on} data-testid={`wzm-sheet-chip-${c.key}`} onClick={() => onToggle(c.key)}>{c.label}</button>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </>
+  );
+}

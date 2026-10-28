@@ -47,7 +47,11 @@ test.describe("Paint Home — the wizard brand branch (session 3)", () => {
     }
   });
 
-  /** From the Paint Home hero to the range: Inside, the fixture address, the quick look, the gate. */
+  /**
+   * From the Paint Home hero to the range: Inside, the fixture address, the quick look, the gate.
+   * Wizard mobile v5 (S2, 28 Oct 2026): at 375px the quick look is the phone's shell — one
+   * question per screen, single choices advancing themselves (e2e/customer-journey/wizard-mobile-v5.spec.ts).
+   */
   async function driveToRange(page: Page, suburb: string, scope: "Inside" | "Outside" = "Inside") {
     await page.goto(phRoot);
     await page.getByTestId("consent-decline").click({ timeout: 3_000 }).catch(() => {});
@@ -59,23 +63,39 @@ test.describe("Paint Home — the wizard brand branch (session 3)", () => {
     expect(new URL(page.url()).host).toMatch(/^painthome\.localhost/);
     await expect(page.locator("[data-ready='1']")).toBeAttached({ timeout: 20_000 });
     await expect(page.locator("[data-quick-step='start']")).toBeVisible({ timeout: 20_000 });
+    await expect(page.locator("[data-mobile-screen='what']")).toBeVisible({ timeout: 20_000 });
     // §5: the scope is pre-answered and editable; there is no "Both"; no Paint Group in the header
-    await expect(page.locator("[data-testid='ql-jobtype'] .wz-card.on")).toHaveText(scope);
+    const jobType = scope === "Inside" ? "interior" : "exterior";
+    await expect(page.getByTestId(`ql-jobtype-${jobType}`)).toHaveAttribute("aria-pressed", "true");
     await expect(page.getByTestId("ql-jobtype-both")).toHaveCount(0);
     await expect(page.locator("header [data-testid='painthome-logo-nav']")).toBeVisible();
-    await expect(page.getByTestId("wz-head")).not.toContainText("Paint Group");
+    await expect(page.getByTestId("wzm-head")).not.toContainText("Paint Group");
+    // words alone (no Places on the test stack): the suburb and postcode boxes carry the handle
     await page.getByPlaceholder("Suburb").fill(suburb);
     await page.getByPlaceholder("Postcode").fill("3163");
-    await quickNext(page);
+    await page.getByTestId(`ql-jobtype-${jobType}`).tap();
     // the place: residential kinds only
-    await expect(page.locator("[data-quick-step='place']")).toBeVisible({ timeout: 20_000 });
+    await expect(page.locator("[data-mobile-screen='property']")).toBeVisible({ timeout: 20_000 });
+    await expect(page.locator("[data-quick-step='place']")).toBeVisible();
     await expect(page.getByTestId("ql-kind-commercial")).toHaveCount(0);
     await expect(page.getByTestId("ql-kind-house")).toBeVisible();
-    await quickNext(page);           // the job
-    await quickNext(page);           // the rooms
-    await expect(page.locator("[data-quick-step='rooms']")).toBeVisible({ timeout: 30_000 });
-    await quickNext(page);           // condition
+    await page.getByTestId("ql-kind-house").tap();
+    await expect(page.locator("[data-mobile-screen='beds']")).toBeVisible({ timeout: 20_000 });
+    await page.getByTestId("ql-bedrooms-3").tap();
+    await expect(page.locator("[data-mobile-screen='storeys']")).toBeVisible({ timeout: 20_000 });
+    await page.getByTestId("ql-storeys-single").tap();
+    await expect(page.locator("[data-mobile-screen='job']")).toBeVisible({ timeout: 20_000 });
+    await page.getByTestId("ql-scope-whole").tap();
+    await expect(page.locator("[data-mobile-screen='surfaces']")).toBeVisible({ timeout: 20_000 });
     await quickNext(page);
+    await expect(page.locator("[data-quick-step='rooms']")).toBeVisible({ timeout: 30_000 });
+    await quickNext(page);
+    await expect(page.locator("[data-mobile-screen='colours']")).toBeVisible({ timeout: 20_000 });
+    await page.getByTestId("ql-colours-new").tap();
+    await expect(page.locator("[data-mobile-screen='condition']")).toBeVisible({ timeout: 20_000 });
+    await page.getByTestId("ql-condition-wear").tap();
+    await expect(page.locator("[data-mobile-screen='living']")).toBeVisible({ timeout: 20_000 });
+    await page.getByTestId("ql-occupied-no").tap();
     await passGateIfShown(page, { name: "Paint Home Tester", email: `ph.${run}@example.com` });
     const reveal = page.getByTestId("reveal");
     const bounced = page.locator(".wz-err");
@@ -94,13 +114,19 @@ test.describe("Paint Home — the wizard brand branch (session 3)", () => {
     await expect(page.getByTestId("door-book")).toHaveCount(0);
     await expect(page.getByTestId("door-speak")).toHaveCount(0);
     await expect(page.getByTestId("painthome-handoff")).toHaveCount(0);
-    await expect(page.getByTestId("reveal-tiers-visit")).toContainText("Then one call.");
+    // an inside job's ladder ends in Confirmed (Reveal `insideOnly`); the "Then one call" line is the outside/commercial ladder's
+    await expect(page.getByTestId("reveal-tiers")).toContainText("fixed with your estimator");
+    await expect(page.getByTestId("reveal-tiers-visit")).toHaveCount(0);
     await expect(page.getByTestId("reveal")).not.toContainText("Paint Group");
+    // wizard mobile v5 R10: nothing on the page — header, chat, strip — names Paint Group (the hand-off's one line is test 2's)
+    await expect(page.locator("body")).not.toContainText("Paint Group");
     await call.tap();
     const sheet = page.getByTestId("talk-sheet");
     await expect(sheet).toBeVisible();
     if (await sheet.getByTestId("talk-mobile").count()) {
       await sheet.getByTestId("talk-name").fill("Paint Home Tester");
+      // the hero handed over words only (no Places on the test stack), so the sheet asks where the property is
+      if (await sheet.getByTestId("talk-address").count()) await sheet.getByTestId("talk-address").fill("14 Acacia Street, Northcote");
       await sheet.getByTestId("talk-email").fill(`ph.${run}@example.com`);
       await sheet.getByTestId("talk-mobile").fill(`04${String(Date.now()).slice(-8)}`);
     }
@@ -130,8 +156,10 @@ test.describe("Paint Home — the wizard brand branch (session 3)", () => {
     await expect(handoff).toBeVisible();
     await expect(handoff).toContainText("This one's bigger than we can price from your phone.");
     await expect(page.getByTestId("painthome-handoff-team")).toContainText("You'll hear from the Paint Group team");
-    // Tom, 27 Oct 2026: the hand-off still offers Tighten my price
-    await expect(handoff.getByTestId("door-tighten")).toBeVisible();
+    // Tom, 27 Oct 2026: the hand-off offers NO way into the editor — no Tighten door, no Change-this links, no dock button
+    await expect(handoff.getByTestId("door-tighten")).toHaveCount(0);
+    await expect(page.locator("[data-testid^='reveal-assumed-link-']")).toHaveCount(0);
+    await expect(page.getByTestId("reveal-dock-tighten")).toHaveCount(0);
     await expect(page.getByTestId("door-call")).toHaveCount(0);
     // the answers are kept: the estimate exists with its range, and the basis line reads them back
     await expect(page.getByTestId("reveal-restatement")).toContainText(/bed|room|storey|house/i);
@@ -150,7 +178,8 @@ test.describe("Paint Home — the wizard brand branch (session 3)", () => {
     await expect(page.locator("header [data-testid='painthome-logo-nav']")).toHaveCount(0);
     await page.getByPlaceholder("Suburb").fill("Murrumbeena");
     await page.getByPlaceholder("Postcode").fill("3163");
-    await quickNext(page);
+    await page.getByTestId("ql-jobtype-interior").tap();
+    await expect(page.locator("[data-mobile-screen='property']")).toBeVisible({ timeout: 20_000 });
     await expect(page.getByTestId("ql-kind-commercial")).toBeVisible();
   });
 });

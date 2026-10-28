@@ -43,8 +43,10 @@ const CSS = `
 .pgw .btn[disabled]{opacity:.5;cursor:default}
 `;
 
-export default function AssistantWidget({ estimateId = null, lift = 0 }: {
+export default function AssistantWidget({ estimateId = null, lift = 0, brandName = "Paint Group" }: {
   estimateId?: string | null;
+  /** Paint Home brief §5 / wizard mobile v5 R10: whose chat this is, for the panel's name. */
+  brandName?: string;
   /** Pixels to sit above a fixed bottom bar (the editor's sticky CTA bar covers the launcher otherwise). */
   lift?: number;
 }) {
@@ -70,7 +72,7 @@ export default function AssistantWidget({ estimateId = null, lift = 0 }: {
     <div className="pgw" data-testid="assistant-widget" style={lift ? { bottom: `calc(${16 + lift}px + env(safe-area-inset-bottom, 0px))` } : undefined}>
       <style>{CSS}</style>
       {open && (
-        <div className="pgw-panel" role="dialog" aria-label="Chat with Paint Group" data-testid="assistant-widget-panel">
+        <div className="pgw-panel" role="dialog" aria-label={`Chat with ${brandName}`} data-testid="assistant-widget-panel">
           <div className="pgw-hd">
             <div><b>Chat with us</b><span>Ask the assistant anything about your quote, or talk to a person.</span></div>
             <button type="button" className="pgw-x" aria-label="Close chat" onClick={() => setOpen(false)}>×</button>

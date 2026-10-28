@@ -16,8 +16,10 @@ const KEY = "pg-wizard-chat";
  * and Realtime brings the reply here. The conversation id is kept in the
  * browser so a reload picks the same thread up.
  */
-export default function ChatWidget({ ready, place = "wizard", ensureSession, onDescribe }: {
+export default function ChatWidget({ ready, place = "wizard", ensureSession, onDescribe, brandName = "Paint Group" }: {
   ready: boolean;
+  /** Paint Home brief §5 / wizard mobile v5 R10: whose chat this is — the panel's name and the label on every reply. */
+  brandName?: string;
   /**
    * C16 (a): "describe it" lives behind the bubble. When the host is on the
    * quick look it hands over a function that reads a paragraph and fills the
@@ -133,7 +135,7 @@ export default function ChatWidget({ ready, place = "wizard", ensureSession, onD
   return (
     <div className={`wz-chat ${place === "wizard" ? "" : place} ${open ? "open" : ""}`} data-testid="wz-chat">
       {open && (
-        <div className="wz-chat-panel" role="dialog" aria-label="Chat with Paint Group" data-testid="wz-chat-panel" data-status={snap?.status ?? ""}>
+        <div className="wz-chat-panel" role="dialog" aria-label={`Chat with ${brandName}`} data-testid="wz-chat-panel" data-status={snap?.status ?? ""}>
           <div className="wz-chat-head">
             <b>Chat with us</b>
             <span className="wz-chat-state">{live ? "A person is with you" : waiting ? "Finding someone…" : "We answer here"}</span>
@@ -143,7 +145,7 @@ export default function ChatWidget({ ready, place = "wizard", ensureSession, onD
             {!snap && !error && <p className="wz-chat-note">Opening the chat…</p>}
             {snap?.transcript.map((m) => (
               <div key={m.id} className={`wz-chat-msg ${m.role === "user" ? "me" : "them"}`} data-testid={`wz-chat-${m.role}`}>
-                {m.role !== "user" && <span className="wz-chat-who">{m.role === "staff" ? "Paint Group" : "Paint Group"}</span>}
+                {m.role !== "user" && <span className="wz-chat-who">{brandName}</span>}
                 <span>{m.text}</span>
               </div>
             ))}

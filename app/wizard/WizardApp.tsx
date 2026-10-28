@@ -1,7 +1,6 @@
 "use client";
 
 import type { ExteriorTypicalRow } from "@/lib/wizard/exterior-typicals";
-import { GUARDRAIL_MESSAGES } from "@/lib/wizard/policy";
 import { aboutMissing, allSidesConfirmed, exteriorV2Answered, paintedSides } from "@/lib/wizard/exterior-model";
 import PictureCard from "./PictureCard";
 import type { ExteriorSideKey } from "@/lib/wizard/exterior-typicals";
@@ -48,6 +47,8 @@ import type { CustomerPayload, WizardEditorPayload } from "@/lib/wizard/view";
 import AddressField from "./AddressField";
 import type { PickedAddress } from "@/app/components/useAddressLookup";
 import QuickLook from "./QuickLook";
+import MobileQuickLook from "./MobileQuickLook";
+import { starterRoomNames } from "@/lib/wizard/some-rooms";
 import SaveAndBookSheet from "./SaveAndBookSheet";
 import type { TalkMode } from "./TalkSheet";
 import ConditionBox from "./ConditionBox";
@@ -65,6 +66,7 @@ import { RESUME_KEY, RESTART_KEY, decodeResume, encodeResume, restartedSince, re
 import Wordmark from "./Wordmark";
 import { allowedForBrand, type WizardBrand } from "@/lib/wizard/brand";
 import { brandFor } from "@/lib/marketing/brand";
+import { breakpointNow, markScopeFromGate, sendWizardEvent } from "@/lib/wizard/wizardEvents";
 import ChatWidget from "./ChatWidget";
 import WizardHeader from "./WizardHeader";
 import { UI_FLAGS } from "@/lib/wizard/ui-flags";
@@ -140,6 +142,22 @@ type SubmitResult = WizardEditorPayload & {
 
 const emptySubscribe = () => () => {};
 const snapshotTrue = () => true;
+/**
+ * Wizard mobile v5 (S2): is this a phone? The brief's one line — mobile is
+ * `< 768px` (lib/wizard/wizardEvents.ts MOBILE_MAX_WIDTH) — read from the
+ * media query so the shell follows a rotation or a resize. The server
+ * render never knows, so it is the desktop until hydration; the page is
+ * `wz-waking` (no pointer events) until then anyway.
+ */
+const MOBILE_QUERY = "(max-width: 767px)";
+const subscribeMobile = (cb: () => void) => {
+  if (typeof window === "undefined" || !window.matchMedia) return () => {};
+  const mq = window.matchMedia(MOBILE_QUERY);
+  mq.addEventListener("change", cb);
+  return () => mq.removeEventListener("change", cb);
+};
+const mobileSnapshot = () => typeof window !== "undefined" && Boolean(window.matchMedia?.(MOBILE_QUERY).matches);
+const notMobile = () => false;
 const snapshotFalse = () => false;
 
 /** Rotating lines on the processing screen — something worth reading while
@@ -237,6 +255,8 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
   const [page, setPage] = useState(1);
   const [screen, setScreen] = useState<Screen>("pages");
   const isCustomer = mode === "customer";
+  // Paint Home brief §5: the one display name every piece of chrome that names the company reads.
+  const brandName = brandFor(brand === "painthome" ? "painthome" : "home").name;
   const [outcome, setOutcome] = useState<CustomerOutcome | null>(null);
 
   /**
@@ -1461,6 +1481,14 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
     const t = setTimeout(() => { void import("./Reveal"); void import("./TalkSheet"); void import("./CustomerResult"); }, 800);
     return () => clearTimeout(t);
   }, [isCustomer, pastFirst]);
+  // Wizard mobile v5 §8: one `wizard_step_viewed` per step per session (the route dedupes), with the breakpoint it was seen on.
+  // The phone's shell (MobileQuickLook) writes one per SCREEN instead — the place step is three of them there.
+  const mobileShell = useSyncExternalStore(subscribeMobile, mobileSnapshot, notMobile);
+  useEffect(() => {
+    if (!isCustomer || !quickActive) return;
+    if (breakpointNow() === "mobile" && entry === "questions") return;
+    sendWizardEvent("wizard_step_viewed", { step: quickStep, breakpoint: breakpointNow() });
+  }, [isCustomer, quickActive, quickStep, entry]);
   useEffect(() => {
     if (screen !== "reveal") return;
     const t = setTimeout(() => { void import("./ExteriorWalk"); }, 800);
@@ -1608,17 +1636,6 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
      * the service-area check runs on — an empty one reads as "outside the
      * area" and hands off a job we could have priced.
      */
-    /**
-     * Tom, 27 Oct 2026: an address outside the areas we cover STOPS here — the
-     * same outside-area screen the gate would give six screens later (request
-     * a call back, nothing to edit), instead of "send it anyway" and a walk
-     * into the estimator that ends at a refusal.
-     */
-    if (quickStep === "start" && quickOutOfArea) {
-      setOutcome({ outcome: "outside_area", message: GUARDRAIL_MESSAGES.outside_area, canRetry: false });
-      setScreen("editor"); // the result screen takes over
-      return;
-    }
     if (quickStep === "start" && !state.address
         && !(state.customer?.suburb.trim() && state.customer.postcode.trim())) {
       setError(quickAddress.trim()
@@ -1855,7 +1872,7 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
       <div data-ready="1" className="wz-shell">
         {/* UI refresh S3 (brief §7.1): after the details, the rail is the three accuracy steps. */}
         <WizardHeader
-          brandName={brandFor(brand === "painthome" ? "painthome" : "home").name}
+          brandName={brandName}
           logo={<Wordmark logoUrl={logoUrl} brand={brand} />}
           steps={[]}
           at="gate"
@@ -1868,7 +1885,7 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
             ],
           }}
           phone={companyPhone}
-          chat={UI_FLAGS.chatInHeader ? <ChatWidget ready place="header" /> : undefined}
+          chat={UI_FLAGS.chatInHeader ? <ChatWidget ready place="header" brandName={brandName} /> : undefined}
           onSaveBook={() => setBookOpen(true)}
         />
         <SaveAndBookSheet
@@ -1931,12 +1948,12 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
           onTighten={() => {
             void recordRangeOption(reveal.estimateId, "tighten");
             // Tom, 21 Oct (item 8): Tighten opens the customer editor on every path — the drawn house too (the walk-around step is retired).
-            const go = () => { clearResume(); router.push(`/estimate/scope?id=${reveal.estimateId}`); };
+            const go = () => { clearResume(); markScopeFromGate(); router.push(`/estimate/scope?id=${reveal.estimateId}`); };
             // R7 (range first): any option asks for the details before going further.
             if (!contactKnown) { setTalk({ mode: "details", then: go }); return; }
             go();
           }}
-          onEditor={() => { void recordRangeOption(reveal.estimateId, "tighten"); clearResume(); router.push(`/estimate/scope?id=${reveal.estimateId}`); }}
+          onEditor={() => { void recordRangeOption(reveal.estimateId, "tighten"); clearResume(); markScopeFromGate(); router.push(`/estimate/scope?id=${reveal.estimateId}`); }}
           onBook={() => { void recordRangeOption(reveal.estimateId, "visit"); clearResume(); router.push(`/estimate/visit?id=${reveal.estimateId}`); }}
           speakWithUs={Boolean((reveal.payload as { speakWithUs?: boolean }).speakWithUs)}
           brand={brand}
@@ -1953,24 +1970,178 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
     );
   }
 
+  /**
+   * Wizard mobile v5 (S2): the quick look's screen, built ONCE for both
+   * shells — the desktop renders it as the page; the phone's shell renders
+   * a step it does not split through it in `shell="mobile"` mode (no nav,
+   * no talk card, the bar is the shell's). One element, so the two can
+   * never be handed different props.
+   */
+  const addressFieldNode = (
+    <>
+      <AddressField
+        placeholder="Your address — start typing and pick it"
+        value={state.address ? state.address.formatted : quickAddress}
+        onText={(text) => set({ title: text, address: null })}
+        onPick={(a, inArea) => {
+          setQuickOutOfArea(inArea === false);
+          set({
+            title: a.formatted,
+            address: a,
+            customer: state.customer
+              ? { ...state.customer, suburb: a.suburb || state.customer.suburb, postcode: a.postcode || state.customer.postcode }
+              : state.customer,
+          });
+        }}
+      />
+      {/* The lookup degrades to a plain input when Places is
+          unavailable, and a job with no postcode reads as
+          OUTSIDE THE SERVICE AREA — a handoff caused by our
+          outage, not their address. These two appear only when
+          they have typed something the lookup did not resolve. */}
+      {(quickAddress.trim() !== "" || state.customer?.suburb.trim() || state.customer?.postcode.trim())
+        && !state.address && state.customer && (
+        <div className="wz-crow wz-quick-fallback">
+          <input
+            className="wz-in" placeholder="Suburb" value={state.customer.suburb}
+            onChange={(e) => set({ customer: { ...state.customer!, suburb: e.target.value } })}
+          />
+          <input
+            className="wz-in" placeholder="Postcode" value={state.customer.postcode} inputMode="numeric"
+            onChange={(e) => set({ customer: { ...state.customer!, postcode: e.target.value } })}
+          />
+        </div>
+      )}
+      {quickOutOfArea && (
+        <div className="wz-err">
+          That looks to be outside the areas we cover — send it anyway and we&rsquo;ll tell you honestly.
+        </div>
+      )}
+      {/* ⚑14 stands: nothing was demoted. The other two ways in
+          stay on the first screen — they are simply no longer a
+          toll gate in front of the price (§2.1). */}
+      {/* Tom, 15 Sep: "describe it" left screen 1 — the chat bubble is the describe door.
+          An INSIDE job uploads its floorplan on the place screen; only the outside
+          path still starts from photos or a listing here. */}
+      {/* Tom, 15 Sep (late, item 1): "Upload photos or a listing" is gone from
+          the outside tab. Tom, 25 Oct 2026: so is the `?entry=upload` door behind
+          it — the old page set is staff-only now. */}
+      <div className="wz-otherways" data-testid="wz-entry" />
+    </>
+  );
+  const renderQuickLook = (shell: "page" | "mobile") => (
+    <QuickLook
+      shell={shell}
+      step={quickStep}
+      quick={quick}
+      onQuick={setQuick}
+      brand={brand}
+      exteriorTypicals={exteriorTypicals}
+      planRooms={state.planRooms}
+      planPreviewUrl={state.planPreviewUrl}
+      planPending={state.planRunIds.length > 0 && state.planRooms == null}
+      addedRooms={state.addedRooms}
+      onAddRoom={(r) => set({ addedRooms: [...state.addedRooms, r] })}
+      onRemoveAdded={(i) => set({ addedRooms: state.addedRooms.filter((_, k) => k !== i) })}
+      assumed={state.assistant?.wrote ?? []}
+      planUpload={quick.jobType !== "exterior" ? (
+        <div className="wz-planupload" data-testid="ql-plan">
+          {/* Tom, 25 Oct 2026 (item 1): a floorplan only — the listing link is gone from this step. */}
+          <p className="wz-qhead">Have a floorplan? <span className="wz-opttag">Optional</span></p>
+          <p className="wz-hint">We read the rooms and sizes off it.</p>
+          <input
+            ref={planInputRef} type="file" hidden accept="image/*,application/pdf"
+            onChange={(e) => { void uploadPlans([...(e.target.files ?? [])]); e.target.value = ""; }}
+          />
+          <button type="button" className={`wz-upload ${planFileCount ? "done" : ""}`} onClick={() => planInputRef.current?.click()} disabled={uploading} data-testid="ql-plan-upload">
+            {planUploadLabel({ planFileCount, uploading })}
+          </button>
+          {uploadNote && <p className="wz-chint">{uploadNote}</p>}
+          {planFileCount > 0 && <p className="wz-chint" data-testid="ql-plan-done">The rooms come off your plan — the next screens ask what&rsquo;s painted and the condition.</p>}
+        </div>
+      ) : null}
+      error={error}
+      canContinue={!nav.disabled}
+      whyNot={nav.note}
+      busy={uploading || booking}
+      onBack={page > 1 ? quickBack : null}
+      steps={quickSteps}
+      onGo={quickGo}
+      address={state.address?.formatted ?? quickAddress}
+      suburb={state.address?.suburb || state.customer?.suburb || null}
+      estimatorName={estimatorName}
+      onNext={quickNext}
+      // Paint Home brief §5: the mid-flow door asks for a call, never a site visit.
+      onBook={() => { flushDraft(lastScreen); sendWizardEvent("contact_opened", { step: quickStep }); setTalk({ mode: brand === "painthome" ? "call" : "visit" }); }}
+      onMessage={() => { flushDraft(lastScreen); sendWizardEvent("contact_opened", { step: quickStep }); setTalk({ mode: "message" }); }}
+      gate={hasGate ? {
+        contact: state.contact,
+        onContact: (c) => set({ contact: c }),
+        marketing: state.marketingOptIn,
+        onMarketing: (v) => set({ marketingOptIn: v }),
+      } : null}
+      onChooseBoth={chooseBoth}
+      phone={companyPhone}
+      outside={outside}
+      onOutside={setOutside}
+      // Tom, 15 Sep: under "Needs work" — the damage note and the
+      // damage photos (the same upload the submit already sends).
+      needsWork={{
+        note: state.details.damageNote,
+        onNote: (v) => set({ details: { ...state.details, damageNote: v } }),
+        photoCount: state.details.damagePhotoCount,
+        onPhotos: () => quickPhotoRef.current?.click(),
+        onClearPhotos: () => { damageFilesRef.current = []; set({ details: { ...state.details, damagePhotoCount: 0 } }); },
+      }}
+      commercial={{
+        segments,
+        segmentKey: state.customer?.commercialSegment ?? null,
+        segment: commercialSeg,
+        onSegment: pickSegment,
+        answers: commercialAnswers,
+        onAnswers: setCommercial,
+        photoCount: state.details.damagePhotoCount,
+        onPhotos: () => quickPhotoRef.current?.click(),
+        door: commercialDoor,
+        briefConfig: briefConfig?.brief ?? null,
+        brief: briefAnswers,
+        onBrief: setBriefAnswers,
+        slots: bookSlots,
+        slot: bookSlot,
+        onSlot: setBookSlot,
+        contact: { email: state.contact.email, name: state.contact.name, phone: state.contact.phone },
+        onContact: (patch) => set({ contact: { ...state.contact, ...patch } }),
+        bookError,
+        holdDays,
+      }}
+      addressField={addressFieldNode}
+    />
+  );
+  /**
+   * Wizard mobile v5 (S2): on a phone a customer's quick look is the phone's
+   * shell — one question per screen, no header rail, no picture panel, no
+   * talk pill (brief §2, §3). Everything else (the range, the processing
+   * screen, the staff page set) is as it was.
+   */
+  const useMobile = mobileShell && newShell && quickActive && screen !== "processing";
   return (
     // P1 (completed): the hydration gate the editors already had. Until React
     // hydrates, every chip and button is a live-looking dead control — a tap
     // in the first moments after load was silently lost. wz-waking turns off
     // pointer events so an early tap waits (and Playwright's actionability
     // check queues on it) instead of vanishing; data-ready is the spec hook.
-    <div className={[ready ? "" : "wz-waking", newShell ? "wz-shell" : ""].filter(Boolean).join(" ") || undefined} data-ready={ready ? "1" : undefined}>
-      {newShell ? (
+    <div className={[ready ? "" : "wz-waking", newShell ? "wz-shell" : "", useMobile ? "wzm-root" : ""].filter(Boolean).join(" ") || undefined} data-ready={ready ? "1" : undefined}>
+      {useMobile ? null : newShell ? (
         // UI refresh S1: the slim header with the step rail, built from the
         // same `stepsFor()` list the screens walk. ⚑ 10: the chat is its icon.
         <WizardHeader
-          brandName={brandFor(brand === "painthome" ? "painthome" : "home").name}
+          brandName={brandName}
           logo={<Wordmark logoUrl={logoUrl} brand={brand} />}
           steps={quickSteps}
           at={quickStep}
           done={screen === "processing"}
           phone={companyPhone}
-          chat={UI_FLAGS.chatInHeader ? <ChatWidget ready={ready} place="header" onDescribe={quickActive ? describeJob : undefined} /> : undefined}
+          chat={UI_FLAGS.chatInHeader ? <ChatWidget ready={ready} place="header" onDescribe={quickActive ? describeJob : undefined} brandName={brandName} /> : undefined}
           onSaveBook={screen !== "processing" ? openBook : undefined}
         />
       ) : (
@@ -2013,7 +2184,50 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
         />
       )}
 
-      {screen === "processing" ? (
+      {useMobile ? (
+        <>
+          <input
+            ref={quickPhotoRef} type="file" hidden multiple accept="image/*" data-testid="com-photo-input"
+            onChange={(e) => { addQuickPhotos([...(e.target.files ?? [])]); e.target.value = ""; }}
+          />
+          <MobileQuickLook
+            brand={brand}
+            logo={<Wordmark logoUrl={logoUrl} brand={brand} />}
+            steps={quickSteps}
+            step={quickStep}
+            quick={quick}
+            onQuick={setQuick}
+            outside={outside}
+            onOutside={setOutside}
+            address={{
+              text: state.address?.formatted ?? quickAddress,
+              known: Boolean(state.address) || Boolean(state.customer?.suburb.trim() && state.customer.postcode.trim()),
+              field: addressFieldNode,
+            }}
+            contact={hasGate ? state.contact : null}
+            onContact={(c) => set({ contact: c })}
+            marketing={state.marketingOptIn}
+            onMarketing={(v) => set({ marketingOptIn: v })}
+            roomNames={state.planRooms != null && state.planRooms.length > 0 ? state.planRooms.map((r) => r.name) : starterRoomNames(quick)}
+            addedRooms={state.addedRooms}
+            onAddRoom={(r) => set({ addedRooms: [...state.addedRooms, r] })}
+            onRemoveAdded={(i) => set({ addedRooms: state.addedRooms.filter((_, k) => k !== i) })}
+            error={error}
+            busy={uploading || booking}
+            canContinue={!nav.disabled}
+            whyNot={nav.note}
+            onNext={quickNext}
+            onBack={quickBack}
+            canBack={page > 1}
+            // R6: Contact on every screen. Session 5 builds the Contact sheet; until then the pill opens the talk sheet
+            // (a call on Paint Home, a site visit on Paint Group) and writes `contact_opened` for the screen it was tapped on.
+            onContactOpen={(screenId) => { flushDraft(lastScreen); sendWizardEvent("contact_opened", { step: screenId }); setTalk({ mode: brand === "painthome" ? "call" : "visit" }); }}
+            renderStep={() => renderQuickLook("mobile")}
+            resumed={resumed}
+            onStartAgain={startAgain}
+          />
+        </>
+      ) : screen === "processing" ? (
         // Tom, 31 Aug: something to WATCH while the AI works — live step
         // ticks, a moving bar, and a rotating line about what they're getting.
         <div className="wz-wrap wz-proc">
@@ -2067,142 +2281,7 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
                 ref={quickPhotoRef} type="file" hidden multiple accept="image/*" data-testid="com-photo-input"
                 onChange={(e) => { addQuickPhotos([...(e.target.files ?? [])]); e.target.value = ""; }}
               />
-              <QuickLook
-                step={quickStep}
-                quick={quick}
-                onQuick={setQuick}
-                brand={brand}
-                exteriorTypicals={exteriorTypicals}
-                planRooms={state.planRooms}
-                planPreviewUrl={state.planPreviewUrl}
-                planPending={state.planRunIds.length > 0 && state.planRooms == null}
-                addedRooms={state.addedRooms}
-                onAddRoom={(r) => set({ addedRooms: [...state.addedRooms, r] })}
-                onRemoveAdded={(i) => set({ addedRooms: state.addedRooms.filter((_, k) => k !== i) })}
-                assumed={state.assistant?.wrote ?? []}
-                planUpload={quick.jobType !== "exterior" ? (
-                  <div className="wz-planupload" data-testid="ql-plan">
-                    {/* Tom, 25 Oct 2026 (item 1): a floorplan only — the listing link is gone from this step. */}
-                    <p className="wz-qhead">Have a floorplan? <span className="wz-opttag">Optional</span></p>
-                    <p className="wz-hint">We read the rooms and sizes off it.</p>
-                    <input
-                      ref={planInputRef} type="file" hidden accept="image/*,application/pdf"
-                      onChange={(e) => { void uploadPlans([...(e.target.files ?? [])]); e.target.value = ""; }}
-                    />
-                    <button type="button" className={`wz-upload ${planFileCount ? "done" : ""}`} onClick={() => planInputRef.current?.click()} disabled={uploading} data-testid="ql-plan-upload">
-                      {planUploadLabel({ planFileCount, uploading })}
-                    </button>
-                    {uploadNote && <p className="wz-chint">{uploadNote}</p>}
-                    {planFileCount > 0 && <p className="wz-chint" data-testid="ql-plan-done">The rooms come off your plan — the next screens ask what&rsquo;s painted and the condition.</p>}
-                  </div>
-                ) : null}
-                error={error}
-                canContinue={!nav.disabled}
-                whyNot={nav.note}
-                busy={uploading || booking}
-                onBack={page > 1 ? quickBack : null}
-                steps={quickSteps}
-                onGo={quickGo}
-                address={state.address?.formatted ?? quickAddress}
-                suburb={state.address?.suburb || state.customer?.suburb || null}
-                estimatorName={estimatorName}
-                onNext={quickNext}
-                // Paint Home brief §5: the mid-flow door asks for a call, never a site visit.
-                onBook={() => { flushDraft(lastScreen); setTalk({ mode: brand === "painthome" ? "call" : "visit" }); }}
-                onMessage={() => { flushDraft(lastScreen); setTalk({ mode: "message" }); }}
-                gate={hasGate ? {
-                  contact: state.contact,
-                  onContact: (c) => set({ contact: c }),
-                  marketing: state.marketingOptIn,
-                  onMarketing: (v) => set({ marketingOptIn: v }),
-                } : null}
-                onChooseBoth={chooseBoth}
-                phone={companyPhone}
-                outside={outside}
-                onOutside={setOutside}
-                // Tom, 15 Sep: under "Needs work" — the damage note and the
-                // damage photos (the same upload the submit already sends).
-                needsWork={{
-                  note: state.details.damageNote,
-                  onNote: (v) => set({ details: { ...state.details, damageNote: v } }),
-                  photoCount: state.details.damagePhotoCount,
-                  onPhotos: () => quickPhotoRef.current?.click(),
-                  onClearPhotos: () => { damageFilesRef.current = []; set({ details: { ...state.details, damagePhotoCount: 0 } }); },
-                }}
-                commercial={{
-                  segments,
-                  segmentKey: state.customer?.commercialSegment ?? null,
-                  segment: commercialSeg,
-                  onSegment: pickSegment,
-                  answers: commercialAnswers,
-                  onAnswers: setCommercial,
-                  photoCount: state.details.damagePhotoCount,
-                  onPhotos: () => quickPhotoRef.current?.click(),
-                  door: commercialDoor,
-                  briefConfig: briefConfig?.brief ?? null,
-                  brief: briefAnswers,
-                  onBrief: setBriefAnswers,
-                  slots: bookSlots,
-                  slot: bookSlot,
-                  onSlot: setBookSlot,
-                  contact: { email: state.contact.email, name: state.contact.name, phone: state.contact.phone },
-                  onContact: (patch) => set({ contact: { ...state.contact, ...patch } }),
-                  bookError,
-                  holdDays,
-                }}
-                addressField={
-                  <>
-                    <AddressField
-                      placeholder="Your address — start typing and pick it"
-                      value={state.address ? state.address.formatted : quickAddress}
-                      onText={(text) => set({ title: text, address: null })}
-                      onPick={(a, inArea) => {
-                        setQuickOutOfArea(inArea === false);
-                        set({
-                          title: a.formatted,
-                          address: a,
-                          customer: state.customer
-                            ? { ...state.customer, suburb: a.suburb || state.customer.suburb, postcode: a.postcode || state.customer.postcode }
-                            : state.customer,
-                        });
-                      }}
-                    />
-                    {/* The lookup degrades to a plain input when Places is
-                        unavailable, and a job with no postcode reads as
-                        OUTSIDE THE SERVICE AREA — a handoff caused by our
-                        outage, not their address. These two appear only when
-                        they have typed something the lookup did not resolve. */}
-                    {(quickAddress.trim() !== "" || state.customer?.suburb.trim() || state.customer?.postcode.trim())
-                      && !state.address && state.customer && (
-                      <div className="wz-crow wz-quick-fallback">
-                        <input
-                          className="wz-in" placeholder="Suburb" value={state.customer.suburb}
-                          onChange={(e) => set({ customer: { ...state.customer!, suburb: e.target.value } })}
-                        />
-                        <input
-                          className="wz-in" placeholder="Postcode" value={state.customer.postcode} inputMode="numeric"
-                          onChange={(e) => set({ customer: { ...state.customer!, postcode: e.target.value } })}
-                        />
-                      </div>
-                    )}
-                    {quickOutOfArea && (
-                      <div className="wz-err" data-testid="ql-out-of-area">
-                        That looks to be outside the areas we cover. Continue and we&rsquo;ll take your details and tell you honestly.
-                      </div>
-                    )}
-                    {/* ⚑14 stands: nothing was demoted. The other two ways in
-                        stay on the first screen — they are simply no longer a
-                        toll gate in front of the price (§2.1). */}
-                    {/* Tom, 15 Sep: "describe it" left screen 1 — the chat bubble is the describe door.
-                        An INSIDE job uploads its floorplan on the place screen; only the outside
-                        path still starts from photos or a listing here. */}
-                    {/* Tom, 15 Sep (late, item 1): "Upload photos or a listing" is gone from
-                        the outside tab. Tom, 25 Oct 2026: so is the `?entry=upload` door behind
-                        it — the old page set is staff-only now. */}
-                    <div className="wz-otherways" data-testid="wz-entry" />
-                  </>
-                }
-              />
+              {renderQuickLook("page")}
             </div>
           ) : (
           <div className="wz-step" key={page}>
@@ -2299,7 +2378,7 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
           {nav.note && <span className="wz-navnote">{nav.note}</span>}
         </nav>
       )}
-      {isCustomer && !(newShell && UI_FLAGS.chatInHeader) && <ChatWidget ready={ready} onDescribe={quickActive ? describeJob : undefined} />}
+      {isCustomer && !(newShell && UI_FLAGS.chatInHeader) && <ChatWidget ready={ready} onDescribe={quickActive ? describeJob : undefined} brandName={brandName} />}
     </div>
   );
 }
