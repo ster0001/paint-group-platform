@@ -49,6 +49,7 @@ import type { PickedAddress } from "@/app/components/useAddressLookup";
 import QuickLook from "./QuickLook";
 import MobileQuickLook from "./MobileQuickLook";
 import MobileGate from "./MobileGate";
+import MobileContact from "./MobileContact";
 import { starterRoomNames } from "@/lib/wizard/some-rooms";
 import SaveAndBookSheet from "./SaveAndBookSheet";
 import type { TalkMode } from "./TalkSheet";
@@ -430,6 +431,8 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
     if (mode === "customer" && brand === "painthome" && state.brand !== "painthome") setState((s) => ({ ...s, brand: "painthome" }));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+  /** Wizard mobile v5 S5 (brief §5): the Contact sheet behind the phone's pill — open, and the screen it was opened from. */
+  const [contactOpen, setContactOpen] = useState<string | null>(null);
   /** Visit booking S4: the talk sheet (request a site visit / send a message) and the range screen's "sent" screen. */
   const [talk, setTalk] = useState<{ mode: TalkMode; then?: () => void } | null>(null);
   /** S6: name + email + mobile are held (the gate, the keep door, or a details sheet). */
@@ -1897,6 +1900,18 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
           estimateId={reveal.estimateId}
           prefill={{ email: prefill?.email ?? state.contact.email, phone: prefill?.phone ?? state.contact.phone, name: prefill?.name ?? state.contact.name }}
         />
+        <MobileContact
+          open={contactOpen != null}
+          onClose={() => setContactOpen(null)}
+          brand={brand}
+          estimatorName={reveal.payload.estimator?.name ?? estimatorName}
+          suburb={state.address?.suburb || state.customer?.suburb || null}
+          phone={companyPhone}
+          // on the gate: the booking page's real slots on Paint Group; the call request on Paint Home (phone-close)
+          onBook={() => { void recordRangeOption(reveal.estimateId, brand === "painthome" ? "speak" : "visit"); if (brand === "painthome") { setTalk({ mode: "call" }); return; } clearResume(); router.push(`/estimate/visit?id=${reveal.estimateId}`); }}
+          onMessage={() => { void recordRangeOption(reveal.estimateId, "message"); setTalk({ mode: "message" }); }}
+          onSave={() => setBookOpen(true)}
+        />
         {talk && (
           <TalkSheet
             open mode={talk.mode}
@@ -1916,6 +1931,8 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
             quick={quick}
             outside={quick.jobType === "exterior" ? outside : null}
             brand={brand}
+            logo={<Wordmark logoUrl={logoUrl} brand={brand} />}
+            onContactOpen={() => { sendWizardEvent("contact_opened", { step: "gate" }); setContactOpen("gate"); }}
             estimateId={reveal.estimateId}
             firstName={prefill?.name ?? state.contact.name}
             suburb={state.address?.suburb || state.customer?.suburb || null}
@@ -2185,6 +2202,20 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
           <b>Assisted session</b> — {assisted.who}&rsquo;s answers, picked up {assisted.screen ? `at ${assisted.screen.replace(/^quick:/, "").replace(/^page:/, "")}` : "where they left off"}. Nothing here changes their saved copy.
         </p>
       )}
+      {isCustomer && (
+        <MobileContact
+          open={contactOpen != null}
+          onClose={() => setContactOpen(null)}
+          brand={brand}
+          estimatorName={estimatorName}
+          suburb={state.address?.suburb || state.customer?.suburb || null}
+          phone={companyPhone}
+          // before the range a visit is a REQUEST, never a slot (R3): the talk sheet's visit mode (a call on Paint Home)
+          onBook={() => setTalk({ mode: brand === "painthome" ? "call" : "visit" })}
+          onMessage={() => setTalk({ mode: "message" })}
+          onSave={openBook}
+        />
+      )}
       {isCustomer && talk && (
         <TalkSheet
           open mode={talk.mode}
@@ -2193,6 +2224,8 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
           prefill={{ name: prefill?.name ?? state.contact.name, email: prefill?.email ?? state.contact.email, mobile: prefill?.phone ?? state.contact.phone }}
           address={state.address?.formatted ?? state.title ?? ""}
           place={talkPlace}
+          // Wizard mobile v5 §2.5: a request's details pre-fill the details step
+          onContact={(c) => set({ contact: { name: c.name, email: c.email, phone: c.mobile } })}
         />
       )}
       {isCustomer && (
@@ -2244,7 +2277,7 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
             canBack={page > 1}
             // R6: Contact on every screen. Session 5 builds the Contact sheet; until then the pill opens the talk sheet
             // (a call on Paint Home, a site visit on Paint Group) and writes `contact_opened` for the screen it was tapped on.
-            onContactOpen={(screenId) => { flushDraft(lastScreen); sendWizardEvent("contact_opened", { step: screenId }); setTalk({ mode: brand === "painthome" ? "call" : "visit" }); }}
+            onContactOpen={(screenId) => { flushDraft(lastScreen); sendWizardEvent("contact_opened", { step: screenId }); setContactOpen(screenId); }}
             renderStep={() => renderQuickLook("mobile")}
             resumed={resumed}
             onStartAgain={startAgain}

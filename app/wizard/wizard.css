@@ -2648,3 +2648,11 @@
   .wz .wzm-tiles--head { display: grid; }
   .wz .wz-mprog--tiled { display: none; }
 }
+
+/* ── WIZARD MOBILE V5 — S5: the Contact sheet (brief §5) ── */
+.wz .wzm-contact .wzm-srow { display: flex; align-items: center; gap: 12px; width: 100%; padding: 14px 0; border: 0; border-bottom: 1px solid var(--line); background: none; font: inherit; font-weight: 600; font-size: 16px; color: var(--heading); text-align: left; text-decoration: none; cursor: pointer; }
+.wz .wzm-contact .wzm-srow:last-child { border-bottom: 0; }
+.wz .wzm-contact .wzm-srow small { display: block; font-weight: 400; color: var(--muted); font-size: 12px; }
+.wz .wzm-contact .wzm-srow--who { border-bottom: 0; padding-top: 4px; }
+.wz .wzm-contact .wzm-srow--who > div { display: block; }
+.wz .wzm-contact .wzm-contact-book { margin: 8px 0 14px; }

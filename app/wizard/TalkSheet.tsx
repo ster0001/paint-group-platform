@@ -17,7 +17,7 @@ import { useEffect, useState } from "react";
  */
 export type TalkMode = "visit" | "message" | "call" | "details";
 
-export default function TalkSheet({ open, mode, onClose, estimateId, prefill, hasContact = false, address = "", place = null, onDone }: {
+export default function TalkSheet({ open, mode, onClose, estimateId, prefill, hasContact = false, address = "", place = null, onDone, onContact }: {
   open: boolean;
   mode: TalkMode;
   onClose: () => void;
@@ -37,6 +37,8 @@ export default function TalkSheet({ open, mode, onClose, estimateId, prefill, ha
   place?: { street: string; suburb: string; postcode: string } | null;
   /** S6 (R7): "details" mode — the details are saved to the estimate and this is called, so the caller can carry on (Tighten my price). */
   onDone?: (c: { name: string; email: string; mobile: string }) => void;
+  /** Wizard mobile v5 S5 (§2.5 / §5.4): the details, whenever they are accepted on any mode — so the details step and the gate arrive pre-filled. */
+  onContact?: (c: { name: string; email: string; mobile: string }) => void;
 }) {
   const [det, setDet] = useState({ name: prefill?.name ?? "", address, email: prefill?.email ?? "", mobile: prefill?.mobile ?? "", note: "" });
   // The sheet is mounted fresh each time it opens (the parent renders it only
@@ -81,7 +83,7 @@ export default function TalkSheet({ open, mode, onClose, estimateId, prefill, ha
   async function afterDetails() {
     if (!validDet) { setErr(needAddress ? "Please fill in your name, address, email and mobile number." : "Please fill in your name, email and mobile number."); return; }
     if (mode === "visit" || mode === "call") {
-      if (await post("/api/visits/request", { kind: mode, ...contact, note: det.note.trim() || undefined })) setStage("sent");
+      if (await post("/api/visits/request", { kind: mode, ...contact, note: det.note.trim() || undefined })) { onContact?.({ name: contact.name, email: contact.email, mobile: contact.mobile }); setStage("sent"); }
       return;
     }
     if (mode === "details") {
