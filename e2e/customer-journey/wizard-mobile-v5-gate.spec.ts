@@ -140,8 +140,10 @@ test.describe("Wizard mobile v5 — the gate on a phone (session 4)", () => {
     await expect(page.getByTestId("reveal")).toHaveCount(0);
     const text = await page.locator("body").innerText();
     expect(text).not.toMatch(/±|within \d+%/);
-    // R10: Paint Group only in the powered-by line
-    await expect(page.getByTestId("gate-powered")).toHaveText("Reviews powered by Paint Group");
+    // R10: Paint Group only in the powered-by line — which sits under a Google reviews count (the test stack has none)
+    const powered = page.getByTestId("gate-powered");
+    if (await powered.count()) await expect(powered).toHaveText("Reviews powered by Paint Group");
+    else await expect(page.getByTestId("gate-trust")).not.toContainText("Google review");
     const without = await page.evaluate(() => { const p = document.querySelector("[data-testid='gate-powered']"); const t = document.body.innerText; return p ? t.replace(p.textContent ?? "", "") : t; });
     expect(without).not.toContain("Paint Group");
     // §4.1 the sticky bar: one button, on the bottom edge
