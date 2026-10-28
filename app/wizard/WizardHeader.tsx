@@ -18,7 +18,9 @@ import { railFor, STEP_LABELS } from "./stepRail";
  * finds it. No backdrop-filter: that would make it the containing block for
  * the chat panel, which is `position: fixed` and lives inside it.
  */
-export default function WizardHeader({ logo, steps, at, done = false, phone, chat, onSaveBook, after, brandName = "Paint Group" }: {
+export default function WizardHeader({ logo, steps, at, done = false, phone, chat, onSaveBook, after, brandName = "Paint Group", phoneTiles }: {
+  /** Wizard mobile v5 S4 (brief §4.3, R4): on a phone the after-phase shows the three tiles — Your range ✓ · Your exact price · <estimator> confirms — in place of the step line. */
+  phoneTiles?: { at: 0 | 1 | 2; tiles: [{ title: string; sub: string }, { title: string; sub: string }, { title: string; sub: string }] };
   /** Paint Home brief §5: whose number this is, for the call button's label. */
   brandName?: string;
   /** UI refresh S3: after the details, the rail is Guide range → (how it is checked) → Fixed by (estimator). */
@@ -83,7 +85,15 @@ export default function WizardHeader({ logo, steps, at, done = false, phone, cha
         </div>
       </div>
       <i className="wz-stripe" style={{ width: `${Math.round(progress * 1000) / 10}%` }} aria-hidden="true" />
-      <div className="wz-mprog" data-testid="wz-mprog">
+      {phoneTiles && (
+        <ol className="wzm-tiles wzm-tiles--head" data-testid="wzm-tiles" data-at={phoneTiles.at}>
+          {phoneTiles.tiles.map((t, i) => {
+            const state = i < phoneTiles.at ? "done" : i === phoneTiles.at ? "now" : "todo";
+            return <li key={t.title} className={`wzm-tile ${state}`} data-state={state}><span className="k" aria-hidden="true">{state === "done" ? "✓" : i + 1}</span><b>{t.title}</b>{t.sub}</li>;
+          })}
+        </ol>
+      )}
+      <div className={phoneTiles ? "wz-mprog wz-mprog--tiled" : "wz-mprog"} data-testid="wz-mprog">
         {after
           ? <p><b>{after.labels[after.at]}</b><span>{after.at + 1} of 3</span></p>
           : <p><b>{rail.phoneLine.split(" · ")[0]}</b> · {STEP_LABELS[at].long}<span>{done ? "Working it out" : rail.remaining}</span></p>}

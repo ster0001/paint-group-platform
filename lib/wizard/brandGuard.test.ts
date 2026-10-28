@@ -23,6 +23,7 @@ const ALLOWED: Record<string, [number, string]> = {
   "app/wizard/page.tsx": [1, "the STAFF wizard's tab title — never served to a customer"],
   "app/wizard/Wordmark.tsx": [1, "the alt text of the Paint Group logo, on the Paint Group branch only"],
   "app/wizard/WizardHeader.tsx": [1, "the default for the call button's label; WizardApp passes the brand's name"],
+  "app/wizard/MobileGate.tsx": [1, "R10: 'Reviews powered by Paint Group', 11px under the trust line on Paint Home — the one mention the brief allows"],
   "app/wizard/ChatWidget.tsx": [1, "the default for the panel's name; WizardApp passes the brand's name"],
   "app/estimate/assist/AssistView.tsx": [1, "the default for the hand-off line; the page passes the brand's name"],
   "app/estimate/assist/AssistantWidget.tsx": [1, "the default for the panel's name; the scope page passes the brand's name"],

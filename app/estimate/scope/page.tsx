@@ -1,5 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
-import { wizardBrandName, wizardTitle } from "@/lib/wizard/brandServer";
+import { wizardBrand, wizardBrandName, wizardTitle } from "@/lib/wizard/brandServer";
 import { createServiceClient } from "@/lib/supabase/service";
 import { customerOwnsDraft, getWizardActor } from "@/lib/supabase/guards";
 import { loadCustomerScope, type EstimateRow } from "@/lib/wizard/customer-scope";
@@ -27,10 +27,10 @@ export async function generateMetadata() {
 }
 
 async function Holding({ line }: { line: string }) {
-  const company = await getCompanyContact();
+  const [company, brand] = await Promise.all([getCompanyContact(), wizardBrand()]);
   return (
     <div className="wz">
-      <header className="wz-top"><Wordmark logoUrl={company.logoUrl} /></header>
+      <header className="wz-top"><Wordmark logoUrl={company.logoUrl} brand={brand} /></header>
       <div className="wz-wrap" style={{ textAlign: "center", paddingTop: 80 }}>
         <h1>{line}</h1>
       </div>
@@ -55,7 +55,7 @@ export default async function ScopeEditorPage({
 
   const { data: estimate } = await db
     .from("estimates")
-    .select("id, status, source, created_by, requires_site_check, builder_state, account_id")
+    .select("id, status, source, created_by, requires_site_check, builder_state, account_id, brand")
     .eq("id", id)
     .maybeSingle();
   // Phase 1 (6 Sep plan): the anonymous builder OR a signed-in member of the
@@ -68,6 +68,8 @@ export default async function ScopeEditorPage({
 
   const bundle = await loadCustomerScope(db, estimate as EstimateRow);
   if (bundle.kind === "holding") return <Holding line={bundle.line} />;
+  // Wizard mobile v5 S4 (brief §4.3, v1 B7): the estimate's own brand decides the chrome; the host stands in for an older row.
+  const brand = (estimate as { brand?: string | null }).brand === "painthome" ? "painthome" as const : await wizardBrand();
   if (bundle.kind === "sides") {
     return (
       <div className="wz">
@@ -85,6 +87,7 @@ export default async function ScopeEditorPage({
           sendTo={bundle.sendTo}
           estimator={bundle.estimator}
           customerSuburb={bundle.customerSuburb}
+          brand={brand}
         />
       </div>
     );
@@ -97,6 +100,7 @@ export default async function ScopeEditorPage({
       {/* Tom, 7 Sep: general questions to the assistant, or a person — never co-work. */}
       {actor.kind === "customer" && <AssistantWidget estimateId={bundle.estimateId} lift={76} brandName={await wizardBrandName()} />}
       <ScopeEditor
+        brand={brand}
         estimateId={bundle.estimateId}
         initial={bundle.initial}
         initialRooms={bundle.initialRooms}
