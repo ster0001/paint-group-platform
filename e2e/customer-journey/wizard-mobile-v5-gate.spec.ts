@@ -101,7 +101,8 @@ test.describe("Wizard mobile v5 — the gate on a phone (session 4)", () => {
     await expect(page.getByTestId("gate-label")).toHaveText("Mobile, your range today");
     await expect(page.getByTestId("gate-range")).toHaveText(MONEY_RANGE);
     const font = await page.getByTestId("gate-range").evaluate((el) => ({ family: getComputedStyle(el).fontFamily, size: getComputedStyle(el).fontSize }));
-    expect(font.family).toMatch(/Martian Mono|monospace/i);
+    // the app's mono token (Geist Mono today; the brief names Martian Mono, the prototype's) at 40px
+    expect(font.family).toMatch(/Mono|monospace/i);
     expect(font.size).toBe("40px");
     await expect(page.getByTestId("gate-basis")).toContainText(/3-bedroom/);
     await expect(page.getByTestId("gate-fine")).toHaveText(/^Based on what you’ve told us — anything different on the day changes the price\. .+ confirms it with you before anything is fixed\. Includes GST\.$/);
@@ -164,7 +165,9 @@ test.describe("Wizard mobile v5 — the gate on a phone (session 4)", () => {
     await expect(page).toHaveURL(/\/estimate\/scope\?id=/, { timeout: 30_000 });
     expect(new URL(page.url()).host).toMatch(/^painthome\.localhost/);
     await expect(page.locator("[data-ready='1']")).toBeAttached({ timeout: 30_000 });
-    await expect(page.locator(".sc-freeze [data-testid='painthome-logo-nav']")).toBeVisible();
+    // the Paint Home mark is the editor's logo (the frozen header folds its logo row away on a phone; the tiles stand in)
+    await expect(page.locator(".sc-freeze [data-testid='painthome-logo-nav']")).toHaveCount(1);
+    await expect(page.locator("[data-testid='painthome-logo-nav']").first()).toHaveAttribute("aria-label", "Paint Home");
     const tiles = page.getByTestId("wzm-tiles");
     await expect(tiles).toBeVisible();
     await expect(tiles).toHaveAttribute("data-at", "1");

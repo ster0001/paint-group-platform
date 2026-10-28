@@ -202,14 +202,15 @@ test.describe("Wizard mobile v5 — the phone's screens (session 2)", () => {
     await page.getByTestId("gate-mobile").fill(`04${String(Date.now()).slice(-8)}`);
     await expect(page.getByTestId("ql-next")).toBeEnabled({ timeout: 30_000 });
     await page.getByTestId("ql-next").tap();
-    const reveal = page.getByTestId("reveal");
+    // S4: on a phone the range is the mobile gate
+    const gate = page.getByTestId("wzm-gate");
     const bounced = page.locator(".wz-err");
-    await expect(reveal.or(bounced)).toBeVisible({ timeout: 90_000 });
+    await expect(gate.or(bounced)).toBeVisible({ timeout: 90_000 });
     if (await bounced.count()) throw new Error(`quick look submit failed: ${await bounced.first().innerText()}`);
-    await expect(page.getByTestId("reveal-range")).toHaveText(MONEY_RANGE);
+    await expect(page.getByTestId("gate-range")).toHaveText(MONEY_RANGE);
     // the answers reached the price: four bedrooms, the same colours, some wear
-    await expect(page.getByTestId("reveal-restatement")).toContainText(/4-bedroom/);
-    await expect(page.getByTestId("reveal-restatement")).toContainText(/same colours/);
+    await expect(page.getByTestId("gate-basis")).toContainText(/4-bedroom/);
+    await expect(page.getByTestId("gate-basis")).toContainText(/same colours/);
     await expect(page.locator("body")).not.toContainText("Paint Group");
   });
 
