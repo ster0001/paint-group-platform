@@ -3,6 +3,7 @@
 import { useEffect, useState, type ReactNode } from "react";
 import type { CustomerPayload } from "@/lib/wizard/view";
 import { restatement, type QuickLook } from "@/lib/wizard/quick-look";
+import { surfaceChips } from "@/lib/wizard/mobileScreens";
 import { exteriorRestatement, type ExteriorQuickLook } from "@/lib/wizard/exterior-quick-look";
 import { initialsOf } from "@/lib/wizard/estimator";
 import { PAINT_HOME_WORDS, type WizardBrand } from "@/lib/wizard/brand";
@@ -67,7 +68,11 @@ export default function MobileGate({ payload, quick, outside, brand, estimateId,
   const basis = exteriorOnly ? exteriorRestatement(outside) : restatement(quick);
   const how = exteriorOnly ? "side by side" : "room by room";
   const painthome = brand === "painthome";
-  const included = (payload.systems ?? []).filter((l) => l.coats > 0);
+  // §4 block 6: the TICKED surfaces with their coats — a system line stays only while its chip is on
+  // (the cornices ride with the ceilings in the engine, so "Ceilings and cornices" would otherwise outlive an unticked ceiling).
+  const on = new Set(surfaceChips(quick).filter((c) => c.on).map((c) => c.key as string));
+  const GROUP_CHIPS: Record<string, string[]> = { walls: ["walls"], ceilings: ["ceilings"], trims: ["skirting", "architraves"], doors: ["doors"], windows: ["windows"] };
+  const included = (payload.systems ?? []).filter((l) => l.coats > 0 && (exteriorOnly || !GROUP_CHIPS[l.group] || GROUP_CHIPS[l.group].some((k) => on.has(k))));
   const trustBits = [
     trust?.rating != null && trust.count != null && trust.count > 0 ? `${trust.rating.toFixed(1)} · ${trust.count} Google review${trust.count === 1 ? "" : "s"}` : null,
     trust?.warranty?.trim() || null,

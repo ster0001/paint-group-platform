@@ -185,6 +185,8 @@ test.describe("Wizard mobile v5 — the gate on a phone (session 4)", () => {
     const value = { ...((policyBefore as Record<string, unknown> | null) ?? {}), paintHomeCapCents: 100 };
     const { error } = await db!.from("settings").upsert({ key: "wizard_policy", value }, { onConflict: "key" });
     if (error) throw error;
+    // the server's pricing context caches settings for 20s per process (lib/pricing/context.ts) — let it lapse
+    await page.waitForTimeout(21_000);
     const gate = await toGate(page, "Bigger Job");
     await expect(gate).toHaveAttribute("data-variant", "bigger");
     await expect(page.getByTestId("gate-block-bigger").getByRole("heading")).toHaveText("We’ll come and look");
