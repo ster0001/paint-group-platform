@@ -49,6 +49,7 @@ import { TIER_LABEL, type Ladder } from "@/lib/wizard/ladder";
 import type { InteriorLoopMeta, RoomLoopView } from "@/lib/wizard/rooms-loop";
 import Wordmark from "@/app/wizard/Wordmark";
 import WizardHeader from "@/app/wizard/WizardHeader";
+import type { WizardBrand } from "@/lib/wizard/brand";
 import { rangeBand } from "./rangeBand";
 import PlanMap from "@/app/wizard/pictures/PlanMap";
 import TopView, { type TopSide } from "@/app/wizard/pictures/TopView";
@@ -113,7 +114,7 @@ const snapshotFalse = () => false;
 
 const fmtMoney = (cents: number) => `$${Math.round(cents / 100).toLocaleString("en-AU")}`;
 
-export default function ScopeEditor({ estimateId, initial, initialRooms, initialExterior = null, initialSides = null, initialLadder, initialInteriorLoop = null, initialColourTier = "change", initialSystems = [], initialRoomExtras = {}, estimator = null, customerSuburb = null, initialAccess = { answers: {}, asksLift: false }, initialCornices = null, initialExtras = { offer: [], on: [], counts: {}, colourHelp: false, note: "" }, roomTypes, liveRange, docs = { plan: null, photos: [] }, logoUrl = null, companyPhone = null, chatMode = false }: {
+export default function ScopeEditor({ estimateId, initial, initialRooms, initialExterior = null, initialSides = null, initialLadder, initialInteriorLoop = null, initialColourTier = "change", initialSystems = [], initialRoomExtras = {}, estimator = null, customerSuburb = null, initialAccess = { answers: {}, asksLift: false }, initialCornices = null, initialExtras = { offer: [], on: [], counts: {}, colourHelp: false, note: "" }, roomTypes, liveRange, docs = { plan: null, photos: [] }, logoUrl = null, companyPhone = null, chatMode = false, brand = "paintgroup" }: {
   estimateId: string;
   initial: CustomerPayload;
   initialRooms: CustomerScopeRoom[];
@@ -128,6 +129,8 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
   /** R5: the plan and photos this customer uploaded, pinned beside the loop. */
   docs?: EstimateDocuments;
   logoUrl?: string | null;
+  /** Wizard mobile v5 S4 (brief §4.3): the shopfront's mark in the frozen header — Paint Home never shows the Paint Group mark. */
+  brand?: WizardBrand;
   companyPhone?: string | null;
   /** When the office answers the phone — Settings owns the wording. */
   phoneHours?: string | null;
@@ -978,7 +981,7 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
           (on a phone: the dark range strip under the header). Still `.sc-freeze`, pinned. */}
       <div className="sc-freeze">
         <WizardHeader
-          logo={<Wordmark logoUrl={logoUrl} />}
+          logo={<Wordmark logoUrl={logoUrl} brand={brand} />}
           steps={[]}
           at="gate"
           after={{
@@ -986,6 +989,8 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
             labels: ["Guide range", initialSides ? "Rooms and sides" : payload.commercial ? "Area by area" : "Room by room",
               `Fixed by ${estimator?.name?.trim().split(/\s+/)[0] || "your estimator"}`],
           }}
+          // Wizard mobile v5 S4 (brief §4.3): on a phone the header shows the gate's three tiles with Your exact price active.
+          phoneTiles={{ at: 1, tiles: [{ title: "Your range", sub: "Just now" }, { title: "Your exact price", sub: "Online, today" }, { title: `${estimator?.name?.trim().split(/\s+/)[0] || "Your estimator"} confirms`, sub: brand === "painthome" ? "On one short call" : "In person, 40 min" }] }}
           phone={companyPhone}
         />
       </div>

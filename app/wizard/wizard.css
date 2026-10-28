@@ -47,6 +47,8 @@
 .wz .wz-wm { font-family: var(--wz-mono); font-size: 12px; font-weight: 700; letter-spacing: .22em; color: var(--text); }
 .wz .wz-wm span { color: var(--cyan); }
 .wz .wz-logo { display: block; max-height: 26px; max-width: 150px; object-fit: contain; }
+/* Wizard mobile v5 S4 (§4.3): the Paint Home mark is an inline SVG with no intrinsic size — without a height it drew nothing in the header. */
+.wz svg.wz-logo { height: 26px; width: auto; }
 .wz .wz-exit { background: none; border: 1px solid var(--line); color: var(--muted); border-radius: 8px; font-size: 12px; padding: 5px 11px; cursor: pointer; text-decoration: none; }
 .wz .wz-exit:hover { border-color: var(--muted); color: var(--text); }
 
@@ -2616,3 +2618,42 @@
 .wz .wzm-sheet .wzm-chips { margin-top: 8px; }
 .wz .wzm-sheet .wzm-chip { padding: 10px 14px; font-size: 14px; }
 @media (prefers-reduced-motion: reduce) { .wz .wzm-pic .roller { transition: none; } }
+
+/* ── WIZARD MOBILE V5 — S4: the gate on a phone (brief §4) ── */
+.wz .wzm-gate .wzm-main { padding-top: 22px; }
+.wz .wzm-gate-label { font-size: 13px; color: var(--cyan); font-weight: 600; margin: 0; }
+.wz .wzm-gate-price { font-family: var(--wz-mono); font-size: 40px; font-weight: 700; line-height: 1; letter-spacing: -.03em; margin: 8px 0 10px; color: var(--heading); }
+.wz .wzm-gate-basis { font-size: 15px; color: var(--muted); line-height: 1.45; margin: 0 0 14px; }
+.wz .wzm-gate-fine { font-size: 12px; color: var(--muted); line-height: 1.5; margin: 0 0 26px; }
+.wz .wzm-gate-ask { font-size: 22px; letter-spacing: -.01em; margin: 0 0 6px; font-weight: 700; color: var(--heading); }
+.wz .wzm-gate-asksub { color: var(--muted); font-size: 15px; line-height: 1.45; margin: 0 0 18px; }
+.wz .wzm-cta--teal { background: var(--paint); color: var(--onpaint); }
+.wz .wzm-cta small { display: block; font-weight: 500; font-size: 12px; opacity: .75; margin-top: 3px; }
+.wz .wzm-gate-alt { text-align: center; font-size: 14px; color: var(--muted); margin: 14px 0 0; }
+.wz .wzm-linkish { background: none; border: 0; padding: 0; font: inherit; color: var(--cyan); font-weight: 600; text-decoration: underline; cursor: pointer; }
+.wz .wzm-tiles { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; margin: 26px 0 8px; padding: 0; list-style: none; }
+.wz .wzm-tile { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 12px 12px 14px; font-size: 12px; line-height: 1.35; color: var(--muted); }
+.wz .wzm-tile b { display: block; color: var(--heading); font-size: 13px; margin: 6px 0 2px; }
+.wz .wzm-tile .k { display: inline-flex; width: 22px; height: 22px; border-radius: 50%; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; border: 1.5px solid var(--line); }
+.wz .wzm-tile.done .k { background: var(--emerald); border-color: var(--emerald); color: #fff; }
+.wz .wzm-tile.now { border-color: var(--cyan); }
+.wz .wzm-tile.now .k { background: var(--wash); border-color: var(--cyan); color: var(--cyan); }
+.wz .wzm-gate-who { display: flex; align-items: center; gap: 12px; margin: 28px 0 0; padding-top: 20px; border-top: 1px solid var(--line); font-size: 14px; color: var(--muted); }
+.wz .wzm-gate-who b { color: var(--heading); display: block; }
+.wz .wzm-av { width: 40px; height: 40px; border-radius: 50%; background: var(--paint); display: inline-flex; align-items: center; justify-content: center; font-weight: 700; font-size: 13px; color: var(--onpaint); flex: 0 0 auto; }
+.wz .wzm-gate-trust { font-size: 13px; color: var(--muted); margin: 18px 0 0; }
+.wz .wzm-gate-powered { font-size: 11px; }
+.wz .wzm-gate-incl { margin-top: 22px; border-top: 1px solid var(--line); padding-top: 16px; }
+.wz .wzm-gate-incl summary { font-weight: 600; font-size: 14px; cursor: pointer; list-style: none; display: flex; justify-content: space-between; color: var(--heading); }
+.wz .wzm-gate-incl summary::-webkit-details-marker { display: none; }
+.wz .wzm-gate-incl summary::after { content: "›"; color: var(--muted); transform: rotate(90deg); }
+.wz .wzm-gate-incl[open] summary::after { transform: rotate(-90deg); }
+.wz .wzm-gate-incl ul { margin: 12px 0 0; padding: 0; list-style: none; font-size: 13px; color: var(--muted); }
+.wz .wzm-gate-incl li { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid var(--line); }
+.wz .wzm-gate-incl li span { font: 600 11px var(--wz-mono); color: var(--cyan); }
+/* the scope page's header on a phone: the tiles in place of the step line (§4.3) */
+.wz .wzm-tiles--head { display: none; margin: 0; padding: 0 16px 10px; }
+@media (max-width: 767px) {
+  .wz .wzm-tiles--head { display: grid; }
+  .wz .wz-mprog--tiled { display: none; }
+}

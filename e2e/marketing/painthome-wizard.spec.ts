@@ -97,41 +97,32 @@ test.describe("Paint Home — the wizard brand branch (session 3)", () => {
     await expect(page.locator("[data-mobile-screen='living']")).toBeVisible({ timeout: 20_000 });
     await page.getByTestId("ql-occupied-no").tap();
     await passGateIfShown(page, { name: "Paint Home Tester", email: `ph.${run}@example.com` });
-    const reveal = page.getByTestId("reveal");
+    // Wizard mobile v5 S4: on a phone the range is the mobile gate (brief §4), not the desktop range card.
+    const gate = page.getByTestId("wzm-gate");
     const bounced = page.locator(".wz-err");
-    await expect(reveal.or(bounced)).toBeVisible({ timeout: 90_000 });
+    await expect(gate.or(bounced)).toBeVisible({ timeout: 90_000 });
     if (await bounced.count()) throw new Error(`quick look submit failed: ${await bounced.first().innerText()}`);
-    await expect(page.getByTestId("reveal-range")).toHaveText(/\$[\d,]+\s*–\s*\$[\d,]+/);
-    return (await page.getByTestId("reveal").getAttribute("data-estimate-id")) ?? "";
+    await expect(page.getByTestId("gate-range")).toHaveText(/\$[\d,]+\s*–\s*\$[\d,]+/);
+    return (await gate.getAttribute("data-estimate-id")) ?? "";
   }
 
-  test("1 · Inside → the wizard on Paint Home: two doors shut, the price, Confirm my price. Book a call, brand on the session and the estimate", async ({ page }) => {
+  test("1 · Inside → the wizard on Paint Home: two doors shut, the price, the exact-price door (no site visit), brand on the session and the estimate", async ({ page }) => {
     test.setTimeout(240_000);
     const estimateId = await driveToRange(page, suburbs.call, "Inside");
-    // the one confirmation door, and no site visit offered (§5: phone-only tier)
-    const call = page.getByTestId("door-call");
-    await expect(call).toContainText("Confirm my price. Book a call");
-    await expect(page.getByTestId("door-book")).toHaveCount(0);
-    await expect(page.getByTestId("door-speak")).toHaveCount(0);
-    await expect(page.getByTestId("painthome-handoff")).toHaveCount(0);
-    // an inside job's ladder ends in Confirmed (Reveal `insideOnly`); the "Then one call" line is the outside/commercial ladder's
-    await expect(page.getByTestId("reveal-tiers")).toContainText("fixed with your estimator");
-    await expect(page.getByTestId("reveal-tiers-visit")).toHaveCount(0);
-    await expect(page.getByTestId("reveal")).not.toContainText("Paint Group");
-    // wizard mobile v5 R10: nothing on the page — header, chat, strip — names Paint Group (the hand-off's one line is test 2's)
-    await expect(page.locator("body")).not.toContainText("Paint Group");
-    await call.tap();
+    // §5 on the phone's gate: the exact price is offered, no hand-off, "book a time" is the one other door
+    await expect(page.getByTestId("wzm-gate")).toHaveAttribute("data-variant", "exact");
+    await expect(page.getByTestId("gate-exact")).toContainText("Get my exact price");
+    await expect(page.getByTestId("gate-block-bigger")).toHaveCount(0);
+    await expect(page.getByTestId("gate-tiles").locator("li").nth(2)).toContainText("On one short call");
+    // wizard mobile v5 R10: nothing on the page names Paint Group except the powered-by line
+    const without = await page.evaluate(() => { const p = document.querySelector("[data-testid='gate-powered']"); const t = document.body.innerText; return p ? t.replace(p.textContent ?? "", "") : t; });
+    expect(without).not.toContain("Paint Group");
+    // "book a time first" opens the talk sheet in call mode (session 5 brings the Contact sheet)
+    await page.getByTestId("gate-visit").tap();
     const sheet = page.getByTestId("talk-sheet");
     await expect(sheet).toBeVisible();
-    if (await sheet.getByTestId("talk-mobile").count()) {
-      await sheet.getByTestId("talk-name").fill("Paint Home Tester");
-      // the hero handed over words only (no Places on the test stack), so the sheet asks where the property is
-      if (await sheet.getByTestId("talk-address").count()) await sheet.getByTestId("talk-address").fill("14 Acacia Street, Northcote");
-      await sheet.getByTestId("talk-email").fill(`ph.${run}@example.com`);
-      await sheet.getByTestId("talk-mobile").fill(`04${String(Date.now()).slice(-8)}`);
-    }
-    await sheet.getByTestId("talk-go").click();
-    await expect(sheet.getByTestId("talk-sent")).toContainText("We will call you", { timeout: 30_000 });
+    await expect(sheet).toContainText("call");
+    await page.keyboard.press("Escape");
 
     // the brand is on the session, the estimate — and the autosave caught up
     await expect.poll(async () => {
@@ -152,21 +143,18 @@ test.describe("Paint Home — the wizard brand branch (session 3)", () => {
     if (error) throw error;
 
     const estimateId = await driveToRange(page, suburbs.visit, "Inside");
-    const handoff = page.getByTestId("painthome-handoff");
-    await expect(handoff).toBeVisible();
-    await expect(handoff).toContainText("This one's bigger than we can price from your phone.");
-    await expect(page.getByTestId("painthome-handoff-team")).toContainText("You'll hear from the Paint Group team");
-    // Tom, 27 Oct 2026: the hand-off offers NO way into the editor — no Tighten door, no Change-this links, no dock button
-    await expect(handoff.getByTestId("door-tighten")).toHaveCount(0);
-    await expect(page.locator("[data-testid^='reveal-assumed-link-']")).toHaveCount(0);
-    await expect(page.getByTestId("reveal-dock-tighten")).toHaveCount(0);
-    await expect(page.getByTestId("door-call")).toHaveCount(0);
+    // Wizard mobile v5 §4.2: over the ceiling the phone's gate is the bigger-job variant — no exact-price door, Book a visit only
+    const gate = page.getByTestId("wzm-gate");
+    await expect(gate).toHaveAttribute("data-variant", "bigger");
+    await expect(page.getByTestId("gate-block-bigger")).toContainText("We’ll come and look");
+    await expect(page.getByTestId("gate-exact")).toHaveCount(0);
+    await expect(page.getByTestId("gate-visit")).toHaveCount(0);
     // the answers are kept: the estimate exists with its range, and the basis line reads them back
-    await expect(page.getByTestId("reveal-restatement")).toContainText(/bed|room|storey|house/i);
+    await expect(page.getByTestId("gate-basis")).toContainText(/bed|room|storey|house/i);
     const { data: est } = await db!.from("estimates").select("brand, total_cents").eq("id", estimateId).single();
     expect(est?.brand).toBe("painthome");
     expect(est?.total_cents).toBeGreaterThan(0);
-    await handoff.getByTestId("door-book").tap();
+    await page.getByTestId("gate-book").tap();
     await expect(page).toHaveURL(new RegExp(`/estimate/visit\\?id=${estimateId}`), { timeout: 20_000 });
     expect(new URL(page.url()).host).toMatch(/^painthome\.localhost/);
   });
