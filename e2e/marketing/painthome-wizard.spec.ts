@@ -117,12 +117,10 @@ test.describe("Paint Home — the wizard brand branch (session 3)", () => {
     // wizard mobile v5 R10: nothing on the page names Paint Group except the powered-by line
     const without = await page.evaluate(() => { const p = document.querySelector("[data-testid='gate-powered']"); const t = document.body.innerText; return p ? t.replace(p.textContent ?? "", "") : t; });
     expect(without).not.toContain("Paint Group");
-    // "book a time first" opens the talk sheet in call mode (session 5 brings the Contact sheet)
+    // S5: "book a time first" is the booking page, on the Paint Home host
     await page.getByTestId("gate-visit").tap();
-    const sheet = page.getByTestId("talk-sheet");
-    await expect(sheet).toBeVisible();
-    await expect(sheet).toContainText("call");
-    await page.keyboard.press("Escape");
+    await expect(page).toHaveURL(/\/estimate\/visit\?id=/, { timeout: 20_000 });
+    expect(new URL(page.url()).host).toMatch(/^painthome\.localhost/);
 
     // the brand is on the session, the estimate — and the autosave caught up
     await expect.poll(async () => {

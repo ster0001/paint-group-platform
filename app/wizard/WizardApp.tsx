@@ -1907,8 +1907,8 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
           estimatorName={reveal.payload.estimator?.name ?? estimatorName}
           suburb={state.address?.suburb || state.customer?.suburb || null}
           phone={companyPhone}
-          // on the gate: the booking page's real slots on Paint Group; the call request on Paint Home (phone-close)
-          onBook={() => { void recordRangeOption(reveal.estimateId, brand === "painthome" ? "speak" : "visit"); if (brand === "painthome") { setTalk({ mode: "call" }); return; } clearResume(); router.push(`/estimate/visit?id=${reveal.estimateId}`); }}
+          // on the gate: the booking page — the zone's pre-set days, the hold, the texted code (brief §5.2; both shopfronts)
+          onBook={() => { void recordRangeOption(reveal.estimateId, "visit"); clearResume(); router.push(`/estimate/visit?id=${reveal.estimateId}`); }}
           onMessage={() => { void recordRangeOption(reveal.estimateId, "message"); setTalk({ mode: "message" }); }}
           onSave={() => setBookOpen(true)}
         />
@@ -1944,8 +1944,8 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
               if (!contactKnown) { setTalk({ mode: "details", then: go }); return; }
               go();
             }}
-            // Session 5 opens the Contact sheet at the slots; until then the talk sheet (a call on Paint Home, a visit request on Paint Group).
-            onVisit={() => { void recordRangeOption(reveal.estimateId, brand === "painthome" ? "speak" : "visit"); setTalk({ mode: brand === "painthome" ? "call" : "visit" }); }}
+            // Session 5: "book a time first" is the booking page (brief §4 / §5.2 — the zone's days), both shopfronts.
+            onVisit={() => { void recordRangeOption(reveal.estimateId, "visit"); clearResume(); router.push(`/estimate/visit?id=${reveal.estimateId}`); }}
             onBook={() => { void recordRangeOption(reveal.estimateId, "visit"); clearResume(); router.push(`/estimate/visit?id=${reveal.estimateId}`); }}
           />
         ) : walking && outside.v2 && !sent ? (
@@ -2210,8 +2210,8 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
           estimatorName={estimatorName}
           suburb={state.address?.suburb || state.customer?.suburb || null}
           phone={companyPhone}
-          // before the range a visit is a REQUEST, never a slot (R3): the talk sheet's visit mode (a call on Paint Home)
-          onBook={() => setTalk({ mode: brand === "painthome" ? "call" : "visit" })}
+          // before the range a visit is a REQUEST, never a slot (R3): the talk sheet's visit mode (a call request needs a range — R25)
+          onBook={() => setTalk({ mode: "visit" })}
           onMessage={() => setTalk({ mode: "message" })}
           onSave={openBook}
         />

@@ -54,9 +54,10 @@ export default function MobileContact({ open, onClose, brand, estimatorName, sub
           <span className="wzm-av" aria-hidden="true">{name ? initialsOf(name) : painthome ? "PH" : "PG"}</span>
           <div><b>{name ?? "Your estimator"}</b><small>{name ? where : "One of our estimators looks after your area"}</small></div>
         </div>
+        {/* Brief §5 (27 Oct, approved): Book a visit on both shopfronts — it supersedes the Paint Home phone-close door set for this one door. */}
         <button type="button" className="wzm-cta wzm-cta--teal wzm-contact-book" onClick={go(onBook)} data-testid="wzm-contact-book">
-          {painthome ? "Book a call" : "Book a visit"}
-          <small>{painthome ? `${first ?? "Your estimator"} calls to confirm your price. One short call.` : `${first ?? "Your estimator"} comes to you. About 40 minutes, no charge.`}</small>
+          Book a visit
+          <small>{first ?? "Your estimator"} comes to you. About 40 minutes, no charge.</small>
         </button>
         {phone && (
           <a className="wzm-srow" href={`tel:${phone.replace(/\s+/g, "")}`} data-testid="wzm-contact-call">Call {phone}<small>Mon–Fri, 8–6</small></a>

@@ -67,12 +67,14 @@ test.describe("Wizard mobile v5 — Contact and early booking (session 5)", () =
     const sheet = page.getByTestId("wzm-contact-sheet");
     await expect(sheet).toBeVisible();
     await expect(sheet.getByTestId("wzm-contact-who")).toBeVisible();
-    await expect(sheet.getByTestId("wzm-contact-book")).toContainText("Book a call"); // Paint Home: phone-close
-    await expect(sheet.getByTestId("wzm-contact-call")).toHaveAttribute("href", /^tel:/);
+    await expect(sheet.getByTestId("wzm-contact-book")).toContainText("Book a visit");
+    // Call dials the shopfront's number; the test stack may hold none for Paint Home, and then the row is absent rather than a dead link
+    const call = sheet.getByTestId("wzm-contact-call");
+    if (await call.count()) await expect(call).toHaveAttribute("href", /^tel:/);
     await expect(sheet.getByTestId("wzm-contact-message")).toContainText("Send a message");
     await expect(sheet.getByTestId("wzm-contact-save")).toContainText("Save and come back later");
     // the rows in the prototype's order
-    const order = await sheet.evaluate((el) => ["wzm-contact-who", "wzm-contact-book", "wzm-contact-call", "wzm-contact-message", "wzm-contact-save"].map((t) => el.querySelector(`[data-testid='${t}']`)?.getBoundingClientRect().top ?? -1));
+    const order = await sheet.evaluate((el) => ["wzm-contact-who", "wzm-contact-book", "wzm-contact-call", "wzm-contact-message", "wzm-contact-save"].map((t) => el.querySelector(`[data-testid='${t}']`)?.getBoundingClientRect().top ?? null).filter((t): t is number => t != null));
     for (let i = 1; i < order.length; i++) expect(order[i]).toBeGreaterThan(order[i - 1]);
     // Send a message → the talk sheet in message mode; the Contact sheet closes
     await sheet.getByTestId("wzm-contact-message").tap();
@@ -153,16 +155,16 @@ test.describe("Wizard mobile v5 — Contact and early booking (session 5)", () =
     await gate.getByTestId("wzm-contact").tap();
     const sheet = page.getByTestId("wzm-contact-sheet");
     await expect(sheet).toBeVisible();
-    await expect(sheet.getByTestId("wzm-contact-book")).toContainText("Book a call");
+    await expect(sheet.getByTestId("wzm-contact-book")).toContainText("Book a visit");
     await sheet.getByTestId("wzm-contact-x").tap();
     if (await page.getByTestId("gate-visit").count()) {
       await page.getByTestId("gate-visit").tap();
-      await expect(page.getByTestId("talk-sheet")).toBeVisible();
-      await expect(page.getByTestId("talk-sheet")).toHaveAttribute("aria-label", "Speak with us");
+      await expect(page).toHaveURL(/\/estimate\/visit\?id=/, { timeout: 20_000 });
+      expect(new URL(page.url()).host).toMatch(/^painthome\.localhost/);
     }
   });
 
-  test("4 · on Paint Group the door is Book a visit; on the gate it is the booking page with the zone's days", async ({ page, baseURL }) => {
+  test("4 · on Paint Group too the door is Book a visit; on the gate it is the booking page with the zone's days", async ({ page, baseURL }) => {
     test.setTimeout(180_000);
     await open(page, baseURL!);
     await page.getByTestId("ql-jobtype-interior").tap();
