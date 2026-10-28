@@ -3,7 +3,7 @@ feature: estimator
 role: customer
 title: Get a painting price online, in about two minutes
 summary: A few quick screens give you a guide range; then you can tighten it room by room or side by side, and send it to your estimator to fix the price — or book a visit at any point.
-sources: app/estimate/page.tsx, app/wizard/WizardApp.tsx, app/wizard/QuickLook.tsx, app/wizard/MobileQuickLook.tsx, app/wizard/MobileStrip.tsx, app/wizard/pictures/MobilePicture.tsx, app/wizard/MobileGate.tsx, app/wizard/PictureCard.tsx, app/wizard/Reveal.tsx, app/estimate/scope/ScopeEditor.tsx, app/estimate/scope/SidesEditor.tsx, app/estimate/finish/Finish.tsx, app/estimate/sent/Sent.tsx
+sources: app/estimate/page.tsx, app/wizard/WizardApp.tsx, app/wizard/QuickLook.tsx, app/wizard/MobileQuickLook.tsx, app/wizard/MobileStrip.tsx, app/wizard/pictures/MobilePicture.tsx, app/wizard/MobileGate.tsx, app/wizard/MobileContact.tsx, app/wizard/PictureCard.tsx, app/wizard/Reveal.tsx, app/estimate/scope/ScopeEditor.tsx, app/estimate/scope/SidesEditor.tsx, app/estimate/finish/Finish.tsx, app/estimate/sent/Sent.tsx
 verified_at_commit: bb273c9122
 ---
 
@@ -50,7 +50,7 @@ On a phone (any screen narrower than about 770px) the same questions come one at
 
 - **Outside** on a phone asks the place, then the outside questions as they are (what kind of home, what we are painting, about it, each side) with a **Continue** bar under each — the drawn house sits above the question, and the strip's small house paints in the parts you tick (walls, eaves and fascia, gutters and downpipes, window frames, doors, verandah); the strip's chips tick those parts too.
 - **Back** keeps every answer, and so does closing the page: come back on the same phone and **Welcome back** lands you on the screen you left, with your answers in place. **Start again** clears them.
-- **Contact** opens the same options as the laptop's talk-it-through bar: request a call (or a site visit on the Paint Group site), ring us, or send a message.
+- **Contact** (top right on every phone screen, the range screen included) opens a sheet: your estimator's name, then **Book a visit**, **Call** (it dials, where the shopfront lists a number), **Send a message**, and **Save and come back later** (we email you the link). Before your range, Book a visit asks for your name, address, mobile and email and we arrange the time with you; from the range screen it opens the booking page with the days your estimator is in your area, and so does **book a time with … first** on that screen. Details you give here come back filled in on the "Where shall we send your range?" screen.
 
 ## The estimate page, once it is sent
 - **Photos and videos.** "Your property, as we saw it" shows the first nine photos — and any video you sent us, which plays right there on the page — from your enquiry and our site notes. When there are more, a **More photos (N)** button sits underneath; press it and the rest open below (the button then reads **Fewer photos**).
@@ -81,6 +81,7 @@ On a phone (any screen narrower than about 770px) the same questions come one at
 - **On a phone the quick look is one question per screen** — see *On a phone* above. The picture panel pinned under the step bar and the floating talk-it-through pill are gone on phones; the laptop layout is unchanged.
 - **The strip under the bar shows your place** — a small picture that paints each surface in as you tick it, with your answers so far beside it; tap it for the full-width picture and the same chips.
 - **The range screen on a phone is one column** — the range, the one question, three tiles, your estimator, the trust line and what's in the range; no picture, no tolerance figure. The room-by-room editor on Paint Home now carries the Paint Home mark.
+- **Contact on a phone is a sheet** — your estimator, Book a visit, Call, Send a message, Save and come back later — on every screen including the range.
 
 ## Changes on 27 Oct 2026
 - **On Paint Home, a job over the phone-close ceiling** shows the "bigger than we can price from your phone" screen with Book a site visit and Send us a message only; the editor is not offered there.

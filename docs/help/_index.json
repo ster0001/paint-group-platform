@@ -375,6 +375,7 @@
         "app/wizard/MobileStrip.tsx",
         "app/wizard/pictures/MobilePicture.tsx",
         "app/wizard/MobileGate.tsx",
+        "app/wizard/MobileContact.tsx",
         "app/wizard/PictureCard.tsx",
         "app/wizard/Reveal.tsx",
         "app/estimate/scope/ScopeEditor.tsx",
