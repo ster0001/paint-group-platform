@@ -48,6 +48,7 @@ import { TIER_LABEL, type Ladder } from "@/lib/wizard/ladder";
 
 import type { InteriorLoopMeta, RoomLoopView } from "@/lib/wizard/rooms-loop";
 import Wordmark from "@/app/wizard/Wordmark";
+import type { WizardBrand } from "@/lib/wizard/brand";
 import WizardHeader from "@/app/wizard/WizardHeader";
 import { rangeBand } from "./rangeBand";
 import PlanMap from "@/app/wizard/pictures/PlanMap";
@@ -113,7 +114,7 @@ const snapshotFalse = () => false;
 
 const fmtMoney = (cents: number) => `$${Math.round(cents / 100).toLocaleString("en-AU")}`;
 
-export default function ScopeEditor({ estimateId, initial, initialRooms, initialExterior = null, initialSides = null, initialLadder, initialInteriorLoop = null, initialColourTier = "change", initialSystems = [], initialRoomExtras = {}, estimator = null, customerSuburb = null, initialAccess = { answers: {}, asksLift: false }, initialCornices = null, initialExtras = { offer: [], on: [], counts: {}, colourHelp: false, note: "" }, roomTypes, liveRange, docs = { plan: null, photos: [] }, logoUrl = null, companyPhone = null, chatMode = false }: {
+export default function ScopeEditor({ estimateId, initial, initialRooms, initialExterior = null, initialSides = null, initialLadder, initialInteriorLoop = null, initialColourTier = "change", initialSystems = [], initialRoomExtras = {}, estimator = null, customerSuburb = null, initialAccess = { answers: {}, asksLift: false }, initialCornices = null, initialExtras = { offer: [], on: [], counts: {}, colourHelp: false, note: "" }, roomTypes, liveRange, docs = { plan: null, photos: [] }, logoUrl = null, brand = "paintgroup", companyPhone = null, chatMode = false }: {
   estimateId: string;
   initial: CustomerPayload;
   initialRooms: CustomerScopeRoom[];
@@ -128,6 +129,8 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
   /** R5: the plan and photos this customer uploaded, pinned beside the loop. */
   docs?: EstimateDocuments;
   logoUrl?: string | null;
+  /** Tom, 28 Oct 2026: the estimate's brand — Paint Home shows its own mark in the frozen header. */
+  brand?: WizardBrand;
   companyPhone?: string | null;
   /** When the office answers the phone — Settings owns the wording. */
   phoneHours?: string | null;
@@ -978,7 +981,7 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
           (on a phone: the dark range strip under the header). Still `.sc-freeze`, pinned. */}
       <div className="sc-freeze">
         <WizardHeader
-          logo={<Wordmark logoUrl={logoUrl} />}
+          logo={<Wordmark logoUrl={logoUrl} brand={brand} />}
           steps={[]}
           at="gate"
           after={{

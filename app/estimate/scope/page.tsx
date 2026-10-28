@@ -7,6 +7,7 @@ import ScopeEditor from "./ScopeEditor";
 import AssistantWidget from "@/app/estimate/assist/AssistantWidget";
 import SidesEditor from "./SidesEditor";
 import Wordmark from "@/app/wizard/Wordmark";
+import type { WizardBrand } from "@/lib/wizard/brand";
 import { getCompanyContact } from "@/lib/portal/data";
 import "../../wizard/wizard.css";
 
@@ -55,9 +56,11 @@ export default async function ScopeEditorPage({
 
   const { data: estimate } = await db
     .from("estimates")
-    .select("id, status, source, created_by, requires_site_check, builder_state, account_id")
+    .select("id, status, source, created_by, requires_site_check, builder_state, account_id, brand")
     .eq("id", id)
     .maybeSingle();
+  // Tom, 28 Oct 2026: the editor wears the ESTIMATE's brand — a Paint Home estimate shows the Paint Home mark on either host.
+  const estimateBrand: WizardBrand = (estimate as { brand?: unknown } | null)?.brand === "painthome" ? "painthome" : "paintgroup";
   // Phase 1 (6 Sep plan): the anonymous builder OR a signed-in member of the
   // linked account — the "keep shaping my estimate" way back in.
   const own = !estimate ? false : actor.kind !== "customer" || await customerOwnsDraft(db, actor, estimate as EstimateRow);
@@ -79,6 +82,7 @@ export default async function ScopeEditorPage({
           initialLadder={bundle.initialLadder}
           docs={bundle.docs}
           logoUrl={bundle.logoUrl}
+          brand={estimateBrand}
           companyPhone={bundle.companyPhone}
           phoneHours={bundle.phoneHours}
           customerPhone={bundle.customerPhone}
@@ -123,6 +127,7 @@ export default async function ScopeEditorPage({
         sendTo={bundle.sendTo}
         docs={bundle.docs}
         logoUrl={bundle.logoUrl}
+        brand={estimateBrand}
       />
     </div>
   );

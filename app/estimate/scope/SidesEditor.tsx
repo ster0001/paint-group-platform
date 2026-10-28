@@ -22,6 +22,7 @@ import { useStickyRoom } from "./useStickyRoom";
 import type { EstimateDocuments } from "@/lib/wizard/documents";
 import WizardHeader from "@/app/wizard/WizardHeader";
 import Wordmark from "@/app/wizard/Wordmark";
+import type { WizardBrand } from "@/lib/wizard/brand";
 import TopView, { type TopSide } from "@/app/wizard/pictures/TopView";
 import { rangeBand } from "./rangeBand";
 
@@ -80,7 +81,7 @@ function CondArt({ kind }: { kind: "good" | "weathered" | "peeling" }) {
   return <span className="sd-chip-art" aria-hidden="true" dangerouslySetInnerHTML={{ __html: `<svg viewBox="0 0 72 30" width="72" height="30">${boards}${lines}${weathered}${peeling}</svg>` }} />;
 }
 
-export default function SidesEditor({ estimateId, initial, initialSides, initialExterior, initialLadder, embedded = false, onState, openKey, onOpenKey, docs = { plan: null, photos: [] }, logoUrl = null, companyPhone = null, estimator = null, customerSuburb = null }: {
+export default function SidesEditor({ estimateId, initial, initialSides, initialExterior, initialLadder, embedded = false, onState, openKey, onOpenKey, docs = { plan: null, photos: [] }, logoUrl = null, brand = "paintgroup", companyPhone = null, estimator = null, customerSuburb = null }: {
   estimateId: string;
   initial: CustomerPayload;
   initialSides: SidesView;
@@ -90,6 +91,8 @@ export default function SidesEditor({ estimateId, initial, initialSides, initial
    * to the parent ScopeEditor so a stacked page shows ONE plan, not two. */
   docs?: EstimateDocuments;
   logoUrl?: string | null;
+  /** Tom, 28 Oct 2026: the estimate's brand — Paint Home shows its own mark in the frozen header. */
+  brand?: WizardBrand;
   companyPhone?: string | null;
   /** When the office answers the phone — Settings owns the wording. */
   phoneHours?: string | null;
@@ -1123,7 +1126,7 @@ export default function SidesEditor({ estimateId, initial, initialSides, initial
       {!embedded && (
       <div className="sc-freeze">
         <WizardHeader
-          logo={<Wordmark logoUrl={logoUrl} />}
+          logo={<Wordmark logoUrl={logoUrl} brand={brand} />}
           steps={[]}
           at="gate"
           after={{ at: 1, labels: ["Guide range", "Side by side", `Fixed by ${estimator?.name?.trim().split(/\s+/)[0] || "your estimator"}`] }}
