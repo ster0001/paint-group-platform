@@ -44,7 +44,7 @@ On a phone (any screen narrower than about 770px) the same questions come one at
 9. **Colours?** — New colours, Same colours, or Still deciding (priced as new colours).
 10. **How are the walls looking?** — Good, just tired · Some wear · Needs work.
 11. **Anyone living there while we paint?** — No, it'll be empty · Yes, we'll be there.
-12. **Where shall we send your range?** — your name, mobile and email, and an optional offers tick. **Show my range** lights up once the three are in; your range appears instantly on the next screen.
+12. **Where shall we send your range?** — your full name (first and last), mobile and email, and an optional offers tick. **Show my range** lights up once the three are in; your range appears instantly on the next screen.
 13. **Your range today** — on a phone the range screen is one column with no picture: your range, a line reading your answers back, and one sentence of small print (anything different on the day changes the price; your estimator confirms it before anything is fixed; includes GST). Under it, **Want the exact number?** with **Get my exact price** (room by room, about ten minutes) and **book a time with … first**; three tiles — Your range ✓ · Your exact price · … confirms; your estimator's name; our rating and warranty (on Paint Home, "Reviews powered by Paint Group" in small print); and **What's in the range**, collapsed, listing the surfaces you ticked with their coats. The bar at the bottom holds **Get my exact price** only. A job too big to confirm by phone shows **We'll come and look** with **Book a visit** instead of the question.
 14. **Get my exact price** opens the room-by-room editor with the same three tiles at the top, "Your exact price" lit.
 

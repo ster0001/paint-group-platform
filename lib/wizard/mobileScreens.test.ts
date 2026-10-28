@@ -111,10 +111,11 @@ describe("the answers map onto the quick look (§2.6 — the data model is uncha
     const on = toggleListedRoom(q({ rooms: ["Bed 1", "Living room"] }), names, "Bed 2");
     expect(on.rooms).toBeNull();
   });
-  it("the details button needs a name, a 10-digit mobile and (the server's rule) an email", () => {
-    expect(detailsReady({ name: "Tom", phone: "0412 345 678", email: "tom@example.com" })).toBe(true);
-    expect(detailsReady({ name: "Tom", phone: "0412 345 67", email: "tom@example.com" })).toBe(false);
-    expect(detailsReady({ name: "T", phone: "0412 345 678", email: "tom@example.com" })).toBe(false);
-    expect(detailsReady({ name: "Tom", phone: "0412 345 678", email: "" })).toBe(false);
+  it("the details button needs a FULL name (D17), a 10-digit mobile and an email", () => {
+    expect(detailsReady({ name: "Tom Roman", phone: "0412 345 678", email: "tom@example.com" })).toBe(true);
+    expect(detailsReady({ name: "Tom", phone: "0412 345 678", email: "tom@example.com" })).toBe(false);
+    expect(detailsReady({ name: "  Tom   Roman ", phone: "0412 345 678", email: "tom@example.com" })).toBe(true);
+    expect(detailsReady({ name: "Tom Roman", phone: "0412 345 67", email: "tom@example.com" })).toBe(false);
+    expect(detailsReady({ name: "Tom Roman", phone: "0412 345 678", email: "" })).toBe(false);
   });
 });
