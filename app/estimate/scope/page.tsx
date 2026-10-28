@@ -1,5 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
-import { wizardBrandName, wizardTitle } from "@/lib/wizard/brandServer";
+import { wizardBrand, wizardBrandName, wizardTitle } from "@/lib/wizard/brandServer";
 import { createServiceClient } from "@/lib/supabase/service";
 import { customerOwnsDraft, getWizardActor } from "@/lib/supabase/guards";
 import { loadCustomerScope, type EstimateRow } from "@/lib/wizard/customer-scope";
@@ -7,7 +7,6 @@ import ScopeEditor from "./ScopeEditor";
 import AssistantWidget from "@/app/estimate/assist/AssistantWidget";
 import SidesEditor from "./SidesEditor";
 import Wordmark from "@/app/wizard/Wordmark";
-import type { WizardBrand } from "@/lib/wizard/brand";
 import { getCompanyContact } from "@/lib/portal/data";
 import "../../wizard/wizard.css";
 
@@ -28,10 +27,10 @@ export async function generateMetadata() {
 }
 
 async function Holding({ line }: { line: string }) {
-  const company = await getCompanyContact();
+  const [company, brand] = await Promise.all([getCompanyContact(), wizardBrand()]);
   return (
     <div className="wz">
-      <header className="wz-top"><Wordmark logoUrl={company.logoUrl} /></header>
+      <header className="wz-top"><Wordmark logoUrl={company.logoUrl} brand={brand} /></header>
       <div className="wz-wrap" style={{ textAlign: "center", paddingTop: 80 }}>
         <h1>{line}</h1>
       </div>
@@ -59,8 +58,6 @@ export default async function ScopeEditorPage({
     .select("id, status, source, created_by, requires_site_check, builder_state, account_id, brand")
     .eq("id", id)
     .maybeSingle();
-  // Tom, 28 Oct 2026: the editor wears the ESTIMATE's brand — a Paint Home estimate shows the Paint Home mark on either host.
-  const estimateBrand: WizardBrand = (estimate as { brand?: unknown } | null)?.brand === "painthome" ? "painthome" : "paintgroup";
   // Phase 1 (6 Sep plan): the anonymous builder OR a signed-in member of the
   // linked account — the "keep shaping my estimate" way back in.
   const own = !estimate ? false : actor.kind !== "customer" || await customerOwnsDraft(db, actor, estimate as EstimateRow);
@@ -71,6 +68,8 @@ export default async function ScopeEditorPage({
 
   const bundle = await loadCustomerScope(db, estimate as EstimateRow);
   if (bundle.kind === "holding") return <Holding line={bundle.line} />;
+  // Wizard mobile v5 S4 (brief §4.3, v1 B7): the estimate's own brand decides the chrome; the host stands in for an older row.
+  const brand = (estimate as { brand?: string | null }).brand === "painthome" ? "painthome" as const : await wizardBrand();
   if (bundle.kind === "sides") {
     return (
       <div className="wz">
@@ -82,13 +81,13 @@ export default async function ScopeEditorPage({
           initialLadder={bundle.initialLadder}
           docs={bundle.docs}
           logoUrl={bundle.logoUrl}
-          brand={estimateBrand}
           companyPhone={bundle.companyPhone}
           phoneHours={bundle.phoneHours}
           customerPhone={bundle.customerPhone}
           sendTo={bundle.sendTo}
           estimator={bundle.estimator}
           customerSuburb={bundle.customerSuburb}
+          brand={brand}
         />
       </div>
     );
@@ -101,6 +100,7 @@ export default async function ScopeEditorPage({
       {/* Tom, 7 Sep: general questions to the assistant, or a person — never co-work. */}
       {actor.kind === "customer" && <AssistantWidget estimateId={bundle.estimateId} lift={76} brandName={await wizardBrandName()} />}
       <ScopeEditor
+        brand={brand}
         estimateId={bundle.estimateId}
         initial={bundle.initial}
         initialRooms={bundle.initialRooms}
@@ -127,7 +127,6 @@ export default async function ScopeEditorPage({
         sendTo={bundle.sendTo}
         docs={bundle.docs}
         logoUrl={bundle.logoUrl}
-        brand={estimateBrand}
       />
     </div>
   );

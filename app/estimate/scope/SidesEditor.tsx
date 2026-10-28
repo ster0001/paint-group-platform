@@ -81,7 +81,7 @@ function CondArt({ kind }: { kind: "good" | "weathered" | "peeling" }) {
   return <span className="sd-chip-art" aria-hidden="true" dangerouslySetInnerHTML={{ __html: `<svg viewBox="0 0 72 30" width="72" height="30">${boards}${lines}${weathered}${peeling}</svg>` }} />;
 }
 
-export default function SidesEditor({ estimateId, initial, initialSides, initialExterior, initialLadder, embedded = false, onState, openKey, onOpenKey, docs = { plan: null, photos: [] }, logoUrl = null, brand = "paintgroup", companyPhone = null, estimator = null, customerSuburb = null }: {
+export default function SidesEditor({ estimateId, initial, initialSides, initialExterior, initialLadder, embedded = false, onState, openKey, onOpenKey, docs = { plan: null, photos: [] }, logoUrl = null, companyPhone = null, estimator = null, customerSuburb = null, brand = "paintgroup" }: {
   estimateId: string;
   initial: CustomerPayload;
   initialSides: SidesView;
@@ -91,7 +91,7 @@ export default function SidesEditor({ estimateId, initial, initialSides, initial
    * to the parent ScopeEditor so a stacked page shows ONE plan, not two. */
   docs?: EstimateDocuments;
   logoUrl?: string | null;
-  /** Tom, 28 Oct 2026: the estimate's brand — Paint Home shows its own mark in the frozen header. */
+  /** Wizard mobile v5 S4: the shopfront's mark in the header. */
   brand?: WizardBrand;
   companyPhone?: string | null;
   /** When the office answers the phone — Settings owns the wording. */
