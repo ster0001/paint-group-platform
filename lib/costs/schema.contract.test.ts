@@ -10,6 +10,7 @@ import { describe, expect, it } from "vitest";
 
 const MIG = resolve(process.cwd(), "supabase/migrations");
 const SQL = readFileSync(resolve(MIG, "20261122000000_cost_intake.sql"), "utf8");
+const GUARD = readFileSync(resolve(MIG, "20270273000000_materials_duplicate_guard.sql"), "utf8");
 
 describe("the pipeline is service/staff gated — never client-writable", () => {
   it("cost_intake has RLS with a staff read policy and revoked writes", () => {
@@ -57,6 +58,16 @@ describe("duplicates cannot create two rows", () => {
   });
   it("a flagged duplicate parks — status set, no destination insert in that path", () => {
     expect(SQL).toMatch(/set status = 'duplicate', duplicate_of = v_dup/);
+  });
+  it("20270273: guard (b) skips a candidate whose invoice number is read and differs — two numbers are two invoices", () => {
+    expect(GUARD).toContain("create or replace function public.cost_intake_set_extraction(");
+    expect(GUARD).toContain("lower(split_part(ci.from_email, '@', 2)) = v_domain");
+    expect(GUARD).toMatch(/and \(v_invoice_no is null\s*\n\s*or nullif\(trim\(coalesce\(ci\.extracted ->> 'invoice_no', ''\)\), ''\) is null\s*\n\s*or lower\(trim\(ci\.extracted ->> 'invoice_no'\)\) = lower\(v_invoice_no\)\)/);
+    expect(GUARD).toContain("to service_role;");
+    expect(GUARD).toContain("insert into public._prod_migrations(name) values ('20270273000000_materials_duplicate_guard.sql')");
+  });
+  it("a flagged duplicate can still be confirmed by a person — the screen relies on it", () => {
+    expect(SQL).toContain("if v.confirmed_at is not null or v.status in ('confirmed', 'rejected') then");
   });
   it("the manual door refuses a duplicate loudly", () => {
     expect(SQL).toContain("return 'error:duplicate'");

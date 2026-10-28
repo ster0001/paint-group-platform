@@ -368,6 +368,34 @@ export default function SidesEditor({ estimateId, initial, initialSides, initial
     // UI refresh S5 (⚑ 7, the mockup's wording): the same pill words as the room cards.
     const pill = s.confirmed ? (s.include === false ? "Not painting" : "Checked ✓") : isOpen ? "Close" : "Check this side";
     const cls = `sd-card ${s.confirmed ? (s.include === false ? "skip" : "done") : ""} ${isOpen ? "open" : ""} ${shake === s.key ? "shake" : ""}`;
+    // Tom, 28 Oct 2026: the one commit for this side's size — from the row's blur, Enter, or the mirrored "Keep these" chip.
+    const commitDims = () => {
+      const lv = (dims.L || (s.mirroredFrom ? String(s.L) : "")).trim().toLowerCase();
+      const hv = (dims.H || (s.mirroredFrom ? String(s.H) : "")).trim().toLowerCase();
+      if (lv.includes("not") || hv.includes("not")) {
+        act({ action: "side_dims", side: s.key, notSure: true }, {
+          done: "Not a problem — we'll measure this side on the day; your range widens a touch until then.",
+        });
+        return;
+      }
+      // The gentle clamp (3–40 m long, 2–8 m high) — the
+      // server clamps too; matching here keeps the toast
+      // honest about what was recorded.
+      const rawL = parseFloat(lv.replace(/[^0-9.]/g, ""));
+      const rawH = parseFloat(hv.replace(/[^0-9.]/g, ""));
+      const L = isNaN(rawL) ? null : Math.min(40, Math.max(3, rawL));
+      const H = isNaN(rawH) ? null : Math.min(8, Math.max(2, rawH));
+      const clamped = (L != null && L !== rawL) || (H != null && H !== rawH);
+      act({
+        action: "side_dims", side: s.key,
+        lengthM: L, heightM: H,
+      }, {
+        done: clamped
+          ? `${s.label} set to ${L ?? "—"} × ${H ?? "—"} m (sides run 3–40 × 2–8 m) — repriced.`
+          : `${s.label} repriced — walls and roofline follow the new size.`,
+      });
+      setDims({ L: "", H: "" });
+    };
     return (
       <section className={cls} key={s.key} data-side={s.key}>
         <div className="sd-hd" onClick={() => setOpen(s.key)}>
@@ -455,47 +483,23 @@ export default function SidesEditor({ estimateId, initial, initialSides, initial
                       : s.size === "adjusted" || s.size === "yes"
                         ? `Recorded: ${s.L} m long × ${s.H} m high.`
                         : s.mirroredFrom
-                          ? `Same as the ${shortSide(s.mirroredFrom)} — ${s.L} m × ${s.H} m. Check it and tap Update, or change the numbers.`
+                          ? `Same as the ${shortSide(s.mirroredFrom)} — ${s.L} m × ${s.H} m. Tap Keep these, or type the real numbers.`
                           : `Your guide range used ${s.L} m × ${s.H} m — pace it out and put the real numbers in.`}
                   </p>
                   {(
-                    <div className="sd-mrow" data-testid={`side-dims-${s.key}`} data-mirrored={s.mirroredFrom ?? undefined}>
+                    <div className="sd-mrow" data-testid={`side-dims-${s.key}`} data-mirrored={s.mirroredFrom ?? undefined}
+                      onBlur={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node | null) && (dims.L || dims.H)) commitDims(); }}
+                      onKeyDown={(e) => { if (e.key === "Enter") commitDims(); }}>
                       {/* Tom, 15 Sep: a mirrored side's boxes come pre-written with
                           the opposite side's numbers — still orange until Update. */}
                       <input placeholder="length m" inputMode="decimal" value={dims.L || (s.mirroredFrom ? String(s.L) : "")} onChange={(e) => setDims({ ...dims, L: e.target.value })} />
                       <span>×</span>
                       <input placeholder="height m" inputMode="decimal" value={dims.H || (s.mirroredFrom ? String(s.H) : "")} onChange={(e) => setDims({ ...dims, H: e.target.value })} />
-                      <button
-                        onClick={() => {
-                          const lv = (dims.L || (s.mirroredFrom ? String(s.L) : "")).trim().toLowerCase();
-                          const hv = (dims.H || (s.mirroredFrom ? String(s.H) : "")).trim().toLowerCase();
-                          if (lv.includes("not") || hv.includes("not")) {
-                            act({ action: "side_dims", side: s.key, notSure: true }, {
-                              done: "Not a problem — we'll measure this side on the day; your range widens a touch until then.",
-                            });
-                            return;
-                          }
-                          // The gentle clamp (3–40 m long, 2–8 m high) — the
-                          // server clamps too; matching here keeps the toast
-                          // honest about what was recorded.
-                          const rawL = parseFloat(lv.replace(/[^0-9.]/g, ""));
-                          const rawH = parseFloat(hv.replace(/[^0-9.]/g, ""));
-                          const L = isNaN(rawL) ? null : Math.min(40, Math.max(3, rawL));
-                          const H = isNaN(rawH) ? null : Math.min(8, Math.max(2, rawH));
-                          const clamped = (L != null && L !== rawL) || (H != null && H !== rawH);
-                          act({
-                            action: "side_dims", side: s.key,
-                            lengthM: L, heightM: H,
-                          }, {
-                            done: clamped
-                              ? `${s.label} set to ${L ?? "—"} × ${H ?? "—"} m (sides run 3–40 × 2–8 m) — repriced.`
-                              : `${s.label} repriced — walls and roofline follow the new size.`,
-                          });
-                          setDims({ L: "", H: "" });
-                        }}
-                      >
-                        Update
-                      </button>
+                      {/* Tom, 28 Oct 2026: the numbers save when you click out of the boxes — no Update button.
+                          A mirrored side with nothing typed keeps its chip, so accepting the opposite side's numbers is still one tap. */}
+                      {s.mirroredFrom && !dims.L && !dims.H && (
+                        <button type="button" className="sd-chip" data-testid={`side-dims-keep-${s.key}`} onClick={() => commitDims()}>Keep these</button>
+                      )}
                     </div>
                   )}
                   <p className="sd-help">Pace the length — a big step is about a metre. A single storey is usually 2.4–2.7 m. &ldquo;Not sure&rdquo; is fine.</p>

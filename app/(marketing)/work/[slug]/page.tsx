@@ -10,6 +10,7 @@ import ProjectPage from "../../_components/ProjectPage";
 import { publishedShowcaseJobs, relatedShowcaseJobs, showcaseJobBySlug } from "@/lib/showcase/queries";
 import { formatPriceRange, showcaseMediaUrl } from "@/lib/showcase/format";
 import { parseVideoUrl } from "@/lib/marketing/video";
+import { videoObjectLd, videoUploadDateFor } from "@/lib/marketing/videoLd";
 import { AudienceProvider } from "../../_components/Audience";
 import { brandView } from "@/lib/marketing/brand";
 import { getBrand } from "@/lib/marketing/brandServer";
@@ -85,17 +86,16 @@ export default async function WorkJobPage({ params }: { params: Promise<{ slug: 
   // thumbnail, upload date (the job's publish date), the privacy-enhanced embed
   // URL and the transcript — so the video is indexable text as well.
   const video = job.video_url ? parseVideoUrl(job.video_url) : null;
-  const videoLd = video ? {
-    "@context": "https://schema.org",
-    "@type": "VideoObject",
+  // Search Console (28 Oct 2026): uploadDate is required and never undefined — published, else completed, else created.
+  const videoLd = video ? videoObjectLd({
     name: job.video_caption || `${job.title} in ${job.suburb}`,
-    description: job.review_quote || job.summary || job.scope_line,
-    thumbnailUrl: [job.video_poster_path ? showcaseMediaUrl(job.video_poster_path) : video.thumbnailUrl].filter(Boolean),
-    uploadDate: job.published_at ?? undefined,
+    description: job.review_quote || job.summary || job.scope_line || `${job.title} in ${job.suburb}`,
+    thumbnailUrl: [job.video_poster_path ? showcaseMediaUrl(job.video_poster_path) : video.thumbnailUrl],
     embedUrl: video.embedUrl,
     contentUrl: video.watchUrl,
-    transcript: job.video_transcript || undefined,
-  } : null;
+    transcript: job.video_transcript || null,
+    uploadDate: videoUploadDateFor(job),
+  }) : null;
 
   return (
     <AudienceProvider audience={audience} brand={brandView(brand)}>

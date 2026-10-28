@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { melbourneDay } from "@/lib/marketing/videoLd";
 import { createClient } from "@/lib/supabase/server";
 import { requireStaff } from "@/lib/supabase/guards";
 import { WEBSITE_CONTENT_KEY, websiteContentSchema, type WebsiteContent } from "@/lib/marketing/siteContent";
@@ -14,11 +15,15 @@ export async function saveWebsiteContentAction(raw: unknown): Promise<SaveWebsit
   if (!(await requireStaff(supabase))) return { status: "error", message: "Staff only." };
   const parsed = websiteContentSchema.safeParse(raw);
   if (!parsed.success) return { status: "invalid", issues: plainIssues(parsed.error) };
-  const { error } = await supabase.from("settings").upsert({ key: WEBSITE_CONTENT_KEY, value: parsed.data }, { onConflict: "key" });
+  // Search Console (28 Oct 2026): a pasted testimonial video carries the day it was added, for VideoObject.uploadDate.
+  const fv = parsed.data.featuredVideo;
+  const data = { ...parsed.data, featuredVideo: { ...fv, addedOn: fv.url ? (fv.addedOn ?? melbourneDay()) : null } };
+  const { error } = await supabase.from("settings").upsert({ key: WEBSITE_CONTENT_KEY, value: data }, { onConflict: "key" });
   if (error) return { status: "error", message: "Couldn't save — please try again." };
   revalidatePath("/");
+  revalidatePath("/painthome");
   revalidatePath("/work");
-  return { status: "saved", content: parsed.data };
+  return { status: "saved", content: data };
 }
 
 /**
