@@ -43,6 +43,8 @@ test.describe("Wizard mobile v5 — the gate on a phone (session 4)", () => {
     if (policyBefore !== undefined) {
       if (policyBefore === null) await db.from("settings").delete().eq("key", "wizard_policy");
       else await db.from("settings").upsert({ key: "wizard_policy", value: policyBefore }, { onConflict: "key" });
+      // the server's pricing context caches settings for 20s: the next spec must not submit against the lowered cap
+      await new Promise((r) => setTimeout(r, 21_000));
     }
   });
 

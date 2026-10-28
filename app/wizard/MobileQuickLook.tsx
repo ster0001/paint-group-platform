@@ -332,8 +332,9 @@ export default function MobileQuickLook({
 
           {current.id === "details" && contact && (
             <>
-              <label className="wzm-field"><span>Name</span>
-                <input value={contact.name} placeholder="First name is fine" autoComplete="given-name" data-testid="gate-name" onChange={(e) => onContact({ ...contact, name: e.target.value })} /></label>
+              {/* Tom, 28 Oct 2026 (D17): the full name — first and last — never a first name alone. */}
+              <label className="wzm-field"><span>Full name</span>
+                <input value={contact.name} placeholder="First and last name" autoComplete="name" data-testid="gate-name" onChange={(e) => onContact({ ...contact, name: e.target.value })} /></label>
               <label className="wzm-field"><span>Mobile</span>
                 <input type="tel" inputMode="tel" value={contact.phone} placeholder="04" autoComplete="tel" data-testid="gate-mobile" onChange={(e) => onContact({ ...contact, phone: e.target.value })} /></label>
               <label className="wzm-field"><span>Email</span>

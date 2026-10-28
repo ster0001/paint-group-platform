@@ -194,10 +194,13 @@ test.describe("Wizard mobile v5 — the phone's screens (session 2)", () => {
     await page.getByTestId("ql-occupied-no").tap();
     await at(page, "details");
 
-    // the details: name + 10-digit mobile (+ email, the server's gate rule) enable Show my range
+    // the details (D17, 28 Oct): a FULL name, a 10-digit mobile and an email enable Show my range — a first name alone does not
+    await page.getByTestId("gate-name").fill("Mobile");
+    await page.getByTestId("gate-mobile").fill("0412 345 678");
+    await page.getByTestId("gate-email").fill(`ph.mobile.${run}@example.com`);
+    await expect(page.getByTestId("ql-next")).toBeDisabled();
     await page.getByTestId("gate-name").fill("Mobile Tester");
     await page.getByTestId("gate-mobile").fill("0412 345 67");
-    await page.getByTestId("gate-email").fill(`ph.mobile.${run}@example.com`);
     await expect(page.getByTestId("ql-next")).toBeDisabled();
     await page.getByTestId("gate-mobile").fill(`04${String(Date.now()).slice(-8)}`);
     await expect(page.getByTestId("ql-next")).toBeEnabled({ timeout: 30_000 });

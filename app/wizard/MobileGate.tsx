@@ -33,7 +33,10 @@ import { breakpointNow, sendWizardEvent } from "@/lib/wizard/wizardEvents";
  */
 const fmt = (cents: number) => `$${Math.round(cents / 100).toLocaleString("en-AU")}`;
 
-export default function MobileGate({ payload, quick, outside, brand, estimateId, firstName, suburb, trust, handoff, onExact, onVisit, onBook }: {
+export default function MobileGate({ payload, quick, outside, brand, logo, estimateId, firstName, suburb, trust, handoff, onExact, onVisit, onBook, onContactOpen }: {
+  logo: ReactNode;
+  /** R6: the Contact pill, on the gate too (session 5). */
+  onContactOpen: () => void;
   payload: CustomerPayload;
   quick: QuickLook;
   outside: ExteriorQuickLook | null;
@@ -63,7 +66,7 @@ export default function MobileGate({ payload, quick, outside, brand, estimateId,
   const estimator = payload.estimator?.name?.trim() || null;
   const estFirst = estimator?.split(/\s+/)[0] ?? null;
   const who = estFirst ?? "Your estimator";
-  const customer = firstName?.trim().split(/\s+/)[0] || "";
+  const customer = firstName?.trim().split(/\s+/)[0] || ""; // the full name is held (D17); the greeting uses the first
   const exteriorOnly = quick.jobType === "exterior" && outside != null;
   const basis = exteriorOnly ? exteriorRestatement(outside) : restatement(quick);
   const how = exteriorOnly ? "side by side" : "room by room";
@@ -80,6 +83,11 @@ export default function MobileGate({ payload, quick, outside, brand, estimateId,
 
   return (
     <div className="wzm wzm-gate" data-testid="wzm-gate" data-estimate-id={estimateId} data-variant={handoff ? "bigger" : "exact"}>
+      <header className="wzm-head" data-testid="wzm-head">
+        <span className="wzm-back" aria-hidden="true" />
+        <span className="wzm-logo">{logo}</span>
+        <button type="button" className="wzm-contact" onClick={onContactOpen} data-testid="wzm-contact">Contact</button>
+      </header>
       <main className="wzm-main has-bar">
         {/* 1 · the range */}
         <section data-testid="gate-block-range">

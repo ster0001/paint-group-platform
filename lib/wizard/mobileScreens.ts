@@ -195,13 +195,17 @@ export function roomsTicked(q: Pick<QuickLook, "rooms">, names: readonly string[
 }
 
 /**
- * §2 — the details screen's button. The brief enables it on a name and a
- * 10-digit mobile; the server's gate (`/api/wizard/submit`, `gate_required`)
- * still asks for an email too, so until that rule changes the email is
- * required here as well — ⚑ flagged for Tom in the S2 ledger row.
+ * §2 — the details screen's button. Tom, 28 Oct 2026 (D17): a FULL name
+ * (two words at least), a 10-digit mobile and an email — the lead is keyed
+ * on the email, and a first name alone is not a customer the office can
+ * find. The server's gate (`/api/wizard/submit`, `gate_required`) asks for
+ * the same three.
  */
+export function fullNameGiven(name: string): boolean {
+  return name.trim().split(/\s+/).filter((w) => w.length > 0).length >= 2;
+}
 export function detailsReady(c: { name: string; email: string; phone: string }): boolean {
-  return c.name.trim().length >= 2 && c.phone.replace(/\D/g, "").length >= 10 && /.+@.+\..+/.test(c.email.trim());
+  return fullNameGiven(c.name) && c.phone.replace(/\D/g, "").length >= 10 && /.+@.+\..+/.test(c.email.trim());
 }
 
 /** Where the phone's screen id is kept between reloads, beside the resume record. */
