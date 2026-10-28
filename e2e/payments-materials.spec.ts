@@ -96,6 +96,7 @@ test.describe("Payments → Materials — as staff", () => {
     const overhead = await doc("OVERHEAD", { totalCents: 14_347 });
     const junk = await doc("JUNK", { totalCents: 1_000 });
     const dup = await doc("DUP", { totalCents: 52_008, status: "duplicate", duplicateOf: found });
+    const second = await doc("SECOND", { totalCents: 52_008, status: "duplicate", duplicateOf: found, woId: j.f.workOrderId });   // a real second invoice, same total + day
 
     await signIn(page, staff!, /\/(home|estimates)/);
     await page.goto(PAGE);
@@ -147,17 +148,26 @@ test.describe("Payments → Materials — as staff", () => {
 
     // A possible duplicate is dismissed — never written twice.
     await page.reload();
-    await block.locator(".prow", { hasText: "Possible duplicate" }).filter({ has: page.getByRole("button", { name: "Dismiss" }) }).first().getByRole("button", { name: "Dismiss" }).click();
+    await expect(row(page, "DUP")).toContainText("Possible duplicate");
+    await row(page, "DUP").getByRole("button", { name: "Dismiss" }).click();
     await expect.poll(async () => (await intakeRow(dup)).confirmed_at, { timeout: 20_000 }).not.toBeNull();
     expect(await costOf(dup)).toBeNull();
+
+    // A flagged document that is really a second invoice (15 Oct, Viponds) can be confirmed to its job anyway.
+    await expect(row(page, "SECOND")).toContainText("Possible duplicate");
+    await expect(row(page, "SECOND")).toContainText("$520.08");
+    await row(page, "SECOND").getByRole("button", { name: "Confirm" }).click();
+    await expect(page.getByTestId("pm-toast")).toContainText("confirmed to");
+    await expect.poll(async () => (await costOf(second))?.status, { timeout: 20_000 }).toBe("approved");
+    expect((await intakeRow(second)).status).toBe("confirmed");
 
     // Paid per supplier, one press, with Undo.
     await page.reload();
     const supplierRow = block.locator(".prow.grp", { hasText: new RegExp(stamp, "i") });
-    await supplierRow.getByRole("button", { name: /✓ Paid \$549\.98/ }).click();     // $520.08 + $29.90
-    await expect.poll(async () => [(await costOf(found))?.status, (await costOf(nojob))?.status], { timeout: 20_000 }).toEqual(["paid", "paid"]);
+    await supplierRow.getByRole("button", { name: /✓ Paid \$1,070\.06/ }).click();     // $520.08 + $29.90 + $520.08 (the second invoice)
+    await expect.poll(async () => [(await costOf(found))?.status, (await costOf(nojob))?.status, (await costOf(second))?.status], { timeout: 20_000 }).toEqual(["paid", "paid", "paid"]);
     await page.getByTestId("pm-toast").getByRole("button", { name: "Undo" }).click();
-    await expect.poll(async () => [(await costOf(found))?.status, (await costOf(nojob))?.status], { timeout: 20_000 }).toEqual(["approved", "approved"]);
+    await expect.poll(async () => [(await costOf(found))?.status, (await costOf(nojob))?.status, (await costOf(second))?.status], { timeout: 20_000 }).toEqual(["approved", "approved", "approved"]);
   });
 
   // 8c — what only the old Payables tab did: any category, typed amounts, materials with no job.

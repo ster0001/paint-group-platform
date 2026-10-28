@@ -1863,6 +1863,18 @@ the accuracy readout on the queue header is the evidence for ⚑A1
 (auto-confirm, seeded OFF and inert). Settings → Cost intake carries the
 window/threshold/toggle. e2e: `cost-intake.spec.ts` 9/9 on C1.
 
+**Materials: a possible duplicate can be linked to a job (15 Oct 2026).** Two Viponds invoices
+for the same amount on the same day, each with its own invoice number, tripped guard (b) and the
+second sat in To check with only Dismiss. `20270273` replaces `cost_intake_set_extraction` so guard
+(b) skips a candidate whose invoice number is read and differs (two numbers are two invoices; a
+document with no number read still falls back to total + date + sender). On the screen the
+"Possible duplicate" row (`app/invoicing/payments/MaterialsView.tsx`, `MatButtons` in
+`ActionsClient.tsx`) now carries its invoice number, date and amount and the same Confirm / Other
+job / Pick a job / Record as a cost buttons as a pending document, with Dismiss in place of Delete;
+`lib/invoicing/materials.ts` keeps the row's real figures while every total still excludes it. The
+database never needed changing for that: `cost_intake_confirm` has always accepted a flagged
+duplicate as a human decision.
+
 ## 25 Aug 2026 — the small-things batch (Tom's list)
 Contractor portal: live offers on Home with the 24h countdown; OfferBar pins
 clock + accept/decline atop an offered job; server-side suburb-only redaction
