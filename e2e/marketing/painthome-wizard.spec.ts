@@ -131,6 +131,11 @@ test.describe("Paint Home — the wizard brand branch (session 3)", () => {
     }, { timeout: 30_000, intervals: [2_000] }).toMatchObject({ brand: "painthome", mode: "home", entry_source: "painthome_home_hero" });
     const { data: est } = await db!.from("estimates").select("brand, source").eq("id", estimateId).single();
     expect(est).toMatchObject({ brand: "painthome", source: "customer_intake" });
+    // Tom, 28 Oct 2026: the tighten editor wears the ESTIMATE's brand — the Paint Home mark, never the Paint Group wordmark
+    await page.goto(`${phRoot}estimate/scope?id=${estimateId}`);
+    await expect(page.getByTestId("painthome-logo-nav").first()).toBeVisible({ timeout: 30_000 });
+    await expect(page.locator(".wz-wm")).toHaveCount(0);
+    await expect(page.locator("body")).not.toContainText("Paint Group");
   });
 
   test("2 · over the threshold: the Paint Home hand-off, answers intact, a site visit to book", async ({ page }) => {
