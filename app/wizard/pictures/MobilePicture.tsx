@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useId, useLayoutEffect, useRef } from "react";
+import { useId } from "react";
+import { useRollerSweep } from "./rollerSweep";
 import { WALL_TINT, type MobilePictureState, type PictureSurface } from "@/lib/wizard/mobilePicture";
 
 /**
@@ -21,71 +22,28 @@ import { WALL_TINT, type MobilePictureState, type PictureSurface } from "@/lib/w
  * React never writes the rect's `width`: the component sets it in effects,
  * so a re-render mid-sweep cannot reset the roller.
  */
-const W = 200, H = 120, DUR = 520;
+const W = 200, H = 120;
 
 const FILL: Record<PictureSurface, string> = {
   walls: "", ceilings: "#fafaf8", skirting: "#ffffff", doors: "#ffffff", windows: "#ffffff", eaves: "#ffffff", gutters: "#f4f4f2", verandah: "#ffffff",
 };
 const TRIM = new Set<PictureSurface>(["skirting", "doors", "windows", "eaves", "gutters", "verandah"]);
 
-function reducedMotion(): boolean {
-  try { return window.matchMedia("(prefers-reduced-motion: reduce)").matches; } catch { return false; }
-}
 
 export default function MobilePicture({ state, testId = "wzm-pic" }: { state: MobilePictureState; testId?: string }) {
   const id = useId().replace(/:/g, "");
-  const rects = useRef<Partial<Record<PictureSurface, SVGRectElement | null>>>({});
-  const rollers = useRef<Partial<Record<PictureSurface, SVGGElement | null>>>({});
-  const frames = useRef<Partial<Record<PictureSurface, number>>>({});
-  const shown = useRef<Partial<Record<PictureSurface, boolean>> | null>(null);
   const painted = state.painted;
   const on = (k: PictureSurface) => Boolean(painted?.[k]);
   const surfaces: PictureSurface[] = state.kind === "room" ? ["ceilings", "walls", "skirting", "doors", "windows"] : ["walls", "eaves", "gutters", "windows", "doors", ...(state.property === "house" ? ["verandah" as const] : [])];
-
-  const sweep = (k: PictureSurface, to: number) => {
-    const rect = rects.current[k], roller = rollers.current[k];
-    if (!rect) return;
-    const from = Number(rect.getAttribute("width") ?? (to === W ? 0 : W));
-    const y = midY(rect);
-    const t0 = performance.now();
-    const prev = frames.current[k];
-    if (prev) cancelAnimationFrame(prev);
-    roller?.classList.add("on");
-    const step = (now: number) => {
-      const t = Math.min(1, (now - t0) / DUR);
-      const e = 1 - Math.pow(1 - t, 3);
-      const w = from + (to - from) * e;
-      rect.setAttribute("width", String(Math.round(w * 100) / 100));
-      roller?.setAttribute("transform", `translate(${w},${y})`);
-      if (t < 1) frames.current[k] = requestAnimationFrame(step);
-      else { rect.setAttribute("width", String(to)); roller?.classList.remove("on"); frames.current[k] = undefined; }
-    };
-    frames.current[k] = requestAnimationFrame(step);
-  };
-
-  // First paint, and any re-render: the rects that are not mid-sweep show their state.
-  useLayoutEffect(() => {
-    const first = shown.current == null;
-    for (const k of surfaces) {
-      const rect = rects.current[k];
-      if (!rect) continue;
-      const want = on(k) ? W : 0;
-      const had = shown.current?.[k];
-      if (first || had === undefined) { rect.setAttribute("width", String(want)); continue; }
-      if (had === on(k)) continue;
-      if (reducedMotion()) { rect.setAttribute("width", String(want)); continue; }
-      sweep(k, want);
-    }
-    shown.current = Object.fromEntries(surfaces.map((k) => [k, on(k)]));
-  });
-  useEffect(() => () => { for (const f of Object.values(frames.current)) if (f) cancelAnimationFrame(f); }, []);
+  // S6: the sweep is shared with the desktop room (rollerSweep.ts).
+  const { rectRef, rollerRef } = useRollerSweep(surfaces, on, W, H);
 
   const surf = (k: PictureSurface, shapes: React.ReactNode) => (
     <g key={k} data-surf={k} data-on={on(k) ? "true" : "false"}>
       <g className={TRIM.has(k) ? "trimbase" : "base"}>{shapes}</g>
-      <clipPath id={`cp-${id}-${k}`}><rect className="cprect" x="0" y="0" height={H} ref={(el) => { rects.current[k] = el; }} /></clipPath>
+      <clipPath id={`cp-${id}-${k}`}><rect className="cprect" x="0" y="0" height={H} ref={rectRef(k)} /></clipPath>
       <g clipPath={`url(#cp-${id}-${k})`} fill={k === "walls" ? WALL_TINT[state.colour] : FILL[k]} stroke="#c4cad0" strokeWidth="1">{shapes}</g>
-      <g className="roller" ref={(el) => { rollers.current[k] = el; }}><rect x="-6" y="-3" width="12" height="6" rx="2" fill="#0e7f8a" /><rect x="5" y="-1" width="7" height="2" fill="#6b7580" /></g>
+      <g className="roller" ref={rollerRef(k)}><rect x="-6" y="-3" width="12" height="6" rx="2" fill="#0e7f8a" /><rect x="5" y="-1" width="7" height="2" fill="#6b7580" /></g>
     </g>
   );
 
@@ -159,11 +117,3 @@ export default function MobilePicture({ state, testId = "wzm-pic" }: { state: Mo
   );
 }
 
-/** The surface's mid-height, for the roller glyph: the base layer's box (a browser without getBBox gets the middle). */
-function midY(rect: SVGRectElement): number {
-  try {
-    const base = rect.closest("[data-surf]")?.querySelector(".base, .trimbase") as SVGGraphicsElement | null;
-    const b = base?.getBBox();
-    return b ? b.y + b.height / 2 : H / 2;
-  } catch { return H / 2; }
-}
