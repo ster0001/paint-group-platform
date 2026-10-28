@@ -47,6 +47,8 @@
 .wz .wz-wm { font-family: var(--wz-mono); font-size: 12px; font-weight: 700; letter-spacing: .22em; color: var(--text); }
 .wz .wz-wm span { color: var(--cyan); }
 .wz .wz-logo { display: block; max-height: 26px; max-width: 150px; object-fit: contain; }
+/* Wizard mobile v5 S4 (§4.3): the Paint Home mark is an inline SVG with no intrinsic size — without a height it drew nothing in the header. */
+.wz svg.wz-logo { height: 26px; width: auto; }
 .wz .wz-exit { background: none; border: 1px solid var(--line); color: var(--muted); border-radius: 8px; font-size: 12px; padding: 5px 11px; cursor: pointer; text-decoration: none; }
 .wz .wz-exit:hover { border-color: var(--muted); color: var(--text); }
 

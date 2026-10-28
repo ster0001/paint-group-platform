@@ -165,9 +165,10 @@ test.describe("Wizard mobile v5 — the gate on a phone (session 4)", () => {
     await expect(page).toHaveURL(/\/estimate\/scope\?id=/, { timeout: 30_000 });
     expect(new URL(page.url()).host).toMatch(/^painthome\.localhost/);
     await expect(page.locator("[data-ready='1']")).toBeAttached({ timeout: 30_000 });
-    // the Paint Home mark is the editor's logo (the frozen header folds its logo row away on a phone; the tiles stand in)
-    await expect(page.locator(".sc-freeze [data-testid='painthome-logo-nav']")).toHaveCount(1);
-    await expect(page.locator("[data-testid='painthome-logo-nav']").first()).toHaveAttribute("aria-label", "Paint Home");
+    // the Paint Home mark in the editor's frozen header, drawn (the inline SVG needs a height — it used to be zero-size)
+    const mark = page.locator(".sc-freeze [data-testid='painthome-logo-nav']");
+    await expect(mark).toBeVisible();
+    expect((await mark.boundingBox())!.height).toBeGreaterThan(10);
     const tiles = page.getByTestId("wzm-tiles");
     await expect(tiles).toBeVisible();
     await expect(tiles).toHaveAttribute("data-at", "1");
