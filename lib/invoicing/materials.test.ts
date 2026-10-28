@@ -86,6 +86,11 @@ describe("the block (§4.6, §6.8)", () => {
     expect(view.toCheck[0]).toMatchObject({ supplier: "Dulux", reference: "8 Kestrel ct Wonga", job: { address: "8 Kestrel Ct, Wonga Park" } });
     expect(view.block).toMatchObject({ toCheckCount: 4, toCheckCents: 2_466 + 495_395 + 59_595 + 774_101 });
   });
+  it("a possible duplicate keeps its own figures so it can be confirmed anyway (15 Oct) — still counted nowhere", () => {
+    const dup = view.toCheck.find((r) => r.state === "dup")!;
+    expect(dup).toMatchObject({ id: "i4", amountCents: 4_217, invoiceNo: expect.any(String) });
+    expect(view.block.toCheckCents).toBe(2_466 + 495_395 + 59_595 + 774_101);
+  });
   it("on a job to approve, approved to pay by supplier, deleted kept", () => {
     expect(view.toApprove.map((r) => r.id)).toEqual(["c1", "c2"]);
     expect(view.toPay.map((g) => [g.supplier, g.rows.map((r) => r.id), g.totalCents])).toEqual([["Dulux", ["c3", "c4"], 22_000]]);

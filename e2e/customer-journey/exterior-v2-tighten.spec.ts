@@ -79,7 +79,7 @@ test("every side's size confirmed closes the range to within a few percent; the 
     const dims = card.getByTestId(`side-dims-${k}`);
     await dims.locator("input").nth(0).fill("12");
     await dims.locator("input").nth(1).fill("3");
-    await dims.getByRole("button", { name: "Update" }).click();
+    await dims.locator("input").nth(1).blur(); // Tom, 28 Oct 2026: saves on blur, no Update button
     await expect(card.getByTestId(`side-assumed-${k}`)).toContainText(/Recorded: 12 m long × 3 m high/, { timeout: 30_000 });
     if (k === "front") {
       // 12 · the fascias, gutters and eaves now run 12 m — the side's width is

@@ -16,10 +16,16 @@ test("no ratings or job counts can be stored — the shape has no field for them
 test("a pasted testimonial video must be a YouTube or Vimeo link (Tom, 6 Sep); empty means none", () => {
   expect(websiteContentSchema.safeParse({ featuredVideo: { url: "https://youtu.be/dQw4w9WgXcQ", caption: "Sarah, Malvern East" } }).success).toBe(true);
   expect(websiteContentSchema.safeParse({ featuredVideo: { url: "https://example.com/video.mp4" } }).success).toBe(false);
-  expect(parseWebsiteContent({ featuredVideo: { url: "" } }).featuredVideo).toEqual({ url: "", caption: "", transcript: "", posterPath: null });
+  expect(parseWebsiteContent({ featuredVideo: { url: "" } }).featuredVideo).toEqual({ url: "", caption: "", transcript: "", posterPath: null, addedOn: null });
 });
 
 test("Tom, 25 Oct 2026: Paint Home's own hero photo is a field of the row; an older row reads as unset", () => {
   expect(parseWebsiteContent({}).heroPhotoPaintHome).toBeNull();
   expect(parseWebsiteContent({ heroPhotoPaintHome: "site/abc.jpg" }).heroPhotoPaintHome).toBe("site/abc.jpg");
 });
+
+test("Search Console 28 Oct 2026: the pasted video's addedOn is a field of the row; an older row reads null", () => {
+  expect(parseWebsiteContent({}).featuredVideo.addedOn).toBeNull();
+  expect(parseWebsiteContent({ featuredVideo: { url: "https://youtu.be/abc123def45", addedOn: "2026-10-28" } }).featuredVideo.addedOn).toBe("2026-10-28");
+});
+

@@ -79,7 +79,8 @@ test("Add room by name alone opens the new room with its size boxes ready; a wal
   await page.getByTestId(`size-length-${wirId}`).fill("2.2");
   await page.getByTestId(`size-width-${wirId}`).fill("1.4");
   await page.getByTestId(`size-height-${wirId}`).fill("2.7");
-  await page.getByTestId(`size-save-${wirId}`).click();
+  // Tom, 28 Oct 2026: the size saves when you click out of the boxes.
+  await page.getByTestId(`size-height-${wirId}`).blur();
   await expect(page.locator(".sd-saving")).toHaveCount(0, { timeout: 30_000 });
   await expect(wir.locator(".il-size").first()).toContainText("2.2 × 1.4 m · 2.7 m ceilings");
   // The job-wide height chip (asked once for every room) leaves this room's height alone.

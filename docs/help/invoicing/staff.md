@@ -86,7 +86,8 @@ Under the invoices:
   - **Confirm** files it on the job found, as materials, approved.
   - **Other job** / **Pick a job** chooses the job yourself: search by address or customer, and each job in the list shows its stage, customer and contract price, so two jobs at the same address can be told apart. **Not for a job** files it as overhead.
   - **Record as a cost…** is for anything that is not materials (scaffold, rubbish, carpentry…), or for a document the reader could not read: choose the kind of cost and the job, and type or correct the total and GST.
-  - **Delete** keeps the document and counts it nowhere; **Restore** puts it back. A possible duplicate has **Dismiss**.
+  - **Delete** keeps the document and counts it nowhere; **Restore** puts it back.
+  - **Possible duplicate**: the reader saw an invoice that looks already recorded (same supplier and invoice number, or same total and date from the same sender within a week), so it wrote no cost and counts it nowhere. If it really is the same invoice, press **Dismiss**. If it is a second invoice (a different invoice number, say two orders on one day), press **Confirm**, **Other job** or **Pick a job** and it is confirmed to that job like any other document. Two different invoice numbers are no longer flagged against each other.
 - **On a job, to approve** and **Approved, to pay**, grouped by supplier with one **✓ Paid** per supplier (with Undo).
 - **No job yet**: materials recorded (mostly from the Airtable sync) that sit on no job, so no job's profit counts them. Press **Assign to a job**. Home's **Materials to match** tile counts these and opens this list.
 - **Snap a receipt** picks a job and opens Add a cost for the photo.

@@ -111,7 +111,7 @@ export default function WebsiteContentManager({ initial, videoJobs = [] }: { ini
             {c.featuredVideo.posterPath && <button type="button" className="text-xs text-red-700 underline" onClick={() => setC((x) => ({ ...x, featuredVideo: { ...x.featuredVideo, posterPath: null } }))}>Remove poster</button>}
             <span className="text-xs text-gray-500">No poster: the thumbnail from YouTube or Vimeo is used.</span>
           </div>
-          {c.featuredVideo.url && <button type="button" className="w-fit text-xs text-red-700 underline" onClick={() => setC((x) => ({ ...x, featuredVideo: { url: "", caption: "", transcript: "", posterPath: null } }))}>Clear the pasted video</button>}
+          {c.featuredVideo.url && <button type="button" className="w-fit text-xs text-red-700 underline" onClick={() => setC((x) => ({ ...x, featuredVideo: { url: "", caption: "", transcript: "", posterPath: null, addedOn: null } }))}>Clear the pasted video</button>}
         </div>
         <div>
           <p className="text-xs text-gray-500">Or the video on one of the showcase jobs:</p>

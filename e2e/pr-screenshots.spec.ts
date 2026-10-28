@@ -59,8 +59,7 @@ test("capture: exterior sides loop", async ({ page }) => {
   // 10 Sep: an exterior side's size is asked, not assumed — no "Looks right".
   await front.getByPlaceholder("length m").fill("12");
   await front.getByPlaceholder("height m").fill("2.6");
-  await front.locator('[data-testid^="side-dims-"]').first()
-    .getByRole("button", { name: "Update", exact: true }).click();
+  await front.getByPlaceholder("height m").blur(); // Tom, 28 Oct 2026: saves on blur, no Update button
   await front.getByRole("button", { name: /Add a surface/ }).click();
   await front.getByRole("button", { name: /Render — wall surface/ }).click();
   await expect(front.locator(".sd-wall")).toHaveCount(2, { timeout: 15_000 });

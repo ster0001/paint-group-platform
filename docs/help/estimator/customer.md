@@ -88,3 +88,7 @@ On a phone (any screen narrower than about 770px) the same questions come one at
 - **Window sizes** in the editor: each room's windows carry a size (small, medium, large) with the measurements spelled out under the buttons, the same as the outside sides.
 - **The size question on each outside side** — Looks right, Adjust it, Not sure — all three buttons now carry a line under them saying what each does.
 
+## Changes on 28 Oct 2026
+- **"A few details to settle" comes first.** In Tighten my price the card is framed in cyan with *Start here* above its title, and the rooms and everything below it are dimmed until every detail is answered. They are still there to tap, but the details are the place to start.
+- **Measurements save themselves.** Type a room's length, width or ceiling height (or an outside side's length and height) and click or tap out of the boxes; the size is recorded and the range repriced. There is no Update button. A side copied from the opposite side keeps a one-tap **Keep these**.
+

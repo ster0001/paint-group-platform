@@ -996,7 +996,7 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
       </div>
 
       <div className="sc-ed">
-      <main className="sc-wrap">
+      <main className={`sc-wrap ${detailsOpen && !chatMode ? "sc-settle-first" : ""}`} data-settle-first={detailsOpen && !chatMode ? "1" : undefined}>
         {complete && autoSend !== "idle" && <AllDoneBanner estimator={estimator?.name ?? null} sentHref={sentHref} state={autoSend === "sending" ? "sending" : autoSend === "sent" ? "sent" : "failed"} />}
         {/* R1.3 lives HERE now the interstitial result screen is gone
             (Tom, 28 Aug): anything the reads couldn't settle is an amber
@@ -1022,15 +1022,23 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
         )}
         {/* Tom, 14 Sep (item 4): the estimator strip moved into the frozen header. */}
         {/* Tom, 14 Sep (items 5, 14, 15): the details to settle, one question at a time. */}
+        {/* Tom, 28 Oct 2026: this card STANDS OUT and comes first — "the customer needs to answer these
+            questions first, before anything else". While any detail is open the card wears the start-here
+            kicker and the cyan frame, and everything under it is dimmed (sc-settle-first) with a line
+            saying why; it all comes back the moment the last detail is answered. */}
         {!chatMode && detailSteps.length > 0 && (
           <Paginated
             testid="details-card" dataCard="details" id="details" cardClass="sc-details"
-            title="A few details to settle" pill="TIGHTENS YOUR RANGE"
-            lead={Object.values(payload.openClosesCents ?? {}).some((v) => v > 0) ? (
-              <p className="il-hint" data-testid="details-closes">
-                Answering these closes about {fmtMoney(Object.values(payload.openClosesCents ?? {}).reduce((n, v) => n + v, 0))} of your range.
-              </p>
-            ) : null}
+            title={detailsOpen ? <><span className="sc-start" data-testid="details-start-here">Start here</span>A few details to settle</> : "A few details to settle"}
+            pill="TIGHTENS YOUR RANGE"
+            lead={<>
+              {detailsOpen && <p className="sc-start-lead" data-testid="details-first-lead">Answer these first — the rooms and everything below follow from them.</p>}
+              {Object.values(payload.openClosesCents ?? {}).some((v) => v > 0) ? (
+                <p className="il-hint" data-testid="details-closes">
+                  Answering these closes about {fmtMoney(Object.values(payload.openClosesCents ?? {}).reduce((n, v) => n + v, 0))} of your range.
+                </p>
+              ) : null}
+            </>}
             steps={detailSteps}
             settledText="All settled — every detail here is answered."
             after={trimsUnsure ? (
@@ -1137,7 +1145,10 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
                       Is this room about <span className="il-size" data-testid={`size-inline-${room.areaId}`}>{loop.sizeLabel}{loop.heightAdjusted ? ` · ${loop.heightM} m ceilings` : ""}{loop.size === "adjusted" ? " · updated by you" : ""}</span>?
                       {" "}<span className="il-req">REQUIRED</span><span className="il-okc">✓</span>
                     </p>
-                    <div className="sd-mrow sd-mrow--inline" data-testid={`size-form-${room.areaId}`}>
+                    {/* Tom, 28 Oct 2026: the size saves itself when you click out of the boxes — no Update size button.
+                        The blur is checked on the row, so tabbing between length, width and ceiling does not save half a size. */}
+                    <div className="sd-mrow sd-mrow--inline" data-testid={`size-form-${room.areaId}`}
+                      onBlur={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node | null) && sizeDirty(room.areaId, loop)) saveSize(room, loop); }}>
                       <input placeholder="length m" inputMode="decimal" aria-label="Length in metres" value={sizeDraft(room.areaId, loop).L} data-testid={`size-length-${room.areaId}`}
                         onChange={(e) => setSizeDrafts((d) => ({ ...d, [room.areaId]: { ...sizeDraft(room.areaId, loop), L: e.target.value } }))}
                         onKeyDown={(e) => { if (e.key === "Enter") saveSize(room, loop); }} />
@@ -1155,7 +1166,7 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
                     </div>
                     <div className="sc-chips">
                       {sizeDirty(room.areaId, loop) ? (
-                        <button className="sd-chip on" data-testid={`size-save-${room.areaId}`} onClick={() => saveSize(room, loop)}>Update size</button>
+                        <span className="il-hint" data-testid={`size-saving-hint-${room.areaId}`}>Saves when you click out of the boxes.</span>
                       ) : (
                         <button className={`sd-chip ${sel(`sz:${room.areaId}`, loop.size === "yes", "yes") ? "on" : ""}`} data-testid={`size-ok-${room.areaId}`}
                           onClick={() => act({ action: "room_size_ok", areaId: room.areaId }, `sz:${room.areaId}`, undefined, [`sz:${room.areaId}`, "yes"])}>
