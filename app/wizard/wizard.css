@@ -1566,9 +1566,12 @@
 @keyframes wzpulse { 50% { stroke-width: 5.5; } }
 .wz .wz-room .marks > g { opacity: 0; transition: opacity .4s; }
 .wz .wz-room .marks > g.show { opacity: 1; }
-.wz .wz-room .roller { opacity: 0; }
-.wz .wz-room .roller.go { animation: wzsweep .95s cubic-bezier(.4,0,.2,1); }
-@keyframes wzsweep { 0% { opacity: 0; transform: translate(0,0); } 12% { opacity: 1; } 50% { transform: translate(190px,26px); } 88% { opacity: 1; } 100% { opacity: 0; transform: translate(60px,-8px); } }
+/* Wizard mobile v5 S6 (brief §6, D14): the roller rides the sweep's edge (rollerSweep.ts) — shown only while a sweep runs. */
+.wz .wz-room .roller { opacity: 0; transition: opacity .15s; }
+.wz .wz-room .roller.on { opacity: 1; }
+/* the painted layer carries the fill; the base underneath keeps the room's edge line, so the two never draw the stroke twice */
+.wz .wz-room .rl-paint .s { stroke: none; }
+.wz .wz-room .rl-paint .s.hl { stroke: var(--cyan); }
 
 /* the house: the roof lifts and the upper floor slides in for two storeys; inside lights the windows */
 .wz .wz-house .body { fill: #d2cbbb; stroke: #16212a; stroke-opacity: .14; transition: fill .7s; }
