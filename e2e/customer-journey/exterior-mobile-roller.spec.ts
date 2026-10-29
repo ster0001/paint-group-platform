@@ -41,8 +41,8 @@ test("a part chip sweeps its paint in on the thumbnail without the sheet, the gl
   await toPainting(page);
   const thumb = page.getByTestId("wzm-thumb").locator("svg.wz-elev");
   await expect(thumb).toHaveAttribute("data-shape", "cal");
-  // nothing pre-ticked (C8b): every layer out
-  for (const p of ["walls", "gable", "fascias", "gutters", "eaves"]) expect(await width(page, "wzm-thumb", p)).toBe(0);
+  // nothing pre-ticked (C8b): every layer out. (A gable-roof front has no gutters drawn — they run along the sides — so they are not in this list.)
+  for (const p of ["walls", "gable", "fascias", "eaves", "windows", "doors"]) expect(await width(page, "wzm-thumb", p)).toBe(0);
   await expect(thumb.locator(".e-walls")).toHaveAttribute("data-on", "0");
   await expect(page.getByTestId("wzm-sheet")).toHaveCount(0);
   // tick the walls: the sweep is under way (not a snap), the glyph shows, then the layer is fully in
@@ -52,9 +52,9 @@ test("a part chip sweeps its paint in on the thumbnail without the sheet, the gl
   const mid = await width(page, "wzm-thumb", "walls");
   expect(mid, "the sweep is under way, not a snap").toBeGreaterThan(0);
   expect(mid).toBeLessThan(400);
-  await expect(thumb.locator("[data-surf='walls'] .roller")).toHaveClass(/on/);
+  await expect(thumb.locator("[data-surf='walls'] .roller").first()).toHaveClass(/on/);
   await expect.poll(() => width(page, "wzm-thumb", "walls"), { timeout: 3_000 }).toBe(400);
-  await expect(thumb.locator("[data-surf='walls'] .roller")).not.toHaveClass(/on/);
+  await expect(thumb.locator("[data-surf='walls'] .roller").first()).not.toHaveClass(/on/);
   await expect(page.getByTestId("wzm-sheet"), "no sheet opened").toHaveCount(0);
   // the gable too; the walls stay in
   await page.getByTestId("ext-part-gable").tap();
@@ -90,10 +90,10 @@ test("the sheet: the same house full width; a tap on a part there ticks the chip
   await expect(big).toHaveClass(/tappable/);
   expect(await width(page, "wzm-bigpic", "walls"), "the sheet's copy shows the walls painted").toBe(400);
   await expect(page.getByTestId("wzm-cap")).toContainText("Tap a part to paint it in or out");
-  // a tap on the gutters in the picture
-  await big.locator(".e-gutters").first().tap();
-  await expect(big.locator(".e-gutters")).toHaveAttribute("data-on", "1");
-  await expect.poll(() => width(page, "wzm-bigpic", "gutters"), { timeout: 3_000 }).toBe(400);
+  // a tap on the fascias in the picture (the bungalow's front draws its fascias along the gable; its gutters are on the sides)
+  await big.locator(".e-fascias").first().tap();
+  await expect(big.locator(".e-fascias").first()).toHaveAttribute("data-on", "1");
+  await expect.poll(() => width(page, "wzm-bigpic", "fascias"), { timeout: 3_000 }).toBe(400);
   // the sheet's chip for the doors
   await page.getByTestId("wzm-sheet-chip-doors").tap();
   await expect(page.getByTestId("wzm-sheet-chip-doors")).toHaveAttribute("aria-pressed", "true");
@@ -101,8 +101,8 @@ test("the sheet: the same house full width; a tap on a part there ticks the chip
   await page.keyboard.press("Escape");
   await expect(page.getByTestId("wzm-sheet")).toHaveCount(0);
   // the step's chips and the thumbnail agree
-  await expect(page.getByTestId("ext-part-gutters")).toHaveAttribute("aria-pressed", "true");
-  await expect.poll(() => width(page, "wzm-thumb", "gutters"), { timeout: 3_000 }).toBe(400);
+  await expect(page.getByTestId("ext-part-fascias")).toHaveAttribute("aria-pressed", "true");
+  await expect.poll(() => width(page, "wzm-thumb", "fascias"), { timeout: 3_000 }).toBe(400);
   await expect.poll(() => width(page, "wzm-thumb", "doors"), { timeout: 3_000 }).toBe(400);
   await expect(page.getByTestId("wzm-ribbon-2")).toHaveText("3 parts ticked · tap to see");
   // the doors chip lives on the second screen
