@@ -2676,6 +2676,8 @@
 .wz .wzm-shapes .wzm-opt .t { font-size: 14px; }
 /* the drawn house in the strip: the elevation is positioned absolutely (its desktop rule), so its boxes hold it */
 .wz .wzm-strip .thumb, .wz .wzm-bigpic { position: relative; }
+/* the sheet's × stays above the positioned picture box (the strip spec taps it) */
+.wz .wzm-sheet .wz-sheet-x { z-index: 2; }
 .wz .wzm-strip .thumb .wz-elev, .wz .wzm-bigpic .wz-elev { position: absolute; inset: 0; width: 100%; height: 100%; }
 
 /* ── EXTERIOR ON MOBILE v5 — S2: Painting as four screens, the roller on the drawn house (plan §2 5a–5d, §3). ── */

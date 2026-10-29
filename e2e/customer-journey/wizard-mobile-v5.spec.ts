@@ -345,11 +345,11 @@ test.describe("Wizard mobile v5 — the phone's screens (session 2)", () => {
     await at(page, "rooms");
     await page.getByTestId("ql-next").tap();
     await at(page, "colours");
-    // the Contact pill opens the talk sheet (the Contact sheet itself is session 5) and writes contact_opened
+    // the Contact pill opens the Contact sheet (session 5 — this read "talk-sheet" until then) and writes contact_opened
     await page.getByTestId("wzm-contact").tap();
-    await expect(page.getByTestId("talk-sheet")).toBeVisible();
-    await page.keyboard.press("Escape");
-    await expect(page.getByTestId("talk-sheet")).toHaveCount(0);
+    await expect(page.getByTestId("wzm-contact-sheet")).toBeVisible();
+    await page.getByTestId("wzm-contact-x").click();
+    await expect(page.getByTestId("wzm-contact-sheet")).toHaveCount(0);
     // let the autosave (2.5s debounce) write the draft, then come back
     await page.waitForTimeout(3_500);
     await page.reload();

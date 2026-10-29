@@ -234,7 +234,7 @@ test.describe("on a phone: Your home is three screens, the drawn house in the st
     await expect(cards).toHaveCount(9);
     for (const k of EXTERIOR_SHAPE_KEYS) {
       const card = page.getByTestId(`ql-ext-type-${k}`);
-      await expect(card.locator("svg")).toHaveCount(1);
+      await expect(card.locator("svg").first(), "a silhouette on the card").toBeVisible();
       await expect(card).toContainText(typicalFor(k).name);
     }
     const [a, b, c] = await Promise.all([0, 1, 2].map((i) => cards.nth(i).boundingBox()));
@@ -350,9 +350,10 @@ test.describe("on a phone: Your home is three screens, the drawn house in the st
     await toShape(page);
     await page.getByTestId("ql-ext-type-wb").tap();
     await at(page, "size");
-    await page.waitForTimeout(3_000); // the autosave debounce
+    await page.waitForTimeout(3_500); // the autosave (2.5s debounce) and its request — 3s was one save short (C1, 29 Oct)
     await page.reload();
     await expect(page.locator("[data-ready='1']")).toBeAttached({ timeout: 20_000 });
+    await expect(page.getByTestId("wz-resume")).toContainText("Welcome back", { timeout: 20_000 });
     await at(page, "size");
     await expect(thumbHouse(page)).toHaveAttribute("data-shape", "wb");
     await page.getByTestId("ql-ext-size-lg").tap();
