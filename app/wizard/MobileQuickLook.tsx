@@ -99,6 +99,15 @@ export default function MobileQuickLook({
   const [sub, setSub] = useState(0);
   const pendingRef = useRef<"first" | "last" | null>(null);
   const stepRef = useRef<QuickLookStep | null>(null);
+  // The remembered screen, read ONCE at mount: a resume lands its step after the first paint (the draft loads
+  // asynchronously), and the first paint has by then written ITS screen over the remembered one — so the
+  // resumed step must consult what was there at mount, not the store (C1, 29 Oct: an outside reload at
+  // "size" came back on "shape"). A move of the customer's own clears it.
+  const rememberedAtMount = useRef<string | null | undefined>(undefined);
+  useLayoutEffect(() => {
+    if (rememberedAtMount.current !== undefined) return;
+    try { rememberedAtMount.current = window.localStorage.getItem(MOBILE_SCREEN_KEY); } catch { rememberedAtMount.current = null; }
+  }, []);
   useLayoutEffect(() => {
     if (stepRef.current === step) return;
     stepRef.current = step;
@@ -107,9 +116,10 @@ export default function MobileQuickLook({
     if (want === "first") { setSub(0); return; }
     if (want === "last") { setSub(Math.max(0, stepScreens.length - 1)); return; }
     // No move of our own (a mount, a resume): the remembered screen, if it is one of this step's.
-    let stored: string | null = null;
-    try { stored = window.localStorage.getItem(MOBILE_SCREEN_KEY); } catch { stored = null; }
+    let stored: string | null = rememberedAtMount.current ?? null;
+    if (stored == null) { try { stored = window.localStorage.getItem(MOBILE_SCREEN_KEY); } catch { stored = null; } }
     const at = stored ? stepScreens.findIndex((s) => s.id === stored) : -1;
+    if (at >= 0) rememberedAtMount.current = null;
     setSub(at >= 0 ? at : 0);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- stepScreens is derived from step + answers; the step is the trigger
   }, [step]);
@@ -129,6 +139,7 @@ export default function MobileQuickLook({
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => () => { if (timer.current) clearTimeout(timer.current); }, []);
   const go = () => {
+    rememberedAtMount.current = null;
     if (!last) { setSub(sub + 1); return; }
     pendingRef.current = "first";
     onNext();
@@ -150,6 +161,7 @@ export default function MobileQuickLook({
   };
   const back = () => {
     if (timer.current) clearTimeout(timer.current);
+    rememberedAtMount.current = null;
     if (sub > 0) { setSub(sub - 1); return; }
     if (!canBack) return;
     pendingRef.current = "last";
@@ -434,7 +446,7 @@ export default function MobileQuickLook({
         <div className="wzm-foot" data-testid="wzm-foot">
           {whyNot && (!canContinue || busy) && <p className="wzm-why" data-testid="ql-why" role="status">{whyNot}</p>}
           <button key={error ?? "ok"} type="button" className={`wzm-cta ${error ? "wz-shake" : ""}`} disabled={!ready || !canContinue || busy} data-testid="ql-next"
-            onClick={() => { pendingRef.current = "first"; if (!last) { setSub(sub + 1); return; } onNext(); }}>
+            onClick={() => { rememberedAtMount.current = null; pendingRef.current = "first"; if (!last) { setSub(sub + 1); return; } onNext(); }}>
             {busy ? (step === "com_book" ? "Booking…" : "Working it out…") : barLabel}
           </button>
           {current.id === "details" && <p className="wzm-hint" data-testid="wzm-hint">Appears instantly</p>}
