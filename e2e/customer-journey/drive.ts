@@ -133,6 +133,24 @@ export async function driveNoPlanWizard(page: Page, opts: DriveOptions = {}) {
  * medium — and walks on; with the flag off the step is not there and this is
  * a no-op. The S2+ specs drive the home step themselves.
  */
+/**
+ * Exterior on mobile v5 (S1): on the phone the home step is three screens of
+ * its own and the LAST answer (the size, or the row position for a shape
+ * that shares a wall) advances itself to Painting — there is no Continue.
+ * On the desktop, Continue does it.
+ */
+export async function leaveHomeStep(page: Page) {
+  if (await onMobileShell(page)) {
+    const row = page.locator("[data-mobile-screen='row']");
+    const paint = page.locator("[data-quick-step='paint']");
+    await expect(row.or(paint)).toBeVisible({ timeout: 20_000 });
+    if (await row.count()) await row.locator("[aria-pressed='true']").first().click();
+    await expect(paint).toBeVisible({ timeout: 20_000 });
+    return;
+  }
+  await quickNext(page);
+}
+
 export async function passHomeStepIfShown(page: Page): Promise<boolean> {
   const home = page.locator("[data-quick-step='home']");
   const outside = page.locator("[data-quick-step='outside']");
@@ -140,7 +158,7 @@ export async function passHomeStepIfShown(page: Page): Promise<boolean> {
   if (!(await home.count())) return false;
   await page.getByTestId("ql-ext-type-wb").click();
   await page.getByTestId("ql-ext-size-md").click();
-  await quickNext(page);
+  await leaveHomeStep(page);
   return true;
 }
 
@@ -159,7 +177,7 @@ export async function answerOutsideQuick(page: Page): Promise<"v2" | "v1"> {
   if (await home.count()) {
     await page.getByTestId("ql-ext-type-wb").click();
     await page.getByTestId("ql-ext-size-md").click();
-    await quickNext(page);
+    await leaveHomeStep(page);
     await expect(page.locator("[data-quick-step='paint']")).toBeVisible({ timeout: 20_000 });
     await page.getByTestId("ext-part-walls").click();
     await page.getByTestId("ext-part-fascias").click();

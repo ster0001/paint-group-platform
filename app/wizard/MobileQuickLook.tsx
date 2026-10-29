@@ -10,11 +10,16 @@ import { jobTypesFor, propertyKindsFor, type WizardBrand } from "@/lib/wizard/br
 import type { ExteriorQuickLook } from "@/lib/wizard/exterior-quick-look";
 import { togglePart } from "@/lib/wizard/exterior-model";
 import type { InteriorExcludable } from "@/lib/wizard/quick-look";
-import { outsideSheetChips, pictureStateFor, ribbonFor } from "@/lib/wizard/mobilePicture";
+import { elevationCaption, outsideSheetChips, pictureStateFor, ribbonFor } from "@/lib/wizard/mobilePicture";
 import MobileStrip, { type StripChip } from "./MobileStrip";
 import { brandFor } from "@/lib/marketing/brand";
 import { sendWizardEvent } from "@/lib/wizard/wizardEvents";
 import { AddRoomInline } from "./QuickLook";
+import { TypeThumb } from "./pictures/Elevation";
+import { SIZE_OPTIONS, houseOfShape } from "./ExteriorHome";
+import { reseedSides } from "@/lib/wizard/exterior-model";
+import { EXTERIOR_SHAPE_KEYS, typicalFor, type ExteriorTypicalRow } from "@/lib/wizard/exterior-typicals";
+import type { ExteriorV2 } from "@/lib/wizard/state";
 
 /**
  * Wizard mobile v5, session 2 — the phone's shell and its screens (brief §2;
@@ -42,11 +47,13 @@ import { AddRoomInline } from "./QuickLook";
  * mode) with the bar underneath.
  */
 export default function MobileQuickLook({
-  brand, logo, steps, step, quick, onQuick, outside, onOutside, address, contact, onContact, marketing, onMarketing, roomNames, addedRooms, onAddRoom, onRemoveAdded,
+  brand, logo, steps, step, quick, onQuick, outside, onOutside, exteriorTypicals = [], address, contact, onContact, marketing, onMarketing, roomNames, addedRooms, onAddRoom, onRemoveAdded,
   error, busy, canContinue, whyNot, onNext, onBack, canBack, onContactOpen, renderStep, resumed, onStartAgain,
 }: {
   /** S3: the outside answers, for the house in the strip; the sheet's chips tick the exterior brief's parts through it. */
   outside: ExteriorQuickLook;
+  /** Exterior on mobile v5 (S1): the typicals the drawn house and the shape cards read (`exterior_typicals`). */
+  exteriorTypicals?: ReadonlyArray<ExteriorTypicalRow>;
   onOutside: (patch: Partial<ExteriorQuickLook>) => void;
   brand: WizardBrand;
   logo: ReactNode;
@@ -84,7 +91,7 @@ export default function MobileQuickLook({
   resumed: string | null;
   onStartAgain: () => void;
 }) {
-  const screens = mobileScreensFor(steps, quick);
+  const screens = mobileScreensFor(steps, quick, outside, exteriorTypicals);
   const stepScreens = screens.filter((s) => s.step === step);
   // Which screen of THIS step is showing. On a new step: the first one going
   // forward, the last one coming back, the remembered one after a reload.
@@ -134,6 +141,12 @@ export default function MobileQuickLook({
     if (timer.current) clearTimeout(timer.current);
     timer.current = setTimeout(() => goRef.current(), 250);
   };
+  // Exterior on mobile v5 (S1): an outside answer (the exterior brief's `v2`) that advances itself, like `pick`.
+  const pickOutside = (v2: ExteriorV2) => {
+    onOutside({ v2 });
+    if (timer.current) clearTimeout(timer.current);
+    timer.current = setTimeout(() => goRef.current(), 250);
+  };
   const back = () => {
     if (timer.current) clearTimeout(timer.current);
     if (sub > 0) { setSub(sub - 1); return; }
@@ -152,7 +165,7 @@ export default function MobileQuickLook({
   const surfacesAt = screens.findIndex((s) => s.id === "surfaces");
   const surfacesReached = surfacesAt >= 0 && index >= surfacesAt;
   const picture = pictureStateFor(quick, outside, surfacesReached);
-  const ribbon = ribbonFor({ quick, outside, screens, index, roomsTicked: ticked });
+  const ribbon = ribbonFor({ quick, outside, screens, index, roomsTicked: ticked, rows: exteriorTypicals });
   const toggleInside = (key: InteriorExcludable) => {
     const next = toggleSurface(quick, key);
     onQuick(next);
@@ -172,6 +185,10 @@ export default function MobileQuickLook({
     }
     toggleInside(key as InteriorExcludable);
   };
+  // Exterior on mobile v5 (plan §3): from the first shape the strip's thumbnail is the DRAWN HOUSE, the front, drawn again in the sheet.
+  const elevation = quick.jobType === "exterior" && outside.v2
+    ? { v2: outside.v2, rows: exteriorTypicals, side: "front" as const, caption: elevationCaption(outside.v2, exteriorTypicals) }
+    : null;
   const showBar = current.advance === "bar";
   const pct = mobileProgress(index, screens.length);
 
@@ -186,7 +203,7 @@ export default function MobileQuickLook({
         <i style={{ width: `${pct}%` }} data-testid="wzm-bar" />
       </div>
       {/* §3 — the live strip: the thumbnail, the ribbon, and the sheet behind it. */}
-      <MobileStrip state={picture} ribbon={ribbon} chips={sheetChips} onToggle={toggleSheetChip} />
+      <MobileStrip state={picture} ribbon={ribbon} chips={sheetChips} onToggle={toggleSheetChip} elevation={elevation} />
 
       <main className={`wzm-main ${showBar ? "has-bar" : ""}`}>
         {resumed && (
@@ -197,6 +214,7 @@ export default function MobileQuickLook({
         )}
         {/* `data-quick-step` names the step for the specs: on a screen of our own it is here; a step rendered as it is carries its own pane. */}
         <section className="wzm-screen" key={current.id} data-quick-step={current.heading != null ? step : undefined}>
+          {current.stage && <p className="wzm-stage" data-testid="wzm-stage">{current.stage}</p>}
           {current.heading && <h1 data-testid="wzm-h1">{current.heading}</h1>}
           {current.sub && <p className="wzm-sub" data-testid="wzm-sub">{current.sub}</p>}
 
@@ -330,6 +348,27 @@ export default function MobileQuickLook({
             </div>
           )}
 
+          {/* Exterior on mobile v5, session 1 (plan §2 screens 2–4): Your home, one question a screen. The answers are the
+              exterior brief's `v2` (ExteriorHome's `houseOfShape` / `reseedSides`), so the desktop step, the autosave and
+              the submit see exactly what they always did. */}
+          {current.id === "shape" && (
+            <div className="wzm-opts two wzm-shapes" data-testid="ql-ext-type">
+              {EXTERIOR_SHAPE_KEYS.map((k) => {
+                const on = outside.v2?.propertyType === k;
+                return (
+                  <button key={k} type="button" className={`wzm-opt ${on ? "on" : ""}`} aria-pressed={on} data-testid={`ql-ext-type-${k}`}
+                    // the same shape again keeps the house as it is (its size, its parts); a different one is a fresh house of that shape
+                    onClick={() => pickOutside(on && outside.v2 ? outside.v2 : houseOfShape(k, outside.v2, exteriorTypicals))}>
+                    <TypeThumb shape={k} rows={exteriorTypicals} />
+                    <span className="t">{typicalFor(k, exteriorTypicals).name}</span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+          {current.id === "size" && outside.v2 && <SizeChoices v2={outside.v2} rows={exteriorTypicals} onPick={pickOutside} />}
+          {current.id === "row" && outside.v2 && <RowChoices v2={outside.v2} rows={exteriorTypicals} onPick={pickOutside} />}
+
           {current.id === "details" && contact && (
             <>
               {/* Tom, 28 Oct 2026 (D17): the full name — first and last — never a first name alone. */}
@@ -388,4 +427,41 @@ function StoreyIcon({ two }: { two: boolean }) {
   return two
     ? <svg className="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 9l9-6 9 6v12H3z" /><path d="M3 14h18" /></svg>
     : <svg className="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 13l9-7 9 7v7H3z" /></svg>;
+}
+
+/** Exterior on mobile v5 (S1), screen 3: the five size pills with the m² / bedroom hint (ExteriorHome's words). */
+function SizeChoices({ v2, rows, onPick }: { v2: ExteriorV2; rows: ReadonlyArray<ExteriorTypicalRow>; onPick: (v2: ExteriorV2) => void }) {
+  return (
+    <div className="wzm-opts" data-testid="ql-ext-size">
+      {SIZE_OPTIONS.map((o) => {
+        const on = v2.sizeBand === o.value;
+        return (
+          <button key={o.value} type="button" className={`wzm-opt ${on ? "on" : ""}`} aria-pressed={on} data-testid={`ql-ext-size-${o.value}`}
+            onClick={() => { const next = { ...v2, sizeBand: o.value }; onPick({ ...next, sides: reseedSides(next, rows) }); }}>
+            <span><span className="t">{o.label}</span><span className="d">{o.hint}</span></span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+/** Exterior on mobile v5 (S1), screen 4: where it is in the row — only for a shape that usually shares a wall (ExteriorHome's options). */
+function RowChoices({ v2, rows, onPick }: { v2: ExteriorV2; rows: ReadonlyArray<ExteriorTypicalRow>; onPick: (v2: ExteriorV2) => void }) {
+  const t = typicalFor(v2.propertyType, rows);
+  const one = t.sharedSides.length === 1;
+  const pick = (rowPosition: NonNullable<ExteriorV2["rowPosition"]>) => { const next = { ...v2, rowPosition }; onPick({ ...next, sides: reseedSides(next, rows) }); };
+  const opt = (value: NonNullable<ExteriorV2["rowPosition"]>, label: string, hint: string | null) => (
+    <button key={value} type="button" className={`wzm-opt ${v2.rowPosition === value ? "on" : ""}`} aria-pressed={v2.rowPosition === value} data-testid={`ql-ext-row-${value}`} onClick={() => pick(value)}>
+      <span><span className="t">{label}</span>{hint && <span className="d">{hint}</span>}</span>
+    </button>
+  );
+  return (
+    <div className="wzm-opts" data-testid="ql-ext-row">
+      {opt("mid", one ? `Shares the ${t.sharedSides[0]} wall` : "In the middle of the row", one ? null : "Shares both sides")}
+      {t.sharedSides.includes("left") && opt("left", "End of the row — left side open", null)}
+      {t.sharedSides.includes("right") && opt("right", "End of the row — right side open", null)}
+      {opt("both", "Stands alone", "All four sides")}
+    </div>
+  );
 }

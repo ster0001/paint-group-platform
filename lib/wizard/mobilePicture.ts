@@ -2,6 +2,7 @@ import type { QuickLook } from "./quick-look";
 import type { ExteriorQuickLook } from "./exterior-quick-look";
 import type { ExteriorPart, ExteriorV2 } from "./state";
 import { colourChoiceOf, surfaceChips, surfacesTicked, type ColourChoice, type MobileScreen } from "./mobileScreens";
+import { scaledLengths, typicalFor, type ExteriorTypicalRow, type SizeBand } from "./exterior-typicals";
 
 /**
  * Wizard mobile v5, session 3 (brief §3) — the live strip's PICTURE and
@@ -99,6 +100,21 @@ const JOB_WORD: Record<QuickLook["scope"], string> = { whole: "Whole interior", 
 const COLOUR_WORD: Record<ColourChoice, string> = { new: "New colours", same: "Same colours", deciding: "Still deciding" };
 const CONDITION_WORD: Record<QuickLook["condition"], string> = { good: "Good, just tired", wear: "Some wear", needs_work: "Needs work" };
 
+/** Exterior on mobile v5 — the size band in a word (the ribbon, the sheet's caption). */
+export const SIZE_WORD: Record<SizeBand, string> = { sm: "Small", md: "Medium", lg: "Large", xl: "Very large", ns: "Not sure" };
+
+/**
+ * Exterior on mobile v5, session 1 (plan §2 screen 3, §3): the sheet's caption
+ * under the drawn house — the shape, the size, the storeys and the typical
+ * sizes in words, the desktop picture card's words shortened to one line.
+ */
+export function elevationCaption(v2: ExteriorV2, rows: ReadonlyArray<ExteriorTypicalRow> = []): string {
+  const t = typicalFor(v2.propertyType, rows);
+  const l = scaledLengths(t, v2.sizeBand ?? "ns");
+  const size = v2.sizeBand ? ` · ${SIZE_WORD[v2.sizeBand]}` : "";
+  return `${t.name}${size} · ${t.storeys === 2 ? "two storeys" : "single storey"} · about ${l.frontM} m across, ${t.wallHM} m to the ${t.roof === "parapet" ? "parapet" : "gutter"}`;
+}
+
 export type Ribbon = { line1: string; line2: string };
 
 /**
@@ -110,12 +126,17 @@ export type Ribbon = { line1: string; line2: string };
  */
 export function ribbonFor(i: {
   quick: QuickLook; outside: ExteriorQuickLook | null; screens: readonly MobileScreen[]; index: number; roomsTicked: number;
+  rows?: ReadonlyArray<ExteriorTypicalRow>;
 }): Ribbon {
   const { quick, screens, index } = i;
   const passed = new Set(screens.slice(0, index).map((s) => s.id));
   const parts: string[] = [];
+  const v2 = quick.jobType === "exterior" ? i.outside?.v2 ?? null : null;
   if (passed.has("what")) parts.push(quick.jobType === "exterior" ? "Outside" : quick.jobType === "both" ? "Inside and outside" : "Inside");
-  if (passed.has("property")) parts.push(PROPERTY_WORD[quick.propertyKind]);
+  // Exterior on mobile v5 (plan §3): once the shape is given it names the home in place of the place's kind.
+  if (passed.has("property") && !(v2 && passed.has("shape"))) parts.push(PROPERTY_WORD[quick.propertyKind]);
+  if (v2 && passed.has("shape")) parts.push(typicalFor(v2.propertyType, i.rows ?? []).name);
+  if (v2 && passed.has("size") && v2.sizeBand) parts.push(SIZE_WORD[v2.sizeBand]);
   if (passed.has("beds")) parts.push(`${quick.bedrooms >= 5 ? "5+" : quick.bedrooms} bed`);
   if (passed.has("storeys")) parts.push(quick.storeys === "double" ? "Two storeys" : "Single storey");
   if (passed.has("job")) parts.push(JOB_WORD[quick.scope]);

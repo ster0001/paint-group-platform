@@ -105,7 +105,7 @@ test.describe("Wizard mobile v5 — the phone, end to end on both shopfronts (se
     await fromHero(page, baseURL!, null);
     const inside = await driveMobileQuickLook(page, { suburb: suburbs.pgOut, jobType: "exterior" });
     expect(inside).toBe(false);
-    await at(page, "home");
+    await at(page, "shape");
     await expect(page.getByTestId("wzm-ribbon-1")).toHaveText("Outside · House");
     await answerOutsideQuick(page);
     await page.getByTestId("ql-next").tap();
@@ -122,7 +122,7 @@ test.describe("Wizard mobile v5 — the phone, end to end on both shopfronts (se
     await expect(page.getByTestId("ql-jobtype-exterior")).toHaveAttribute("aria-pressed", "true");
     const inside = await driveMobileQuickLook(page, { suburb: suburbs.phOut, jobType: "exterior" });
     expect(inside).toBe(false);
-    await at(page, "home");
+    await at(page, "shape");
     await expect(page.locator(".wzm-head [data-testid='painthome-logo-nav']")).toBeVisible();
     await answerOutsideQuick(page);
     await page.getByTestId("ql-next").tap();

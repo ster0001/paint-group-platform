@@ -237,17 +237,19 @@ test.describe("Wizard mobile v5 — the phone's screens (session 2)", () => {
     await page.getByTestId("ql-jobtype-exterior").tap();
     await at(page, "property");
     await page.getByTestId("ql-kind-house").tap();
-    await at(page, "home");
+    // Exterior on mobile v5 (S1): the home step is three screens of its own — the shape first, no Continue bar
+    await at(page, "shape");
     await expect(page.locator("[data-quick-step='home']")).toBeVisible();
     await expect(page.getByRole("heading", { name: "What kind of home is it?" })).toBeVisible();
-    await expect(page.getByTestId("ql-next")).toHaveText("Continue");
+    await expect(page.getByTestId("ql-next")).toHaveCount(0);
     await expect(page.locator("[data-mobile-screen='job']")).toHaveCount(0);
     await expect(page.locator("[data-mobile-screen='rooms']")).toHaveCount(0);
     await expect(page.getByTestId("ql-talk")).toHaveCount(0);
-    // Continue still validates: no shape yet → the error, said in words, on the same screen
-    await page.getByTestId("ql-next").tap();
-    await expect(page.getByTestId("ql-error")).toContainText(/closest shape/i);
-    await at(page, "home");
+    // a shape advances itself to the size; back returns to the shape
+    await page.getByTestId("ql-ext-type-cal").tap();
+    await at(page, "size");
+    await page.getByTestId("wzm-back").tap();
+    await at(page, "shape");
   });
 
   test("3 · the heading is first in view, nothing overlaps an option, the bar clears the safe area, and the pill and picture panel are gone", async ({ page }) => {
