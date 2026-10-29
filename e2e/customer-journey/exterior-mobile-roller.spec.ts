@@ -90,24 +90,23 @@ test("the sheet: the same house full width; a tap on a part there ticks the chip
   await expect(big).toHaveClass(/tappable/);
   expect(await width(page, "wzm-bigpic", "walls"), "the sheet's copy shows the walls painted").toBe(400);
   await expect(page.getByTestId("wzm-cap")).toContainText("Tap a part to paint it in or out");
-  // a tap on the fascias in the picture (the bungalow's front draws its fascias along the gable; its gutters are on the sides)
-  // `force`: Playwright never saw the painted group as "stable" inside the sheet (C1, 29 Oct) though nothing moves — the tap still lands on the part
-  await big.locator(".e-fascias").first().tap({ force: true });
-  await expect(big.locator(".e-fascias").first()).toHaveAttribute("data-on", "1");
-  await expect.poll(() => width(page, "wzm-bigpic", "fascias"), { timeout: 3_000 }).toBe(400);
-  // the sheet's chip for the doors
-  await page.getByTestId("wzm-sheet-chip-doors").tap();
-  await expect(page.getByTestId("wzm-sheet-chip-doors")).toHaveAttribute("aria-pressed", "true");
+  // a tap on the front door in the picture — a solid shape whose centre is its own (the fascias are thin rakes whose
+  // centre falls on the gable, so a tap "on" them ticks the gable instead — C1, 29 Oct)
+  await big.locator(".e-doors").first().tap({ force: true });
+  await expect(big.locator(".e-doors").first()).toHaveAttribute("data-on", "1");
   await expect.poll(() => width(page, "wzm-bigpic", "doors"), { timeout: 3_000 }).toBe(400);
+  // the sheet's chip for the windows
+  await page.getByTestId("wzm-sheet-chip-windows").tap();
+  await expect(page.getByTestId("wzm-sheet-chip-windows")).toHaveAttribute("aria-pressed", "true");
+  await expect.poll(() => width(page, "wzm-bigpic", "windows"), { timeout: 3_000 }).toBe(400);
   await page.keyboard.press("Escape");
   await expect(page.getByTestId("wzm-sheet")).toHaveCount(0);
-  // the step's chips and the thumbnail agree
-  await expect(page.getByTestId("ext-part-fascias")).toHaveAttribute("aria-pressed", "true");
-  await expect.poll(() => width(page, "wzm-thumb", "fascias"), { timeout: 3_000 }).toBe(400);
+  // the thumbnail and the ribbon agree; the chips for both live on the second Painting screen
   await expect.poll(() => width(page, "wzm-thumb", "doors"), { timeout: 3_000 }).toBe(400);
+  await expect.poll(() => width(page, "wzm-thumb", "windows"), { timeout: 3_000 }).toBe(400);
   await expect(page.getByTestId("wzm-ribbon-2")).toHaveText("3 parts ticked · tap to see");
-  // the doors chip lives on the second screen
   await page.getByTestId("ql-next").tap();
   await at(page, "p-win");
   await expect(page.getByTestId("ext-part-doors")).toHaveAttribute("aria-pressed", "true");
+  await expect(page.getByTestId("ext-part-windows")).toHaveAttribute("aria-pressed", "true");
 });
