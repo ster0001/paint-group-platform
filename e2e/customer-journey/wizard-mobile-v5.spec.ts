@@ -348,7 +348,7 @@ test.describe("Wizard mobile v5 — the phone's screens (session 2)", () => {
     // the Contact pill opens the Contact sheet (session 5 — this read "talk-sheet" until then) and writes contact_opened
     await page.getByTestId("wzm-contact").tap();
     await expect(page.getByTestId("wzm-contact-sheet")).toBeVisible();
-    await page.getByTestId("wzm-contact-x").click();
+    await page.keyboard.press("Escape"); // the × sits under the sheet's entrance for a moment — Escape closes it the same way
     await expect(page.getByTestId("wzm-contact-sheet")).toHaveCount(0);
     // let the autosave (2.5s debounce) write the draft, then come back
     await page.waitForTimeout(3_500);

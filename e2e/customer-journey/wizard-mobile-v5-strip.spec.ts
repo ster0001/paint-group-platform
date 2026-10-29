@@ -268,8 +268,11 @@ test.describe("Wizard mobile v5 — the live strip, thumbnail and roller (sessio
     await page.getByTestId("wzm-strip").tap();
     await page.getByTestId("wzm-sheet-chip-doors").tap();
     await page.getByTestId("wzm-sheet-x").tap();
-    await expect(page.getByTestId("ext-part-doors")).toHaveAttribute("aria-pressed", "true");
     await expect(page.getByTestId("wzm-ribbon-2")).toHaveText("3 parts ticked · tap to see");
+    // the doors chip lives on the second Painting screen (exterior mobile v5 S2)
+    await page.getByTestId("ql-next").tap();
+    await at(page, "p-win");
+    await expect(page.getByTestId("ext-part-doors")).toHaveAttribute("aria-pressed", "true");
     await shot(page, "outside-house");
   });
 });
