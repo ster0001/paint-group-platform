@@ -62,7 +62,12 @@ export default defineConfig({
     trace: "retain-on-failure",
     screenshot: "only-on-failure",
   },
-  projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
+  // Wizard mobile v5 S7: `E2E_BROWSER=webkit` runs the suite on Playwright's WebKit — the Safari engine — for the
+  // roller's clipPath animation (brief §3.6: rAF on the rect attribute, which Safari animates; CSS on a clipPath
+  // child it does not). Chromium otherwise, as always.
+  projects: process.env.E2E_BROWSER === "webkit"
+    ? [{ name: "webkit", use: { ...devices["Desktop Safari"] } }]
+    : [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
   /**
    * NO app named, no app started.
    *

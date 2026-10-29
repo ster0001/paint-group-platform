@@ -3,7 +3,7 @@ feature: estimator
 role: customer
 title: Get a painting price online, in about two minutes
 summary: A few quick screens give you a guide range; then you can tighten it room by room or side by side, and send it to your estimator to fix the price — or book a visit at any point.
-sources: app/estimate/page.tsx, app/wizard/WizardApp.tsx, app/wizard/QuickLook.tsx, app/wizard/MobileQuickLook.tsx, app/wizard/MobileStrip.tsx, app/wizard/pictures/MobilePicture.tsx, app/wizard/MobileGate.tsx, app/wizard/MobileContact.tsx, app/wizard/PictureCard.tsx, app/wizard/Reveal.tsx, app/estimate/scope/ScopeEditor.tsx, app/estimate/scope/SidesEditor.tsx, app/estimate/finish/Finish.tsx, app/estimate/sent/Sent.tsx
+sources: app/(marketing)/_components/AddressField.tsx, app/estimate/page.tsx, app/wizard/WizardApp.tsx, app/wizard/QuickLook.tsx, app/wizard/MobileQuickLook.tsx, app/wizard/MobileStrip.tsx, app/wizard/pictures/MobilePicture.tsx, app/wizard/MobileGate.tsx, app/wizard/MobileContact.tsx, app/wizard/PictureCard.tsx, app/wizard/Reveal.tsx, app/estimate/scope/ScopeEditor.tsx, app/estimate/scope/SidesEditor.tsx, app/estimate/finish/Finish.tsx, app/estimate/sent/Sent.tsx
 verified_at_commit: bb273c9122
 ---
 
@@ -14,7 +14,7 @@ The online estimate is for anyone who wants a painting price without waiting for
 Have the address handy and know roughly what you want painted — inside, outside or both. A floorplan or a few photos help, but you do not need them to get a range.
 
 ## Steps
-1. Open **Get your estimate** from the homepage. The first screen asks the address and **What's being painted?** — Inside, Outside or Both. The steps you will go through are listed along the top, with the one you are on highlighted.
+1. Open **Get your estimate** from the homepage. The first screen asks the address and **What's being painted?** — Inside, Outside or Both. The steps you will go through are listed along the top, with the one you are on highlighted. On a phone the homepage's address box and **See my price** stack on top of each other, full width, and the address suggestions drop over the chips below rather than pushing them down.
 2. On a laptop the questions sit on the left and a picture of your job on the right: the house changes with the kind of place and the storeys, the room paints itself in as you tick surfaces — a roller sweeps each surface's paint on when you tick it and off again when you untick it — and the floor plan fills in as you add or leave out rooms. Under the picture, **Your job so far** lists every answer with a **Change** link. On a phone the picture sits above the question.
 3. **Inside:** the place (house, townhouse, unit; bedrooms and storeys; an optional floorplan), then what is being painted and what is changing colour, then the rooms, then the condition. Under **Any of them going much lighter, or a bold colour?**, tick **Which ones?** and those surfaces paint **deep blue** in the room picture — that is the undercoat and third coat, and it is the only time you are asked about it.
    - **A floorplan.** Upload it on the place screen. While it is being read, the picture on the right shows "Finding the rooms on the plan" ticking through; tap **Don't wait** to carry on from your answers — the plan's rooms swap in when the read finishes. Once read, the picture is your own plan; pinch or use **+** / **−** to zoom. Rooms you add or take out change the list, not the plan image. A carport, a sauna and anything labelled store or storage are left out of the price.
@@ -83,6 +83,7 @@ On a phone (any screen narrower than about 770px) the same questions come one at
 - **The range screen on a phone is one column** — the range, the one question, three tiles, your estimator, the trust line and what's in the range; no picture, no tolerance figure. The room-by-room editor on Paint Home now carries the Paint Home mark.
 - **Contact on a phone is a sheet** — your estimator, Book a visit, Call, Send a message, Save and come back later — on every screen including the range.
 - **The laptop's room picture rolls the paint on** — tick a surface on the job step and a roller sweeps it in; untick and it wipes back (the same roller as the phone's picture).
+- **The homepage's address box on a phone** is stacked — the address, then a full-width See my price — and suggestions overlay the chips.
 
 ## Changes on 27 Oct 2026
 - **On Paint Home, a job over the phone-close ceiling** shows the "bigger than we can price from your phone" screen with Book a site visit and Send us a message only; the editor is not offered there.
