@@ -27,11 +27,11 @@ export const WALL_MATERIAL_LABEL: Record<WallMaterial, string> = {
   weatherboards: "Weatherboards", render: "Render", brick: "Brick", stucco: "Stucco",
   cement_sheet: "Cement sheet / panel", colorbond: "Colorbond / metal", vertical_timber: "Vertical timber (stained)", concrete: "Tilt slab / concrete",
 };
-const GABLE_FILL: ReadonlyArray<{ value: NonNullable<ExteriorV2["gableFill"]>; label: string; hint?: string }> = [
+export const GABLE_FILL: ReadonlyArray<{ value: NonNullable<ExteriorV2["gableFill"]>; label: string; hint?: string }> = [
   { value: "stucco", label: "Stucco" }, { value: "boards", label: "Weatherboards" }, { value: "strap", label: "Strapping over render" },
   { value: "shingles", label: "Shingles", hint: "Priced by your estimator" },
 ];
-const POST_KIND: ReadonlyArray<{ value: NonNullable<ExteriorV2["postKind"]>; label: string }> = [
+export const POST_KIND: ReadonlyArray<{ value: NonNullable<ExteriorV2["postKind"]>; label: string }> = [
   { value: "posts", label: "Timber posts" }, { value: "columns", label: "Brick or stucco columns" }, { value: "lace", label: "Iron posts with lacework" },
 ];
 /** The extras that take a size, and the unit asked. */

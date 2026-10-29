@@ -4,7 +4,7 @@ import {
 } from "./quick-look";
 import { typicalFor, type ExteriorTypicalRow } from "./exterior-typicals";
 import { EXTERIOR_EXTRAS, type ExteriorExtra, type ExteriorPart, type ExteriorV2 } from "./state";
-import { VERANDAH_PARTS } from "./exterior-model";
+import { VERANDAH_PARTS, anyBrick, anyVerticalTimber } from "./exterior-model";
 
 /**
  * Wizard mobile v5, session 2 (brief §2) — the phone's screens, as data.
@@ -24,7 +24,8 @@ import { VERANDAH_PARTS } from "./exterior-model";
  * The answers themselves are the quick look's (`QuickLook`), untouched:
  * the data model is unchanged (§2.6). Nothing here renders or prices.
  */
-export const MOBILE_SCREEN_IDS = ["what", "property", "beds", "storeys", "job", "surfaces", "rooms", "colours", "condition", "living", "shape", "size", "row", "p-house", "p-win", "p-ver", "p-around", "details"] as const;
+export const MOBILE_SCREEN_IDS = ["what", "property", "beds", "storeys", "job", "surfaces", "rooms", "colours", "condition", "living", "shape", "size", "row", "p-house", "p-win", "p-ver", "p-around",
+  "a-walls", "a-wallsUp", "a-brick", "a-timber", "a-gable", "a-win", "a-garage", "a-posts", "a-extras", "a-colours", "a-access", "details"] as const;
 export type MobileScreenId = (typeof MOBILE_SCREEN_IDS)[number];
 
 export type MobileScreen = {
@@ -42,7 +43,7 @@ export type MobileScreen = {
 
 /** Brief §2 — the words, one heading and at most one grey line (R8). */
 /** The Painting screens' words live with their step (they depend on the shape); every other screen's are here. */
-type WordedScreenId = Exclude<MobileScreenId, "p-house" | "p-win" | "p-ver" | "p-around">;
+type WordedScreenId = Exclude<MobileScreenId, PaintScreenId | "p-around" | AboutScreenId>;
 const WORDS: Record<WordedScreenId, { heading: string; sub: string }> = {
   what: { heading: "What are we painting?", sub: "Your range in under a minute." },
   property: { heading: "What kind of place is it?", sub: "Near enough is fine." },
@@ -122,6 +123,28 @@ export function mobileScreensFor(
         out.push({ id: "p-win", step, advance: "bar", heading: "Windows and doors", sub: null, stage: "Painting" });
         out.push({ id: "p-ver", step, advance: "bar", heading: "The verandah", sub: t && t.verandah !== "none" ? null : "Tick it if there is one.", stage: "Painting" });
         out.push({ id: "p-around", step, advance: "bar", heading: "Around the house", sub: "Anything else outside we're painting?", stage: "Painting" });
+        break;
+      }
+      case "about": {
+        // Exterior on mobile v5, session 3 (plan §2 screens 6a–6n, 7, 8): one card a screen, only for the ticked parts.
+        const v2 = outside?.v2 ?? null;
+        const t = v2 ? typicalFor(v2.propertyType, rows) : null;
+        const has = (p: ExteriorPart) => Boolean(v2?.parts.includes(p));
+        const two = t?.storeys === 2;
+        const A = (id: AboutScreenId, heading: string, sub: string | null, advance: MobileScreen["advance"] = "auto") => out.push({ id, step, advance, heading, sub, stage: "About it" });
+        if (has("walls")) {
+          A("a-walls", two ? "Downstairs walls — what are they made of?" : "What are the walls made of?", t && !t.wallsPainted ? "Brick veneer is usually left bare — tick only if the brick is being painted." : null);
+          if (two) A("a-wallsUp", "And upstairs?", "Two storeys are often two materials.");
+          if (v2 && anyBrick(v2)) A("a-brick", "Has the brick been painted before?", "Bare brick needs a sealer and three coats.");
+          if (v2 && anyVerticalTimber(v2)) A("a-timber", "Is the vertical timber painted?", "Usually stained, not painted — we price the stain.");
+        }
+        if (has("gable")) A("a-gable", "What's in the gable?", "The triangle under the roof.");
+        if (has("windows")) A("a-win", "What kind of windows?", "Mostly — mixed is fine.");
+        if (has("garage")) A("a-garage", "Garage door", null);
+        if (has("posts")) A("a-posts", "The verandah posts", null);
+        if (v2 && extraSizeRows(v2).length > 0) A("a-extras", "Roughly how big?", "Pace it out — near enough is fine.", "bar");
+        A("a-colours", "Colours?", "Same again, new, or going much lighter.");
+        A("a-access", "Getting around the house", "Tick anything that applies.", "bar");
         break;
       }
       case "gate":
@@ -270,3 +293,31 @@ export function paintParts(v2: Pick<ExteriorV2, "parts">): ExteriorPart[] {
   return (["p-house", "p-win", "p-ver"] as const).flatMap((id) => paintScreenParts(id, v2));
 }
 export const AROUND_EXTRAS: readonly ExteriorExtra[] = EXTERIOR_EXTRAS;
+
+/**
+ * Exterior on mobile v5, session 3 (plan §2 screen 6 "extras' rough sizes
+ * (steppers)"): the extras that take a size, one stepper row each — the
+ * desktop card's keys (`extraSizes.fence / deck / wall / pergola_l / pergola_w`)
+ * with the prototype's defaults, written when the screen is entered so the
+ * step's gate (`aboutMissing`: a pergola needs its top) is met.
+ */
+export type AboutScreenId = "a-walls" | "a-wallsUp" | "a-brick" | "a-timber" | "a-gable" | "a-win" | "a-garage" | "a-posts" | "a-extras" | "a-colours" | "a-access";
+export type ExtraSizeRow = { key: string; label: string; unit: string; initial: number; step: number; min: number };
+export function extraSizeRows(v2: Pick<ExteriorV2, "extras">): ExtraSizeRow[] {
+  const rows: ExtraSizeRow[] = [];
+  if (v2.extras.includes("paling_fence") || v2.extras.includes("picket_fence")) rows.push({ key: "fence", label: "Fence", unit: "m", initial: 20, step: 1, min: 1 });
+  if (v2.extras.includes("deck")) rows.push({ key: "deck", label: "Deck", unit: "m²", initial: 20, step: 1, min: 1 });
+  if (v2.extras.includes("wall")) rows.push({ key: "wall", label: "Boundary wall", unit: "m", initial: 10, step: 1, min: 1 });
+  if (v2.extras.includes("pergola")) {
+    rows.push({ key: "pergola_l", label: "Pergola length", unit: "m", initial: 4, step: 0.5, min: 0.5 });
+    rows.push({ key: "pergola_w", label: "Pergola width", unit: "m", initial: 3, step: 0.5, min: 0.5 });
+  }
+  return rows;
+}
+/** The sizes with every missing one at its default — written on entering the screen. */
+export function extraSizesWithDefaults(v2: Pick<ExteriorV2, "extras" | "extraSizes">): Record<string, number> | null {
+  const next = { ...v2.extraSizes };
+  let changed = false;
+  for (const r of extraSizeRows(v2)) if (!(next[r.key] > 0)) { next[r.key] = r.initial; changed = true; }
+  return changed ? next : null;
+}

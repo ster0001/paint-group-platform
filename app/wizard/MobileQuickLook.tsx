@@ -5,8 +5,12 @@ import { CONDITION_BANDS, OCCUPIED, type QuickLook, type QuickLookStep, type Sco
 import {
   COLOUR_CHOICES, EXTRA_ROOMS, JOB_CHOICES, MOBILE_SCREEN_KEY, applyColourChoice, applyJobChoice, colourChoiceOf, detailsReady,
   mobileProgress, mobileScreensFor, paintScreenParts, roomChips, roomsTicked, surfaceChips, toggleListedRoom, toggleSurface, AROUND_EXTRAS,
-  type MobileScreen, type PaintScreenId,
+  extraSizeRows, extraSizesWithDefaults, type MobileScreen, type PaintScreenId,
 } from "@/lib/wizard/mobileScreens";
+import { EXT_ACCESS, EXT_COLOURS, EXT_WINDOW_TYPES, toggleAccess } from "@/lib/wizard/exterior-quick-look";
+import { WALL_MATERIALS, type WallMaterial } from "@/lib/wizard/exterior-typicals";
+import { GABLE_FILL, POST_KIND, WALL_MATERIAL_LABEL } from "./ExteriorAbout";
+import { WINDOW_DRAWINGS } from "@/app/estimate/scope/StyleTiles";
 import { jobTypesFor, propertyKindsFor, type WizardBrand } from "@/lib/wizard/brand";
 import type { ExteriorQuickLook } from "@/lib/wizard/exterior-quick-look";
 import { EXTRA_LABEL, PART_LABEL, exteriorV2Answered, toggleExtra, togglePart } from "@/lib/wizard/exterior-model";
@@ -153,9 +157,9 @@ export default function MobileQuickLook({
     if (timer.current) clearTimeout(timer.current);
     timer.current = setTimeout(() => goRef.current(), 250);
   };
-  // Exterior on mobile v5 (S1): an outside answer (the exterior brief's `v2`) that advances itself, like `pick`.
-  const pickOutside = (v2: ExteriorV2) => {
-    onOutside({ v2 });
+  // Exterior on mobile v5 (S1): an outside answer (the exterior brief's `v2`, or the colour) that advances itself, like `pick`.
+  const pickOutside = (patch: Partial<ExteriorQuickLook>) => {
+    onOutside(patch);
     if (timer.current) clearTimeout(timer.current);
     timer.current = setTimeout(() => goRef.current(), 250);
   };
@@ -378,7 +382,7 @@ export default function MobileQuickLook({
                 return (
                   <button key={k} type="button" className={`wzm-opt ${on ? "on" : ""}`} aria-pressed={on} data-testid={`ql-ext-type-${k}`}
                     // the same shape again keeps the house as it is (its size, its parts); a different one is a fresh house of that shape
-                    onClick={() => pickOutside(on && outside.v2 ? outside.v2 : houseOfShape(k, outside.v2, exteriorTypicals))}>
+                    onClick={() => pickOutside({ v2: on && outside.v2 ? outside.v2 : houseOfShape(k, outside.v2, exteriorTypicals) })}>
                     <TypeThumb shape={k} rows={exteriorTypicals} />
                     <span className="t">{typicalFor(k, exteriorTypicals).name}</span>
                   </button>
@@ -386,8 +390,76 @@ export default function MobileQuickLook({
               })}
             </div>
           )}
-          {current.id === "size" && outside.v2 && <SizeChoices v2={outside.v2} rows={exteriorTypicals} onPick={pickOutside} />}
-          {current.id === "row" && outside.v2 && <RowChoices v2={outside.v2} rows={exteriorTypicals} onPick={pickOutside} />}
+          {current.id === "size" && outside.v2 && <SizeChoices v2={outside.v2} rows={exteriorTypicals} onPick={(v2) => pickOutside({ v2 })} />}
+          {current.id === "row" && outside.v2 && <RowChoices v2={outside.v2} rows={exteriorTypicals} onPick={(v2) => pickOutside({ v2 })} />}
+
+          {/* Exterior on mobile v5, session 3 (plan §2 screens 6a–6n, 7, 8): About it, one card a screen, only for the ticked parts;
+              the answers are the brief's `v2.wall` / `gableFill` / `windowType` / `garageCars` / `postKind` / `extraSizes` and the
+              outside quick look's `colour` and `access`, as the desktop card writes them. */}
+          {current.id === "a-walls" && outside.v2 && (
+            <Options name="ext-mat" value={outside.v2.wall.down} onPick={(m) => pickOutside({ v2: { ...outside.v2!, wall: { ...outside.v2!.wall, down: m } } })}
+              options={WALL_MATERIALS.map((m) => ({ value: m, label: WALL_MATERIAL_LABEL[m], hint: m === "vertical_timber" ? "Usually stained, not painted" : null }))} />
+          )}
+          {current.id === "a-wallsUp" && outside.v2 && (
+            <Options name="ext-mat-up" value={outside.v2.wall.up ?? "same"} onPick={(m) => pickOutside({ v2: { ...outside.v2!, wall: { ...outside.v2!.wall, up: m === "same" ? null : m } } })}
+              options={[{ value: "same" as const, label: "Same as downstairs", hint: null }, ...WALL_MATERIALS.map((m) => ({ value: m as WallMaterial | "same", label: WALL_MATERIAL_LABEL[m], hint: null }))]} />
+          )}
+          {current.id === "a-brick" && outside.v2 && (
+            <Options two name="ext-brick" value={outside.v2.wall.brickPainted} onPick={(v) => pickOutside({ v2: { ...outside.v2!, wall: { ...outside.v2!.wall, brickPainted: v } } })}
+              options={[{ value: "yes" as const, label: "Yes, painted", hint: null }, { value: "no" as const, label: "No, bare brick", hint: null }]} />
+          )}
+          {current.id === "a-timber" && outside.v2 && (
+            <Options two name="ext-timber" value={outside.v2.wall.timberPainted ?? "no"} onPick={(v) => pickOutside({ v2: { ...outside.v2!, wall: { ...outside.v2!.wall, timberPainted: v } } })}
+              options={[{ value: "no" as const, label: "Stained", hint: null }, { value: "yes" as const, label: "Painted", hint: null }]} />
+          )}
+          {current.id === "a-gable" && outside.v2 && (
+            <Options name="ext-gable" value={outside.v2.gableFill} onPick={(f) => pickOutside({ v2: { ...outside.v2!, gableFill: f } })}
+              options={GABLE_FILL.map((o) => ({ value: o.value, label: o.label, hint: o.hint ?? null }))} />
+          )}
+          {current.id === "a-win" && outside.v2 && (
+            <div className="wzm-opts two wzm-wins" data-testid="ql-ext-win">
+              {EXT_WINDOW_TYPES.map((o) => {
+                const on = outside.v2!.windowType === o.value;
+                const drawing = o.value === "casement" || o.value === "sash" || o.value === "colonial" || o.value === "winder" ? WINDOW_DRAWINGS[o.value] : null;
+                return (
+                  <button key={o.value} type="button" className={`wzm-opt ${on ? "on" : ""}`} aria-pressed={on} data-testid={`ql-ext-win-${o.value}`}
+                    onClick={() => pickOutside({ v2: { ...outside.v2!, windowType: o.value } })}>
+                    {drawing && <span className="wzm-win" aria-hidden="true">{drawing}</span>}
+                    <span><span className="t">{o.label}</span>{o.hint && <span className="d">{o.hint}</span>}</span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+          {current.id === "a-garage" && outside.v2 && (
+            <Options two name="ext-garage" value={outside.v2.garageCars == null ? null : (String(outside.v2.garageCars) as "1" | "2")} onPick={(v) => pickOutside({ v2: { ...outside.v2!, garageCars: v === "2" ? 2 : 1 } })}
+              options={[{ value: "1" as const, label: "Single", hint: null }, { value: "2" as const, label: "Double", hint: null }]} />
+          )}
+          {current.id === "a-posts" && outside.v2 && (
+            <Options name="ext-posts" value={outside.v2.postKind} onPick={(k) => pickOutside({ v2: { ...outside.v2!, postKind: k } })}
+              options={POST_KIND.map((o) => ({ value: o.value, label: o.label, hint: o.value === "lace" ? "Lacework priced by your estimator" : null }))} />
+          )}
+          {current.id === "a-extras" && outside.v2 && <ExtraSizes v2={outside.v2} onChange={(v2) => onOutside({ v2 })} />}
+          {current.id === "a-colours" && (
+            <Options name="ql-ext-colour" value={outside.colour} onPick={(colour) => pickOutside({ colour })}
+              options={EXT_COLOURS.map((o) => ({ value: o.value, label: o.label, hint: o.hint ?? null }))} />
+          )}
+          {current.id === "a-access" && (
+            <>
+              <div className="wzm-chips" data-testid="ql-ext-access">
+                {EXT_ACCESS.map((o) => {
+                  const on = outside.access.includes(o.value);
+                  return (
+                    <button key={o.value} type="button" className={`wzm-chip ${on ? "on" : ""}`} aria-pressed={on} data-testid={`ql-ext-access-${o.value}`}
+                      onClick={() => onOutside({ access: toggleAccess(outside.access, o.value) })}>{o.label}</button>
+                  );
+                })}
+              </div>
+              {outside.access.includes("lift") && (
+                <p className="wzm-note" data-testid="ext-lift-note">Nothing for scaffolding or a lift is in this price. If the job needs one we quote it with you before we start, as a separate line — never a surprise on the invoice.</p>
+              )}
+            </>
+          )}
 
           {/* Exterior on mobile v5, session 2 (plan §2 screens 5a–5d): Painting, one group a screen; the chips are the brief's parts
               (`togglePart`) and extras (`toggleExtra`); nothing is pre-ticked (C8b); the drawn house in the strip sweeps each tick in. */}
@@ -514,6 +586,61 @@ function RowChoices({ v2, rows, onPick }: { v2: ExteriorV2; rows: ReadonlyArray<
       {t.sharedSides.includes("left") && opt("left", "End of the row — left side open", null)}
       {t.sharedSides.includes("right") && opt("right", "End of the row — right side open", null)}
       {opt("both", "Stands alone", "All four sides")}
+    </div>
+  );
+}
+
+/** Exterior on mobile v5 (S3): a single-choice About it screen — the brief's options as the phone's option tiles, advancing itself. */
+function Options<T extends string>({ name, options, value, onPick, two = false }: {
+  name: string; options: ReadonlyArray<{ value: T; label: string; hint: string | null }>; value: T | null; onPick: (v: T) => void; two?: boolean;
+}) {
+  return (
+    <div className={`wzm-opts ${two ? "two" : ""}`} data-testid={name}>
+      {options.map((o) => {
+        const on = value === o.value;
+        return (
+          <button key={o.value} type="button" className={`wzm-opt ${on ? "on" : ""}`} aria-pressed={on} data-testid={`${name}-${o.value}`} onClick={() => onPick(o.value)}>
+            <span><span className="t">{o.label}</span>{o.hint && <span className="d">{o.hint}</span>}</span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+/** Exterior on mobile v5 (S3), screen 6's sizes: a stepper per extra that takes one (the prototype's − N +), the defaults written on entry. */
+function ExtraSizes({ v2, onChange }: { v2: ExteriorV2; onChange: (v2: ExteriorV2) => void }) {
+  const rows = extraSizeRows(v2);
+  const keys = rows.map((r) => r.key).join(",");
+  useEffect(() => {
+    const next = extraSizesWithDefaults(v2);
+    if (next) onChange({ ...v2, extraSizes: next });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- once per set of extras on entering the screen; the taps write the rest
+  }, [keys]);
+  const set = (key: string, n: number) => onChange({ ...v2, extraSizes: { ...v2.extraSizes, [key]: Math.round(n * 10) / 10 } });
+  return (
+    <div className="wzm-steps" data-testid="ext-sizes">
+      {rows.map((r) => {
+        const value = v2.extraSizes[r.key] > 0 ? v2.extraSizes[r.key] : r.initial;
+        return (
+          <div className="wzm-step" key={r.key} data-testid={`ext-size-${r.key}`}>
+            <div className="l">{r.label}<small>{r.unit}</small></div>
+            <div className="stp">
+              <button type="button" aria-label={`Less ${r.label.toLowerCase()}`} data-testid={`ext-size-${r.key}-minus`} onClick={() => set(r.key, Math.max(r.min, value - r.step))}>−</button>
+              <b data-testid={`ext-size-${r.key}-value`}>{value}</b>
+              <button type="button" aria-label={`More ${r.label.toLowerCase()}`} data-testid={`ext-size-${r.key}-plus`} onClick={() => set(r.key, Math.min(500, value + r.step))}>+</button>
+            </div>
+          </div>
+        );
+      })}
+      {v2.extras.includes("wall") && (
+        <div className="wzm-chips" data-testid="ext-wallmat">
+          {([["brick", "Brick wall"], ["render", "Rendered wall"]] as const).map(([value, label]) => {
+            const on = (v2.extraWallMaterial ?? "brick") === value;
+            return <button key={value} type="button" className={`wzm-chip ${on ? "on" : ""}`} aria-pressed={on} data-testid={`ext-wallmat-${value}`} onClick={() => onChange({ ...v2, extraWallMaterial: value })}>{label}</button>;
+          })}
+        </div>
+      )}
     </div>
   );
 }

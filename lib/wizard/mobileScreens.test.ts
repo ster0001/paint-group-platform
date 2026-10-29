@@ -5,7 +5,7 @@ import {
   roomChips, surfaceChips, surfacesTicked, toggleListedRoom, toggleSurface,
 } from "./mobileScreens";
 import type { ExteriorV2 } from "./state";
-import { paintParts, paintScreenParts } from "./mobileScreens";
+import { extraSizeRows, extraSizesWithDefaults, paintParts, paintScreenParts } from "./mobileScreens";
 
 const q = (over: Partial<QuickLook> = {}): QuickLook => ({ ...DEFAULT_QUICK_LOOK, ...over });
 const ids = (quick: QuickLook, gate = true) => mobileScreensFor(stepsFor(quick.jobType, quick.propertyKind, "areas", "range", quick.scope, gate), quick).map((s) => s.id);
@@ -29,7 +29,8 @@ describe("the phone's screens (wizard mobile v5 §2)", () => {
     // exterior on mobile v5 (S2): the paint step is four screens; the rest follow as they are
     expect(list.slice(2, 4)).toEqual(["shape", "size"]);
     expect(list.slice(4, 8)).toEqual(["p-house", "p-win", "p-ver", "p-around"]);
-    expect(list.slice(8, 10)).toEqual(["about", "sides"]);
+    // S3: the about step is its screens too (nothing ticked → the colours and the access); the sides step follows as it is
+    expect(list.slice(8, 11)).toEqual(["a-colours", "a-access", "sides"]);
   });
   it("every screen knows its step, and the rooms heading changes for Some rooms", () => {
     const list = mobileScreensFor(stepsFor("interior", "house", "areas", "range", "some_rooms", true), q({ scope: "some_rooms" }));
@@ -48,8 +49,8 @@ describe("the phone's screens (wizard mobile v5 §2)", () => {
   });
   it("a step the phone does not split is one screen with a bar, under its own name", () => {
     const list = mobileScreensFor(stepsFor("exterior", "house", "areas", "range", "whole", true), q({ jobType: "exterior" }));
-    const about = list.find((s) => s.id === "about");
-    expect(about).toMatchObject({ step: "about", advance: "bar", heading: null });
+    const sides = list.find((s) => s.id === "sides");
+    expect(sides).toMatchObject({ step: "sides", advance: "bar", heading: null });
   });
 });
 
@@ -143,7 +144,7 @@ describe("exterior on mobile v5 — the Your home step on a phone", () => {
     const home = screens.filter((s) => s.step === "home");
     expect(home.map((s) => s.id)).toEqual(["shape", "size"]);
     expect(home.every((s) => s.advance === "auto" && s.stage === "Your home" && s.heading)).toBe(true);
-    expect(screens.map((s) => s.id)).toEqual(["what", "property", "shape", "size", "p-house", "p-win", "p-ver", "p-around", "about", "sides", "details"]);
+    expect(screens.map((s) => s.id)).toEqual(["what", "property", "shape", "size", "p-house", "p-win", "p-ver", "p-around", "a-colours", "a-access", "sides", "details"]);
   });
   it("a shape that usually shares a wall adds Where is it in the row?; a bungalow does not", () => {
     const ids = (v2: ExteriorV2) => mobileScreensFor(steps, quick, { v2 }).filter((s) => s.step === "home").map((s) => s.id);
@@ -177,5 +178,43 @@ describe("exterior on mobile v5 — the Painting step on a phone", () => {
     expect(paintScreenParts("p-ver", house("cal"))).toEqual(["verandah"]);
     expect(paintScreenParts("p-ver", house("cal", ["verandah"]))).toEqual(["verandah", "posts", "ceiling", "handrail"]);
     expect(paintParts(house("cal"))).toHaveLength(11);
+  });
+});
+
+/** Exterior on mobile v5, session 3 (plan §2 screens 6a–6n, 7, 8): About it, one card a screen, only for the ticked parts. */
+describe("exterior on mobile v5 — the About it step on a phone", () => {
+  const quick = q({ jobType: "exterior" });
+  const steps = stepsFor("exterior", "house", "areas", "range", "whole", true);
+  const house = (propertyType: ExteriorV2["propertyType"], over: Partial<ExteriorV2> = {}): ExteriorV2 => ({
+    propertyType, sizeBand: "md", rowPosition: null, wall: { down: null, up: null, brickPainted: null, timberPainted: null }, gableFill: null, windowType: "unsure",
+    garageCars: null, postKind: null, parts: [], extras: [], extraSizes: {}, extraWallMaterial: null, sides: {}, ...over,
+  } as ExteriorV2);
+  const about = (v2: ExteriorV2) => mobileScreensFor(steps, quick, { v2 }).filter((s) => s.step === "about");
+  it("nothing ticked that needs more: the colours and the access only, under the About it stage", () => {
+    const list = about(house("wb", { parts: ["fascias"] }));
+    expect(list.map((s) => s.id)).toEqual(["a-colours", "a-access"]);
+    expect(list.map((s) => s.advance)).toEqual(["auto", "bar"]);
+    expect(list.every((s) => s.stage === "About it")).toBe(true);
+  });
+  it("every card in the brief's order, only for what was ticked; the sizes screen only with an extra that takes one", () => {
+    const all = about(house("cal", { parts: ["walls", "gable", "windows", "garage", "posts"], extras: ["paling_fence", "pergola"] }));
+    expect(all.map((s) => s.id)).toEqual(["a-walls", "a-gable", "a-win", "a-garage", "a-posts", "a-extras", "a-colours", "a-access"]);
+    expect(all.find((s) => s.id === "a-extras")?.advance).toBe("bar");
+    expect(about(house("cal", { parts: ["walls"], extras: ["meter_box"] })).map((s) => s.id)).toEqual(["a-walls", "a-colours", "a-access"]);
+  });
+  it("a double storey asks upstairs too; brick or vertical timber anywhere adds its question; a bare-brick shape carries the hint", () => {
+    expect(about(house("ds", { parts: ["walls"] })).map((s) => s.id)).toEqual(["a-walls", "a-wallsUp", "a-colours", "a-access"]);
+    expect(about(house("ds", { parts: ["walls"] }))[0].heading).toBe("Downstairs walls — what are they made of?");
+    expect(about(house("ds", { parts: ["walls"], wall: { down: "render", up: "brick", brickPainted: null, timberPainted: null } })).map((s) => s.id)).toEqual(["a-walls", "a-wallsUp", "a-brick", "a-colours", "a-access"]);
+    expect(about(house("wb", { parts: ["walls"], wall: { down: "vertical_timber", up: null, brickPainted: null, timberPainted: null } })).map((s) => s.id)).toEqual(["a-walls", "a-timber", "a-colours", "a-access"]);
+    expect(about(house("brick", { parts: ["walls"] }))[0].sub).toMatch(/left bare/);
+    expect(about(house("cal", { parts: ["walls"] }))[0].sub).toBeNull();
+  });
+  it("the size steppers: the desktop's keys with the prototype's defaults, written once where missing", () => {
+    const v2 = house("cal", { extras: ["picket_fence", "deck", "wall", "pergola"] });
+    expect(extraSizeRows(v2).map((r) => `${r.key}:${r.initial}${r.unit}`)).toEqual(["fence:20m", "deck:20m²", "wall:10m", "pergola_l:4m", "pergola_w:3m"]);
+    expect(extraSizesWithDefaults(v2)).toEqual({ fence: 20, deck: 20, wall: 10, pergola_l: 4, pergola_w: 3 });
+    expect(extraSizesWithDefaults({ ...v2, extraSizes: { fence: 12, deck: 20, wall: 10, pergola_l: 4, pergola_w: 3 } })).toBeNull();
+    expect(extraSizeRows(house("cal", { extras: ["shed"] }))).toEqual([]);
   });
 });
