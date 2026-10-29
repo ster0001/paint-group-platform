@@ -5,6 +5,7 @@ import type { CustomerPayload } from "@/lib/wizard/view";
 import { restatement, type QuickLook } from "@/lib/wizard/quick-look";
 import { surfaceChips } from "@/lib/wizard/mobileScreens";
 import { exteriorRestatement, type ExteriorQuickLook } from "@/lib/wizard/exterior-quick-look";
+import ExteriorRangeRows, { notInThisNumber } from "./ExteriorRangeRows";
 import { initialsOf } from "@/lib/wizard/estimator";
 import { PAINT_HOME_WORDS, type WizardBrand } from "@/lib/wizard/brand";
 import { breakpointNow, sendWizardEvent } from "@/lib/wizard/wizardEvents";
@@ -70,6 +71,10 @@ export default function MobileGate({ payload, quick, outside, brand, logo, estim
   const exteriorOnly = quick.jobType === "exterior" && outside != null;
   const basis = exteriorOnly ? exteriorRestatement(outside) : restatement(quick);
   const how = exteriorOnly ? "side by side" : "room by room";
+  // Exterior on mobile v5 (S5; plan §2 screen 11, D-E1, D-E4): an outside job's gate keeps every v5 rule — no tolerance, no tier
+  // label — with the brief's words: "A few minutes", the scaffolding / lifts exclusion in the small print, one row per side below.
+  const v2 = exteriorOnly ? outside?.v2 ?? null : null;
+  const minutes = exteriorOnly ? "A few minutes" : "Ten minutes";
   const painthome = brand === "painthome";
   // §4 block 6: the TICKED surfaces with their coats — a system line stays only while its chip is on
   // (the cornices ride with the ceilings in the engine, so "Ceilings and cornices" would otherwise outlive an unticked ceiling).
@@ -96,7 +101,9 @@ export default function MobileGate({ payload, quick, outside, brand, logo, estim
           <p className="wzm-gate-label" data-testid="gate-label">{customer ? `${customer}, your range today` : "Your range today"}</p>
           <p className="wzm-gate-price" data-testid="gate-range">{fmt(payload.rangeLoCents)} – {fmt(payload.rangeHiCents)}</p>
           <p className="wzm-gate-basis" data-testid="gate-basis">{basis}</p>
-          <p className="wzm-gate-fine" data-testid="gate-fine">Based on what you&rsquo;ve told us — anything different on the day changes the price. {who} confirms it with you before anything is fixed. Includes GST.</p>
+          <p className="wzm-gate-fine" data-testid="gate-fine">
+            Based on what you&rsquo;ve told us — anything different on the day changes the price. {who} confirms it with you before anything is fixed. Includes GST{v2 ? `; not in this number: ${notInThisNumber(v2)}` : ""}.
+          </p>
         </section>
 
         {/* 2 · the one question — or, over the ceiling, the one door (§4.2, never both) */}
@@ -110,9 +117,9 @@ export default function MobileGate({ payload, quick, outside, brand, logo, estim
           <section data-testid="gate-block-ask">
             <h2 className="wzm-gate-ask">Want the exact number?</h2>
             <p className="wzm-gate-asksub">
-              Ten minutes, {how}, nothing to measure. {painthome ? `Then one short call with ${who} runs through the finer details and confirms it.` : `Then ${who} visits to run through the finer details and confirm it.`}
+              {minutes}, {how}, nothing to measure. {painthome ? `Then one short call with ${who} runs through the finer details and confirms it.` : `Then ${who} visits to run through the finer details and confirm it.`}
             </p>
-            <button type="button" className="wzm-cta wzm-cta--teal" onClick={exact} data-testid="gate-exact">Get my exact price<small>{exteriorOnly ? "Side by side" : "Room by room"} · about 10 min</small></button>
+            <button type="button" className="wzm-cta wzm-cta--teal" onClick={exact} data-testid="gate-exact">Get my exact price<small>{exteriorOnly ? "Side by side · a few minutes" : "Room by room · about 10 min"}</small></button>
             <p className="wzm-gate-alt">Or <button type="button" className="wzm-linkish" onClick={visit} data-testid="gate-visit">book a time with {who} first</button></p>
           </section>
         )}
@@ -141,8 +148,14 @@ export default function MobileGate({ payload, quick, outside, brand, logo, estim
           </p>
         )}
 
-        {/* 6 · what's in the range */}
-        {included.length > 0 && (
+        {/* 6 · what's in the range — an outside job: one row per painted side and one for around the house (v2 brief 7.5, plan §2 screen 11) */}
+        {v2 && (
+          <details className="wzm-gate-incl" data-testid="gate-included" open={openIncluded} onToggle={(e) => setOpenIncluded((e.target as HTMLDetailsElement).open)}>
+            <summary>What&rsquo;s in the range</summary>
+            <ExteriorRangeRows v2={v2} />
+          </details>
+        )}
+        {!v2 && included.length > 0 && (
           <details className="wzm-gate-incl" data-testid="gate-included" open={openIncluded} onToggle={(e) => setOpenIncluded((e.target as HTMLDetailsElement).open)}>
             <summary>What&rsquo;s in the range</summary>
             <ul>
