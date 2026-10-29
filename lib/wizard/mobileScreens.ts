@@ -2,7 +2,7 @@ import {
   changingForScope, exclusionOptions, visibleChanging,
   type InteriorExcludable, type QuickLook, type QuickLookStep, type ScopePreset,
 } from "./quick-look";
-import { typicalFor, type ExteriorTypicalRow } from "./exterior-typicals";
+import { EXTERIOR_SIDE_KEYS, typicalFor, type ExteriorSideKey, type ExteriorTypicalRow } from "./exterior-typicals";
 import { EXTERIOR_EXTRAS, type ExteriorExtra, type ExteriorPart, type ExteriorV2 } from "./state";
 import { VERANDAH_PARTS, anyBrick, anyVerticalTimber } from "./exterior-model";
 
@@ -25,7 +25,8 @@ import { VERANDAH_PARTS, anyBrick, anyVerticalTimber } from "./exterior-model";
  * the data model is unchanged (§2.6). Nothing here renders or prices.
  */
 export const MOBILE_SCREEN_IDS = ["what", "property", "beds", "storeys", "job", "surfaces", "rooms", "colours", "condition", "living", "shape", "size", "row", "p-house", "p-win", "p-ver", "p-around",
-  "a-walls", "a-wallsUp", "a-brick", "a-timber", "a-gable", "a-win", "a-garage", "a-posts", "a-extras", "a-colours", "a-access", "details"] as const;
+  "a-walls", "a-wallsUp", "a-brick", "a-timber", "a-gable", "a-win", "a-garage", "a-posts", "a-extras", "a-colours", "a-access",
+  "s-front", "s-right", "s-back", "s-left", "details"] as const;
 export type MobileScreenId = (typeof MOBILE_SCREEN_IDS)[number];
 
 export type MobileScreen = {
@@ -43,7 +44,7 @@ export type MobileScreen = {
 
 /** Brief §2 — the words, one heading and at most one grey line (R8). */
 /** The Painting screens' words live with their step (they depend on the shape); every other screen's are here. */
-type WordedScreenId = Exclude<MobileScreenId, PaintScreenId | "p-around" | AboutScreenId>;
+type WordedScreenId = Exclude<MobileScreenId, PaintScreenId | "p-around" | AboutScreenId | SideScreenId>;
 const WORDS: Record<WordedScreenId, { heading: string; sub: string }> = {
   what: { heading: "What are we painting?", sub: "Your range in under a minute." },
   property: { heading: "What kind of place is it?", sub: "Near enough is fine." },
@@ -145,6 +146,20 @@ export function mobileScreensFor(
         if (v2 && extraSizeRows(v2).length > 0) A("a-extras", "Roughly how big?", "Pace it out — near enough is fine.", "bar");
         A("a-colours", "Colours?", "Same again, new, or going much lighter.");
         A("a-access", "Getting around the house", "Tick anything that applies.", "bar");
+        break;
+      }
+      case "sides": {
+        // Exterior on mobile v5, session 4 (plan §2 screens 9a–9d): one screen per side, the house turned to it; a shared
+        // side starts as not painting (its screen says so) and can be added back there.
+        const v2 = outside?.v2 ?? null;
+        for (const k of EXTERIOR_SIDE_KEYS) {
+          const sd = v2?.sides[k];
+          const notPainting = sd ? !sd.paint : false;
+          out.push({
+            id: `s-${k}`, step, advance: "bar", heading: MOBILE_SIDE_LABEL[k], stage: "Each side",
+            sub: notPainting && sd?.shared ? "Usually a shared wall — not painting unless you add it." : notPainting ? "Not painting this side — tap the switch to add it back." : "Untick what isn't on this side. Add anything that is.",
+          });
+        }
         break;
       }
       case "gate":
@@ -320,4 +335,16 @@ export function extraSizesWithDefaults(v2: Pick<ExteriorV2, "extras" | "extraSiz
   let changed = false;
   for (const r of extraSizeRows(v2)) if (!(next[r.key] > 0)) { next[r.key] = r.initial; changed = true; }
   return changed ? next : null;
+}
+
+/** Exterior on mobile v5, session 4 (plan §2 screens 9a–9d): the four side screens. */
+export type SideScreenId = "s-front" | "s-right" | "s-back" | "s-left";
+export const MOBILE_SIDE_LABEL: Record<ExteriorSideKey, string> = { front: "Front", right: "Right side", back: "Back", left: "Left side" };
+export const MOBILE_SIDE_SHORT: Record<ExteriorSideKey, string> = { front: "Front", right: "Right", back: "Back", left: "Left" };
+export function sideOfScreen(id: string): ExteriorSideKey | null {
+  return id.startsWith("s-") && (EXTERIOR_SIDE_KEYS as readonly string[]).includes(id.slice(2)) ? (id.slice(2) as ExteriorSideKey) : null;
+}
+/** The ribbon's second line on the side screens: "Front ✓ · Right – · Back · Left" (✓ looked at, – not painting). */
+export function sideStatusLine(v2: Pick<ExteriorV2, "sides">): string {
+  return EXTERIOR_SIDE_KEYS.map((k) => { const sd = v2.sides[k]; return `${MOBILE_SIDE_SHORT[k]}${sd && !sd.paint ? " –" : sd?.confirmed ? " ✓" : ""}`; }).join(" · ");
 }

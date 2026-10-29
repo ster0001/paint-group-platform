@@ -134,3 +134,149 @@ test("a townhouse's shared sides are not on Each side at all; Not painting takes
   await expect(tile(page, "left")).toBeVisible();
   await expect(tile(page, "front")).toHaveCount(0);
 });
+
+/**
+ * EXTERIOR ON MOBILE v5 — session 4 (`docs/briefs/build-plan-exterior-mobile-v5.md`
+ * §2 screens 9a–9d, §3; prototype `design/reference/wizard-exterior-mobile-v5-prototype.html`),
+ * as an ANONYMOUS customer at 390 × 780 with touch. Under 768px Each side is
+ * ONE SCREEN PER SIDE — Front · Right · Back · Left — with the strip's
+ * thumbnail turned to that side: the whole-house parts that land here as
+ * removable chips, "+ Add something on this side", this side's wall
+ * material, "Not painting this side" (a shared side starts that way), and
+ * the bar reading "Looks right — next side". Looking at a side checks it.
+ * The sheet shows that side full width with a compass to turn it. The
+ * desktop step is untouched (the tests above).
+ */
+test.describe("on a phone: Each side is one screen per side, the house turned to it (exterior mobile v5, session 4)", () => {
+  test.use({ viewport: { width: 390, height: 780 }, isMobile: true, hasTouch: true });
+  const at = (page: Page, id: string) => expect(page.locator(`[data-mobile-screen='${id}']`)).toBeVisible({ timeout: 10_000 });
+  const thumb = (page: Page) => page.getByTestId("wzm-thumb").locator("svg.wz-elev");
+  /** Outside → shape, medium (→ row) → Painting with these parts → About it (material, colours, access) → the first side. */
+  const toEachSide = async (page: Page, shape: string, parts: string[], row?: string) => {
+    const { openQuickLook, fillQuickAddress } = await import("./drive");
+    await openQuickLook(page);
+    await fillQuickAddress(page);
+    await expect(page.getByTestId("wzm")).toBeVisible({ timeout: 20_000 });
+    await page.getByTestId("ql-jobtype-exterior").tap();
+    await at(page, "property");
+    await page.getByTestId("ql-kind-house").tap();
+    await at(page, "shape");
+    await page.getByTestId(`ql-ext-type-${shape}`).tap();
+    await at(page, "size");
+    await page.getByTestId("ql-ext-size-md").tap();
+    if (row) { await at(page, "row"); await page.getByTestId(`ql-ext-row-${row}`).tap(); }
+    await at(page, "p-house");
+    const tick = async (p: string) => { if (parts.includes(p)) await page.getByTestId(`ext-part-${p}`).tap(); };
+    for (const p of ["walls", "gable", "fascias", "gutters", "downpipes", "eaves"]) await tick(p);
+    await page.getByTestId("ql-next").tap();
+    await at(page, "p-win");
+    for (const p of ["windows", "doors", "garage", "shutters"]) await tick(p);
+    await page.getByTestId("ql-next").tap();
+    await at(page, "p-ver");
+    for (const p of ["verandah", "posts", "ceiling", "handrail"]) await tick(p);
+    await page.getByTestId("ql-next").tap();
+    await at(page, "p-around");
+    await page.getByTestId("ql-next").tap();
+    if (parts.includes("walls")) { await at(page, "a-walls"); await page.getByTestId("ext-mat-weatherboards").tap(); }
+    if (parts.includes("gable")) { await at(page, "a-gable"); await page.getByTestId("ext-gable-stucco").tap(); }
+    if (parts.includes("windows")) { await at(page, "a-win"); await page.getByTestId("ql-ext-win-casement").tap(); }
+    if (parts.includes("posts")) { await at(page, "a-posts"); await page.getByTestId("ext-posts-posts").tap(); }
+    await at(page, "a-colours");
+    await page.getByTestId("ql-ext-colour-new").tap();
+    await at(page, "a-access");
+    await page.getByTestId("ql-next").tap();
+    await expect(page.locator("[data-quick-step='sides']")).toBeVisible({ timeout: 20_000 });
+    await at(page, "s-front");
+  };
+
+  test("a bungalow: four screens, the thumbnail turned to each side, the side's parts as chips, a gable added on the right, this side's material, Looks right — next side, then the details", async ({ page }) => {
+    test.setTimeout(180_000);
+    await toEachSide(page, "cal", ["walls", "gable", "fascias", "eaves", "windows", "doors", "verandah", "posts"]);
+    await expect(page.getByTestId("wzm-stage")).toHaveText("Each side");
+    await expect(page.getByTestId("wzm-h1")).toHaveText("Front");
+    await expect(page.getByTestId("wzm-sub")).toContainText("Untick what isn't on this side");
+    await expect(page.getByTestId("wzm-side-front")).toHaveAttribute("data-state", "now");
+    await expect(thumb(page)).toHaveAttribute("data-side", "front");
+    // the whole-house parts that land on the front, each ticked; no counts, no sizes, no price
+    for (const p of ["walls", "gable", "fascias", "eaves", "windows", "doors", "verandah", "posts"]) await expect(page.getByTestId(`ext-sidepart-${p}`)).toHaveAttribute("aria-pressed", "true");
+    await expect(page.getByTestId("ext-win-count")).toHaveCount(0);
+    await expect(page.locator(".wzm")).not.toContainText(/m across|\$\s?\d/);
+    await expect(page.getByTestId("ext-side-np")).toHaveAttribute("aria-pressed", "false");
+    await expect(page.getByTestId("ql-next")).toHaveText("Looks right — next side");
+    await expect(page.getByTestId("wzm-ribbon-2")).toHaveText("Front · Right · Back · Left");
+    // the right side: the house turns; no gable or verandah land here; add a gable; this side's walls are render
+    await page.getByTestId("ql-next").tap();
+    await at(page, "s-right");
+    await expect(page.getByTestId("wzm-h1")).toHaveText("Right side");
+    await expect(thumb(page)).toHaveAttribute("data-side", "right");
+    await expect(page.getByTestId("wzm-side-front")).toHaveAttribute("data-state", "done");
+    await expect(page.getByTestId("wzm-ribbon-2")).toHaveText("Front ✓ · Right · Back · Left");
+    await expect(page.getByTestId("ext-sidepart-gable")).toHaveCount(0);
+    await expect(page.getByTestId("ext-sidepart-verandah")).toHaveCount(0);
+    await expect(page.getByTestId("ext-side-add")).toHaveCount(0);
+    await page.getByTestId("ext-side-add-open").tap();
+    await page.getByTestId("ext-side-addpart-gable").tap();
+    await expect(page.getByTestId("ext-sidepart-gable")).toHaveAttribute("aria-pressed", "true");
+    await expect(thumb(page).locator(".e-gable").first()).toHaveAttribute("data-on", "1");
+    await expect(page.getByTestId("ext-side-mat-weatherboards")).toHaveAttribute("aria-pressed", "true");
+    await page.getByTestId("ext-side-mat-render").tap();
+    await expect(page.getByTestId("ext-side-mat-render")).toHaveAttribute("aria-pressed", "true");
+    // a part taken off this side goes grey on the house
+    await page.getByTestId("ext-sidepart-eaves").tap();
+    await expect(page.getByTestId("ext-sidepart-eaves")).toHaveAttribute("aria-pressed", "false");
+    await expect(thumb(page).locator(".e-eaves").first()).toHaveAttribute("data-on", "0");
+    // the sheet: this side full width, the compass turns it, a tap on a part there is this side's
+    await page.getByTestId("wzm-strip").tap();
+    const big = page.getByTestId("wzm-bigpic").locator("svg.wz-elev");
+    await expect(big).toHaveAttribute("data-side", "right");
+    await expect(page.getByTestId("wzm-compass-right")).toHaveAttribute("data-state", "now");
+    await page.getByTestId("wzm-compass-back").tap();
+    await expect(big).toHaveAttribute("data-side", "back");
+    await page.getByTestId("wzm-compass-right").tap();
+    await expect(big).toHaveAttribute("data-side", "right");
+    await page.getByTestId("wzm-sheet-chip-eaves").tap();
+    await expect(page.getByTestId("wzm-sheet-chip-eaves")).toHaveAttribute("aria-pressed", "true");
+    await page.keyboard.press("Escape");
+    await expect(page.getByTestId("ext-sidepart-eaves")).toHaveAttribute("aria-pressed", "true");
+    // back, then the last two sides; the last bar reads Looks right and goes on to the details
+    await page.getByTestId("ql-next").tap();
+    await at(page, "s-back");
+    await expect(thumb(page)).toHaveAttribute("data-side", "back");
+    await page.getByTestId("ql-next").tap();
+    await at(page, "s-left");
+    await expect(page.getByTestId("ql-next")).toHaveText("Looks right");
+    await expect(page.getByTestId("wzm-ribbon-2")).toHaveText("Front ✓ · Right ✓ · Back ✓ · Left");
+    await page.getByTestId("ql-next").tap();
+    await at(page, "details");
+    await page.getByTestId("wzm-back").tap();
+    await at(page, "s-left");
+    await expect(page.getByTestId("wzm-side-left")).toHaveAttribute("data-state", "now");
+  });
+
+  test("a townhouse in the middle of the row: the shared sides start as Not painting with the bar reading Next side; tapping the toggle brings one back", async ({ page }) => {
+    test.setTimeout(150_000);
+    await toEachSide(page, "th", ["walls", "fascias"], "mid");
+    await page.getByTestId("ql-next").tap();
+    await at(page, "s-right");
+    await expect(page.getByTestId("wzm-sub")).toContainText("Usually a shared wall");
+    await expect(page.getByTestId("ext-side-np")).toHaveAttribute("aria-pressed", "true");
+    await expect(page.getByTestId("ext-side-parts")).toHaveCount(0);
+    await expect(page.getByTestId("ql-next")).toHaveText("Next side");
+    await expect(page.getByTestId("wzm-side-right")).toHaveAttribute("data-state", "np");
+    await page.getByTestId("ext-side-np").tap();
+    await expect(page.getByTestId("ext-side-np")).toHaveAttribute("aria-pressed", "false");
+    await expect(page.getByTestId("ext-sidepart-walls")).toHaveAttribute("aria-pressed", "true");
+    await expect(page.getByTestId("ql-next")).toHaveText("Looks right — next side");
+    await page.getByTestId("ext-side-np").tap();
+    await expect(page.getByTestId("ql-next")).toHaveText("Next side");
+    await page.getByTestId("ql-next").tap();
+    await at(page, "s-back");
+    await page.getByTestId("ql-next").tap();
+    await at(page, "s-left");
+    await expect(page.getByTestId("ext-side-np")).toHaveAttribute("aria-pressed", "true");
+    await expect(page.getByTestId("ql-next")).toHaveText("Continue");
+    await expect(page.getByTestId("wzm-ribbon-2")).toHaveText("Front ✓ · Right – · Back ✓ · Left –");
+    await page.getByTestId("ql-next").tap();
+    await at(page, "details");
+  });
+});

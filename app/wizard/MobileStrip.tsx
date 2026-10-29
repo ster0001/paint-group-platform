@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { EXTERIOR_SIDE_KEYS, type ExteriorSideKey } from "@/lib/wizard/exterior-typicals";
+import { MOBILE_SIDE_SHORT } from "@/lib/wizard/mobileScreens";
 import type { MobilePictureState, Ribbon } from "@/lib/wizard/mobilePicture";
 import MobilePicture from "./pictures/MobilePicture";
 import Elevation from "./pictures/Elevation";
@@ -23,6 +25,8 @@ export type StripElevation = {
   v2: ExteriorV2; rows: ReadonlyArray<ExteriorTypicalRow>; side: "front" | "right" | "back" | "left"; caption: string;
   /** S2: a tap on a part in the sheet's picture ticks it (the thumbnail sits in a button, so it is not tappable). */
   onPart?: (part: ExteriorPart) => void;
+  /** S4: on the side screens the sheet carries a compass that turns ITS copy of the house (the thumbnail stays on the screen's side). */
+  compass?: boolean;
 };
 
 export default function MobileStrip({ state, ribbon, chips, onToggle, elevation = null }: {
@@ -35,9 +39,14 @@ export default function MobileStrip({ state, ribbon, chips, onToggle, elevation 
   onToggle: (key: string) => void;
 }) {
   const [open, setOpen] = useState(false);
+  // the compass's own view, valid only for the screen's side it was turned from (a new side screen, or a reopened sheet, starts on the screen's side)
+  const [turned, setTurned] = useState<{ side: ExteriorSideKey; from: ExteriorSideKey } | null>(null);
+  const screenSide = elevation?.side ?? "front";
+  const viewSide = turned && turned.from === screenSide ? turned.side : null;
+  const close = () => { setOpen(false); setTurned(null); };
   useEffect(() => {
     if (!open) return;
-    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setOpen(false); };
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") close(); };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [open]);
@@ -51,13 +60,26 @@ export default function MobileStrip({ state, ribbon, chips, onToggle, elevation 
         <span className="chev" aria-hidden="true" data-testid="wzm-chev">›</span>
       </button>
       {open && (
-        <div className="wz-sheetback wzm-sheetback" role="dialog" aria-modal="true" aria-label="Your place" data-testid="wzm-sheet" onClick={(e) => { if (e.target === e.currentTarget) setOpen(false); }}>
+        <div className="wz-sheetback wzm-sheetback" role="dialog" aria-modal="true" aria-label="Your place" data-testid="wzm-sheet" onClick={(e) => { if (e.target === e.currentTarget) close(); }}>
           <div className="wz-sheet wzm-sheet">
-            <button type="button" className="wz-sheet-x" aria-label="Close" onClick={() => setOpen(false)} data-testid="wzm-sheet-x">×</button>
+            <button type="button" className="wz-sheet-x" aria-label="Close" onClick={close} data-testid="wzm-sheet-x">×</button>
             <div className="wzm-grab" aria-hidden="true" />
             <div className="wzm-bigpic" data-testid="wzm-bigpic">
-              {elevation ? <Elevation v2={elevation.v2} side={elevation.side} rows={elevation.rows} sweep onPart={elevation.onPart} /> : <MobilePicture state={state} testId="wzm-bigpic-pic" />}
+              {elevation ? <Elevation v2={elevation.v2} side={viewSide ?? elevation.side} rows={elevation.rows} sweep onPart={elevation.onPart} /> : <MobilePicture state={state} testId="wzm-bigpic-pic" />}
             </div>
+            {elevation?.compass && (
+              <div className="wzm-compass" data-testid="wzm-compass">
+                {EXTERIOR_SIDE_KEYS.map((k) => {
+                  const now = (viewSide ?? elevation.side) === k;
+                  const sd = elevation.v2.sides[k];
+                  return (
+                    <button key={k} type="button" aria-pressed={now} data-state={now ? "now" : sd && !sd.paint ? "np" : "off"} data-testid={`wzm-compass-${k}`} onClick={() => setTurned({ side: k, from: screenSide })}>
+                      {MOBILE_SIDE_SHORT[k]}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
             <p className="wzm-cap" data-testid="wzm-cap">
               {elevation ? `${elevation.caption}.${chips ? " Tap a part to paint it in or out." : ""}` : chips ? "Tap a surface to paint it in or out." : "Updates as you answer."}
             </p>
