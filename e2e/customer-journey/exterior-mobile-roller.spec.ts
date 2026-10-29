@@ -91,7 +91,8 @@ test("the sheet: the same house full width; a tap on a part there ticks the chip
   expect(await width(page, "wzm-bigpic", "walls"), "the sheet's copy shows the walls painted").toBe(400);
   await expect(page.getByTestId("wzm-cap")).toContainText("Tap a part to paint it in or out");
   // a tap on the fascias in the picture (the bungalow's front draws its fascias along the gable; its gutters are on the sides)
-  await big.locator(".e-fascias").first().tap();
+  // `force`: Playwright never saw the painted group as "stable" inside the sheet (C1, 29 Oct) though nothing moves — the tap still lands on the part
+  await big.locator(".e-fascias").first().tap({ force: true });
   await expect(big.locator(".e-fascias").first()).toHaveAttribute("data-on", "1");
   await expect.poll(() => width(page, "wzm-bigpic", "fascias"), { timeout: 3_000 }).toBe(400);
   // the sheet's chip for the doors
