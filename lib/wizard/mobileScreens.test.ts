@@ -58,13 +58,18 @@ describe("the progress bar (§2.1)", () => {
 });
 
 describe("the answers map onto the quick look (§2.6 — the data model is unchanged)", () => {
-  it("the whole interior ticks every surface; Doors, windows and trims pre-ticks skirtings, doors and windows only", () => {
+  it("the whole interior ticks the five surfaces; Doors, windows and trims pre-ticks skirtings, doors and windows (the architraves ride with the doors)", () => {
     const whole = q({ ...applyJobChoice("whole", ["Bed 1", "Bed 2", "Living room"]) });
-    expect(surfaceChips(whole).map((c) => `${c.key}:${c.on ? 1 : 0}`)).toEqual(["walls:1", "ceilings:1", "skirting:1", "doors:1", "windows:1", "architraves:1"]);
+    expect(surfaceChips(whole).map((c) => `${c.key}:${c.on ? 1 : 0}`)).toEqual(["walls:1", "ceilings:1", "skirting:1", "doors:1", "windows:1"]);
     expect(whole.rooms).toBeNull();
     const trims = q({ ...applyJobChoice("trims_doors", ["Bed 1", "Bed 2", "Living room"]) });
     expect(surfaceChips(trims).filter((c) => c.on).map((c) => c.key)).toEqual(["skirting", "doors", "windows"]);
+    expect(trims.excluded).toEqual([]);
     expect(surfacesTicked(trims)).toBe(3);
+    // unticking the doors takes the architraves with it, and ticking them back brings them back
+    const noDoors = q({ ...whole, ...toggleSurface(whole, "doors") });
+    expect(noDoors.excluded).toEqual(["doors", "architraves"]);
+    expect(q({ ...noDoors, ...toggleSurface(noDoors, "doors") }).excluded).toEqual([]);
   });
   it("Some rooms pre-ticks the first two rooms only (§2.3)", () => {
     const some = q({ ...applyJobChoice("some_rooms", ["Bed 1", "Bed 2", "Living room", "Kitchen / Meals"]) });
@@ -74,7 +79,7 @@ describe("the answers map onto the quick look (§2.6 — the data model is uncha
     const next = q({ ...applyJobChoice("whole", []), ...toggleSurface(q(), "ceilings") });
     expect(next.excluded).toEqual(["ceilings"]);
     expect(next.changing.ceilings).toBe(false);
-    expect(surfacesTicked(next)).toBe(5);
+    expect(surfacesTicked(next)).toBe(4);
     const back = q({ ...next, ...toggleSurface(next, "ceilings") });
     expect(back.excluded).toEqual([]);
   });

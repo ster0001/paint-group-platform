@@ -88,6 +88,8 @@ export default function MobileGate({ payload, quick, outside, brand, logo, estim
         <span className="wzm-logo">{logo}</span>
         <button type="button" className="wzm-contact" onClick={onContactOpen} data-testid="wzm-contact">Contact</button>
       </header>
+      {/* §2.1: the gate sits at 55%; the quote stage carries the bar on to 100%. */}
+      <div className="wzm-bar" role="progressbar" aria-label="Progress" aria-valuemin={0} aria-valuemax={100} aria-valuenow={55}><i style={{ width: "55%" }} data-testid="wzm-bar" /></div>
       <main className="wzm-main has-bar">
         {/* 1 · the range */}
         <section data-testid="gate-block-range">

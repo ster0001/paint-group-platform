@@ -55,10 +55,10 @@ describe("the ribbon (§2.2)", () => {
     const at = (id: string) => screens.findIndex((s) => s.id === id);
     expect(ribbonFor({ quick, outside: null, screens, index: 0, roomsTicked: 8 })).toEqual({ line1: "Your place", line2: "Updates as you answer · tap to see" });
     expect(ribbonFor({ quick, outside: null, screens, index: at("beds"), roomsTicked: 8 }).line1).toBe("Inside · House");
-    expect(ribbonFor({ quick, outside: null, screens, index: at("surfaces"), roomsTicked: 8 })).toEqual({ line1: "Inside · House · 3 bed · Two storeys · Whole interior", line2: "6 surfaces ticked · tap to see" });
+    expect(ribbonFor({ quick, outside: null, screens, index: at("surfaces"), roomsTicked: 8 })).toEqual({ line1: "Inside · House · 3 bed · Two storeys · Whole interior", line2: "5 surfaces ticked · tap to see" });
     const full = ribbonFor({ quick, outside: null, screens, index: at("details"), roomsTicked: 8 });
     expect(full.line1).toBe("Inside · House · 3 bed · Two storeys · Whole interior · 8 rooms · New colours · Some wear");
-    expect(ribbonFor({ quick: q({ ...quick, ...toggleSurface(quick, "walls") }), outside: null, screens, index: at("colours"), roomsTicked: 1 }).line2).toBe("5 surfaces ticked · tap to see");
+    expect(ribbonFor({ quick: q({ ...quick, ...toggleSurface(quick, "walls") }), outside: null, screens, index: at("colours"), roomsTicked: 1 }).line2).toBe("4 surfaces ticked · tap to see");
     expect(ribbonFor({ quick: q({ ...quick, bedrooms: 5 }), outside: null, screens, index: at("storeys"), roomsTicked: 1 }).line1).toBe("Inside · House · 5+ bed");
   });
   it("on an outside job the second line counts the parts once the painting screen is reached", () => {
