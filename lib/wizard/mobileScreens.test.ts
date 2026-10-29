@@ -243,5 +243,8 @@ describe("exterior on mobile v5 — the Each side step on a phone", () => {
   });
   it("the ribbon's side line: ✓ looked at, – not painting", () => {
     expect(sideStatusLine(house({ front: side(true, false, true), right: side(false, true), back: side(true), left: side(false, true) }))).toBe("Front ✓ · Right – · Back · Left –");
+    // S6: the walk-around's line reads the CHECKED sides
+    const walked = house({ front: { ...side(true, false, true), checked: true }, right: side(false, true), back: side(true, false, true), left: side(false, true) });
+    expect(sideStatusLine(walked, "checked")).toBe("Front ✓ · Right – · Back · Left –");
   });
 });
