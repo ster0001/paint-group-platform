@@ -2703,3 +2703,22 @@
 .wz .wzm-step .stp button { width: 44px; height: 44px; border-radius: 50%; border: 1.5px solid var(--line); background: var(--panel2); font-size: 22px; line-height: 1; color: var(--heading); font-family: inherit; cursor: pointer; }
 .wz .wzm-step .stp b { min-width: 48px; text-align: center; font-size: 18px; font-variant-numeric: tabular-nums; }
 .wz .wzm-steps .wzm-chips { margin-top: 4px; }
+
+/* ── EXTERIOR ON MOBILE v5 — S4: Each side, one screen a side (plan §2 9a–9d, §3): the side tabs, the Not painting switch, the sheet's compass. ── */
+.wz .wzm-sidetabs { display: flex; gap: 6px; margin: -6px 0 14px; }
+.wz .wzm-sidetabs span { flex: 1; text-align: center; font-size: 12px; font-weight: 600; padding: 6px 0; border-radius: 999px; border: 1px solid var(--line); color: var(--muted); background: var(--panel); }
+.wz .wzm-sidetabs span[data-state="now"] { background: var(--heading); color: #fff; border-color: var(--heading); }
+.wz .wzm-sidetabs span[data-state="done"] { color: var(--cyan); border-color: var(--cyan); }
+.wz .wzm-sidetabs span[data-state="np"] { text-decoration: line-through; opacity: .55; }
+.wz .wzm-qhead { font-size: 13px; font-weight: 600; color: var(--muted); margin: 16px 0 8px; }
+.wz .wzm-chip.add { border-style: dashed; color: var(--muted); }
+.wz .wzm-addchips { margin-top: 10px; padding: 10px; border-radius: 14px; background: var(--panel2); }
+.wz .wzm-np { display: flex; align-items: center; justify-content: space-between; width: 100%; margin-top: 18px; padding: 14px 16px; border: 1.5px solid var(--line); border-radius: 16px; background: var(--panel); font: inherit; font-size: 15px; font-weight: 600; color: var(--heading); cursor: pointer; }
+.wz .wzm-np i { width: 44px; height: 26px; border-radius: 999px; background: var(--line); position: relative; transition: background .15s; }
+.wz .wzm-np i::after { content: ""; position: absolute; top: 3px; left: 3px; width: 20px; height: 20px; border-radius: 50%; background: #fff; transition: transform .15s; }
+.wz .wzm-np.on i { background: var(--cyan); }
+.wz .wzm-np.on i::after { transform: translateX(18px); }
+.wz .wzm-compass { display: flex; gap: 6px; margin-top: 10px; }
+.wz .wzm-compass button { flex: 1; font: inherit; font-size: 12px; font-weight: 600; padding: 7px 0; border-radius: 999px; border: 1px solid var(--line); background: var(--panel); color: var(--muted); cursor: pointer; }
+.wz .wzm-compass button[data-state="now"] { background: var(--heading); color: #fff; border-color: var(--heading); }
+.wz .wzm-compass button[data-state="np"] { text-decoration: line-through; opacity: .55; }

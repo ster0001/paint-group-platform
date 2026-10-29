@@ -1,7 +1,7 @@
 import type { QuickLook } from "./quick-look";
 import type { ExteriorQuickLook } from "./exterior-quick-look";
 import type { ExteriorPart, ExteriorV2 } from "./state";
-import { colourChoiceOf, paintParts, surfaceChips, surfacesTicked, type ColourChoice, type MobileScreen } from "./mobileScreens";
+import { colourChoiceOf, paintParts, sideStatusLine, surfaceChips, surfacesTicked, type ColourChoice, type MobileScreen } from "./mobileScreens";
 import { PART_LABEL } from "./exterior-model";
 import { scaledLengths, typicalFor, type ExteriorTypicalRow, type SizeBand } from "./exterior-typicals";
 
@@ -151,6 +151,8 @@ export function ribbonFor(i: {
   const line1 = parts.length ? parts.join(" · ") : "Your place";
   const surfacesAt = screens.findIndex((s) => s.id === "surfaces");
   if (quick.jobType === "exterior") {
+    // S4 (plan §3): on the side screens the second line is the sides' state
+    if (v2 && screens[index]?.step === "sides") return { line1, line2: sideStatusLine(v2) };
     const n = i.outside?.v2?.parts.length ?? 0;
     const paintAt = screens.findIndex((s) => s.step === "paint");
     return { line1, line2: paintAt >= 0 && index >= paintAt ? `${n} part${n === 1 ? "" : "s"} ticked · tap to see` : "Updates as you answer · tap to see" };

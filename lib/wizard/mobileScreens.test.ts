@@ -4,8 +4,8 @@ import {
   applyColourChoice, applyJobChoice, colourChoiceOf, detailsReady, mobileProgress, mobileScreensFor,
   roomChips, surfaceChips, surfacesTicked, toggleListedRoom, toggleSurface,
 } from "./mobileScreens";
-import type { ExteriorV2 } from "./state";
-import { extraSizeRows, extraSizesWithDefaults, paintParts, paintScreenParts } from "./mobileScreens";
+import type { ExteriorV2, ExteriorV2Side } from "./state";
+import { extraSizeRows, extraSizesWithDefaults, paintParts, paintScreenParts, sideOfScreen, sideStatusLine } from "./mobileScreens";
 
 const q = (over: Partial<QuickLook> = {}): QuickLook => ({ ...DEFAULT_QUICK_LOOK, ...over });
 const ids = (quick: QuickLook, gate = true) => mobileScreensFor(stepsFor(quick.jobType, quick.propertyKind, "areas", "range", quick.scope, gate), quick).map((s) => s.id);
@@ -30,7 +30,8 @@ describe("the phone's screens (wizard mobile v5 §2)", () => {
     expect(list.slice(2, 4)).toEqual(["shape", "size"]);
     expect(list.slice(4, 8)).toEqual(["p-house", "p-win", "p-ver", "p-around"]);
     // S3: the about step is its screens too (nothing ticked → the colours and the access); the sides step follows as it is
-    expect(list.slice(8, 11)).toEqual(["a-colours", "a-access", "sides"]);
+    // S4: the sides step is four screens of its own too
+    expect(list.slice(8, 14)).toEqual(["a-colours", "a-access", "s-front", "s-right", "s-back", "s-left"]);
   });
   it("every screen knows its step, and the rooms heading changes for Some rooms", () => {
     const list = mobileScreensFor(stepsFor("interior", "house", "areas", "range", "some_rooms", true), q({ scope: "some_rooms" }));
@@ -48,9 +49,10 @@ describe("the phone's screens (wizard mobile v5 §2)", () => {
     expect(ids(q(), false)).not.toContain("details");
   });
   it("a step the phone does not split is one screen with a bar, under its own name", () => {
-    const list = mobileScreensFor(stepsFor("exterior", "house", "areas", "range", "whole", true), q({ jobType: "exterior" }));
-    const sides = list.find((s) => s.id === "sides");
-    expect(sides).toMatchObject({ step: "sides", advance: "bar", heading: null });
+    // every exterior step has its own screens now (S1–S4); a commercial place's screens are still rendered as they are
+    const list = mobileScreensFor(stepsFor("interior", "commercial", "areas", "range", "whole", true), q({ propertyKind: "commercial" }));
+    const areas = list.find((s) => s.id === "com_areas");
+    expect(areas).toMatchObject({ step: "com_areas", advance: "bar", heading: null });
   });
 });
 
@@ -144,7 +146,7 @@ describe("exterior on mobile v5 — the Your home step on a phone", () => {
     const home = screens.filter((s) => s.step === "home");
     expect(home.map((s) => s.id)).toEqual(["shape", "size"]);
     expect(home.every((s) => s.advance === "auto" && s.stage === "Your home" && s.heading)).toBe(true);
-    expect(screens.map((s) => s.id)).toEqual(["what", "property", "shape", "size", "p-house", "p-win", "p-ver", "p-around", "a-colours", "a-access", "sides", "details"]);
+    expect(screens.map((s) => s.id)).toEqual(["what", "property", "shape", "size", "p-house", "p-win", "p-ver", "p-around", "a-colours", "a-access", "s-front", "s-right", "s-back", "s-left", "details"]);
   });
   it("a shape that usually shares a wall adds Where is it in the row?; a bungalow does not", () => {
     const ids = (v2: ExteriorV2) => mobileScreensFor(steps, quick, { v2 }).filter((s) => s.step === "home").map((s) => s.id);
@@ -216,5 +218,30 @@ describe("exterior on mobile v5 — the About it step on a phone", () => {
     expect(extraSizesWithDefaults(v2)).toEqual({ fence: 20, deck: 20, wall: 10, pergola_l: 4, pergola_w: 3 });
     expect(extraSizesWithDefaults({ ...v2, extraSizes: { fence: 12, deck: 20, wall: 10, pergola_l: 4, pergola_w: 3 } })).toBeNull();
     expect(extraSizeRows(house("cal", { extras: ["shed"] }))).toEqual([]);
+  });
+});
+
+/** Exterior on mobile v5, session 4 (plan §2 screens 9a–9d): one screen per side. */
+describe("exterior on mobile v5 — the Each side step on a phone", () => {
+  const quick = q({ jobType: "exterior" });
+  const steps = stepsFor("exterior", "house", "areas", "range", "whole", true);
+  const side = (paint: boolean, shared = false, confirmed = false): ExteriorV2Side =>
+    ({ paint, shared, w: 10, h: 2.7, adjusted: false, off: [], add: [], material: null, materialUp: null, confirmed, checked: false, windows: 2, doors: 1, cond: null, size: null } as ExteriorV2Side);
+  const house = (sides: ExteriorV2["sides"]): ExteriorV2 => ({
+    propertyType: "th", sizeBand: "md", rowPosition: "mid", wall: { down: null, up: null, brickPainted: null, timberPainted: null }, gableFill: null, windowType: "unsure",
+    garageCars: null, postKind: null, parts: ["walls"], extras: [], extraSizes: {}, extraWallMaterial: null, sides,
+  } as ExteriorV2);
+  it("four screens with a bar under the Each side stage; a shared side not painting says so", () => {
+    const list = mobileScreensFor(steps, quick, { v2: house({ front: side(true), right: side(false, true), back: side(true), left: side(false, true) }) }).filter((s) => s.step === "sides");
+    expect(list.map((s) => s.id)).toEqual(["s-front", "s-right", "s-back", "s-left"]);
+    expect(list.map((s) => s.heading)).toEqual(["Front", "Right side", "Back", "Left side"]);
+    expect(list.every((s) => s.advance === "bar" && s.stage === "Each side")).toBe(true);
+    expect(list[0].sub).toMatch(/Untick what isn't on this side/);
+    expect(list[1].sub).toMatch(/Usually a shared wall/);
+    expect(sideOfScreen("s-back")).toBe("back");
+    expect(sideOfScreen("a-walls")).toBeNull();
+  });
+  it("the ribbon's side line: ✓ looked at, – not painting", () => {
+    expect(sideStatusLine(house({ front: side(true, false, true), right: side(false, true), back: side(true), left: side(false, true) }))).toBe("Front ✓ · Right – · Back · Left –");
   });
 });

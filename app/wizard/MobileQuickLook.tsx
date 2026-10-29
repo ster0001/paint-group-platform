@@ -5,15 +5,18 @@ import { CONDITION_BANDS, OCCUPIED, type QuickLook, type QuickLookStep, type Sco
 import {
   COLOUR_CHOICES, EXTRA_ROOMS, JOB_CHOICES, MOBILE_SCREEN_KEY, applyColourChoice, applyJobChoice, colourChoiceOf, detailsReady,
   mobileProgress, mobileScreensFor, paintScreenParts, roomChips, roomsTicked, surfaceChips, toggleListedRoom, toggleSurface, AROUND_EXTRAS,
-  extraSizeRows, extraSizesWithDefaults, type MobileScreen, type PaintScreenId,
+  extraSizeRows, extraSizesWithDefaults, sideOfScreen, MOBILE_SIDE_SHORT, type MobileScreen, type PaintScreenId,
 } from "@/lib/wizard/mobileScreens";
 import { EXT_ACCESS, EXT_COLOURS, EXT_WINDOW_TYPES, toggleAccess } from "@/lib/wizard/exterior-quick-look";
-import { WALL_MATERIALS, type WallMaterial } from "@/lib/wizard/exterior-typicals";
+import { EXTERIOR_SIDE_KEYS, WALL_MATERIALS, typicalFor as typicalOf, type ExteriorSideKey, type WallMaterial } from "@/lib/wizard/exterior-typicals";
 import { GABLE_FILL, POST_KIND, WALL_MATERIAL_LABEL } from "./ExteriorAbout";
 import { WINDOW_DRAWINGS } from "@/app/estimate/scope/StyleTiles";
 import { jobTypesFor, propertyKindsFor, type WizardBrand } from "@/lib/wizard/brand";
 import type { ExteriorQuickLook } from "@/lib/wizard/exterior-quick-look";
-import { EXTRA_LABEL, PART_LABEL, exteriorV2Answered, toggleExtra, togglePart } from "@/lib/wizard/exterior-model";
+import {
+  EXTRA_LABEL, PART_LABEL, confirmSide, exteriorV2Answered, paintedSides, partsOnSide, setSideMaterial, setSidePaint, sideAddableParts, sideListParts, sideMaterial,
+  toggleExtra, togglePart, toggleSidePart,
+} from "@/lib/wizard/exterior-model";
 import type { InteriorExcludable } from "@/lib/wizard/quick-look";
 import { elevationCaption, outsideSheetChips, pictureStateFor, ribbonFor } from "@/lib/wizard/mobilePicture";
 import MobileStrip, { type StripChip } from "./MobileStrip";
@@ -179,7 +182,20 @@ export default function MobileQuickLook({
     // S2 (plan §2 5d): Continue needs at least one part or extra overall by the last Painting screen (the step's own rule)
     : current.id === "p-around" ? Boolean(outside.v2 && exteriorV2Answered(outside.v2))
     : true;
-  const barLabel = current.id === "details" ? "Show my range" : step === "com_book" ? "Book it" : "Continue";
+  // S4 (plan §2 screen 9): the side screens' bar — "Looks right — next side" on a painted side, "Next side" on one not painting; the
+  // last side reads "Looks right" (or Continue when it is not painting). Looking at a side checks it (the effect below).
+  const sideAt = sideOfScreen(current.id);
+  const sidePainted = sideAt != null && Boolean(outside.v2?.sides[sideAt]?.paint);
+  const barLabel = current.id === "details" ? "Show my range" : step === "com_book" ? "Book it"
+    : sideAt ? (last ? (sidePainted ? "Looks right" : "Continue") : (sidePainted ? "Looks right — next side" : "Next side"))
+    : "Continue";
+  useEffect(() => {
+    if (!sideAt || !outside.v2) return;
+    const sd = outside.v2.sides[sideAt];
+    if (sd?.paint && !sd.confirmed) onOutside({ v2: confirmSide(outside.v2, sideAt) });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- when the side shown changes, or its tick / paint state
+  }, [sideAt, outside.v2?.sides[sideAt ?? "front"]?.paint, outside.v2?.sides[sideAt ?? "front"]?.confirmed]);
+  const [addOpenFor, setAddOpenFor] = useState<string | null>(null);
   // S3 (brief §3): one picture state for the strip and the sheet; the ribbon from the answers so far.
   const surfacesAt = screens.findIndex((s) => s.id === "surfaces");
   const surfacesReached = surfacesAt >= 0 && index >= surfacesAt;
@@ -197,21 +213,32 @@ export default function MobileQuickLook({
     onOutside({ v2: togglePart(outside.v2, p) });
     sendWizardEvent("surface_toggled", { surface: p, on: !wasOn });
   };
-  const outsideChips = quick.jobType === "exterior" && outside.v2 ? outsideSheetChips(outside.v2) : null;
+  // S4: on a side screen the sheet's chips are THIS SIDE's parts (the whole-house ones that land here, on or taken off, plus the ones added here).
+  const sideTypical = outside.v2 ? typicalOf(outside.v2.propertyType, exteriorTypicals) : null;
+  const outsideChips = quick.jobType === "exterior" && outside.v2
+    ? (sideAt && sideTypical
+      ? (() => { const on = new Set(partsOnSide(outside.v2, sideAt, sideTypical)); return sideListParts(outside.v2, sideAt, sideTypical).map((part) => ({ key: part, label: PART_LABEL[part], part, on: on.has(part) })); })()
+      : outsideSheetChips(outside.v2))
+    : null;
+  const toggleSideChip = (p: ExteriorPart) => {
+    if (!outside.v2 || !sideAt || !sideTypical) return;
+    onOutside({ v2: toggleSidePart(outside.v2, sideAt, p, sideTypical) });
+    sendWizardEvent("surface_toggled", { surface: p, on: !partsOnSide(outside.v2, sideAt, sideTypical).includes(p) });
+  };
   const sheetChips: StripChip[] | null = quick.jobType === "exterior"
     ? outsideChips
     : surfacesReached ? surfaceChips(quick).map((c) => ({ key: c.key, label: c.label, on: c.on })) : null;
   const toggleSheetChip = (key: string) => {
     if (quick.jobType === "exterior") {
       const chip = outsideChips?.find((c) => c.key === key);
-      if (chip) togglePaintPart(chip.part);
+      if (chip) { if (sideAt) toggleSideChip(chip.part); else togglePaintPart(chip.part); }
       return;
     }
     toggleInside(key as InteriorExcludable);
   };
   // Exterior on mobile v5 (plan §3): from the first shape the strip's thumbnail is the DRAWN HOUSE, the front, drawn again in the sheet.
   const elevation = quick.jobType === "exterior" && outside.v2
-    ? { v2: outside.v2, rows: exteriorTypicals, side: "front" as const, caption: elevationCaption(outside.v2, exteriorTypicals), onPart: togglePaintPart }
+    ? { v2: outside.v2, rows: exteriorTypicals, side: sideAt ?? ("front" as const), caption: elevationCaption(outside.v2, exteriorTypicals), onPart: sideAt ? toggleSideChip : togglePaintPart, compass: sideAt != null }
     : null;
   const showBar = current.advance === "bar";
   const pct = mobileProgress(index, screens.length);
@@ -493,6 +520,13 @@ export default function MobileQuickLook({
             </div>
           )}
 
+          {/* Exterior on mobile v5, session 4 (plan §2 screens 9a–9d): one screen per side; the answers are the brief's per-side
+              `off` / `add` / `material` / `paint` through the desktop step's own helpers. */}
+          {sideAt && outside.v2 && sideTypical && (
+            <SideScreen v2={outside.v2} side={sideAt} t={sideTypical} onChange={(v2) => onOutside({ v2 })} onToggle={toggleSideChip}
+              addOpen={addOpenFor === sideAt} onAddOpen={(o) => setAddOpenFor(o ? sideAt : null)} />
+          )}
+
           {current.id === "details" && contact && (
             <>
               {/* Tom, 28 Oct 2026 (D17): the full name — first and last — never a first name alone. */}
@@ -642,5 +676,73 @@ function ExtraSizes({ v2, onChange }: { v2: ExteriorV2; onChange: (v2: ExteriorV
         </div>
       )}
     </div>
+  );
+}
+
+/** Exterior on mobile v5 (S4), screens 9a–9d: the side tabs, this side's parts, "+ Add something", its walls, and Not painting. */
+function SideScreen({ v2, side, t, onChange, onToggle, addOpen, onAddOpen }: {
+  v2: ExteriorV2; side: ExteriorSideKey; t: ReturnType<typeof typicalOf>; onChange: (v2: ExteriorV2) => void; onToggle: (p: ExteriorPart) => void;
+  addOpen: boolean; onAddOpen: (open: boolean) => void;
+}) {
+  const sd = v2.sides[side];
+  const on = new Set(partsOnSide(v2, side, t));
+  const listed = sideListParts(v2, side, t);
+  const addable = sideAddableParts(v2, side, t);
+  const two = t.storeys === 2;
+  const painted = Boolean(sd?.paint);
+  const state = (k: ExteriorSideKey) => (k === side ? "now" : v2.sides[k] && !v2.sides[k]!.paint ? "np" : v2.sides[k]?.confirmed ? "done" : "todo");
+  return (
+    <>
+      <div className="wzm-sidetabs" data-testid="wzm-sidetabs" aria-hidden="true">
+        {EXTERIOR_SIDE_KEYS.map((k) => <span key={k} data-state={state(k)} data-testid={`wzm-side-${k}`}>{MOBILE_SIDE_SHORT[k]}</span>)}
+      </div>
+      {painted && (
+        <>
+          <div className="wzm-chips" data-testid="ext-side-parts">
+            {listed.map((p) => (
+              <button key={p} type="button" className={`wzm-chip ${on.has(p) ? "on" : ""}`} aria-pressed={on.has(p)} data-testid={`ext-sidepart-${p}`} onClick={() => onToggle(p)}>{PART_LABEL[p]}</button>
+            ))}
+            <button type="button" className="wzm-chip add" data-testid="ext-side-add-open" aria-expanded={addOpen} onClick={() => onAddOpen(!addOpen)}>{addOpen ? "Done adding" : "+ Add something"}</button>
+          </div>
+          {addOpen && (
+            <div className="wzm-chips wzm-addchips" data-testid="ext-side-add">
+              {addable.map((p) => (
+                <button key={p} type="button" className="wzm-chip" aria-pressed={false} data-testid={`ext-side-addpart-${p}`} onClick={() => { onToggle(p); onAddOpen(false); }}>{PART_LABEL[p]}</button>
+              ))}
+              {addable.length === 0 && <span className="wzm-note">Everything is already on this side.</span>}
+            </div>
+          )}
+          {on.has("walls") && (
+            <>
+              <p className="wzm-qhead">{two ? "Downstairs walls on this side" : "Walls on this side"}</p>
+              <div className="wzm-chips" data-testid="ext-side-mat">
+                {WALL_MATERIALS.map((m) => {
+                  const cur = sideMaterial(v2, side, t) === m;
+                  return <button key={m} type="button" className={`wzm-chip ${cur ? "on" : ""}`} aria-pressed={cur} data-testid={`ext-side-mat-${m}`}
+                    onClick={() => onChange(setSideMaterial(v2, side, m === (v2.wall.down ?? t.usualWalls) ? null : m))}>{WALL_MATERIAL_LABEL[m]}</button>;
+                })}
+              </div>
+              {two && (
+                <>
+                  <p className="wzm-qhead">Upstairs walls on this side</p>
+                  <div className="wzm-chips" data-testid="ext-side-matup">
+                    {WALL_MATERIALS.map((m) => {
+                      const cur = sideMaterial(v2, side, t, "up") === m;
+                      const houseUp = v2.wall.up ?? v2.wall.down ?? t.usualWalls;
+                      return <button key={m} type="button" className={`wzm-chip ${cur ? "on" : ""}`} aria-pressed={cur} data-testid={`ext-side-matup-${m}`}
+                        onClick={() => onChange(setSideMaterial(v2, side, m === houseUp ? null : m, "up"))}>{WALL_MATERIAL_LABEL[m]}</button>;
+                    })}
+                  </div>
+                </>
+              )}
+            </>
+          )}
+        </>
+      )}
+      <button type="button" className={`wzm-np ${painted ? "" : "on"}`} aria-pressed={!painted} data-testid="ext-side-np" onClick={() => onChange(setSidePaint(v2, side, !painted))}>
+        <span>Not painting this side</span><i aria-hidden="true" />
+      </button>
+      {!painted && paintedSides(v2).length === 0 && <p className="wzm-note" data-testid="ext-sides-none">Every side is off — add at least one back.</p>}
+    </>
   );
 }
