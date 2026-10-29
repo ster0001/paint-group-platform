@@ -53,8 +53,13 @@ test.describe("Wizard mobile v5 — the phone, end to end on both shopfronts (se
     const sug = await hero.locator(".fieldwrap .suggest").evaluate((el) => ({ position: getComputedStyle(el).position, z: getComputedStyle(el).zIndex }));
     expect(sug.position, "the suggestions overlay (absolute), never pushing the chips").toBe("absolute");
     expect(Number(sug.z)).toBeGreaterThan(0);
-    const w = await page.evaluate(() => document.documentElement.scrollWidth);
-    expect(w, "nothing wider than the phone").toBeLessThanOrEqual(390);
+    // on a miss, say WHAT is wider (the C1 run of 29 Oct reported 391 and nothing else)
+    const w = await page.evaluate(() => ({
+      sw: document.documentElement.scrollWidth,
+      wide: Array.from(document.querySelectorAll("body *")).map((el) => ({ el, r: el.getBoundingClientRect() })).filter((x) => x.r.right > 390.01 && x.r.width > 0).slice(0, 8)
+        .map((x) => `${x.el.tagName.toLowerCase()}.${x.el.getAttribute("class") ?? ""}#${x.el.id} right=${x.r.right.toFixed(1)} w=${x.r.width.toFixed(1)}`),
+    }));
+    expect(w.sw, `nothing wider than the phone: ${w.wide.join(" | ")}`).toBeLessThanOrEqual(390);
   };
   const fromHero = async (page: Page, root: string, scope: "Inside" | "Outside" | null) => {
     await page.goto(root);
