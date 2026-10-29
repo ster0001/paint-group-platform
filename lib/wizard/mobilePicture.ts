@@ -1,7 +1,8 @@
 import type { QuickLook } from "./quick-look";
 import type { ExteriorQuickLook } from "./exterior-quick-look";
 import type { ExteriorPart, ExteriorV2 } from "./state";
-import { colourChoiceOf, surfaceChips, surfacesTicked, type ColourChoice, type MobileScreen } from "./mobileScreens";
+import { colourChoiceOf, paintParts, surfaceChips, surfacesTicked, type ColourChoice, type MobileScreen } from "./mobileScreens";
+import { PART_LABEL } from "./exterior-model";
 import { scaledLengths, typicalFor, type ExteriorTypicalRow, type SizeBand } from "./exterior-typicals";
 
 /**
@@ -88,11 +89,15 @@ export function pictureStateFor(quick: QuickLook, outside: ExteriorQuickLook | n
   return { kind: "room", property, two: quick.storeys === "double", colour: colourChoiceOf(quick), condition: quick.condition, painted };
 }
 
-/** The sheet's chips on an outside job: one per picture surface, ticked when any of its parts is. */
-export function outsideSheetChips(v2: ExteriorV2 | null | undefined, property: PictureProperty): Array<{ key: (typeof OUTSIDE_PICTURE_SURFACES)[number]; label: string; part: ExteriorPart; on: boolean }> {
-  return OUTSIDE_PICTURE_SURFACES
-    .filter((k) => k !== "verandah" || property === "house")
-    .map((key) => ({ key, label: OUTSIDE_SURFACE_LABEL[key], part: OUTSIDE_SURFACE_PARTS[key][0], on: Boolean(v2 && OUTSIDE_SURFACE_PARTS[key].some((p) => v2.parts.includes(p))) }));
+/**
+ * The sheet's chips on an outside job — exterior on mobile v5 (S2): one per
+ * PART the Painting screens offer, in their order, each toggling itself
+ * (the drawn house lights it; one control, two places). Before a shape there
+ * is nothing to tick.
+ */
+export function outsideSheetChips(v2: ExteriorV2 | null | undefined): Array<{ key: ExteriorPart; label: string; part: ExteriorPart; on: boolean }> {
+  if (!v2) return [];
+  return paintParts(v2).map((part) => ({ key: part, label: PART_LABEL[part], part, on: v2.parts.includes(part) }));
 }
 
 const PROPERTY_WORD: Record<QuickLook["propertyKind"], string> = { house: "House", townhouse: "Townhouse", unit_apartment: "Unit or apartment", commercial: "Commercial" };
@@ -147,7 +152,7 @@ export function ribbonFor(i: {
   const surfacesAt = screens.findIndex((s) => s.id === "surfaces");
   if (quick.jobType === "exterior") {
     const n = i.outside?.v2?.parts.length ?? 0;
-    const paintAt = screens.findIndex((s) => s.id === "paint");
+    const paintAt = screens.findIndex((s) => s.step === "paint");
     return { line1, line2: paintAt >= 0 && index >= paintAt ? `${n} part${n === 1 ? "" : "s"} ticked · tap to see` : "Updates as you answer · tap to see" };
   }
   if (surfacesAt >= 0 && index >= surfacesAt) {

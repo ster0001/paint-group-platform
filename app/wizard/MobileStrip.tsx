@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import type { MobilePictureState, Ribbon } from "@/lib/wizard/mobilePicture";
 import MobilePicture from "./pictures/MobilePicture";
 import Elevation from "./pictures/Elevation";
-import type { ExteriorV2 } from "@/lib/wizard/state";
+import type { ExteriorPart, ExteriorV2 } from "@/lib/wizard/state";
 import type { ExteriorTypicalRow } from "@/lib/wizard/exterior-typicals";
 
 /**
@@ -19,7 +19,11 @@ import type { ExteriorTypicalRow } from "@/lib/wizard/exterior-typicals";
 export type StripChip = { key: string; label: string; on: boolean };
 
 /** Exterior on mobile v5 (plan §3): the drawn house — the thumbnail IS `Elevation`, drawn again full width in the sheet. */
-export type StripElevation = { v2: ExteriorV2; rows: ReadonlyArray<ExteriorTypicalRow>; side: "front" | "right" | "back" | "left"; caption: string };
+export type StripElevation = {
+  v2: ExteriorV2; rows: ReadonlyArray<ExteriorTypicalRow>; side: "front" | "right" | "back" | "left"; caption: string;
+  /** S2: a tap on a part in the sheet's picture ticks it (the thumbnail sits in a button, so it is not tappable). */
+  onPart?: (part: ExteriorPart) => void;
+};
 
 export default function MobileStrip({ state, ribbon, chips, onToggle, elevation = null }: {
   state: MobilePictureState;
@@ -41,7 +45,7 @@ export default function MobileStrip({ state, ribbon, chips, onToggle, elevation 
     <>
       <button type="button" className="wzm-strip" data-testid="wzm-strip" onClick={() => setOpen(true)} aria-label={`${ribbon.line1}. ${ribbon.line2}`}>
         <span className="thumb" data-testid="wzm-thumb">
-          {elevation ? <Elevation v2={elevation.v2} side={elevation.side} rows={elevation.rows} /> : <MobilePicture state={state} testId="wzm-pic" />}
+          {elevation ? <Elevation v2={elevation.v2} side={elevation.side} rows={elevation.rows} sweep /> : <MobilePicture state={state} testId="wzm-pic" />}
         </span>
         <span className="txt"><b data-testid="wzm-ribbon-1">{ribbon.line1}</b><span data-testid="wzm-ribbon-2">{ribbon.line2}</span></span>
         <span className="chev" aria-hidden="true" data-testid="wzm-chev">›</span>
@@ -52,7 +56,7 @@ export default function MobileStrip({ state, ribbon, chips, onToggle, elevation 
             <button type="button" className="wz-sheet-x" aria-label="Close" onClick={() => setOpen(false)} data-testid="wzm-sheet-x">×</button>
             <div className="wzm-grab" aria-hidden="true" />
             <div className="wzm-bigpic" data-testid="wzm-bigpic">
-              {elevation ? <Elevation v2={elevation.v2} side={elevation.side} rows={elevation.rows} /> : <MobilePicture state={state} testId="wzm-bigpic-pic" />}
+              {elevation ? <Elevation v2={elevation.v2} side={elevation.side} rows={elevation.rows} sweep onPart={elevation.onPart} /> : <MobilePicture state={state} testId="wzm-bigpic-pic" />}
             </div>
             <p className="wzm-cap" data-testid="wzm-cap">
               {elevation ? `${elevation.caption}.${chips ? " Tap a part to paint it in or out." : ""}` : chips ? "Tap a surface to paint it in or out." : "Updates as you answer."}

@@ -1,4 +1,5 @@
-import { useMemo, type CSSProperties, type MouseEvent } from "react";
+import { useId, useLayoutEffect, useMemo, useRef, type CSSProperties, type MouseEvent } from "react";
+import { useRollerSweep } from "./rollerSweep";
 import { EXTERIOR_PARTS, type ExteriorPart, type ExteriorV2 } from "@/lib/wizard/state";
 import {
   EXTERIOR_SIDE_KEYS, typicalFor, type ExteriorShapeKey, type ExteriorSideKey, type ExteriorTypical, type ExteriorTypicalRow, type WallMaterial,
@@ -59,7 +60,33 @@ export type ElevationOptions = {
   /** The part just tapped — outlined for a moment. */
   highlight?: string | null;
   rows?: ReadonlyArray<ExteriorTypicalRow>;
+  /**
+   * Exterior on mobile v5 (S2) — THE ROLLER ON THE DRAWN HOUSE: every part is
+   * two layers, its grey base and its painted copy clipped by a `rect.cprect`
+   * the sweep (rollerSweep.ts) drives, plus a roller glyph; the value is the
+   * clip-path id prefix (unique per rendered copy). The markup then carries
+   * no on/off state at all — the component applies `data-on` and the clip
+   * widths — so a tick never rebuilds it.
+   */
+  sweep?: string;
+  /** Internal (sweep): draw every part as if on (the painted layer) or off (the base). */
+  forceOn?: boolean;
 };
+
+/** The sweep's roller glyph, at the leading edge of a painted layer. */
+const ROLLER = `<g class="roller"><rect x="-8" y="-4" width="16" height="8" rx="2" fill="#0e7f8a"/><rect x="7" y="-1.5" width="9" height="3" fill="#6b7580"/></g>`;
+const SENTINEL = /<!--p:([a-z]+)-->([\s\S]*?)<!--\/p:\1-->/g;
+
+/** Sweep mode: the base (all off) with each part's painted copy (all on) laid over it, clipped — in place, so the drawing order is the base's. */
+function layerForSweep(base: string, painted: string, prefix: string): string {
+  const ons = Array.from(painted.matchAll(SENTINEL)).map((m) => m[2]);
+  let i = 0;
+  return base.replace(SENTINEL, (_m, k: string, innerBase: string) => {
+    const innerOn = ons[i] ?? innerBase;
+    const id = `cp-${prefix}-${k}-${i++}`;
+    return `<g class="base">${innerBase}</g><clipPath id="${id}"><rect class="cprect" x="0" y="0" height="240"/></clipPath><g class="paint" clip-path="url(#${id})">${innerOn}</g>${ROLLER}`;
+  });
+}
 
 function windowGlyph(x: number, y: number, w: number, h: number, on: boolean, type: ExteriorV2["windowType"]): string {
   const frame = on ? (type === "alu" ? C.line : ON.windows) : "#C9D2D8";
@@ -75,14 +102,22 @@ function windowGlyph(x: number, y: number, w: number, h: number, on: boolean, ty
 
 /** The inner markup of one elevation (400 × 240). */
 export function elevationMarkup(v2: ExteriorV2, side: ExteriorSideKey, opts: ElevationOptions = {}): string {
+  if (opts.sweep) return layerForSweep(buildElevation(v2, side, { ...opts, forceOn: false }), buildElevation(v2, side, { ...opts, forceOn: true }), opts.sweep);
+  return buildElevation(v2, side, opts);
+}
+
+function buildElevation(v2: ExteriorV2, side: ExteriorSideKey, opts: ElevationOptions): string {
   const t = typicalFor(v2.propertyType, opts.rows ?? []);
   const sd = v2.sides[side];
   const w = sd?.w ?? t.frontM, h = sd?.h ?? t.wallHM;
   const notPainting = sd ? !sd.paint : false;
   const on = new Set(partsOnSide(v2, side, t));
-  const partOn = (k: string) => on.has(k as never);
+  const partOn = (k: string) => opts.forceOn ?? on.has(k as never);
   const has = (k: string) => partExists(v2, side, k as never, t);
-  const g = (k: string, inner: string) => `<g class="e e-${k} ${partOn(k) ? "on" : ""} ${opts.highlight === k ? "hl" : ""}" data-e="${k}" data-on="${partOn(k) ? 1 : 0}">${inner}</g>`;
+  // sweep mode: no state in the markup — the sentinels let layerForSweep pair each part's base with its painted copy
+  const g = (k: string, inner: string) => opts.sweep
+    ? `<g class="e e-${k}" data-e="${k}" data-surf="${k}"><!--p:${k}-->${inner}<!--/p:${k}--></g>`
+    : `<g class="e e-${k} ${partOn(k) ? "on" : ""} ${opts.highlight === k ? "hl" : ""}" data-e="${k}" data-on="${partOn(k) ? 1 : 0}">${inner}</g>`;
   const long = side === "left" || side === "right";
   const fullGable = t.roof === "gable" && !long;
   const terraceFront = t.roof === "parapet" && !long;
@@ -313,15 +348,40 @@ export function elevationMarkup(v2: ExteriorV2, side: ExteriorSideKey, opts: Ele
 }
 
 /** One elevation of the drawn house, as the picture card draws it. */
-export default function Elevation({ v2, side, build = true, highlight = null, rows = [], style, onPart }: {
+export default function Elevation({ v2, side, build = true, highlight = null, rows = [], style, onPart, sweep = false }: {
   v2: ExteriorV2; side: ExteriorSideKey; build?: boolean; highlight?: string | null; rows?: ReadonlyArray<ExteriorTypicalRow>; style?: CSSProperties;
   /** Acceptance 9: tapping a part on the picture ticks the same chip. */
   onPart?: (part: ExteriorPart) => void;
+  /** Exterior on mobile v5 (S2): the roller sweep on every part tick (the strip's thumbnail and sheet). */
+  sweep?: boolean;
 }) {
   const notPainting = v2.sides[side] ? !v2.sides[side]!.paint : false;
+  const id = useId().replace(/:/g, "");
+  const t = typicalFor(v2.propertyType, rows);
+  const onSet = useMemo(() => new Set<string>(partsOnSide(v2, side, t)), [v2, side, t]);
+  // Sweep mode: the markup is STRUCTURAL — it follows the shape, size, sides, materials and WHICH parts exist
+  // (a gable on a hip roof exists once ticked), never a tick itself; the ticks are the clip widths and `data-on`.
+  const existing = useMemo(() => EXTERIOR_PARTS.filter((p) => partExists(v2, side, p, t)), [v2, side, t]);
+  const drawV2: ExteriorV2 = sweep ? { ...v2, parts: existing } : v2;
+  const drawKey = sweep ? JSON.stringify(drawV2) : v2;
   // Built once per change of its inputs, not on every render of the picture
   // card (its caption timers re-render it with the same house).
-  const markup = useMemo(() => elevationMarkup(v2, side, { build, highlight, rows }), [v2, side, build, highlight, rows]);
+  const markup = useMemo(
+    () => elevationMarkup(drawV2, side, { build, highlight, rows, sweep: sweep ? id : undefined }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- drawV2 is keyed by drawKey (the structure in sweep mode, the house otherwise)
+    [drawKey, side, build, highlight, rows, sweep, id],
+  );
+  const svgRef = useRef<SVGSVGElement | null>(null);
+  useRollerSweep(EXTERIOR_PARTS, (p) => onSet.has(p), 400, 240, sweep ? { root: svgRef, version: markup } : undefined);
+  // sweep mode: the on/off state the specs and the styles read, applied to the injected groups on every render
+  useLayoutEffect(() => {
+    if (!sweep || !svgRef.current) return;
+    svgRef.current.querySelectorAll<SVGGElement>("g.e[data-e]").forEach((g) => {
+      const isOn = onSet.has(g.dataset.e ?? "");
+      g.dataset.on = isOn ? "1" : "0";
+      g.classList.toggle("on", isOn);
+    });
+  });
   const onClick = onPart
     ? (e: MouseEvent<SVGSVGElement>) => {
       const g = (e.target as Element).closest?.("g.e[data-e]") as HTMLElement | null;
@@ -331,7 +391,8 @@ export default function Elevation({ v2, side, build = true, highlight = null, ro
     : undefined;
   return (
     <svg
-      className={`wz-elev ${notPainting ? "np" : ""} ${onPart ? "tappable" : ""}`} viewBox="0 0 400 240" aria-hidden="true"
+      ref={svgRef}
+      className={`wz-elev ${notPainting ? "np" : ""} ${onPart ? "tappable" : ""} ${sweep ? "sweep" : ""}`} viewBox="0 0 400 240" aria-hidden="true"
       data-testid="pic-outside" data-side={side} data-shape={v2.propertyType} style={style} onClick={onClick}
       dangerouslySetInnerHTML={{ __html: markup }}
     />

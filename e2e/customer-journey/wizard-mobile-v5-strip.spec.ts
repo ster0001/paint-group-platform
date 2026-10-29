@@ -256,7 +256,7 @@ test.describe("Wizard mobile v5 — the live strip, thumbnail and roller (sessio
     const house = page.getByTestId("wzm-thumb").locator("svg.wz-elev");
     await expect(house).toHaveAttribute("data-shape", "ds");
     await page.getByTestId("ql-ext-size-md").tap();
-    await at(page, "paint");
+    await at(page, "p-house");
     await expect(page.getByTestId("wzm-ribbon-2")).toHaveText("0 parts ticked · tap to see");
     await page.getByTestId("ext-part-walls").click();
     await page.getByTestId("ext-part-gutters").click();
