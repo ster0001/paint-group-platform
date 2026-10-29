@@ -2,6 +2,8 @@ import {
   changingForScope, exclusionOptions, visibleChanging,
   type InteriorExcludable, type QuickLook, type QuickLookStep, type ScopePreset,
 } from "./quick-look";
+import { typicalFor, type ExteriorTypicalRow } from "./exterior-typicals";
+import type { ExteriorV2 } from "./state";
 
 /**
  * Wizard mobile v5, session 2 (brief §2) — the phone's screens, as data.
@@ -21,7 +23,7 @@ import {
  * The answers themselves are the quick look's (`QuickLook`), untouched:
  * the data model is unchanged (§2.6). Nothing here renders or prices.
  */
-export const MOBILE_SCREEN_IDS = ["what", "property", "beds", "storeys", "job", "surfaces", "rooms", "colours", "condition", "living", "details"] as const;
+export const MOBILE_SCREEN_IDS = ["what", "property", "beds", "storeys", "job", "surfaces", "rooms", "colours", "condition", "living", "shape", "size", "row", "details"] as const;
 export type MobileScreenId = (typeof MOBILE_SCREEN_IDS)[number];
 
 export type MobileScreen = {
@@ -33,6 +35,8 @@ export type MobileScreen = {
   advance: "auto" | "bar";
   heading: string | null;
   sub: string | null;
+  /** Exterior on mobile v5: the stage kicker over the heading ("Your home"), the exterior brief's rail name. */
+  stage?: string;
 };
 
 /** Brief §2 — the words, one heading and at most one grey line (R8). */
@@ -47,6 +51,10 @@ const WORDS: Record<MobileScreenId, { heading: string; sub: string }> = {
   colours: { heading: "Colours?", sub: "Still deciding is fine." },
   condition: { heading: "How are the walls looking?", sub: "Honest is best — it sets the prep." },
   living: { heading: "Anyone living there while we paint?", sub: "We work room by room and pack down each day." },
+  // Exterior on mobile v5, session 1 (plan §2 screens 2–4; the prototype's words): the Your home step, one question a screen.
+  shape: { heading: "What kind of home is it?", sub: "Near enough is fine." },
+  size: { heading: "About how big is it?", sub: "Roughly — the house size, not the block." },
+  row: { heading: "Where is it in the row?", sub: "Shared walls aren't painted." },
   details: { heading: "Where shall we send your range?", sub: "It shows on the next screen. We text you the link so you can come back to it." },
 };
 
@@ -62,7 +70,11 @@ const screen = (id: MobileScreenId, step: QuickLookStep, advance: MobileScreen["
  * way) and no job or rooms screens — its steps follow the place screen as
  * they are. A commercial place keeps its own screens.
  */
-export function mobileScreensFor(steps: readonly QuickLookStep[], quick: QuickLook): MobileScreen[] {
+export function mobileScreensFor(
+  steps: readonly QuickLookStep[], quick: QuickLook,
+  /** Exterior on mobile v5: the outside answers — the shape decides whether "Where is it in the row?" is asked. */
+  outside: { v2?: ExteriorV2 | null } | null = null, rows: ReadonlyArray<ExteriorTypicalRow> = [],
+): MobileScreen[] {
   const out: MobileScreen[] = [];
   const interior = quick.jobType !== "exterior";
   for (const step of steps) {
@@ -90,6 +102,15 @@ export function mobileScreensFor(steps: readonly QuickLookStep[], quick: QuickLo
         out.push(screen("condition", step, "auto"));
         out.push(screen("living", step, "auto"));
         break;
+      case "home": {
+        // Exterior on mobile v5, session 1 (plan §2 screens 2–4): the shape, the size, and — for a shape that
+        // usually shares a wall (townhouse, unit, terrace) — where it is in the row. Each advances itself.
+        const v2 = outside?.v2 ?? null;
+        out.push({ ...screen("shape", step, "auto"), stage: "Your home" });
+        out.push({ ...screen("size", step, "auto"), stage: "Your home" });
+        if (v2 && typicalFor(v2.propertyType, rows).sharedSides.length > 0) out.push({ ...screen("row", step, "auto"), stage: "Your home" });
+        break;
+      }
       case "gate":
         out.push(screen("details", step, "bar"));
         break;

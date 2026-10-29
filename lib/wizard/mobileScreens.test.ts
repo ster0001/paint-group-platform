@@ -4,6 +4,7 @@ import {
   applyColourChoice, applyJobChoice, colourChoiceOf, detailsReady, mobileProgress, mobileScreensFor,
   roomChips, surfaceChips, surfacesTicked, toggleListedRoom, toggleSurface,
 } from "./mobileScreens";
+import type { ExteriorV2 } from "./state";
 
 const q = (over: Partial<QuickLook> = {}): QuickLook => ({ ...DEFAULT_QUICK_LOOK, ...over });
 const ids = (quick: QuickLook, gate = true) => mobileScreensFor(stepsFor(quick.jobType, quick.propertyKind, "areas", "range", quick.scope, gate), quick).map((s) => s.id);
@@ -23,8 +24,10 @@ describe("the phone's screens (wizard mobile v5 §2)", () => {
     expect(list).not.toContain("rooms");
     expect(list).not.toContain("beds");
     expect(list[list.length - 1]).toBe("details");
-    const exteriorSteps = stepsFor("exterior").filter((s) => !["start", "place"].includes(s));
-    expect(list.slice(2, 2 + exteriorSteps.length)).toEqual(exteriorSteps);
+    // exterior on mobile v5 (S1): the home step is the shape and size screens; the rest follow as they are
+    const exteriorSteps = stepsFor("exterior").filter((s) => !["start", "place", "home"].includes(s));
+    expect(list.slice(2, 4)).toEqual(["shape", "size"]);
+    expect(list.slice(4, 4 + exteriorSteps.length)).toEqual(exteriorSteps);
   });
   it("every screen knows its step, and the rooms heading changes for Some rooms", () => {
     const list = mobileScreensFor(stepsFor("interior", "house", "areas", "range", "some_rooms", true), q({ scope: "some_rooms" }));
@@ -43,8 +46,8 @@ describe("the phone's screens (wizard mobile v5 §2)", () => {
   });
   it("a step the phone does not split is one screen with a bar, under its own name", () => {
     const list = mobileScreensFor(stepsFor("exterior", "house", "areas", "range", "whole", true), q({ jobType: "exterior" }));
-    const home = list.find((s) => s.id === "home");
-    expect(home).toMatchObject({ step: "home", advance: "bar", heading: null });
+    const paint = list.find((s) => s.id === "paint");
+    expect(paint).toMatchObject({ step: "paint", advance: "bar", heading: null });
   });
 });
 
@@ -122,5 +125,29 @@ describe("the answers map onto the quick look (§2.6 — the data model is uncha
     expect(detailsReady({ name: "  Tom   Roman ", phone: "0412 345 678", email: "tom@example.com" })).toBe(true);
     expect(detailsReady({ name: "Tom Roman", phone: "0412 345 67", email: "tom@example.com" })).toBe(false);
     expect(detailsReady({ name: "Tom Roman", phone: "0412 345 678", email: "" })).toBe(false);
+  });
+});
+
+/** Exterior on mobile v5, session 1 (plan §2 screens 2–4): the Your home step is three screens of its own. */
+describe("exterior on mobile v5 — the Your home step on a phone", () => {
+  const quick = q({ jobType: "exterior" });
+  const steps = stepsFor("exterior", "house", "areas", "range", "whole", true);
+  const house = (propertyType: ExteriorV2["propertyType"]): ExteriorV2 => ({
+    propertyType, sizeBand: null, rowPosition: null, wall: { down: null, up: null, brickPainted: null, timberPainted: null }, gableFill: null, windowType: "unsure",
+    garageCars: null, postKind: null, parts: [], extras: [], extraSizes: {}, extraWallMaterial: null, sides: {},
+  } as ExteriorV2);
+  it("before a shape: the shape and the size, each advancing itself, under the Your home stage; no home screen rendered as it is", () => {
+    const screens = mobileScreensFor(steps, quick);
+    const home = screens.filter((s) => s.step === "home");
+    expect(home.map((s) => s.id)).toEqual(["shape", "size"]);
+    expect(home.every((s) => s.advance === "auto" && s.stage === "Your home" && s.heading)).toBe(true);
+    expect(screens.map((s) => s.id)).toEqual(["what", "property", "shape", "size", "paint", "about", "sides", "details"]);
+  });
+  it("a shape that usually shares a wall adds Where is it in the row?; a bungalow does not", () => {
+    const ids = (v2: ExteriorV2) => mobileScreensFor(steps, quick, { v2 }).filter((s) => s.step === "home").map((s) => s.id);
+    expect(ids(house("cal"))).toEqual(["shape", "size"]);
+    expect(ids(house("th"))).toEqual(["shape", "size", "row"]);
+    expect(ids(house("unit"))).toEqual(["shape", "size", "row"]);
+    expect(ids(house("terrace"))).toEqual(["shape", "size", "row"]);
   });
 });

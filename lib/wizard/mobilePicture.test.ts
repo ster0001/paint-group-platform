@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { DEFAULT_QUICK_LOOK, stepsFor, type QuickLook } from "./quick-look";
 import { applyColourChoice, applyJobChoice, mobileScreensFor, toggleSurface } from "./mobileScreens";
 import { DEFAULT_EXTERIOR_QUICK_LOOK } from "./exterior-quick-look";
-import { outsideSheetChips, pictureStateFor, ribbonFor, WALL_TINT } from "./mobilePicture";
+import { elevationCaption, outsideSheetChips, pictureStateFor, ribbonFor, WALL_TINT } from "./mobilePicture";
 import type { ExteriorV2 } from "./state";
 
 const q = (over: Partial<QuickLook> = {}): QuickLook => ({ ...DEFAULT_QUICK_LOOK, ...over });
@@ -67,6 +67,26 @@ describe("the ribbon (§2.2)", () => {
     const outside = { ...DEFAULT_EXTERIOR_QUICK_LOOK, v2: v2({ parts: ["walls", "doors"] }) };
     const paintAt = screens.findIndex((s) => s.id === "paint");
     expect(ribbonFor({ quick, outside, screens, index: paintAt - 1, roomsTicked: 0 }).line2).toBe("Updates as you answer · tap to see");
-    expect(ribbonFor({ quick, outside, screens, index: paintAt, roomsTicked: 0 })).toEqual({ line1: "Outside · House", line2: "2 parts ticked · tap to see" });
+    // exterior on mobile v5 (S1): past the shape and size screens the ribbon names the home in place of "House"
+    expect(ribbonFor({ quick, outside, screens, index: paintAt, roomsTicked: 0 })).toEqual({ line1: "Outside · Weatherboard home · Medium", line2: "2 parts ticked · tap to see" });
+  });
+});
+
+/** Exterior on mobile v5, session 1 (plan §3): the ribbon names the shape and the size; the sheet's caption says the typical sizes. */
+describe("exterior on mobile v5 — the ribbon and the drawn house's caption", () => {
+  it("the ribbon reads Outside · <shape> · <size> once those screens are passed, the place's kind dropped", () => {
+    const quick = q({ jobType: "exterior" });
+    const screens = mobileScreensFor(stepsFor("exterior", "house", "areas", "range", "whole", true), quick, { v2: v2({ propertyType: "th" }) });
+    const at = (id: string) => screens.findIndex((s) => s.id === id);
+    const outside = { ...DEFAULT_EXTERIOR_QUICK_LOOK, v2: v2({ propertyType: "th", sizeBand: "sm" }) };
+    expect(ribbonFor({ quick, outside, screens, index: at("shape"), roomsTicked: 0 }).line1).toBe("Outside · House");
+    expect(ribbonFor({ quick, outside, screens, index: at("size"), roomsTicked: 0 }).line1).toBe("Outside · Townhouse");
+    expect(ribbonFor({ quick, outside, screens, index: at("row"), roomsTicked: 0 }).line1).toBe("Outside · Townhouse · Small");
+    expect(ribbonFor({ quick, outside: { ...outside, v2: null }, screens, index: at("size"), roomsTicked: 0 }).line1).toBe("Outside · House");
+  });
+  it("the caption: shape · size · storeys · about N m across, H m to the gutter (the parapet on a terrace)", () => {
+    expect(elevationCaption(v2({ propertyType: "cal", sizeBand: "sm" }))).toBe("Californian bungalow · Small · single storey · about 8.5 m across, 3 m to the gutter");
+    expect(elevationCaption(v2({ propertyType: "th", sizeBand: null }))).toBe("Townhouse · two storeys · about 6.5 m across, 5.6 m to the gutter");
+    expect(elevationCaption(v2({ propertyType: "terrace", sizeBand: "md" }))).toContain("to the parapet");
   });
 });

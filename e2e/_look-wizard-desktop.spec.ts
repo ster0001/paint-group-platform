@@ -50,6 +50,40 @@ test.describe("wizard desktop screenshots (scope guard)", () => {
     await expect(page.getByTestId("reveal-range")).toBeVisible({ timeout: 90_000 });
     await shot("07-range");
   });
+
+  /** Exterior on mobile v5: the OUTSIDE desktop steps too — the drawn house, Painting, About it, Each side (plan §5: "desktop screenshot diff clean at 1470px"). */
+  test("one screenshot per outside desktop step at 1470px", async ({ page }) => {
+    test.setTimeout(240_000);
+    mkdirSync(OUT, { recursive: true });
+    const shot = async (name: string) => {
+      await page.evaluate(() => window.scrollTo({ top: 0 }));
+      await page.waitForTimeout(700);
+      await page.screenshot({ path: `${OUT}/${name}.png`, fullPage: true, animations: "disabled", caret: "hide" });
+    };
+    const step = async (id: string) => expect(page.locator(`[data-quick-step='${id}']`)).toBeVisible({ timeout: 30_000 });
+    await openQuickLook(page);
+    await fillQuickAddress(page, { suburb: "Shotsville", postcode: "3163" });
+    await page.getByTestId("ql-jobtype-exterior").click();
+    await quickNext(page);
+    await step("place");
+    await quickNext(page);
+    await step("home");
+    await shot("08-home");
+    await page.getByTestId("ql-ext-type-th").click();
+    await page.getByTestId("ql-ext-size-md").click();
+    await shot("09-home-townhouse");
+    await quickNext(page);
+    await step("paint");
+    for (const p of ["walls", "fascias", "gutters", "windows"]) await page.getByTestId(`ext-part-${p}`).click();
+    await shot("10-paint");
+    await quickNext(page);
+    await step("about");
+    await page.getByTestId("ext-mat-render").click();
+    await shot("11-about");
+    await quickNext(page);
+    await step("sides");
+    await shot("12-sides");
+  });
 });
 
 export type { Page };

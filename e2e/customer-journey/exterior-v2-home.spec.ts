@@ -1,4 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
+import { mkdirSync } from "node:fs";
 import { stepsFor } from "../../lib/wizard/quick-look";
 import { EXTERIOR_SHAPE_KEYS, scaledLengths, typicalFor } from "../../lib/wizard/exterior-typicals";
 import { fillQuickAddress, openQuickLook, passDetailsSheetIfShown, passGateIfShown, quickNext, MONEY_RANGE, lookAtEverySide } from "./drive";
@@ -184,59 +185,184 @@ test("the rest of the outside path still reaches a range, and the sides editor's
 });
 
 /**
- * Tom, 25 Oct 2026 (on his phone): the drawn house drawn larger, the page
- * still scrolling, the talk bar not over the answers. Wizard mobile v5 (S2,
- * 28 Oct 2026): under 768px the quick look is the phone's shell — Outside,
- * then the place, then the exterior brief's screens rendered as they are
- * (§2.4) with the shell's Continue bar; the sticky panel and the floating
- * pill are gone (§3), so the drawn house sits above the question (not
- * pinned — the live strip takes that job in session 3) and the only control
- * at the foot is Continue, clear of the answers.
+ * EXTERIOR ON MOBILE v5 — session 1 (`docs/briefs/build-plan-exterior-mobile-v5.md`
+ * §2 screens 2–4, §3; prototype `design/reference/wizard-exterior-mobile-v5-prototype.html`
+ * at 390px), as an ANONYMOUS customer at 390 × 780 with touch.
+ *
+ * Under 768px the Your home step is three of the phone's screens, one
+ * question each: the nine shape cards with their silhouettes two per row
+ * (auto-advance), the five size pills with the m² / bedroom hint
+ * (auto-advance), and — only for a shape that usually shares a wall — where
+ * it is in the row (auto-advance). The strip's thumbnail is the DRAWN HOUSE
+ * (`Elevation`, the front) from the first shape tap, redrawn on every
+ * answer, with dashed next-door blocks on the shared sides; the sheet shows
+ * it full width with the typical sizes in the caption. The desktop step is
+ * untouched (the tests above). Screenshots with EXTERIOR_MOBILE_SHOTS=1.
  */
-test("on a phone the outside screens render inside the shell: the house above the question, a Continue bar, no pill, nothing wider than the phone", async ({ browser }) => {
-  test.setTimeout(150_000);
-  const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
-  const page = await ctx.newPage();
-  try {
+const SHOTS = process.env.EXTERIOR_MOBILE_SHOTS ? "docs/wizard-mobile/exterior" : null;
+if (SHOTS) mkdirSync(SHOTS, { recursive: true });
+
+test.describe("on a phone: Your home is three screens, the drawn house in the strip (exterior mobile v5, session 1)", () => {
+  test.use({ viewport: { width: 390, height: 780 }, isMobile: true, hasTouch: true });
+  const at = (page: Page, id: string) => expect(page.locator(`[data-mobile-screen='${id}']`)).toBeVisible({ timeout: 10_000 });
+  const thumbHouse = (page: Page) => page.getByTestId("wzm-thumb").locator("svg.wz-elev");
+  const shot = async (page: Page, name: string) => {
+    if (!SHOTS) return;
+    await page.waitForTimeout(700);
+    await page.screenshot({ path: `${SHOTS}/${name}.png`, animations: "disabled" });
+  };
+  /** Outside → a house → the shape screen. */
+  const toShape = async (page: Page) => {
     await openQuickLook(page);
     await fillQuickAddress(page);
-    await page.getByTestId("ql-jobtype-exterior").click();
-    await expect(page.locator("[data-mobile-screen='property']")).toBeVisible({ timeout: 20_000 });
-    await page.getByTestId("ql-kind-house").click();
-    await expect(page.locator("[data-mobile-screen='home']")).toBeVisible({ timeout: 20_000 });
-    await page.getByTestId("ql-ext-type-cal").click();
-    await page.getByTestId("ql-ext-size-md").click();
-    const measure = () => page.evaluate(() => {
-      const box = (sel: string) => document.querySelector(sel)?.getBoundingClientRect() ?? null;
-      const pic = box("[data-testid='ql-picture']"), head = box("[data-testid='wzm-head']"), h1 = box(".wz-pane h1"), foot = box("[data-testid='wzm-foot']");
-      return {
-        picTop: pic?.top ?? -1, picBottom: pic?.bottom ?? -1, headBottom: head?.bottom ?? -1, h1Top: h1?.top ?? -1,
-        footTop: foot?.top ?? -1, footBottom: foot?.bottom ?? -1, pill: document.querySelector("[data-testid='ql-talk']") != null,
-        docW: document.documentElement.scrollWidth, maxScroll: document.documentElement.scrollHeight - window.innerHeight,
-      };
-    });
-    const check = async (step: string) => {
-      await expect(page.locator(`[data-quick-step='${step}']`)).toBeVisible({ timeout: 20_000 });
-      await page.evaluate(() => window.scrollTo({ top: 0, behavior: "instant" as ScrollBehavior }));
-      const m = await measure();
-      expect(m.docW, `${step}: nothing wider than the phone`).toBeLessThanOrEqual(390);
-      expect(m.picTop, `${step}: the house is drawn, under the header`).toBeGreaterThanOrEqual(m.headBottom);
-      expect(m.picBottom, `${step}: the house sits above the question`).toBeLessThanOrEqual(m.h1Top + 1);
-      expect(m.pill, `${step}: no floating pill`).toBe(false);
-      expect(m.footBottom, `${step}: the Continue bar sits on the bottom edge`).toBeGreaterThanOrEqual(843);
-      expect(m.maxScroll, `${step}: the questions still scroll`).toBeGreaterThan(80);
-      await expect(page.getByTestId("ql-next")).toHaveText("Continue");
-    };
-    await check("home");
-    await quickNext(page);
-    await check("paint");
-    for (const p of ["walls", "fascias", "gutters", "windows"]) await page.getByTestId(`ext-part-${p}`).click();
-    await quickNext(page);
-    await check("about");
-    await page.getByTestId("ext-mat-weatherboards").click();
-    await quickNext(page);
-    await check("sides");
-  } finally {
-    await ctx.close();
-  }
+    await expect(page.getByTestId("wzm")).toBeVisible({ timeout: 20_000 });
+    await page.getByTestId("ql-jobtype-exterior").tap();
+    await at(page, "property");
+    await page.getByTestId("ql-kind-house").tap();
+    await at(page, "shape");
+  };
+
+  test("screens 2–4: one question each, the shape cards two per row with silhouettes, the size pills, auto-advance, the row question only for a shared shape", async ({ page }) => {
+    test.setTimeout(150_000);
+    await toShape(page);
+    // screen 2 — the shape: its own screen of the home step, no Continue bar, the stage kicker, nine cards
+    await expect(page.locator("[data-quick-step='home']")).toBeVisible();
+    await expect(page.getByTestId("wzm-h1")).toHaveText("What kind of home is it?");
+    await expect(page.getByTestId("wzm-stage")).toHaveText("Your home");
+    await expect(page.getByTestId("ql-next")).toHaveCount(0);
+    const cards = page.getByTestId("ql-ext-type").locator("button");
+    await expect(cards).toHaveCount(9);
+    for (const k of EXTERIOR_SHAPE_KEYS) {
+      const card = page.getByTestId(`ql-ext-type-${k}`);
+      await expect(card.locator("svg")).toHaveCount(1);
+      await expect(card).toContainText(typicalFor(k).name);
+    }
+    const [a, b, c] = await Promise.all([0, 1, 2].map((i) => cards.nth(i).boundingBox()));
+    expect(Math.abs(a!.y - b!.y), "two cards per row").toBeLessThan(2);
+    expect(c!.y, "the third card starts the second row").toBeGreaterThan(a!.y + a!.height - 1);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth), "nothing wider than the phone").toBeLessThanOrEqual(390);
+    await shot(page, "02-shape");
+    // tap a bungalow: it advances itself to the size
+    await page.getByTestId("ql-ext-type-cal").tap();
+    await at(page, "size");
+    await expect(page.getByTestId("wzm-h1")).toHaveText("About how big is it?");
+    await expect(page.getByTestId("ql-ext-size").locator("button")).toHaveCount(5);
+    await expect(page.getByTestId("ql-ext-size-md")).toContainText(/120–200 m²/);
+    await expect(page.getByTestId("ql-next")).toHaveCount(0);
+    await shot(page, "03-size");
+    // a bungalow shares no wall: the size is the last question of the step, and it advances to Painting
+    await page.getByTestId("ql-ext-size-md").tap();
+    await expect(page.locator("[data-quick-step='paint']")).toBeVisible({ timeout: 20_000 });
+    await expect(page.locator("[data-mobile-screen='row']")).toHaveCount(0);
+    // back lands on the step's LAST screen, then the first
+    await page.getByTestId("wzm-back").tap();
+    await at(page, "size");
+    await expect(page.getByTestId("ql-ext-size-md")).toHaveAttribute("aria-pressed", "true");
+    await page.getByTestId("wzm-back").tap();
+    await at(page, "shape");
+    await expect(page.getByTestId("ql-ext-type-cal")).toHaveAttribute("aria-pressed", "true");
+    // a townhouse shares both side walls: a third screen, in the middle by default, each answer advancing
+    await page.getByTestId("ql-ext-type-th").tap();
+    await at(page, "size");
+    await page.getByTestId("ql-ext-size-sm").tap();
+    await at(page, "row");
+    await expect(page.getByTestId("wzm-h1")).toHaveText("Where is it in the row?");
+    await expect(page.getByTestId("ql-ext-row-mid")).toHaveAttribute("aria-pressed", "true");
+    await expect(page.getByTestId("ql-ext-row-left")).toBeVisible();
+    await expect(page.getByTestId("ql-ext-row-right")).toBeVisible();
+    await expect(page.getByTestId("ql-ext-row-both")).toBeVisible();
+    await expect(page.getByTestId("ql-next")).toHaveCount(0);
+    await shot(page, "04-row");
+    await page.getByTestId("ql-ext-row-left").tap();
+    await expect(page.locator("[data-quick-step='paint']")).toBeVisible({ timeout: 20_000 });
+    // a unit shares the left wall only: the row screen offers no "right side open"
+    await page.getByTestId("wzm-back").tap();
+    await at(page, "row");
+    await page.getByTestId("wzm-back").tap();
+    await at(page, "size");
+    await page.getByTestId("wzm-back").tap();
+    await at(page, "shape");
+    await page.getByTestId("ql-ext-type-unit").tap();
+    await at(page, "size");
+    await page.getByTestId("ql-ext-size-sm").tap();
+    await at(page, "row");
+    await expect(page.getByTestId("ql-ext-row-mid")).toContainText(/shares the left wall/i);
+    await expect(page.getByTestId("ql-ext-row-right")).toHaveCount(0);
+  });
+
+  test("the strip's thumbnail is the drawn house: it follows the shape, the size and the row position; the sheet shows it full width with the typical sizes", async ({ page }) => {
+    test.setTimeout(150_000);
+    await toShape(page);
+    // before a shape: the placeholder house of session 3, no drawn house yet
+    await expect(page.getByTestId("wzm-thumb").locator("svg[data-testid='wzm-pic']")).toHaveAttribute("data-kind", "house");
+    await expect(thumbHouse(page)).toHaveCount(0);
+    await expect(page.getByTestId("wzm-ribbon-1")).toHaveText("Outside · House");
+    // the first tap draws it — the front elevation of that shape — and the ribbon names the shape
+    await page.getByTestId("ql-ext-type-cal").tap();
+    await at(page, "size");
+    await expect(thumbHouse(page)).toHaveAttribute("data-shape", "cal");
+    await expect(thumbHouse(page)).toHaveAttribute("data-side", "front");
+    await expect(page.getByTestId("wzm-ribbon-1")).toHaveText("Outside · Californian bungalow");
+    const tb = (await page.getByTestId("wzm-thumb").boundingBox())!;
+    expect(Math.round(tb.width)).toBe(76);
+    expect(Math.round(tb.height)).toBe(52);
+    // the size scales the drawn house and the sheet's caption says the typical sizes
+    await page.getByTestId("ql-ext-size-sm").tap();
+    await expect(page.locator("[data-quick-step='paint']")).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByTestId("wzm-ribbon-1")).toHaveText("Outside · Californian bungalow · Small");
+    const small = scaledLengths(typicalFor("cal"), "sm");
+    await page.getByTestId("wzm-strip").tap();
+    const big = page.getByTestId("wzm-bigpic").locator("svg.wz-elev");
+    await expect(big).toHaveAttribute("data-shape", "cal");
+    const bb = (await page.getByTestId("wzm-bigpic").boundingBox())!;
+    expect(bb.width, "the sheet's house is full width").toBeGreaterThan(300);
+    await expect(page.getByTestId("wzm-cap")).toContainText("Californian bungalow · Small · single storey");
+    await expect(page.getByTestId("wzm-cap")).toContainText(`${small.frontM} m across`);
+    await shot(page, "03-sheet");
+    await page.keyboard.press("Escape");
+    await expect(page.getByTestId("wzm-sheet")).toHaveCount(0);
+    // a townhouse in the middle of the row: next door drawn on both sides; an end of the row opens one; standing alone, none
+    await page.getByTestId("wzm-back").tap();
+    await at(page, "size");
+    await page.getByTestId("wzm-back").tap();
+    await at(page, "shape");
+    await page.getByTestId("ql-ext-type-th").tap();
+    await at(page, "size");
+    await expect(thumbHouse(page)).toHaveAttribute("data-shape", "th");
+    await expect(thumbHouse(page).locator("[data-testid='pic-nextdoor']")).toHaveCount(2);
+    await page.getByTestId("ql-ext-size-md").tap();
+    await at(page, "row");
+    await expect(page.getByTestId("wzm-ribbon-1")).toHaveText("Outside · Townhouse · Medium");
+    await page.getByTestId("ql-ext-row-left").tap();
+    await expect(page.locator("[data-quick-step='paint']")).toBeVisible({ timeout: 20_000 });
+    await expect(thumbHouse(page).locator("[data-testid='pic-nextdoor']")).toHaveCount(1);
+    await shot(page, "04-thumb-row");
+    await page.getByTestId("wzm-back").tap();
+    await at(page, "row");
+    await page.getByTestId("ql-ext-row-both").tap();
+    await expect(page.locator("[data-quick-step='paint']")).toBeVisible({ timeout: 20_000 });
+    await expect(thumbHouse(page).locator("[data-testid='pic-nextdoor']")).toHaveCount(0);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth), "nothing wider than the phone").toBeLessThanOrEqual(390);
+  });
+
+  test("a reload lands on the same screen with the house kept, and the sheet's chips still tick the parts on the drawn house", async ({ page }) => {
+    test.setTimeout(120_000);
+    await toShape(page);
+    await page.getByTestId("ql-ext-type-wb").tap();
+    await at(page, "size");
+    await page.waitForTimeout(3_000); // the autosave debounce
+    await page.reload();
+    await expect(page.locator("[data-ready='1']")).toBeAttached({ timeout: 20_000 });
+    await at(page, "size");
+    await expect(thumbHouse(page)).toHaveAttribute("data-shape", "wb");
+    await page.getByTestId("ql-ext-size-lg").tap();
+    await expect(page.locator("[data-quick-step='paint']")).toBeVisible({ timeout: 20_000 });
+    // session 3's sheet chips tick the exterior brief's parts; the drawn house lights the part
+    await page.getByTestId("wzm-strip").tap();
+    await page.getByTestId("wzm-sheet-chip-walls").tap();
+    await expect(page.getByTestId("wzm-bigpic").locator("svg.wz-elev .e-walls")).toHaveAttribute("data-on", "1");
+    await page.keyboard.press("Escape");
+    await expect(page.getByTestId("ext-part-walls")).toHaveAttribute("aria-pressed", "true");
+    await expect(thumbHouse(page).locator(".e-walls")).toHaveAttribute("data-on", "1");
+  });
 });

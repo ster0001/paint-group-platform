@@ -247,19 +247,22 @@ test.describe("Wizard mobile v5 — the live strip, thumbnail and roller (sessio
     await at(page, "property");
     await expect(thumb(page)).toHaveAttribute("data-kind", "house");
     await page.getByTestId("ql-kind-house").tap();
-    await at(page, "home");
+    await at(page, "shape");
     await expect(page.getByTestId("wzm-ribbon-1")).toHaveText("Outside · House");
-    await page.getByTestId("ql-ext-type-ds").click();
-    await page.getByTestId("ql-ext-size-md").click();
-    await expect(thumb(page)).toHaveAttribute("data-two", "true");
-    await page.getByTestId("ql-next").tap();
+    // Exterior on mobile v5 (S1): the shape and the size are screens of their own, each advancing itself,
+    // and from the first shape the thumbnail is the DRAWN HOUSE (Elevation), not the placeholder.
+    await page.getByTestId("ql-ext-type-ds").tap();
+    await at(page, "size");
+    const house = page.getByTestId("wzm-thumb").locator("svg.wz-elev");
+    await expect(house).toHaveAttribute("data-shape", "ds");
+    await page.getByTestId("ql-ext-size-md").tap();
     await at(page, "paint");
     await expect(page.getByTestId("wzm-ribbon-2")).toHaveText("0 parts ticked · tap to see");
     await page.getByTestId("ext-part-walls").click();
     await page.getByTestId("ext-part-gutters").click();
-    await expect(thumb(page).locator("[data-surf='walls']")).toHaveAttribute("data-on", "true");
-    await expect(thumb(page).locator("[data-surf='gutters']")).toHaveAttribute("data-on", "true");
-    await expect(thumb(page).locator("[data-surf='doors']")).toHaveAttribute("data-on", "false");
+    await expect(house.locator(".e-walls")).toHaveAttribute("data-on", "1");
+    await expect(house.locator(".e-gutters")).toHaveAttribute("data-on", "1");
+    await expect(house.locator(".e-doors")).toHaveAttribute("data-on", "0");
     await expect(page.getByTestId("wzm-ribbon-2")).toHaveText("2 parts ticked · tap to see");
     // the sheet's chip toggles the part on the step
     await page.getByTestId("wzm-strip").tap();

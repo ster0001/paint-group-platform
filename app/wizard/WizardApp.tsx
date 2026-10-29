@@ -2256,6 +2256,7 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
             onQuick={setQuick}
             outside={outside}
             onOutside={setOutside}
+            exteriorTypicals={exteriorTypicals}
             address={{
               text: state.address?.formatted ?? quickAddress,
               known: Boolean(state.address) || Boolean(state.customer?.suburb.trim() && state.customer.postcode.trim()),
