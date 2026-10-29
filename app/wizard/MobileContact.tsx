@@ -22,7 +22,9 @@ import type { WizardBrand } from "@/lib/wizard/brand";
  * ⚑ The brief's slot booking from step 3 on name + mobile alone, confirmed
  * by a text rather than a code, needs three rulings first (ledger M5 · S5).
  */
-export default function MobileContact({ open, onClose, brand, estimatorName, suburb, phone, onBook, onMessage, onSave }: {
+export default function MobileContact({ open, onClose, brand, estimatorName, suburb, phone, onBook, onMessage, onSave, onCall }: {
+  /** The Call row was tapped (it dials); the gate logs it as a door (§8). */
+  onCall?: () => void;
   open: boolean;
   onClose: () => void;
   brand: WizardBrand;
@@ -60,7 +62,7 @@ export default function MobileContact({ open, onClose, brand, estimatorName, sub
           <small>{first ?? "Your estimator"} comes to you. About 40 minutes, no charge.</small>
         </button>
         {phone && (
-          <a className="wzm-srow" href={`tel:${phone.replace(/\s+/g, "")}`} data-testid="wzm-contact-call">Call {phone}<small>Mon–Fri, 8–6</small></a>
+          <a className="wzm-srow" href={`tel:${phone.replace(/\s+/g, "")}`} data-testid="wzm-contact-call" onClick={onCall}>Call {phone}<small>Mon–Fri, 8–6</small></a>
         )}
         <button type="button" className="wzm-srow" onClick={go(onMessage)} data-testid="wzm-contact-message">Send a message<small>We reply the same day</small></button>
         <button type="button" className="wzm-srow" onClick={go(onSave)} data-testid="wzm-contact-save">Save and come back later<small>We email you the link</small></button>

@@ -1908,9 +1908,10 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
           suburb={state.address?.suburb || state.customer?.suburb || null}
           phone={companyPhone}
           // on the gate: the booking page — the zone's pre-set days, the hold, the texted code (brief §5.2; both shopfronts)
-          onBook={() => { void recordRangeOption(reveal.estimateId, "visit"); clearResume(); router.push(`/estimate/visit?id=${reveal.estimateId}`); }}
-          onMessage={() => { void recordRangeOption(reveal.estimateId, "message"); setTalk({ mode: "message" }); }}
-          onSave={() => setBookOpen(true)}
+          onBook={() => { sendWizardEvent("gate_cta_clicked", { cta: "visit", breakpoint: "mobile" }); void recordRangeOption(reveal.estimateId, "visit"); clearResume(); router.push(`/estimate/visit?id=${reveal.estimateId}`); }}
+          onMessage={() => { sendWizardEvent("gate_cta_clicked", { cta: "message", breakpoint: "mobile" }); void recordRangeOption(reveal.estimateId, "message"); setTalk({ mode: "message" }); }}
+          onSave={() => { sendWizardEvent("gate_cta_clicked", { cta: "save", breakpoint: "mobile" }); setBookOpen(true); }}
+          onCall={() => sendWizardEvent("gate_cta_clicked", { cta: "call", breakpoint: "mobile" })}
         />
         {talk && (
           <TalkSheet

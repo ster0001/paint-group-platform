@@ -135,16 +135,18 @@ export const JOB_CHOICES: Array<{ value: ScopePreset; label: string; hint: strin
 ];
 /**
  * §2.6 — picking a job pre-ticks its surfaces: "Doors, windows and trims"
- * pre-ticks skirtings, doors and windows only (the architraves chip is
- * offered unticked); "Some rooms" pre-ticks the first two rooms (§2.3).
+ * pre-ticks skirtings, doors and windows (the architraves ride with the
+ * doors on a phone — §3.2 names five surfaces, and a door's frame is part
+ * of the door to a customer); "Some rooms" pre-ticks the first two rooms (§2.3).
  */
 export function applyJobChoice(scope: ScopePreset, roomNames: readonly string[]): Partial<QuickLook> {
-  const excluded: InteriorExcludable[] = scope === "trims_doors" ? ["architraves"] : [];
+  const excluded: InteriorExcludable[] = [];
   return { scope, excluded, changing: changingForScope(scope, excluded), rooms: scope === "some_rooms" ? roomNames.slice(0, 2) : null };
 }
 
-/** §3.2 / §2.6 — the surface chips, in the order a person thinks about a room; ticked = painted (the state is still `excluded`). */
-const SURFACE_ORDER: InteriorExcludable[] = ["walls", "ceilings", "skirting", "doors", "windows", "architraves"];
+/** §3.2 / §2.6 — the five surface chips, in the order a person thinks about a room; ticked = painted (the state is still `excluded`). The architraves ride with the doors. */
+const SURFACE_ORDER: InteriorExcludable[] = ["walls", "ceilings", "skirting", "doors", "windows"];
+const RIDES_WITH: Partial<Record<InteriorExcludable, InteriorExcludable[]>> = { doors: ["architraves"] };
 const SURFACE_LABEL: Record<InteriorExcludable, string> = {
   walls: "Walls", ceilings: "Ceilings", skirting: "Skirtings", doors: "Doors", windows: "Window frames", architraves: "Architraves", cornices: "Cornices",
 };
@@ -154,7 +156,8 @@ export function surfaceChips(q: Pick<QuickLook, "scope" | "excluded">): Array<{ 
 }
 export function toggleSurface(q: Pick<QuickLook, "scope" | "excluded">, key: InteriorExcludable): Partial<QuickLook> {
   const cur = q.excluded ?? [];
-  const excluded = cur.includes(key) ? cur.filter((k) => k !== key) : [...cur, key];
+  const group = [key, ...(RIDES_WITH[key] ?? [])].filter((k) => exclusionOptions(q.scope).some((o) => o.value === k));
+  const excluded = cur.includes(key) ? cur.filter((k) => !group.includes(k)) : [...cur.filter((k) => !group.includes(k)), ...group];
   return { excluded, changing: changingForScope(q.scope, excluded) };
 }
 /** "N surfaces ticked" — what the strip will say (S3); here for the ribbon's count and the tests. */

@@ -167,6 +167,9 @@ export default function AddressField({
 
   return (
     <>
+      {/* Wizard mobile v5 §7: on a phone the hero's field stacks and the suggestions OVERLAY the chips
+          (this wrapper is the positioning box there; `display: contents` everywhere else, so nothing moves). */}
+      <div className="fieldwrap" data-testid={`fieldwrap-${where}`}>
       <form
         className={`field${ghosting && g.status === "typing" ? " typing" : ""}`}
         autoComplete="off"
@@ -219,6 +222,7 @@ export default function AddressField({
             <b>{s.main}</b>{s.secondary && <span> {s.secondary}</span>}
           </button>
         ))}
+      </div>
       </div>
 
       {showChips && chips === "mode" && (

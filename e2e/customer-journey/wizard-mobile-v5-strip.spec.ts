@@ -104,7 +104,7 @@ test.describe("Wizard mobile v5 — the live strip, thumbnail and roller (sessio
     await page.getByTestId("ql-scope-whole").tap();
     await at(page, "surfaces");
     await expect(page.getByTestId("wzm-ribbon-1")).toHaveText("Inside · House · 3 bed · Two storeys · Whole interior");
-    await expect(page.getByTestId("wzm-ribbon-2")).toHaveText("6 surfaces ticked · tap to see");
+    await expect(page.getByTestId("wzm-ribbon-2")).toHaveText("5 surfaces ticked · tap to see");
     await expect(thumb(page)).toHaveAttribute("data-painted", "true");
     await page.getByTestId("ql-next").tap();
     await at(page, "rooms");
@@ -116,7 +116,7 @@ test.describe("Wizard mobile v5 — the live strip, thumbnail and roller (sessio
     await page.getByTestId("ql-condition-wear").tap();
     await at(page, "living");
     await expect(page.getByTestId("wzm-ribbon-1")).toHaveText(/^Inside · House · 3 bed · Two storeys · Whole interior · \d+ rooms · New colours · Some wear$/);
-    await expect(page.getByTestId("wzm-ribbon-2")).toHaveText("6 surfaces ticked · tap to see");
+    await expect(page.getByTestId("wzm-ribbon-2")).toHaveText("5 surfaces ticked · tap to see");
     // §3.5: the ticks persist through colours and condition
     await expect(thumb(page).locator("[data-surf='walls']")).toHaveAttribute("data-on", "true");
   });
@@ -145,7 +145,7 @@ test.describe("Wizard mobile v5 — the live strip, thumbnail and roller (sessio
     expect(mid, "the wipe is under way, not a snap").toBeGreaterThan(0);
     expect(mid).toBeLessThan(200);
     await expect.poll(() => rectWidth(page, "wzm-thumb", "ceilings"), { timeout: 3_000 }).toBe(0);
-    await expect(page.getByTestId("wzm-ribbon-2")).toHaveText("5 surfaces ticked · tap to see");
+    await expect(page.getByTestId("wzm-ribbon-2")).toHaveText("4 surfaces ticked · tap to see");
     await page.getByTestId("ql-surface-ceilings").tap();
     await expect.poll(() => rectWidth(page, "wzm-thumb", "ceilings"), { timeout: 3_000 }).toBe(200);
     // reduced motion: a snap, no sweep
@@ -170,14 +170,15 @@ test.describe("Wizard mobile v5 — the live strip, thumbnail and roller (sessio
     const big = (await page.getByTestId("wzm-bigpic").boundingBox())!;
     expect(Math.abs(big.width / big.height - 5 / 3)).toBeLessThan(0.03);
     await expect(page.getByTestId("wzm-cap")).toHaveText("Tap a surface to paint it in or out.");
-    for (const k of ["walls", "ceilings", "skirting", "doors", "windows", "architraves"]) await expect(page.getByTestId(`wzm-sheet-chip-${k}`)).toHaveAttribute("aria-pressed", "true");
+    for (const k of ["walls", "ceilings", "skirting", "doors", "windows"]) await expect(page.getByTestId(`wzm-sheet-chip-${k}`)).toHaveAttribute("aria-pressed", "true");
+    await expect(page.getByTestId("wzm-sheet-chip-architraves")).toHaveCount(0);
     await page.getByTestId("wzm-sheet-chip-doors").tap();
     await expect(page.getByTestId("wzm-sheet-chip-doors")).toHaveAttribute("aria-pressed", "false");
     await expect(page.locator("[data-testid='wzm-bigpic'] [data-surf='doors']")).toHaveAttribute("data-on", "false");
     await expect(thumb(page).locator("[data-surf='doors']")).toHaveAttribute("data-on", "false");
     await expect.poll(() => rectWidth(page, "wzm-bigpic", "doors"), { timeout: 3_000 }).toBe(0);
     await expect.poll(() => rectWidth(page, "wzm-thumb", "doors"), { timeout: 3_000 }).toBe(0);
-    await expect(page.getByTestId("wzm-ribbon-2")).toHaveText("5 surfaces ticked · tap to see");
+    await expect(page.getByTestId("wzm-ribbon-2")).toHaveText("4 surfaces ticked · tap to see");
     await page.getByTestId("wzm-sheet-x").tap();
     await expect(sheet).toHaveCount(0);
     await expect(page.getByTestId("ql-surface-doors")).toHaveAttribute("aria-pressed", "false");
