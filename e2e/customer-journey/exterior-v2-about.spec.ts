@@ -175,3 +175,153 @@ test("Which sides are we painting? is asked on About it: all four ticked on a bu
   await expect(page.getByTestId("ql-ext-side-right")).toHaveCount(0);
   await expect(page.getByTestId("ql-ext-side-left")).toHaveCount(0);
 });
+
+/**
+ * EXTERIOR ON MOBILE v5 — session 3 (`docs/briefs/build-plan-exterior-mobile-v5.md`
+ * §2 screens 6a–6n, 7 and 8; prototype `design/reference/wizard-exterior-mobile-v5-prototype.html`),
+ * as an ANONYMOUS customer at 390 × 780 with touch. Under 768px About it is
+ * ONE CARD PER SCREEN, only for the parts that were ticked: the walls'
+ * material (downstairs then upstairs on a double storey, "Same as
+ * downstairs" first), painted or bare brick, the vertical-timber stain,
+ * the gable's fill, the window type (the drawn house's windows change), the
+ * garage door, the posts, the extras' rough sizes as steppers; then the
+ * colours and the access. Single choices advance themselves; the sizes and
+ * the access carry Continue. The desktop step is untouched (the tests above).
+ */
+test.describe("on a phone: About it is one card per screen (exterior mobile v5, session 3)", () => {
+  test.use({ viewport: { width: 390, height: 780 }, isMobile: true, hasTouch: true });
+  const at = (page: Page, id: string) => expect(page.locator(`[data-mobile-screen='${id}']`)).toBeVisible({ timeout: 10_000 });
+  const thumb = (page: Page) => page.getByTestId("wzm-thumb").locator("svg.wz-elev");
+  /** Outside → a shape, medium → through Painting with these parts and extras → the first About it screen. */
+  const toAbout = async (page: Page, shape: string, parts: string[], extras: string[] = []) => {
+    await openQuickLook(page);
+    await fillQuickAddress(page);
+    await expect(page.getByTestId("wzm")).toBeVisible({ timeout: 20_000 });
+    await page.getByTestId("ql-jobtype-exterior").tap();
+    await at(page, "property");
+    await page.getByTestId("ql-kind-house").tap();
+    await at(page, "shape");
+    await page.getByTestId(`ql-ext-type-${shape}`).tap();
+    await at(page, "size");
+    await page.getByTestId("ql-ext-size-md").tap();
+    await at(page, "p-house");
+    const tick = async (p: string) => { if (parts.includes(p)) await page.getByTestId(`ext-part-${p}`).tap(); };
+    for (const p of ["walls", "gable", "fascias", "gutters", "downpipes", "eaves"]) await tick(p);
+    await page.getByTestId("ql-next").tap();
+    await at(page, "p-win");
+    for (const p of ["windows", "doors", "garage", "shutters"]) await tick(p);
+    await page.getByTestId("ql-next").tap();
+    await at(page, "p-ver");
+    for (const p of ["verandah", "posts", "ceiling", "handrail"]) await tick(p);
+    await page.getByTestId("ql-next").tap();
+    await at(page, "p-around");
+    for (const e of extras) await page.getByTestId(`ext-extra-${e}`).tap();
+    await page.getByTestId("ql-next").tap();
+    await expect(page.locator("[data-quick-step='about']")).toBeVisible({ timeout: 20_000 });
+  };
+
+  test("a bungalow with everything: material → gable → windows (the drawn house's windows change) → garage → posts → sizes as steppers → colours → access → Each side", async ({ page }) => {
+    test.setTimeout(180_000);
+    await toAbout(page, "cal", ["walls", "gable", "windows", "garage", "verandah", "posts"], ["paling_fence", "pergola"]);
+    await at(page, "a-walls");
+    await expect(page.getByTestId("wzm-stage")).toHaveText("About it");
+    await expect(page.getByTestId("wzm-h1")).toHaveText("What are the walls made of?");
+    await expect(page.getByTestId("ext-mat").locator("button")).toHaveCount(8);
+    await expect(page.getByTestId("ql-next")).toHaveCount(0);
+    await expect(page.locator(".wzm")).not.toContainText(/\$\s?\d/);
+    await page.getByTestId("ext-mat-render").tap();
+    // render is not brick: no brick screen; the gable next
+    await at(page, "a-gable");
+    await expect(page.getByTestId("wzm-h1")).toHaveText("What's in the gable?");
+    await page.getByTestId("ext-gable-stucco").tap();
+    await at(page, "a-win");
+    await expect(page.getByTestId("wzm-h1")).toHaveText("What kind of windows?");
+    await expect(page.getByTestId("ql-ext-win").locator("button")).toHaveCount(6);
+    const before = await thumb(page).locator(".e-windows").first().innerHTML();
+    await page.getByTestId("ql-ext-win-sash").tap();
+    await at(page, "a-garage");
+    expect(await thumb(page).locator(".e-windows").first().innerHTML(), "the drawn house's windows follow the type").not.toBe(before);
+    await expect(page.getByTestId("wzm-h1")).toHaveText("Garage door");
+    await page.getByTestId("ext-garage-2").tap();
+    await at(page, "a-posts");
+    await page.getByTestId("ext-posts-columns").tap();
+    // the sizes: steppers with a default, Continue
+    await at(page, "a-extras");
+    await expect(page.getByTestId("wzm-h1")).toHaveText("Roughly how big?");
+    await expect(page.getByTestId("ext-size-fence-value")).toHaveText("20");
+    await page.getByTestId("ext-size-fence-plus").tap();
+    await expect(page.getByTestId("ext-size-fence-value")).toHaveText("21");
+    await expect(page.getByTestId("ext-size-pergola_l-value")).toHaveText("4");
+    await expect(page.getByTestId("ext-size-pergola_w-value")).toHaveText("3");
+    await page.getByTestId("ext-size-pergola_w-minus").tap();
+    await expect(page.getByTestId("ext-size-pergola_w-value")).toHaveText("2.5");
+    await expect(page.getByTestId("ql-next")).toHaveText("Continue");
+    await page.getByTestId("ql-next").tap();
+    // colours, then access with the lift note, then Each side
+    await at(page, "a-colours");
+    await expect(page.getByTestId("wzm-h1")).toHaveText("Colours?");
+    await page.getByTestId("ql-ext-colour-new").tap();
+    await at(page, "a-access");
+    await expect(page.getByTestId("wzm-h1")).toHaveText("Getting around the house");
+    await expect(page.getByTestId("ext-lift-note")).toHaveCount(0);
+    await page.getByTestId("ql-ext-access-lift").tap();
+    await expect(page.getByTestId("ext-lift-note")).toContainText(/separate line/i);
+    await page.getByTestId("ql-ext-access-none").tap();
+    await expect(page.getByTestId("ext-lift-note")).toHaveCount(0);
+    await page.getByTestId("ql-next").tap();
+    await expect(page.locator("[data-quick-step='sides']")).toBeVisible({ timeout: 20_000 });
+    // back lands on the last About it screen
+    await page.getByTestId("wzm-back").tap();
+    await at(page, "a-access");
+    await expect(page.getByTestId("ql-ext-access-none")).toHaveAttribute("aria-pressed", "true");
+  });
+
+  test("a double storey asks downstairs then upstairs (Same as downstairs first); brick anywhere asks painted or bare; vertical timber asks about the stain", async ({ page }) => {
+    test.setTimeout(150_000);
+    await toAbout(page, "ds", ["walls"]);
+    await at(page, "a-walls");
+    await expect(page.getByTestId("wzm-h1")).toHaveText("Downstairs walls — what are they made of?");
+    await page.getByTestId("ext-mat-render").tap();
+    await at(page, "a-wallsUp");
+    await expect(page.getByTestId("wzm-h1")).toHaveText("And upstairs?");
+    await expect(page.getByTestId("ext-mat-up").locator("button").first()).toHaveText("Same as downstairs");
+    await expect(page.getByTestId("ext-mat-up-same")).toHaveAttribute("aria-pressed", "true");
+    await page.getByTestId("ext-mat-up-brick").tap();
+    // brick upstairs: the brick question, then (no gable, windows, garage or posts ticked) straight to the colours
+    await at(page, "a-brick");
+    await expect(page.getByTestId("wzm-h1")).toHaveText("Has the brick been painted before?");
+    await page.getByTestId("ext-brick-no").tap();
+    await at(page, "a-colours");
+    await page.getByTestId("wzm-back").tap();
+    await at(page, "a-brick");
+    await page.getByTestId("wzm-back").tap();
+    await at(page, "a-wallsUp");
+    await page.getByTestId("ext-mat-up-vertical_timber").tap();
+    await at(page, "a-timber");
+    await expect(page.getByTestId("wzm-sub")).toContainText(/stained/i);
+    await expect(page.getByTestId("ext-timber-no")).toHaveAttribute("aria-pressed", "true");
+    await page.getByTestId("ext-timber-yes").tap();
+    await at(page, "a-colours");
+    await page.getByTestId("ql-ext-colour-same").tap();
+    await at(page, "a-access");
+    await page.getByTestId("ql-next").tap();
+    await expect(page.locator("[data-quick-step='sides']")).toBeVisible({ timeout: 20_000 });
+  });
+
+  test("nothing more to ask about the roofline alone: About it is the colours and the access only", async ({ page }) => {
+    test.setTimeout(120_000);
+    await toAbout(page, "wb", ["fascias", "gutters"]);
+    await at(page, "a-colours");
+    await expect(page.getByTestId("wzm-stage")).toHaveText("About it");
+    await expect(page.locator("[data-mobile-screen='a-walls']")).toHaveCount(0);
+    await page.getByTestId("wzm-back").tap();
+    await at(page, "p-around");
+    await page.getByTestId("ql-next").tap();
+    await at(page, "a-colours");
+    await page.getByTestId("ql-ext-colour-bold").tap();
+    await at(page, "a-access");
+    await expect(page.getByTestId("ql-ext-access-none")).toHaveAttribute("aria-pressed", "true");
+    await page.getByTestId("ql-next").tap();
+    await expect(page.locator("[data-quick-step='sides']")).toBeVisible({ timeout: 20_000 });
+  });
+});
