@@ -544,3 +544,15 @@ html:has(.mk) { scroll-behavior: smooth; }
 .mk [data-brand="painthome"] .sweeps { background: repeating-linear-gradient(180deg, rgba(2, 173, 181, .04) 0 60px, rgba(2, 173, 181, .11) 60px 120px); }
 .mk [data-brand="painthome"] .callbar { background: rgba(46, 58, 61, .94); }
 .mk [data-brand="painthome"] .logo-full { width: 220px; height: auto; display: block; margin-bottom: 12px; }
+
+/* Wizard mobile v5 §7 (brief, 27 Oct 2026) — the phone's hero: the address and See my price stacked full
+   width, the suggestions overlaying the Inside / Outside chips rather than pushing them down. The wrapper is
+   `display: contents` above 767px, so a laptop's layout is untouched. */
+.mk .fieldwrap { display: contents; }
+@media (max-width: 767px) {
+  .mk .hero .fieldwrap { display: block; position: relative; }
+  .mk .hero .field { flex-wrap: wrap; border-radius: 22px; padding: 10px 10px 10px 16px; min-height: 0; gap: 10px; }
+  .mk .hero .field input { flex: 1 1 60%; min-width: 0; font-size: 18px; padding: 12px 0; }
+  .mk .hero .field .btn { flex: 1 0 100%; width: 100%; padding: 15px 16px; font-size: 16px; }
+  .mk .hero .fieldwrap .suggest { position: absolute; left: 0; right: 0; top: 100%; z-index: 20; margin-top: 6px; box-shadow: 0 18px 40px rgba(0, 0, 0, .45); }
+}
