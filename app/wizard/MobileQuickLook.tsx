@@ -103,7 +103,12 @@ export default function MobileQuickLook({
   const stepScreens = screens.filter((s) => s.step === step);
   // Which screen of THIS step is showing. On a new step: the first one going
   // forward, the last one coming back, the remembered one after a reload.
-  const [sub, setSub] = useState(0);
+  // Which screen of the step: kept WITH its step, so a render between a step change and the layout effect below never
+  // shows another step's screen at this step's index (C1, 30 Oct: the sides step was briefly on "Left" at About it's last
+  // index, and the look-confirms-it effect checked the left side unseen).
+  const [subState, setSubState] = useState<{ step: QuickLookStep; sub: number }>({ step, sub: 0 });
+  const sub = subState.step === step ? subState.sub : 0;
+  const setSub = (n: number) => setSubState({ step, sub: n });
   const pendingRef = useRef<"first" | "last" | null>(null);
   const stepRef = useRef<QuickLookStep | null>(null);
   // The remembered screen, read ONCE at mount: a resume lands its step after the first paint (the draft loads

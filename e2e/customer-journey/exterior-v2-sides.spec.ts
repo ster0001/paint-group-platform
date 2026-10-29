@@ -177,7 +177,10 @@ test.describe("on a phone: Each side is one screen per side, the house turned to
     await page.getByTestId("ql-next").tap();
     await at(page, "p-around");
     await page.getByTestId("ql-next").tap();
-    if (parts.includes("walls")) { await at(page, "a-walls"); await page.getByTestId("ext-mat-weatherboards").tap(); }
+    if (parts.includes("walls")) {
+      await at(page, "a-walls"); await page.getByTestId("ext-mat-weatherboards").tap();
+      if (shape === "ds" || shape === "th") { await at(page, "a-wallsUp"); await page.getByTestId("ext-mat-up-same").tap(); }
+    }
     if (parts.includes("gable")) { await at(page, "a-gable"); await page.getByTestId("ext-gable-stucco").tap(); }
     if (parts.includes("windows")) { await at(page, "a-win"); await page.getByTestId("ql-ext-win-casement").tap(); }
     if (parts.includes("posts")) { await at(page, "a-posts"); await page.getByTestId("ext-posts-posts").tap(); }
@@ -203,14 +206,15 @@ test.describe("on a phone: Each side is one screen per side, the house turned to
     await expect(page.locator(".wzm")).not.toContainText(/m across|\$\s?\d/);
     await expect(page.getByTestId("ext-side-np")).toHaveAttribute("aria-pressed", "false");
     await expect(page.getByTestId("ql-next")).toHaveText("Looks right — next side");
-    await expect(page.getByTestId("wzm-ribbon-2")).toHaveText("Front · Right · Back · Left");
+    // looking at a side checks it: the front ticks as soon as it is shown
+    await expect(page.getByTestId("wzm-ribbon-2")).toHaveText("Front ✓ · Right · Back · Left");
     // the right side: the house turns; no gable or verandah land here; add a gable; this side's walls are render
     await page.getByTestId("ql-next").tap();
     await at(page, "s-right");
     await expect(page.getByTestId("wzm-h1")).toHaveText("Right side");
     await expect(thumb(page)).toHaveAttribute("data-side", "right");
     await expect(page.getByTestId("wzm-side-front")).toHaveAttribute("data-state", "done");
-    await expect(page.getByTestId("wzm-ribbon-2")).toHaveText("Front ✓ · Right · Back · Left");
+    await expect(page.getByTestId("wzm-ribbon-2")).toHaveText("Front ✓ · Right ✓ · Back · Left");
     await expect(page.getByTestId("ext-sidepart-gable")).toHaveCount(0);
     await expect(page.getByTestId("ext-sidepart-verandah")).toHaveCount(0);
     await expect(page.getByTestId("ext-side-add")).toHaveCount(0);
@@ -245,7 +249,7 @@ test.describe("on a phone: Each side is one screen per side, the house turned to
     await page.getByTestId("ql-next").tap();
     await at(page, "s-left");
     await expect(page.getByTestId("ql-next")).toHaveText("Looks right");
-    await expect(page.getByTestId("wzm-ribbon-2")).toHaveText("Front ✓ · Right ✓ · Back ✓ · Left");
+    await expect(page.getByTestId("wzm-ribbon-2")).toHaveText("Front ✓ · Right ✓ · Back ✓ · Left ✓");
     await page.getByTestId("ql-next").tap();
     await at(page, "details");
     await page.getByTestId("wzm-back").tap();
