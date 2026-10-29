@@ -3,7 +3,8 @@ import {
   type InteriorExcludable, type QuickLook, type QuickLookStep, type ScopePreset,
 } from "./quick-look";
 import { typicalFor, type ExteriorTypicalRow } from "./exterior-typicals";
-import type { ExteriorV2 } from "./state";
+import { EXTERIOR_EXTRAS, type ExteriorExtra, type ExteriorPart, type ExteriorV2 } from "./state";
+import { VERANDAH_PARTS } from "./exterior-model";
 
 /**
  * Wizard mobile v5, session 2 (brief §2) — the phone's screens, as data.
@@ -23,7 +24,7 @@ import type { ExteriorV2 } from "./state";
  * The answers themselves are the quick look's (`QuickLook`), untouched:
  * the data model is unchanged (§2.6). Nothing here renders or prices.
  */
-export const MOBILE_SCREEN_IDS = ["what", "property", "beds", "storeys", "job", "surfaces", "rooms", "colours", "condition", "living", "shape", "size", "row", "details"] as const;
+export const MOBILE_SCREEN_IDS = ["what", "property", "beds", "storeys", "job", "surfaces", "rooms", "colours", "condition", "living", "shape", "size", "row", "p-house", "p-win", "p-ver", "p-around", "details"] as const;
 export type MobileScreenId = (typeof MOBILE_SCREEN_IDS)[number];
 
 export type MobileScreen = {
@@ -40,7 +41,9 @@ export type MobileScreen = {
 };
 
 /** Brief §2 — the words, one heading and at most one grey line (R8). */
-const WORDS: Record<MobileScreenId, { heading: string; sub: string }> = {
+/** The Painting screens' words live with their step (they depend on the shape); every other screen's are here. */
+type WordedScreenId = Exclude<MobileScreenId, "p-house" | "p-win" | "p-ver" | "p-around">;
+const WORDS: Record<WordedScreenId, { heading: string; sub: string }> = {
   what: { heading: "What are we painting?", sub: "Your range in under a minute." },
   property: { heading: "What kind of place is it?", sub: "Near enough is fine." },
   beds: { heading: "How many bedrooms?", sub: "This builds your room list for you." },
@@ -58,7 +61,7 @@ const WORDS: Record<MobileScreenId, { heading: string; sub: string }> = {
   details: { heading: "Where shall we send your range?", sub: "It shows on the next screen. We text you the link so you can come back to it." },
 };
 
-const screen = (id: MobileScreenId, step: QuickLookStep, advance: MobileScreen["advance"], heading = WORDS[id].heading): MobileScreen =>
+const screen = (id: WordedScreenId, step: QuickLookStep, advance: MobileScreen["advance"], heading = WORDS[id].heading): MobileScreen =>
   ({ id, step, advance, heading, sub: WORDS[id].sub });
 
 /**
@@ -109,6 +112,16 @@ export function mobileScreensFor(
         out.push({ ...screen("shape", step, "auto"), stage: "Your home" });
         out.push({ ...screen("size", step, "auto"), stage: "Your home" });
         if (v2 && typicalFor(v2.propertyType, rows).sharedSides.length > 0) out.push({ ...screen("row", step, "auto"), stage: "Your home" });
+        break;
+      }
+      case "paint": {
+        // Exterior on mobile v5, session 2 (plan §2 screens 5a–5d; D-E5): one group a screen, Continue on each; nothing pre-ticked (C8b).
+        const v2 = outside?.v2 ?? null;
+        const t = v2 ? typicalFor(v2.propertyType, rows) : null;
+        out.push({ id: "p-house", step, advance: "bar", heading: "Tap everything we're painting", sub: "Walls and roofline. Tap each part and watch it paint in.", stage: "Painting" });
+        out.push({ id: "p-win", step, advance: "bar", heading: "Windows and doors", sub: null, stage: "Painting" });
+        out.push({ id: "p-ver", step, advance: "bar", heading: "The verandah", sub: t && t.verandah !== "none" ? null : "Tick it if there is one.", stage: "Painting" });
+        out.push({ id: "p-around", step, advance: "bar", heading: "Around the house", sub: "Anything else outside we're painting?", stage: "Painting" });
         break;
       }
       case "gate":
@@ -234,3 +247,26 @@ export function detailsReady(c: { name: string; email: string; phone: string }):
 
 /** Where the phone's screen id is kept between reloads, beside the resume record. */
 export const MOBILE_SCREEN_KEY = "pg-wizard-mobile-screen-v1";
+
+/**
+ * Exterior on mobile v5, session 2 (plan §2 screens 5a–5c): the parts each
+ * Painting screen offers — the house and its roofline on one screen (Tom,
+ * 29 Oct), windows and doors, the verandah (its posts, ceiling and handrail
+ * once the verandah is ticked — D-E5). The around-the-house screen offers
+ * the brief's extras. The order is the exterior brief's.
+ */
+export type PaintScreenId = "p-house" | "p-win" | "p-ver";
+export const PAINT_SCREEN_PARTS: Record<PaintScreenId, ExteriorPart[]> = {
+  "p-house": ["walls", "gable", "fascias", "gutters", "downpipes", "eaves"],
+  "p-win": ["windows", "doors", "garage", "shutters"],
+  "p-ver": ["verandah", "posts", "ceiling", "handrail"],
+};
+export function paintScreenParts(id: PaintScreenId, v2: Pick<ExteriorV2, "parts">): ExteriorPart[] {
+  const verandahOn = v2.parts.includes("verandah");
+  return PAINT_SCREEN_PARTS[id].filter((p) => !VERANDAH_PARTS.includes(p) || verandahOn);
+}
+/** Every part the three screens offer, in order — the sheet's chips (one control, two places). */
+export function paintParts(v2: Pick<ExteriorV2, "parts">): ExteriorPart[] {
+  return (["p-house", "p-win", "p-ver"] as const).flatMap((id) => paintScreenParts(id, v2));
+}
+export const AROUND_EXTRAS: readonly ExteriorExtra[] = EXTERIOR_EXTRAS;

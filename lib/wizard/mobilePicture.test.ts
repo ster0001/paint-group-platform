@@ -41,10 +41,14 @@ describe("the picture state (wizard mobile v5 §3.1)", () => {
     // no drawn house yet: the place answer stands in
     expect(pictureStateFor(q({ jobType: "exterior", propertyKind: "townhouse" }), null, false)).toMatchObject({ kind: "house", property: "townhouse", painted: null });
   });
-  it("the sheet's outside chips are the six surfaces (no verandah off a house), each toggling its first part", () => {
-    const chips = outsideSheetChips(v2({ parts: ["gable"] }), "house");
-    expect(chips.map((c) => `${c.key}:${c.part}:${c.on ? 1 : 0}`)).toEqual(["walls:walls:1", "eaves:fascias:0", "gutters:gutters:0", "windows:windows:0", "doors:doors:0", "verandah:verandah:0"]);
-    expect(outsideSheetChips(v2(), "unit_apartment").map((c) => c.key)).not.toContain("verandah");
+  it("the sheet's outside chips are the Painting screens' parts in order (the verandah family once the verandah is ticked), each toggling itself (S2)", () => {
+    const chips = outsideSheetChips(v2({ parts: ["gable"] }));
+    expect(chips.map((c) => `${c.key}:${c.part}:${c.on ? 1 : 0}`)).toEqual([
+      "walls:walls:0", "gable:gable:1", "fascias:fascias:0", "gutters:gutters:0", "downpipes:downpipes:0", "eaves:eaves:0",
+      "windows:windows:0", "doors:doors:0", "garage:garage:0", "shutters:shutters:0", "verandah:verandah:0",
+    ]);
+    expect(outsideSheetChips(v2({ parts: ["verandah"] })).map((c) => c.key)).toContain("posts");
+    expect(outsideSheetChips(null)).toEqual([]);
   });
 });
 
@@ -65,7 +69,7 @@ describe("the ribbon (§2.2)", () => {
     const quick = q({ jobType: "exterior" });
     const screens = screensOf(quick);
     const outside = { ...DEFAULT_EXTERIOR_QUICK_LOOK, v2: v2({ parts: ["walls", "doors"] }) };
-    const paintAt = screens.findIndex((s) => s.id === "paint");
+    const paintAt = screens.findIndex((s) => s.step === "paint");
     expect(ribbonFor({ quick, outside, screens, index: paintAt - 1, roomsTicked: 0 }).line2).toBe("Updates as you answer · tap to see");
     // exterior on mobile v5 (S1): past the shape and size screens the ribbon names the home in place of "House"
     expect(ribbonFor({ quick, outside, screens, index: paintAt, roomsTicked: 0 })).toEqual({ line1: "Outside · Weatherboard home · Medium", line2: "2 parts ticked · tap to see" });

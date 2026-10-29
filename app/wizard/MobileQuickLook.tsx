@@ -4,11 +4,12 @@ import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "re
 import { CONDITION_BANDS, OCCUPIED, type QuickLook, type QuickLookStep, type ScopePreset } from "@/lib/wizard/quick-look";
 import {
   COLOUR_CHOICES, EXTRA_ROOMS, JOB_CHOICES, MOBILE_SCREEN_KEY, applyColourChoice, applyJobChoice, colourChoiceOf, detailsReady,
-  mobileProgress, mobileScreensFor, roomChips, roomsTicked, surfaceChips, toggleListedRoom, toggleSurface, type MobileScreen,
+  mobileProgress, mobileScreensFor, paintScreenParts, roomChips, roomsTicked, surfaceChips, toggleListedRoom, toggleSurface, AROUND_EXTRAS,
+  type MobileScreen, type PaintScreenId,
 } from "@/lib/wizard/mobileScreens";
 import { jobTypesFor, propertyKindsFor, type WizardBrand } from "@/lib/wizard/brand";
 import type { ExteriorQuickLook } from "@/lib/wizard/exterior-quick-look";
-import { togglePart } from "@/lib/wizard/exterior-model";
+import { EXTRA_LABEL, PART_LABEL, exteriorV2Answered, toggleExtra, togglePart } from "@/lib/wizard/exterior-model";
 import type { InteriorExcludable } from "@/lib/wizard/quick-look";
 import { elevationCaption, outsideSheetChips, pictureStateFor, ribbonFor } from "@/lib/wizard/mobilePicture";
 import MobileStrip, { type StripChip } from "./MobileStrip";
@@ -19,7 +20,7 @@ import { TypeThumb } from "./pictures/Elevation";
 import { SIZE_OPTIONS, houseOfShape } from "./ExteriorHome";
 import { reseedSides } from "@/lib/wizard/exterior-model";
 import { EXTERIOR_SHAPE_KEYS, typicalFor, type ExteriorTypicalRow } from "@/lib/wizard/exterior-typicals";
-import type { ExteriorV2 } from "@/lib/wizard/state";
+import type { ExteriorPart, ExteriorV2 } from "@/lib/wizard/state";
 
 /**
  * Wizard mobile v5, session 2 — the phone's shell and its screens (brief §2;
@@ -159,6 +160,8 @@ export default function MobileQuickLook({
   const ticked = roomsTicked(quick, roomNames, addedRooms);
   const ready = current.id === "details" ? Boolean(contact && detailsReady(contact))
     : current.id === "rooms" ? ticked > 0
+    // S2 (plan §2 5d): Continue needs at least one part or extra overall by the last Painting screen (the step's own rule)
+    : current.id === "p-around" ? Boolean(outside.v2 && exteriorV2Answered(outside.v2))
     : true;
   const barLabel = current.id === "details" ? "Show my range" : step === "com_book" ? "Book it" : "Continue";
   // S3 (brief §3): one picture state for the strip and the sheet; the ribbon from the answers so far.
@@ -171,23 +174,28 @@ export default function MobileQuickLook({
     onQuick(next);
     sendWizardEvent("surface_toggled", { surface: key, on: !(next.excluded ?? []).includes(key) });
   };
-  const outsideChips = quick.jobType === "exterior" && outside.v2 ? outsideSheetChips(outside.v2, picture.property) : null;
+  // Exterior on mobile v5 (S2): a part ticked on a Painting screen, on the sheet's picture or on a sheet chip — one toggle.
+  const togglePaintPart = (p: ExteriorPart) => {
+    if (!outside.v2) return;
+    const wasOn = outside.v2.parts.includes(p);
+    onOutside({ v2: togglePart(outside.v2, p) });
+    sendWizardEvent("surface_toggled", { surface: p, on: !wasOn });
+  };
+  const outsideChips = quick.jobType === "exterior" && outside.v2 ? outsideSheetChips(outside.v2) : null;
   const sheetChips: StripChip[] | null = quick.jobType === "exterior"
     ? outsideChips
     : surfacesReached ? surfaceChips(quick).map((c) => ({ key: c.key, label: c.label, on: c.on })) : null;
   const toggleSheetChip = (key: string) => {
     if (quick.jobType === "exterior") {
       const chip = outsideChips?.find((c) => c.key === key);
-      if (!chip || !outside.v2) return;
-      onOutside({ v2: togglePart(outside.v2, chip.part) });
-      sendWizardEvent("surface_toggled", { surface: chip.part, on: !chip.on });
+      if (chip) togglePaintPart(chip.part);
       return;
     }
     toggleInside(key as InteriorExcludable);
   };
   // Exterior on mobile v5 (plan §3): from the first shape the strip's thumbnail is the DRAWN HOUSE, the front, drawn again in the sheet.
   const elevation = quick.jobType === "exterior" && outside.v2
-    ? { v2: outside.v2, rows: exteriorTypicals, side: "front" as const, caption: elevationCaption(outside.v2, exteriorTypicals) }
+    ? { v2: outside.v2, rows: exteriorTypicals, side: "front" as const, caption: elevationCaption(outside.v2, exteriorTypicals), onPart: togglePaintPart }
     : null;
   const showBar = current.advance === "bar";
   const pct = mobileProgress(index, screens.length);
@@ -368,6 +376,38 @@ export default function MobileQuickLook({
           )}
           {current.id === "size" && outside.v2 && <SizeChoices v2={outside.v2} rows={exteriorTypicals} onPick={pickOutside} />}
           {current.id === "row" && outside.v2 && <RowChoices v2={outside.v2} rows={exteriorTypicals} onPick={pickOutside} />}
+
+          {/* Exterior on mobile v5, session 2 (plan §2 screens 5a–5d): Painting, one group a screen; the chips are the brief's parts
+              (`togglePart`) and extras (`toggleExtra`); nothing is pre-ticked (C8b); the drawn house in the strip sweeps each tick in. */}
+          {(current.id === "p-house" || current.id === "p-win" || current.id === "p-ver") && outside.v2 && (
+            <>
+              {current.id === "p-house" && !typicalFor(outside.v2.propertyType, exteriorTypicals).wallsPainted && (
+                <p className="wzm-note" data-testid="ext-brick-hint">Brick is usually left bare — tick the walls only if the brick is being painted.</p>
+              )}
+              <div className="wzm-chips" data-testid={`ext-group-${current.id}`}>
+                {paintScreenParts(current.id as PaintScreenId, outside.v2).map((p) => {
+                  const on = outside.v2!.parts.includes(p);
+                  return (
+                    <button key={p} type="button" className={`wzm-chip ${on ? "on" : ""}`} aria-pressed={on} data-testid={`ext-part-${p}`} onClick={() => togglePaintPart(p)}>{PART_LABEL[p]}</button>
+                  );
+                })}
+              </div>
+              {current.id === "p-ver" && !outside.v2.parts.includes("verandah") && (
+                <p className="wzm-note" data-testid="ext-verandah-hint">Tick the verandah and we ask about its posts, ceiling and handrail.</p>
+              )}
+            </>
+          )}
+          {current.id === "p-around" && outside.v2 && (
+            <div className="wzm-chips" data-testid="ext-extras">
+              {AROUND_EXTRAS.map((e) => {
+                const on = outside.v2!.extras.includes(e);
+                return (
+                  <button key={e} type="button" className={`wzm-chip ${on ? "on" : ""}`} aria-pressed={on} data-testid={`ext-extra-${e}`}
+                    onClick={() => { if (outside.v2) onOutside({ v2: toggleExtra(outside.v2, e) }); }}>{EXTRA_LABEL[e]}</button>
+                );
+              })}
+            </div>
+          )}
 
           {current.id === "details" && contact && (
             <>
