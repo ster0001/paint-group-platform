@@ -157,7 +157,7 @@ export function mobileScreensFor(
           const notPainting = sd ? !sd.paint : false;
           out.push({
             id: `s-${k}`, step, advance: "bar", heading: MOBILE_SIDE_LABEL[k], stage: "Each side",
-            sub: notPainting && sd?.shared ? "Usually a shared wall — not painting unless you add it." : notPainting ? "Not painting this side — tap the switch to add it back." : "Untick what isn't on this side. Add anything that is.",
+            sub: notPainting && sd?.shared ? "Usually a shared wall — not painting unless you add it." : "Untick what isn't on this side. Add anything that is.",
           });
         }
         break;

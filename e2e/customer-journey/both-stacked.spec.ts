@@ -93,7 +93,8 @@ test.describe("on a phone: a both job is inside then outside, one gate (exterior
     await page.getByTestId("ql-ext-type-wb").tap();
     await at(page, "size");
     await expect(page.getByTestId("wzm-thumb").locator("svg.wz-elev")).toHaveAttribute("data-shape", "wb");
-    await expect(page.getByTestId("wzm-ribbon-1")).toContainText("Outside · Weatherboard home");
+    await expect(page.getByTestId("wzm-ribbon-1")).toContainText("Inside and outside");
+    await expect(page.getByTestId("wzm-ribbon-1")).toContainText("Weatherboard home");
     await page.getByTestId("ql-ext-size-md").tap();
     await at(page, "p-house");
     await page.getByTestId("ext-part-walls").tap();

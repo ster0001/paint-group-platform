@@ -205,6 +205,7 @@ test.describe("on a phone: Each side is one screen per side, the house turned to
     await expect(page.getByTestId("ext-win-count")).toHaveCount(0);
     await expect(page.locator(".wzm")).not.toContainText(/m across|\$\s?\d/);
     await expect(page.getByTestId("ext-side-np")).toHaveAttribute("aria-pressed", "false");
+    await expect(page.getByTestId("ext-side-matup")).toHaveCount(0); // a single storey is never offered a second material
     await expect(page.getByTestId("ql-next")).toHaveText("Looks right — next side");
     // looking at a side checks it: the front ticks as soon as it is shown
     await expect(page.getByTestId("wzm-ribbon-2")).toHaveText("Front ✓ · Right · Back · Left");
@@ -248,7 +249,7 @@ test.describe("on a phone: Each side is one screen per side, the house turned to
     await expect(thumb(page)).toHaveAttribute("data-side", "back");
     await page.getByTestId("ql-next").tap();
     await at(page, "s-left");
-    await expect(page.getByTestId("ql-next")).toHaveText("Looks right");
+    await expect(page.getByTestId("ql-next")).toHaveText("Looks right — next side");
     await expect(page.getByTestId("wzm-ribbon-2")).toHaveText("Front ✓ · Right ✓ · Back ✓ · Left ✓");
     await page.getByTestId("ql-next").tap();
     await at(page, "details");

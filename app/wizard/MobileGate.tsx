@@ -35,7 +35,7 @@ import { breakpointNow, sendWizardEvent } from "@/lib/wizard/wizardEvents";
  */
 const fmt = (cents: number) => `$${Math.round(cents / 100).toLocaleString("en-AU")}`;
 
-export default function MobileGate({ payload, quick, outside, brand, logo, estimateId, firstName, suburb, trust, handoff, onExact, onVisit, onBook, onContactOpen }: {
+export default function MobileGate({ payload, quick, outside, brand, logo, estimateId, firstName, suburb, trust, handoff, walked = false, onExact, onVisit, onBook, onContactOpen }: {
   logo: ReactNode;
   /** R6: the Contact pill, on the gate too (session 5). */
   onContactOpen: () => void;
@@ -49,6 +49,8 @@ export default function MobileGate({ payload, quick, outside, brand, logo, estim
   trust: { rating: number | null; count: number | null; warranty: string | null } | null;
   /** §4.2: the bigger-job variant (Paint Home over the ceiling, or a job that needs seeing). */
   handoff: boolean;
+  /** S6: the walk-around has re-priced the house (WizardApp's `walkDone` landed) — the exact-price stage needs that, not just the checked flags. */
+  walked?: boolean;
   /** Get my exact price — the room-by-room editor (WizardApp decides the details sheet first). */
   onExact: () => void;
   /** "Book a time first" — the talk sheet for now (session 5: the Contact sheet at the slots). */
@@ -80,7 +82,7 @@ export default function MobileGate({ payload, quick, outside, brand, logo, estim
   const minutes = exteriorOnly ? "A few minutes" : both ? "A quarter of an hour" : "Ten minutes";
   // S6 (plan §2 screen 12; prototype's tightened gate): every side checked on the walk-around → the exact-price stage —
   // "your exact price", "Book <who> to confirm it", "Or change a side", the side rows open. Never on the bigger-job variant.
-  const tightened = Boolean(v2 && exteriorOnly && !handoff && allSidesChecked(v2));
+  const tightened = Boolean(v2 && exteriorOnly && !handoff && walked && allSidesChecked(v2));
   const painthome = brand === "painthome";
   // §4 block 6: the TICKED surfaces with their coats — a system line stays only while its chip is on
   // (the cornices ride with the ceilings in the engine, so "Ceilings and cornices" would otherwise outlive an unticked ceiling).

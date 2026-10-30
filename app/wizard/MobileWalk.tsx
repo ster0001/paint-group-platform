@@ -54,6 +54,9 @@ export default function MobileWalk({ v2, rows = [], quick, outside, logo, at, on
   // §2.1: the quote stage carries the bar from 55% to 100%
   const pct = done ? 100 : 55 + Math.round((checked / Math.max(1, painted.length)) * 45);
   const on = new Set(sd ? partsOnSide(v2, side, t) : []);
+  // the prototype's rule: Check this side waits for the size AND the paint's condition (the model's gate is the size alone)
+  const canCheck = Boolean(sd && canCheckSide(v2, side) && sd.cond != null);
+  const COND_WORDS: Record<"good" | "weathered" | "peeling", string> = { good: "Good, just tired", weathered: "Weathered", peeling: "Peeling or flaking" };
   const idx = painted.indexOf(side);
 
   const check = () => {
@@ -105,7 +108,7 @@ export default function MobileWalk({ v2, rows = [], quick, outside, logo, at, on
             <div className="wzm-walk-done" data-testid="ext-walk-done">
               <span className="wzm-av" aria-hidden="true">✓</span>
               <h1 data-testid="wzm-h1">All {painted.length} side{painted.length === 1 ? "" : "s"} checked</h1>
-              <p className="wzm-sub">Your exact price is ready — it reads from what you counted.</p>
+              <p className="wzm-sub">Your exact price is ready.</p>
             </div>
           ) : sd && (
             <>
@@ -140,10 +143,10 @@ export default function MobileWalk({ v2, rows = [], quick, outside, logo, at, on
               <div className="wzm-chips" data-testid="ext-cond">
                 {EXT_CONDITIONS.map((o) => (
                   <button key={o.value} type="button" className={`wzm-chip ${sd.cond === o.value ? "on" : ""}`} aria-pressed={sd.cond === o.value} data-testid={`ext-cond-${o.value}`}
-                    onClick={() => onChange(setSideCond(v2, side, o.value))}>{o.label}</button>
+                    onClick={() => onChange(setSideCond(v2, side, o.value))}>{COND_WORDS[o.value]}</button>
                 ))}
               </div>
-              {!canCheckSide(v2, side) && <p className="wzm-note" data-testid="ext-check-why">Answer the size first — Looks right, Adjust it or Not sure.</p>}
+              {!canCheck && <p className="wzm-note" data-testid="ext-check-why">{canCheckSide(v2, side) ? "Say how the paint is on this side first." : "Answer the size first — Looks right, Adjust it or Not sure."}</p>}
             </>
           )}
           {error && <div className="wz-err" data-testid="ext-walk-error">{error}</div>}
@@ -152,7 +155,7 @@ export default function MobileWalk({ v2, rows = [], quick, outside, logo, at, on
       <div className="wzm-foot" data-testid="wzm-foot">
         {done
           ? <button type="button" className="wzm-cta wzm-cta--teal" disabled={busy} onClick={onDone} data-testid="ext-see-range">{busy ? "Working it out…" : "See my exact price"}</button>
-          : <button type="button" className="wzm-cta" disabled={!sd || !canCheckSide(v2, side)} onClick={check} data-testid="ext-check-side">{sd?.checked ? "Checked ✓ — next side" : "Check this side"}</button>}
+          : <button type="button" className="wzm-cta" disabled={!canCheck} onClick={check} data-testid="ext-check-side">{sd?.checked ? "Checked ✓ — next side" : "Check this side"}</button>}
         {!done && <p className="wzm-hint" data-testid="ext-walk-progress">{checked} of {painted.length} sides checked</p>}
       </div>
     </div>

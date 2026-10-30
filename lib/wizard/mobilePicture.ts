@@ -132,11 +132,14 @@ export type Ribbon = { line1: string; line2: string };
 export function ribbonFor(i: {
   quick: QuickLook; outside: ExteriorQuickLook | null; screens: readonly MobileScreen[]; index: number; roomsTicked: number;
   rows?: ReadonlyArray<ExteriorTypicalRow>;
+  /** S7: a both job on an exterior step — the outside's second line, the shape and size on the first. */
+  outsideNow?: boolean;
 }): Ribbon {
   const { quick, screens, index } = i;
   const passed = new Set(screens.slice(0, index).map((s) => s.id));
   const parts: string[] = [];
-  const v2 = quick.jobType === "exterior" ? i.outside?.v2 ?? null : null;
+  const outsideNow = i.outsideNow ?? quick.jobType === "exterior";
+  const v2 = outsideNow ? i.outside?.v2 ?? null : null;
   if (passed.has("what")) parts.push(quick.jobType === "exterior" ? "Outside" : quick.jobType === "both" ? "Inside and outside" : "Inside");
   // Exterior on mobile v5 (plan §3): once the shape is given it names the home in place of the place's kind.
   if (passed.has("property") && !(v2 && passed.has("shape"))) parts.push(PROPERTY_WORD[quick.propertyKind]);
@@ -150,7 +153,7 @@ export function ribbonFor(i: {
   if (passed.has("condition")) parts.push(CONDITION_WORD[quick.condition]);
   const line1 = parts.length ? parts.join(" · ") : "Your place";
   const surfacesAt = screens.findIndex((s) => s.id === "surfaces");
-  if (quick.jobType === "exterior") {
+  if (outsideNow) {
     // S4 (plan §3): on the side screens the second line is the sides' state
     if (v2 && screens[index]?.step === "sides") return { line1, line2: sideStatusLine(v2) };
     const n = i.outside?.v2?.parts.length ?? 0;

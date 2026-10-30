@@ -192,7 +192,7 @@ export default function MobileQuickLook({
   const sideAt = sideOfScreen(current.id);
   const sidePainted = sideAt != null && Boolean(outside.v2?.sides[sideAt]?.paint);
   const barLabel = current.id === "details" ? "Show my range" : step === "com_book" ? "Book it"
-    : sideAt ? (last ? (sidePainted ? "Looks right" : "Continue") : (sidePainted ? "Looks right — next side" : "Next side"))
+    : sideAt ? (sidePainted ? "Looks right — next side" : last ? "Continue" : "Next side")
     : "Continue";
   useEffect(() => {
     if (!sideAt || !outside.v2) return;
@@ -209,7 +209,7 @@ export default function MobileQuickLook({
   const exteriorNow = quick.jobType === "exterior" || (quick.jobType === "both" && EXTERIOR_STEPS.has(step));
   const pictureQuick: QuickLook = exteriorNow && quick.jobType !== "exterior" ? { ...quick, jobType: "exterior" } : quick;
   const picture = pictureStateFor(pictureQuick, outside, surfacesReached);
-  const ribbon = ribbonFor({ quick: pictureQuick, outside, screens, index, roomsTicked: ticked, rows: exteriorTypicals });
+  const ribbon = ribbonFor({ quick, outside, screens, index, roomsTicked: ticked, rows: exteriorTypicals, outsideNow: exteriorNow });
   const toggleInside = (key: InteriorExcludable) => {
     const next = toggleSurface(quick, key);
     onQuick(next);
@@ -501,9 +501,7 @@ export default function MobileQuickLook({
               (`togglePart`) and extras (`toggleExtra`); nothing is pre-ticked (C8b); the drawn house in the strip sweeps each tick in. */}
           {(current.id === "p-house" || current.id === "p-win" || current.id === "p-ver") && outside.v2 && (
             <>
-              {current.id === "p-house" && !typicalFor(outside.v2.propertyType, exteriorTypicals).wallsPainted && (
-                <p className="wzm-note" data-testid="ext-brick-hint">Brick is usually left bare — tick the walls only if the brick is being painted.</p>
-              )}
+              {/* the bare-brick note is About it's walls screen's grey line (R8: one grey line here) */}
               <div className="wzm-chips" data-testid={`ext-group-${current.id}`}>
                 {paintScreenParts(current.id as PaintScreenId, outside.v2).map((p) => {
                   const on = outside.v2!.parts.includes(p);
@@ -512,9 +510,6 @@ export default function MobileQuickLook({
                   );
                 })}
               </div>
-              {current.id === "p-ver" && !outside.v2.parts.includes("verandah") && (
-                <p className="wzm-note" data-testid="ext-verandah-hint">Tick the verandah and we ask about its posts, ceiling and handrail.</p>
-              )}
             </>
           )}
           {current.id === "p-around" && outside.v2 && (
