@@ -1931,7 +1931,7 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
           <MobileGate
             payload={reveal.payload}
             quick={quick}
-            outside={quick.jobType === "exterior" ? outside : null}
+            outside={quick.jobType === "exterior" || quick.jobType === "both" ? outside : null}
             brand={brand}
             logo={<Wordmark logoUrl={logoUrl} brand={brand} />}
             onContactOpen={() => { sendWizardEvent("contact_opened", { step: "gate" }); setContactOpen("gate"); }}
