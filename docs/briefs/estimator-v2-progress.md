@@ -86,6 +86,7 @@
 
 | Date | Ruling |
 |---|---|
+| 30 Oct | **D-E1 (exterior on mobile v5), Tom: remove** — the drawn-house gate shows no "Guide · within N%" / "Detailed" pill and no tier word on either width (`Reveal.tsx` `noTier`); the band stays on the reveal root as `data-band` for the specs; the interior and commercial gates keep their pill; the "How the range narrows" ladder keeps its stage names. Branch `fix/exterior-desktop-gate-no-tier`. |
 | 10 Sep | Glass share not asked; walls at full perimeter, cutting-in offsets |
 | 10 Sep | Retail includes hospitality and restaurants |
 | 10 Sep | Healthcare asks aged care / clinic / hospital; hospital → brief; counts "resident rooms, wards or treatment rooms" |

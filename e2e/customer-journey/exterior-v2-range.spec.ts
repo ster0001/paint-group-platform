@@ -6,7 +6,7 @@ import { toSides } from "./exterior-v2-drive";
  * Exterior wizard v2 — S4: the gate and the guide range (brief §7.5; gate
  * spec for S4). As an anonymous customer with the `exteriorV2` flag ON:
  *
- *  - the range reads Guide · within N% (range-width is the number alone);
+ *  - D-E1 (Tom, 30 Oct 2026): the drawn-house gate shows NO tier pill and no tolerance — the band is data on the root;
  *  - one row per painted side — `w × h m · what was counted` — and one for
  *    around the house, read off the same tree the price came from; a side
  *    marked not painting is absent (5b); a gable added on one side is on
@@ -33,8 +33,10 @@ test("the guide range on a bungalow: the pill, one row per side with the gable o
   await quickNext(page);
   await passGateIfShown(page);
   await expect(page.getByTestId("reveal-range")).toContainText(MONEY_RANGE, { timeout: 90_000 });
-  await expect(page.locator(".wz-rv-pill")).toContainText(/Guide · within \d+%/);
-  await expect(page.getByTestId("range-width")).toHaveText(/^\d+$/);
+  await expect(page.locator(".wz-rv-pill")).toHaveCount(0);
+  await expect(page.getByTestId("reveal")).not.toContainText(/±|within \d+%|Guide|Detailed/);
+  await expect(page.getByTestId("reveal")).toHaveAttribute("data-band", /^\d+$/);
+  await expect(page.getByTestId("reveal-kicker")).toContainText(/your range$/);
   // The rows.
   const rows = page.getByTestId("ext-range");
   await expect(rows).toBeVisible();

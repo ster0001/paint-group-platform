@@ -29,7 +29,7 @@ async function toEditor(page: Page) {
   await quickNext(page);
   await passGateIfShown(page);
   await expect(page.getByTestId("reveal-range")).toContainText(MONEY_RANGE, { timeout: 90_000 });
-  await expect(page.getByTestId("reveal-tier")).toHaveAttribute("data-tier", "guide");
+  await expect(page.getByTestId("reveal-tier")).toHaveCount(0); // D-E1 (30 Oct): no tier pill on the drawn-house gate
   await expect(page.getByTestId("door-tighten")).toContainText(/Side by side/);
   await page.getByTestId("door-tighten").click();
   await passDetailsSheetIfShown(page);
@@ -37,7 +37,12 @@ async function toEditor(page: Page) {
   await expect(page.locator("[data-ready='1']")).toBeAttached({ timeout: 30_000 });
 }
 
-const bandPct = async (page: Page) => Number(((await page.getByTestId("range-width").first().textContent()) ?? "").replace(/[^\d]/g, ""));
+/** The band: the editor's strip still says it in words (`range-width`); the drawn-house gate carries it as data only (D-E1). */
+const bandPct = async (page: Page) => {
+  const strip = page.getByTestId("range-width");
+  if (await strip.count()) return Number(((await strip.first().textContent()) ?? "").replace(/[^\d]/g, ""));
+  return Number((await page.getByTestId("reveal").getAttribute("data-band")) ?? "0");
+};
 
 async function answerQuestions(page: Page) {
   const q = page.getByTestId("sides-q");
