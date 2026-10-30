@@ -80,6 +80,10 @@ test("every side's size confirmed closes the range to within a few percent; the 
     await dims.locator("input").nth(0).fill("12");
     await dims.locator("input").nth(1).fill("3");
     await dims.locator("input").nth(1).blur(); // Tom, 28 Oct 2026: saves on blur, no Update button
+    // A MIRRORED side (the back takes the front's numbers, the left the right's) already shows 12 × 3, so typing the
+    // same numbers changes nothing and the blur commits nothing — "Keep these" is the one tap that records them (#407).
+    const keep = card.getByTestId(`side-dims-keep-${k}`);
+    if (await keep.count()) await keep.click();
     await expect(card.getByTestId(`side-assumed-${k}`)).toContainText(/Recorded: 12 m long × 3 m high/, { timeout: 30_000 });
     if (k === "front") {
       // 12 · the fascias, gutters and eaves now run 12 m — the side's width is
@@ -208,7 +212,11 @@ test.describe("on a phone: Tighten is the walk-around, one screen per side (exte
     // the back and the left: Not sure keeps the typical; the done screen
     await at(page, "w-back");
     await page.getByTestId("ext-size-ns").tap();
+    // the size alone is not enough: the paint's condition is part of the check (the prototype's rule)
+    await expect(page.getByTestId("ext-check-side")).toBeDisabled();
+    await expect(page.getByTestId("ext-check-why")).toContainText(/how the paint is/);
     await page.getByTestId("ext-cond-good").tap();
+    await expect(page.getByTestId("ext-check-side")).toBeEnabled();
     await page.getByTestId("ext-check-side").tap();
     await at(page, "w-left");
     await page.getByTestId("ext-size-yes").tap();
@@ -216,6 +224,17 @@ test.describe("on a phone: Tighten is the walk-around, one screen per side (exte
     await page.getByTestId("ext-check-side").tap();
     await at(page, "w-done");
     await expect(page.getByTestId("ext-walk-done")).toContainText("All 4 sides checked");
+    // backing out before the re-price never shows an exact price over the old range
+    await page.getByTestId("wzm-back").tap();
+    await at(page, "w-left");
+    await page.getByTestId("wzm-back").tap();
+    await at(page, "w-back");
+    for (let i = 0; i < 3; i++) await page.getByTestId("wzm-back").tap();
+    await expect(page.getByTestId("wzm-gate")).toHaveAttribute("data-variant", "exact");
+    await page.getByTestId("gate-bar-exact").tap();
+    await at(page, "w-front");
+    await page.getByTestId("ext-check-side").tap();
+    await at(page, "w-done");
     await expect(page.getByTestId("wzm-bar")).toHaveAttribute("style", /width: 100%/);
     // See my exact price: the house re-priced; the gate as the exact-price stage
     await page.getByTestId("ext-see-range").tap();

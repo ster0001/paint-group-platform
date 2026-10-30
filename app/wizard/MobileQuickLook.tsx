@@ -192,7 +192,7 @@ export default function MobileQuickLook({
   const sideAt = sideOfScreen(current.id);
   const sidePainted = sideAt != null && Boolean(outside.v2?.sides[sideAt]?.paint);
   const barLabel = current.id === "details" ? "Show my range" : step === "com_book" ? "Book it"
-    : sideAt ? (last ? (sidePainted ? "Looks right" : "Continue") : (sidePainted ? "Looks right — next side" : "Next side"))
+    : sideAt ? (sidePainted ? "Looks right — next side" : last ? "Continue" : "Next side")
     : "Continue";
   useEffect(() => {
     if (!sideAt || !outside.v2) return;
@@ -204,8 +204,12 @@ export default function MobileQuickLook({
   // S3 (brief §3): one picture state for the strip and the sheet; the ribbon from the answers so far.
   const surfacesAt = screens.findIndex((s) => s.id === "surfaces");
   const surfacesReached = surfacesAt >= 0 && index >= surfacesAt;
-  const picture = pictureStateFor(quick, outside, surfacesReached);
-  const ribbon = ribbonFor({ quick, outside, screens, index, roomsTicked: ticked, rows: exteriorTypicals });
+  // Exterior on mobile v5 (S7; v2 brief 7.8): a BOTH job walks the inside screens then the exterior ones — from the first
+  // exterior step the strip is the house, and the chips, the sheet and the elevation are the outside's.
+  const exteriorNow = quick.jobType === "exterior" || (quick.jobType === "both" && EXTERIOR_STEPS.has(step));
+  const pictureQuick: QuickLook = exteriorNow && quick.jobType !== "exterior" ? { ...quick, jobType: "exterior" } : quick;
+  const picture = pictureStateFor(pictureQuick, outside, surfacesReached);
+  const ribbon = ribbonFor({ quick, outside, screens, index, roomsTicked: ticked, rows: exteriorTypicals, outsideNow: exteriorNow });
   const toggleInside = (key: InteriorExcludable) => {
     const next = toggleSurface(quick, key);
     onQuick(next);
@@ -220,7 +224,7 @@ export default function MobileQuickLook({
   };
   // S4: on a side screen the sheet's chips are THIS SIDE's parts (the whole-house ones that land here, on or taken off, plus the ones added here).
   const sideTypical = outside.v2 ? typicalOf(outside.v2.propertyType, exteriorTypicals) : null;
-  const outsideChips = quick.jobType === "exterior" && outside.v2
+  const outsideChips = exteriorNow && outside.v2
     ? (sideAt && sideTypical
       ? (() => { const on = new Set(partsOnSide(outside.v2, sideAt, sideTypical)); return sideListParts(outside.v2, sideAt, sideTypical).map((part) => ({ key: part, label: PART_LABEL[part], part, on: on.has(part) })); })()
       : outsideSheetChips(outside.v2))
@@ -230,11 +234,11 @@ export default function MobileQuickLook({
     onOutside({ v2: toggleSidePart(outside.v2, sideAt, p, sideTypical) });
     sendWizardEvent("surface_toggled", { surface: p, on: !partsOnSide(outside.v2, sideAt, sideTypical).includes(p) });
   };
-  const sheetChips: StripChip[] | null = quick.jobType === "exterior"
+  const sheetChips: StripChip[] | null = exteriorNow
     ? outsideChips
     : surfacesReached ? surfaceChips(quick).map((c) => ({ key: c.key, label: c.label, on: c.on })) : null;
   const toggleSheetChip = (key: string) => {
-    if (quick.jobType === "exterior") {
+    if (exteriorNow) {
       const chip = outsideChips?.find((c) => c.key === key);
       if (chip) { if (sideAt) toggleSideChip(chip.part); else togglePaintPart(chip.part); }
       return;
@@ -242,7 +246,7 @@ export default function MobileQuickLook({
     toggleInside(key as InteriorExcludable);
   };
   // Exterior on mobile v5 (plan §3): from the first shape the strip's thumbnail is the DRAWN HOUSE, the front, drawn again in the sheet.
-  const elevation = quick.jobType === "exterior" && outside.v2
+  const elevation = exteriorNow && outside.v2
     ? { v2: outside.v2, rows: exteriorTypicals, side: sideAt ?? ("front" as const), caption: elevationCaption(outside.v2, exteriorTypicals), onPart: sideAt ? toggleSideChip : togglePaintPart, compass: sideAt != null }
     : null;
   const showBar = current.advance === "bar";
@@ -497,9 +501,7 @@ export default function MobileQuickLook({
               (`togglePart`) and extras (`toggleExtra`); nothing is pre-ticked (C8b); the drawn house in the strip sweeps each tick in. */}
           {(current.id === "p-house" || current.id === "p-win" || current.id === "p-ver") && outside.v2 && (
             <>
-              {current.id === "p-house" && !typicalFor(outside.v2.propertyType, exteriorTypicals).wallsPainted && (
-                <p className="wzm-note" data-testid="ext-brick-hint">Brick is usually left bare — tick the walls only if the brick is being painted.</p>
-              )}
+              {/* the bare-brick note is About it's walls screen's grey line (R8: one grey line here) */}
               <div className="wzm-chips" data-testid={`ext-group-${current.id}`}>
                 {paintScreenParts(current.id as PaintScreenId, outside.v2).map((p) => {
                   const on = outside.v2!.parts.includes(p);
@@ -508,9 +510,6 @@ export default function MobileQuickLook({
                   );
                 })}
               </div>
-              {current.id === "p-ver" && !outside.v2.parts.includes("verandah") && (
-                <p className="wzm-note" data-testid="ext-verandah-hint">Tick the verandah and we ask about its posts, ceiling and handrail.</p>
-              )}
             </>
           )}
           {current.id === "p-around" && outside.v2 && (
@@ -567,6 +566,8 @@ export default function MobileQuickLook({
   );
 }
 
+/** The exterior brief's steps — a both job's second half. */
+const EXTERIOR_STEPS = new Set<QuickLookStep>(["home", "paint", "about", "sides", "outside"]);
 const JOB_LINE: Record<QuickLook["jobType"], string> = { interior: "Rooms, walls, ceilings, trims", exterior: "Walls, eaves, trims, doors", both: "Inside first, then outside" };
 const CONDITION_WORDS: Record<QuickLook["condition"], { t: string; d: string }> = {
   good: { t: "Good, just tired", d: "Light sand and go" },

@@ -1,5 +1,6 @@
 import { test, expect, type Page } from "@playwright/test";
 import { mkdirSync } from "node:fs";
+import { serviceClient } from "../fixtures/woLoop";
 import { stepsFor } from "../../lib/wizard/quick-look";
 import { EXTERIOR_SHAPE_KEYS, scaledLengths, typicalFor } from "../../lib/wizard/exterior-typicals";
 import { fillQuickAddress, openQuickLook, passDetailsSheetIfShown, passGateIfShown, quickNext, MONEY_RANGE, lookAtEverySide } from "./drive";
@@ -343,6 +344,50 @@ test.describe("on a phone: Your home is three screens, the drawn house in the st
     await expect(page.locator("[data-quick-step='paint']")).toBeVisible({ timeout: 20_000 });
     await expect(thumbHouse(page).locator("[data-testid='pic-nextdoor']")).toHaveCount(0);
     expect(await page.evaluate(() => document.documentElement.scrollWidth), "nothing wider than the phone").toBeLessThanOrEqual(390);
+  });
+
+  test("Contact from the size screen: a visit request files the lead with the shape on its draft (plan §6, item 8)", async ({ page }) => {
+    test.setTimeout(150_000);
+    const db = serviceClient();
+    test.skip(!db, "needs SUPABASE_SERVICE_ROLE_KEY");
+    const run = Math.random().toString(16).slice(2, 8);
+    const suburb = `E2E S7 Lead ${run}`;
+    const email = `s7.lead.${run}@example.com`;
+    try {
+      await openQuickLook(page);
+      await fillQuickAddress(page, { suburb });
+      await expect(page.getByTestId("wzm")).toBeVisible({ timeout: 20_000 });
+      await page.getByTestId("ql-jobtype-exterior").tap();
+      await at(page, "property");
+      await page.getByTestId("ql-kind-house").tap();
+      await at(page, "shape");
+      await page.getByTestId("ql-ext-type-terrace").tap();
+      await at(page, "size");
+      await page.getByTestId("wzm-contact").tap();
+      await page.getByTestId("wzm-contact-book").tap();
+      const talk = page.getByTestId("talk-sheet");
+      await expect(talk).toBeVisible();
+      await talk.getByTestId("talk-name").fill("Lead Tester");
+      if (await talk.getByTestId("talk-address").count()) await talk.getByTestId("talk-address").fill("14 Acacia Street");
+      await talk.getByTestId("talk-email").fill(email);
+      await talk.getByTestId("talk-mobile").fill(`04${String(Date.now()).slice(-8)}`);
+      await talk.getByTestId("talk-go").tap();
+      await expect(talk.getByTestId("talk-sent")).toBeVisible({ timeout: 30_000 });
+      await talk.getByTestId("talk-close").tap();
+      await at(page, "size");
+      await expect.poll(async () => {
+        const { data } = await db!.from("wizard_drafts").select("state").eq("suburb", suburb).order("last_seen_at", { ascending: false }).limit(1).maybeSingle();
+        const v2 = (data?.state as { exterior?: { v2?: { propertyType?: string } } } | null)?.exterior?.v2;
+        return v2?.propertyType ?? null;
+      }, { timeout: 30_000, intervals: [2_000] }).toBe("terrace");
+      await expect.poll(async () => (await db!.from("accounts").select("name").eq("email", email).maybeSingle()).data?.name ?? null, { timeout: 30_000, intervals: [2_000] }).toBe("Lead Tester");
+    } finally {
+      if (db) {
+        const { data: rows } = await db.from("wizard_drafts").select("estimate_id").eq("suburb", suburb);
+        await db.from("wizard_drafts").delete().eq("suburb", suburb);
+        for (const r of rows ?? []) if (r.estimate_id) await db.from("estimates").delete().eq("id", r.estimate_id);
+      }
+    }
   });
 
   test("a reload lands on the same screen with the house kept, and the sheet's chips still tick the parts on the drawn house", async ({ page }) => {

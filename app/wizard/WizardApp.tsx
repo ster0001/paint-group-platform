@@ -346,6 +346,7 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
       const j = (await res.json().catch(() => ({}))) as CustomerPayload & { error?: string };
       if (!res.ok) { setWalkError(j.error ?? "That didn't save — try again in a moment."); return; }
       setReveal({ payload: j, estimateId: reveal.estimateId });
+      setWalked(true);
       setWalking(false);
       window.scrollTo({ top: 0 });
     } catch {
@@ -443,6 +444,8 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
   const [reveal, setReveal] = useState<{ payload: CustomerPayload; estimateId: string } | null>(null);
   // Exterior wizard v2 (S5): the walk around the house after the guide range.
   const [walking, setWalking] = useState(false);
+  // Exterior on mobile v5 (S6): the walk's re-price has landed at least once — the phone gate's exact-price stage reads this, never the checked flags alone.
+  const [walked, setWalked] = useState(false);
   const [walkAt, setWalkAt] = useState<ExteriorSideKey>("front");
   const [walkBusy, setWalkBusy] = useState(false);
   const [walkError, setWalkError] = useState<string | null>(null);
@@ -1931,7 +1934,7 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
           <MobileGate
             payload={reveal.payload}
             quick={quick}
-            outside={quick.jobType === "exterior" ? outside : null}
+            outside={quick.jobType === "exterior" || quick.jobType === "both" ? outside : null}
             brand={brand}
             logo={<Wordmark logoUrl={logoUrl} brand={brand} />}
             onContactOpen={() => { sendWizardEvent("contact_opened", { step: "gate" }); setContactOpen("gate"); }}
@@ -1940,6 +1943,7 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
             suburb={state.address?.suburb || state.customer?.suburb || null}
             trust={trust ? { rating: trust.rating, count: trust.count, warranty: trust.warranty } : null}
             handoff={brand === "painthome" && (reveal.payload as { paintHome?: { tier: "call" | "visit" } }).paintHome?.tier === "visit"}
+            walked={walked}
             onExact={() => {
               void recordRangeOption(reveal.estimateId, "tighten");
               // Exterior on mobile v5 (S6; plan §2 screen 12): on a phone an outside job's exact price is the walk-around, side by side.

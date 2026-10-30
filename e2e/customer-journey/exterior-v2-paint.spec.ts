@@ -145,6 +145,7 @@ test.describe("on a phone: Painting is four screens (exterior mobile v5, session
     for (const p of ["walls", "gable", "fascias", "gutters", "downpipes", "eaves"]) await expect(page.getByTestId(`ext-part-${p}`)).toHaveAttribute("aria-pressed", "false");
     await expect(page.getByTestId("ext-part-windows")).toHaveCount(0);
     await expect(page.getByTestId("ext-brick-hint")).toHaveCount(0);
+    await expect(page.locator("[data-mobile-screen='p-house'] .wzm-note")).toHaveCount(0); // one grey line (R8)
     await expect(page.getByTestId("ext-mat")).toHaveCount(0);
     await expect(page.locator(".wzm")).not.toContainText(/\$\s?\d/);
     await expect(page.getByTestId("ql-next")).toHaveText("Continue");
@@ -161,7 +162,7 @@ test.describe("on a phone: Painting is four screens (exterior mobile v5, session
     await expect(page.getByTestId("wzm-h1")).toHaveText("The verandah");
     await expect(page.getByTestId("wzm-sub")).toHaveCount(0);
     for (const p of ["posts", "ceiling", "handrail"]) await expect(page.getByTestId(`ext-part-${p}`)).toHaveCount(0);
-    await expect(page.getByTestId("ext-verandah-hint")).toBeVisible();
+    await expect(page.locator("[data-mobile-screen='p-ver'] .wzm-note")).toHaveCount(0); // one grey line (R8)
     await page.getByTestId("ext-part-verandah").tap();
     for (const p of ["posts", "ceiling", "handrail"]) await expect(page.getByTestId(`ext-part-${p}`)).toBeVisible();
     await page.getByTestId("ext-part-posts").tap();
@@ -197,7 +198,15 @@ test.describe("on a phone: Painting is four screens (exterior mobile v5, session
   test("a brick veneer home carries the bare-brick hint on the first screen; a weatherboard home's verandah screen says tick it if there is one", async ({ page }) => {
     test.setTimeout(120_000);
     await toPainting(page, "brick");
-    await expect(page.getByTestId("ext-brick-hint")).toContainText(/left bare/i);
+    // the bare-brick note is About it's walls screen's grey line, not a second line here (R8)
+    await expect(page.getByTestId("ext-brick-hint")).toHaveCount(0);
+    await page.getByTestId("ext-part-walls").tap();
+    for (const id of ["p-win", "p-ver", "p-around"]) { await page.getByTestId("ql-next").tap(); await at(page, id); }
+    await page.getByTestId("ql-next").tap();
+    await at(page, "a-walls");
+    await expect(page.getByTestId("wzm-sub")).toContainText(/left bare/i);
+    for (let i = 0; i < 4; i++) { await page.getByTestId("wzm-back").tap(); }
+    await at(page, "p-house");
     await page.getByTestId("wzm-back").tap();
     await at(page, "size");
     await page.getByTestId("wzm-back").tap();

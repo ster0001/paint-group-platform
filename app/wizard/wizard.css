@@ -2732,3 +2732,10 @@
 .wz .wzm-walk-done .wzm-av { width: 56px; height: 56px; margin: 0 auto 14px; font-size: 18px; display: flex; align-items: center; justify-content: center; }
 .wz .wzm-gate-incl--open { margin-top: 18px; }
 .wz .wzm-gate-incl--open .wzm-gate-label { margin-bottom: 8px; }
+
+/* ── EXTERIOR ON MOBILE v5 — S7: a both job's combined gate (v2 brief 7.8). ── */
+.wz .wzm-gate-parts { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 0 0 10px; }
+.wz .wzm-gate-parts div { border: 1px solid var(--line); border-radius: 12px; padding: 8px 10px; background: var(--panel); }
+.wz .wzm-gate-parts dt { font-size: 12px; color: var(--muted); }
+.wz .wzm-gate-parts dd { margin: 2px 0 0; font-weight: 700; font-variant-numeric: tabular-nums; }
+.wz .wzm-gate-sub { font-size: 12px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); margin: 10px 0 4px; }

@@ -205,6 +205,7 @@ test.describe("on a phone: Each side is one screen per side, the house turned to
     await expect(page.getByTestId("ext-win-count")).toHaveCount(0);
     await expect(page.locator(".wzm")).not.toContainText(/m across|\$\s?\d/);
     await expect(page.getByTestId("ext-side-np")).toHaveAttribute("aria-pressed", "false");
+    await expect(page.getByTestId("ext-side-matup")).toHaveCount(0); // a single storey is never offered a second material
     await expect(page.getByTestId("ql-next")).toHaveText("Looks right — next side");
     // looking at a side checks it: the front ticks as soon as it is shown
     await expect(page.getByTestId("wzm-ribbon-2")).toHaveText("Front ✓ · Right · Back · Left");
@@ -248,7 +249,7 @@ test.describe("on a phone: Each side is one screen per side, the house turned to
     await expect(thumb(page)).toHaveAttribute("data-side", "back");
     await page.getByTestId("ql-next").tap();
     await at(page, "s-left");
-    await expect(page.getByTestId("ql-next")).toHaveText("Looks right");
+    await expect(page.getByTestId("ql-next")).toHaveText("Looks right — next side");
     await expect(page.getByTestId("wzm-ribbon-2")).toHaveText("Front ✓ · Right ✓ · Back ✓ · Left ✓");
     await page.getByTestId("ql-next").tap();
     await at(page, "details");
@@ -266,7 +267,8 @@ test.describe("on a phone: Each side is one screen per side, the house turned to
     await expect(page.getByTestId("ext-side-np")).toHaveAttribute("aria-pressed", "true");
     await expect(page.getByTestId("ext-side-parts")).toHaveCount(0);
     await expect(page.getByTestId("ql-next")).toHaveText("Next side");
-    await expect(page.getByTestId("wzm-side-right")).toHaveAttribute("data-state", "np");
+    await expect(page.getByTestId("wzm-side-right")).toHaveAttribute("data-state", "now"); // the current tab is "now" even when off (the prototype); "np" shows from another side
+    await expect(page.getByTestId("wzm-side-left")).toHaveAttribute("data-state", "np");
     await page.getByTestId("ext-side-np").tap();
     await expect(page.getByTestId("ext-side-np")).toHaveAttribute("aria-pressed", "false");
     await expect(page.getByTestId("ext-sidepart-walls")).toHaveAttribute("aria-pressed", "true");
