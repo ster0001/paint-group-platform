@@ -6,6 +6,7 @@ import { restatement, type QuickLook } from "@/lib/wizard/quick-look";
 import { surfaceChips } from "@/lib/wizard/mobileScreens";
 import { exteriorRestatement, type ExteriorQuickLook } from "@/lib/wizard/exterior-quick-look";
 import ExteriorRangeRows, { notInThisNumber } from "./ExteriorRangeRows";
+import { allSidesChecked } from "@/lib/wizard/exterior-model";
 import { initialsOf } from "@/lib/wizard/estimator";
 import { PAINT_HOME_WORDS, type WizardBrand } from "@/lib/wizard/brand";
 import { breakpointNow, sendWizardEvent } from "@/lib/wizard/wizardEvents";
@@ -75,6 +76,9 @@ export default function MobileGate({ payload, quick, outside, brand, logo, estim
   // label — with the brief's words: "A few minutes", the scaffolding / lifts exclusion in the small print, one row per side below.
   const v2 = exteriorOnly ? outside?.v2 ?? null : null;
   const minutes = exteriorOnly ? "A few minutes" : "Ten minutes";
+  // S6 (plan §2 screen 12; prototype's tightened gate): every side checked on the walk-around → the exact-price stage —
+  // "your exact price", "Book <who> to confirm it", "Or change a side", the side rows open. Never on the bigger-job variant.
+  const tightened = Boolean(v2 && !handoff && allSidesChecked(v2));
   const painthome = brand === "painthome";
   // §4 block 6: the TICKED surfaces with their coats — a system line stays only while its chip is on
   // (the cornices ride with the ceilings in the engine, so "Ceilings and cornices" would otherwise outlive an unticked ceiling).
@@ -87,7 +91,7 @@ export default function MobileGate({ payload, quick, outside, brand, logo, estim
   ].filter((x): x is string => Boolean(x));
 
   return (
-    <div className="wzm wzm-gate" data-testid="wzm-gate" data-estimate-id={estimateId} data-variant={handoff ? "bigger" : "exact"}>
+    <div className="wzm wzm-gate" data-testid="wzm-gate" data-estimate-id={estimateId} data-variant={handoff ? "bigger" : tightened ? "tightened" : "exact"}>
       <header className="wzm-head" data-testid="wzm-head">
         <span className="wzm-back" aria-hidden="true" />
         <span className="wzm-logo">{logo}</span>
@@ -98,16 +102,21 @@ export default function MobileGate({ payload, quick, outside, brand, logo, estim
       <main className="wzm-main has-bar">
         {/* 1 · the range */}
         <section data-testid="gate-block-range">
-          <p className="wzm-gate-label" data-testid="gate-label">{customer ? `${customer}, your range today` : "Your range today"}</p>
+          <p className="wzm-gate-label" data-testid="gate-label">{tightened ? (customer ? `${customer}, your exact price` : "Your exact price") : customer ? `${customer}, your range today` : "Your range today"}</p>
           <p className="wzm-gate-price" data-testid="gate-range">{fmt(payload.rangeLoCents)} – {fmt(payload.rangeHiCents)}</p>
-          <p className="wzm-gate-basis" data-testid="gate-basis">{basis}</p>
+          <p className="wzm-gate-basis" data-testid="gate-basis">{basis}{tightened ? " Every side checked." : ""}</p>
           <p className="wzm-gate-fine" data-testid="gate-fine">
             Based on what you&rsquo;ve told us — anything different on the day changes the price. {who} confirms it with you before anything is fixed. Includes GST{v2 ? `; not in this number: ${notInThisNumber(v2)}` : ""}.
           </p>
         </section>
 
         {/* 2 · the one question — or, over the ceiling, the one door (§4.2, never both) */}
-        {handoff ? (
+        {tightened ? (
+          <section data-testid="gate-block-tightened">
+            <button type="button" className="wzm-cta wzm-cta--teal" onClick={book} data-testid="gate-book">Book {who} to confirm it<small>In person · about 40 minutes</small></button>
+            <p className="wzm-gate-alt">Or <button type="button" className="wzm-linkish" onClick={exact} data-testid="gate-change-side">change a side</button></p>
+          </section>
+        ) : handoff ? (
           <section data-testid="gate-block-bigger">
             <h2 className="wzm-gate-ask">We&rsquo;ll come and look</h2>
             <p className="wzm-gate-asksub">{PAINT_HOME_WORDS.handoff.heading} {PAINT_HOME_WORDS.handoff.body}</p>
@@ -125,10 +134,10 @@ export default function MobileGate({ payload, quick, outside, brand, logo, estim
         )}
 
         {/* 3 · the three tiles (R4) */}
-        <ol className="wzm-tiles" data-testid="gate-tiles" data-at={handoff ? 2 : 1}>
-          <Tile k="✓" state="done" title="Your range" sub="Just now" />
-          <Tile k="2" state={handoff ? "todo" : "now"} title="Your exact price" sub="Online, today" />
-          <Tile k="3" state={handoff ? "now" : "todo"} title={`${who} confirms`} sub={painthome && !handoff ? "On one short call" : "In person, 40 min"} />
+        <ol className="wzm-tiles" data-testid="gate-tiles" data-at={handoff || tightened ? 2 : 1}>
+          <Tile k="✓" state="done" title="Your range" sub={tightened ? "Done" : "Just now"} />
+          <Tile k={tightened ? "✓" : "2"} state={tightened ? "done" : handoff ? "todo" : "now"} title="Your exact price" sub={tightened ? "Just now" : "Online, today"} />
+          <Tile k="3" state={handoff || tightened ? "now" : "todo"} title={`${who} confirms`} sub={painthome && !handoff ? "On one short call" : "In person, 40 min"} />
         </ol>
 
         {/* 4 · the person */}
@@ -149,7 +158,13 @@ export default function MobileGate({ payload, quick, outside, brand, logo, estim
         )}
 
         {/* 6 · what's in the range — an outside job: one row per painted side and one for around the house (v2 brief 7.5, plan §2 screen 11) */}
-        {v2 && (
+        {v2 && tightened && (
+          <section className="wzm-gate-incl wzm-gate-incl--open" data-testid="gate-included" data-open="1">
+            <p className="wzm-gate-label">Side by side</p>
+            <ExteriorRangeRows v2={v2} />
+          </section>
+        )}
+        {v2 && !tightened && (
           <details className="wzm-gate-incl" data-testid="gate-included" open={openIncluded} onToggle={(e) => setOpenIncluded((e.target as HTMLDetailsElement).open)}>
             <summary>What&rsquo;s in the range</summary>
             <ExteriorRangeRows v2={v2} />
@@ -171,7 +186,7 @@ export default function MobileGate({ payload, quick, outside, brand, logo, estim
 
       {/* §4.1 — the sticky bar: the one door only */}
       <div className="wzm-foot" data-testid="gate-bar">
-        {handoff
+        {handoff || tightened
           ? <button type="button" className="wzm-cta wzm-cta--teal" onClick={book} data-testid="gate-bar-book">Book a visit</button>
           : <button type="button" className="wzm-cta wzm-cta--teal" onClick={exact} data-testid="gate-bar-exact">Get my exact price</button>}
       </div>

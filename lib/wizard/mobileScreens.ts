@@ -345,6 +345,6 @@ export function sideOfScreen(id: string): ExteriorSideKey | null {
   return id.startsWith("s-") && (EXTERIOR_SIDE_KEYS as readonly string[]).includes(id.slice(2)) ? (id.slice(2) as ExteriorSideKey) : null;
 }
 /** The ribbon's second line on the side screens: "Front ✓ · Right – · Back · Left" (✓ looked at, – not painting). */
-export function sideStatusLine(v2: Pick<ExteriorV2, "sides">): string {
-  return EXTERIOR_SIDE_KEYS.map((k) => { const sd = v2.sides[k]; return `${MOBILE_SIDE_SHORT[k]}${sd && !sd.paint ? " –" : sd?.confirmed ? " ✓" : ""}`; }).join(" · ");
+export function sideStatusLine(v2: Pick<ExteriorV2, "sides">, by: "confirmed" | "checked" = "confirmed"): string {
+  return EXTERIOR_SIDE_KEYS.map((k) => { const sd = v2.sides[k]; return `${MOBILE_SIDE_SHORT[k]}${sd && !sd.paint ? " –" : sd?.[by] ? " ✓" : ""}`; }).join(" · ");
 }

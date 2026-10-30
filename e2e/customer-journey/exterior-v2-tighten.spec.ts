@@ -101,3 +101,145 @@ test("every side's size confirmed closes the range to within a few percent; the 
   await expect.poll(() => bandPct(page), { timeout: 30_000 }).toBeLessThanOrEqual(8);
   expect(await bandPct(page)).toBeLessThan(wide);
 });
+
+/**
+ * EXTERIOR ON MOBILE v5 — session 6 (`docs/briefs/build-plan-exterior-mobile-v5.md`
+ * §2 screen 12; prototype `w-*` / `wdone`), as an ANONYMOUS customer at
+ * 390 × 780 with touch. Under 768px "Get my exact price" on an outside job
+ * is THE WALK-AROUND: one screen per painted side with the house turned to
+ * it — the window and door counts, the size (Looks right · Adjust it · Not
+ * sure), how the paint is holding up on this side, and Check this side,
+ * which waits for the size answer. Every side checked → "See my exact
+ * price" → the gate reads as the exact-price stage: "your exact price",
+ * "Book <estimator> to confirm it", "change a side", the side rows open.
+ * The desktop keeps the editor (the tests above).
+ */
+test.describe("on a phone: Tighten is the walk-around, one screen per side (exterior mobile v5, session 6)", () => {
+  test.use({ viewport: { width: 390, height: 780 }, isMobile: true, hasTouch: true });
+  const at = (page: Page, id: string) => expect(page.locator(`[data-mobile-screen='${id}']`)).toBeVisible({ timeout: 10_000 });
+  const run = Math.random().toString(16).slice(2, 8);
+  /** Outside → a bungalow with walls, gable, fascias, eaves, windows, doors → the gate. */
+  const toGate = async (page: Page) => {
+    const { openQuickLook, fillQuickAddress, MONEY_RANGE } = await import("./drive");
+    await openQuickLook(page);
+    await fillQuickAddress(page, { suburb: `E2E S6 Walk ${run}` });
+    await expect(page.getByTestId("wzm")).toBeVisible({ timeout: 20_000 });
+    await page.getByTestId("ql-jobtype-exterior").tap();
+    await at(page, "property");
+    await page.getByTestId("ql-kind-house").tap();
+    await at(page, "shape");
+    await page.getByTestId("ql-ext-type-cal").tap();
+    await at(page, "size");
+    await page.getByTestId("ql-ext-size-md").tap();
+    await at(page, "p-house");
+    for (const p of ["walls", "gable", "fascias", "eaves"]) await page.getByTestId(`ext-part-${p}`).tap();
+    await page.getByTestId("ql-next").tap();
+    await at(page, "p-win");
+    for (const p of ["windows", "doors"]) await page.getByTestId(`ext-part-${p}`).tap();
+    await page.getByTestId("ql-next").tap();
+    await at(page, "p-ver");
+    await page.getByTestId("ql-next").tap();
+    await at(page, "p-around");
+    await page.getByTestId("ql-next").tap();
+    await at(page, "a-walls");
+    await page.getByTestId("ext-mat-weatherboards").tap();
+    await at(page, "a-gable");
+    await page.getByTestId("ext-gable-stucco").tap();
+    await at(page, "a-win");
+    await page.getByTestId("ql-ext-win-casement").tap();
+    await at(page, "a-colours");
+    await page.getByTestId("ql-ext-colour-new").tap();
+    await at(page, "a-access");
+    await page.getByTestId("ql-next").tap();
+    for (const s of ["s-front", "s-right", "s-back", "s-left"]) { await at(page, s); await page.getByTestId("ql-next").tap(); }
+    await at(page, "details");
+    await page.getByTestId("gate-name").fill("Six Walker");
+    await page.getByTestId("gate-mobile").fill(`04${String(Date.now()).slice(-8)}`);
+    await page.getByTestId("gate-email").fill(`s6.${run}@example.com`);
+    await expect(page.getByTestId("ql-next")).toBeEnabled({ timeout: 30_000 });
+    await page.getByTestId("ql-next").tap();
+    const gate = page.getByTestId("wzm-gate");
+    const bounced = page.locator(".wz-err");
+    await expect(gate.or(bounced)).toBeVisible({ timeout: 90_000 });
+    if (await bounced.count()) throw new Error(`submit failed: ${await bounced.first().innerText()}`);
+    await expect(page.getByTestId("gate-range")).toHaveText(MONEY_RANGE);
+    await expect(gate).toHaveAttribute("data-variant", "exact");
+  };
+
+  test("Get my exact price → the walk: counts, size, condition per side, Check this side waits for the size; all four checked → See my exact price → the gate as the exact-price stage, change a side", async ({ page }) => {
+    test.setTimeout(240_000);
+    await toGate(page);
+    const thumb = page.getByTestId("wzm-thumb").locator("svg.wz-elev");
+    await page.getByTestId("gate-bar-exact").tap();
+    // the front: the house turned to it, the tabs, the counts, the size question, the condition; the bar waits for the size
+    await at(page, "w-front");
+    await expect(page.getByTestId("ext-walk")).toBeVisible();
+    await expect(page.getByTestId("wzm-stage")).toHaveText("Tighten · walk around");
+    await expect(page.getByTestId("wzm-h1")).toHaveText("Front");
+    await expect(page.getByTestId("wzm-sub")).toContainText(/m across · \d+(\.\d)? m high/);
+    await expect(thumb).toHaveAttribute("data-side", "front");
+    await expect(page.getByTestId("wzm-side-front")).toHaveAttribute("data-state", "now");
+    await expect(page.getByTestId("ext-win-n")).toBeVisible();
+    await expect(page.getByTestId("ext-door-n")).toHaveText("1");
+    await page.getByTestId("ext-door-plus").tap();
+    await expect(page.getByTestId("ext-door-n")).toHaveText("2");
+    await expect(page.getByTestId("ext-check-side")).toBeDisabled();
+    await expect(page.getByTestId("ext-check-why")).toContainText(/Answer the size first/);
+    await expect(page.locator(".wzm")).not.toContainText(/\$\s?\d/);
+    await page.getByTestId("ext-cond-good").tap();
+    await page.getByTestId("ext-size-yes").tap();
+    await expect(page.getByTestId("ext-check-side")).toBeEnabled();
+    await expect(page.getByTestId("ext-walk-progress")).toHaveText("0 of 4 sides checked");
+    await page.getByTestId("ext-check-side").tap();
+    // the right side: checked front ticks; Adjust it opens the steppers and changes the size line
+    await at(page, "w-right");
+    await expect(thumb).toHaveAttribute("data-side", "right");
+    await expect(page.getByTestId("wzm-side-front")).toHaveAttribute("data-state", "done");
+    await expect(page.getByTestId("wzm-ribbon-2")).toHaveText("Front ✓ · Right · Back · Left");
+    await expect(page.getByTestId("ext-walk-progress")).toHaveText("1 of 4 sides checked");
+    await page.getByTestId("ext-size-adj").tap();
+    await expect(page.getByTestId("ext-size-adjust")).toBeVisible();
+    const before = await page.getByTestId("wzm-sub").textContent();
+    await page.getByTestId("ext-dim-w-plus").tap();
+    await expect(page.getByTestId("wzm-sub")).not.toHaveText(before ?? "");
+    await expect(page.getByTestId("ext-size-tag")).toContainText("your numbers");
+    await page.getByTestId("ext-cond-weathered").tap();
+    await page.getByTestId("ext-check-side").tap();
+    // the back and the left: Not sure keeps the typical; the done screen
+    await at(page, "w-back");
+    await page.getByTestId("ext-size-ns").tap();
+    await page.getByTestId("ext-cond-good").tap();
+    await page.getByTestId("ext-check-side").tap();
+    await at(page, "w-left");
+    await page.getByTestId("ext-size-yes").tap();
+    await page.getByTestId("ext-cond-peeling").tap();
+    await page.getByTestId("ext-check-side").tap();
+    await at(page, "w-done");
+    await expect(page.getByTestId("ext-walk-done")).toContainText("All 4 sides checked");
+    await expect(page.getByTestId("wzm-bar")).toHaveAttribute("style", /width: 100%/);
+    // See my exact price: the house re-priced; the gate as the exact-price stage
+    await page.getByTestId("ext-see-range").tap();
+    const gate = page.getByTestId("wzm-gate");
+    await expect(gate).toBeVisible({ timeout: 90_000 });
+    await expect(gate).toHaveAttribute("data-variant", "tightened");
+    await expect(page.getByTestId("gate-label")).toContainText(/your exact price/);
+    await expect(page.getByTestId("gate-basis")).toContainText("Every side checked.");
+    await expect(page.getByTestId("gate-book")).toContainText(/Book .+ to confirm it/);
+    await expect(page.getByTestId("gate-change-side")).toContainText("change a side");
+    await expect(page.getByTestId("gate-tiles").locator("li").nth(1)).toHaveAttribute("data-state", "done");
+    await expect(page.getByTestId("gate-tiles").locator("li").nth(2)).toHaveAttribute("data-state", "now");
+    await expect(page.getByTestId("gate-included")).toHaveAttribute("data-open", "1");
+    await expect(page.getByTestId("ext-range-front")).toContainText(/checked/);
+    await expect(page.getByTestId("ext-range-right")).toContainText(/weathered/);
+    await expect(page.getByTestId("gate-bar-book")).toBeVisible();
+    await expect(page.getByTestId("gate-exact")).toHaveCount(0);
+    const text = await gate.innerText();
+    expect(text).not.toMatch(/±|within \d+%|Guide ·|Detailed/);
+    // change a side: back into the walk, on the front, still checked; the back chevron returns to the price
+    await page.getByTestId("gate-change-side").tap();
+    await at(page, "w-front");
+    await expect(page.getByTestId("ext-check-side")).toContainText("Checked ✓");
+    await page.getByTestId("wzm-back").tap();
+    await expect(gate).toBeVisible();
+  });
+});

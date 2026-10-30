@@ -49,6 +49,7 @@ import type { PickedAddress } from "@/app/components/useAddressLookup";
 import QuickLook from "./QuickLook";
 import MobileQuickLook from "./MobileQuickLook";
 import MobileGate from "./MobileGate";
+import MobileWalk from "./MobileWalk";
 import MobileContact from "./MobileContact";
 import { starterRoomNames } from "@/lib/wizard/some-rooms";
 import SaveAndBookSheet from "./SaveAndBookSheet";
@@ -1941,6 +1942,14 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
             handoff={brand === "painthome" && (reveal.payload as { paintHome?: { tier: "call" | "visit" } }).paintHome?.tier === "visit"}
             onExact={() => {
               void recordRangeOption(reveal.estimateId, "tighten");
+              // Exterior on mobile v5 (S6; plan §2 screen 12): on a phone an outside job's exact price is the walk-around, side by side.
+              if (quick.jobType === "exterior" && outside.v2) {
+                const first = paintedSides(outside.v2)[0];
+                if (first) setWalkAt(first);
+                setWalking(true);
+                window.scrollTo({ top: 0 });
+                return;
+              }
               const go = () => { clearResume(); markScopeFromGate(); router.push(`/estimate/scope?id=${reveal.estimateId}`); };
               if (!contactKnown) { setTalk({ mode: "details", then: go }); return; }
               go();
@@ -1948,6 +1957,16 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
             // Session 5: "book a time first" is the booking page (brief §4 / §5.2 — the zone's days), both shopfronts.
             onVisit={() => { void recordRangeOption(reveal.estimateId, "visit"); clearResume(); router.push(`/estimate/visit?id=${reveal.estimateId}`); }}
             onBook={() => { void recordRangeOption(reveal.estimateId, "visit"); clearResume(); router.push(`/estimate/visit?id=${reveal.estimateId}`); }}
+          />
+        ) : walking && outside.v2 && !sent && mobileShell ? (
+          <MobileWalk
+            v2={outside.v2} rows={exteriorTypicals} quick={quick} outside={outside}
+            logo={<Wordmark logoUrl={logoUrl} brand={brand} />}
+            at={walkAt} onAt={setWalkAt} busy={walkBusy} error={walkError}
+            onChange={(v2) => setOutside({ v2 })}
+            onBack={() => setWalking(false)}
+            onDone={() => void walkDone()}
+            onContactOpen={() => { sendWizardEvent("contact_opened", { step: "walk" }); setContactOpen("walk"); }}
           />
         ) : walking && outside.v2 && !sent ? (
           <main className="wz-stage" data-testid="ext-walk">

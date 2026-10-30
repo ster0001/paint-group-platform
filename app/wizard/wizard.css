@@ -2706,10 +2706,11 @@
 
 /* ── EXTERIOR ON MOBILE v5 — S4: Each side, one screen a side (plan §2 9a–9d, §3): the side tabs, the Not painting switch, the sheet's compass. ── */
 .wz .wzm-sidetabs { display: flex; gap: 6px; margin: -6px 0 14px; }
-.wz .wzm-sidetabs span { flex: 1; text-align: center; font-size: 12px; font-weight: 600; padding: 6px 0; border-radius: 999px; border: 1px solid var(--line); color: var(--muted); background: var(--panel); }
-.wz .wzm-sidetabs span[data-state="now"] { background: var(--heading); color: #fff; border-color: var(--heading); }
-.wz .wzm-sidetabs span[data-state="done"] { color: var(--cyan); border-color: var(--cyan); }
-.wz .wzm-sidetabs span[data-state="np"] { text-decoration: line-through; opacity: .55; }
+.wz .wzm-sidetabs > * { flex: 1; text-align: center; font: inherit; font-size: 12px; font-weight: 600; padding: 6px 0; border-radius: 999px; border: 1px solid var(--line); color: var(--muted); background: var(--panel); cursor: default; }
+.wz .wzm-sidetabs > button:not([disabled]) { cursor: pointer; }
+.wz .wzm-sidetabs > [data-state="now"] { background: var(--heading); color: #fff; border-color: var(--heading); }
+.wz .wzm-sidetabs > [data-state="done"] { color: var(--cyan); border-color: var(--cyan); }
+.wz .wzm-sidetabs > [data-state="np"] { text-decoration: line-through; opacity: .55; }
 .wz .wzm-qhead { font-size: 13px; font-weight: 600; color: var(--muted); margin: 16px 0 8px; }
 .wz .wzm-chip.add { border-style: dashed; color: var(--muted); }
 .wz .wzm-addchips { margin-top: 10px; padding: 10px; border-radius: 14px; background: var(--panel2); }
@@ -2722,3 +2723,12 @@
 .wz .wzm-compass button { flex: 1; font: inherit; font-size: 12px; font-weight: 600; padding: 7px 0; border-radius: 999px; border: 1px solid var(--line); background: var(--panel); color: var(--muted); cursor: pointer; }
 .wz .wzm-compass button[data-state="now"] { background: var(--heading); color: #fff; border-color: var(--heading); }
 .wz .wzm-compass button[data-state="np"] { text-decoration: line-through; opacity: .55; }
+
+/* ── EXTERIOR ON MOBILE v5 — S6: Tighten, the walk around on a phone (plan §2 screen 12; prototype w-* / wdone). ── */
+.wz .wzm-walk .wzm-steps { margin: 0 0 6px; }
+.wz .wzm-adjust { margin-top: 10px; padding: 10px; border-radius: 14px; background: var(--panel2); }
+.wz .wzm-walk .wzm-foot .wzm-cta:not(.wzm-cta--teal) { background: var(--heading); color: #fff; }
+.wz .wzm-walk-done { text-align: center; padding: 30px 0 10px; }
+.wz .wzm-walk-done .wzm-av { width: 56px; height: 56px; margin: 0 auto 14px; font-size: 18px; display: flex; align-items: center; justify-content: center; }
+.wz .wzm-gate-incl--open { margin-top: 18px; }
+.wz .wzm-gate-incl--open .wzm-gate-label { margin-bottom: 8px; }
