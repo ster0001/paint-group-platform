@@ -80,6 +80,10 @@ test("every side's size confirmed closes the range to within a few percent; the 
     await dims.locator("input").nth(0).fill("12");
     await dims.locator("input").nth(1).fill("3");
     await dims.locator("input").nth(1).blur(); // Tom, 28 Oct 2026: saves on blur, no Update button
+    // A MIRRORED side (the back takes the front's numbers, the left the right's) already shows 12 × 3, so typing the
+    // same numbers changes nothing and the blur commits nothing — "Keep these" is the one tap that records them (#407).
+    const keep = card.getByTestId(`side-dims-keep-${k}`);
+    if (await keep.count()) await keep.click();
     await expect(card.getByTestId(`side-assumed-${k}`)).toContainText(/Recorded: 12 m long × 3 m high/, { timeout: 30_000 });
     if (k === "front") {
       // 12 · the fascias, gutters and eaves now run 12 m — the side's width is
