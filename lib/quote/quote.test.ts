@@ -2,10 +2,11 @@ import { describe, expect, it } from "vitest";
 import { lineState, quoteDocument, quoteLines, quoteNumber, quoteSummary } from "./quote";
 import type { QuoteRoom } from "./cards";
 
+const bare = { tiles: [], windows: [], cupboard: null, cupboardInterior: null, spots: [], extras: { featureWalls: 0, wallpaper: false, other: "" }, garagePending: false };
 const rooms: QuoteRoom[] = [
-  { areaId: 1, name: "Bed 1", lengthM: 3.5, widthM: 3.2, heightM: 2.4, size: "adjusted", confirmed: true },
-  { areaId: 2, name: "Living room", lengthM: 5, widthM: 4, heightM: 2.7, size: "yes", confirmed: true },
-  { areaId: 3, name: "Kitchen", lengthM: 4, widthM: 3, heightM: 2.4, size: null, confirmed: false },
+  { areaId: 1, name: "Bed 1", lengthM: 3.5, widthM: 3.2, heightM: 2.4, size: "adjusted", confirmed: true, ...bare },
+  { areaId: 2, name: "Living room", lengthM: 5, widthM: 4, heightM: 2.7, size: "yes", confirmed: true, ...bare },
+  { areaId: 3, name: "Kitchen", lengthM: 4, widthM: 3, heightM: 2.4, size: null, confirmed: false, ...bare },
 ];
 const views = [
   { areaId: 1, name: "Bed 1", summary: "walls, ceiling, 2 × doors", confidencePct: 90, status: "stated" as const, rangeLoCents: 120_000, rangeHiCents: 148_000 },
