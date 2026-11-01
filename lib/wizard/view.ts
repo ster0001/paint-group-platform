@@ -10,6 +10,7 @@ import { accuracyScore, roomConfidencePct, type ScoredArea } from "./accuracy";
 import type { LoopConfirmState } from "./confirm-state";
 import { SCAFFOLD_EXCLUSION } from "./exterior-allowances";
 import { rangeBandPct, rangeFromTotal, type BandSettings, type GuardrailDecision } from "./policy";
+import { splitGst } from "@/lib/pricing/gst";
 import { sumEnvelopes, type Envelope } from "./envelope";
 
 /**
@@ -77,6 +78,13 @@ export type CustomerRoomView = {
   summary: string;
   confidencePct: number;
   status: WizardRoomView["status"] | "stated";
+  /**
+   * Quote stage v10 §5 — this room's share of the range, banded and rounded
+   * by the same `rangeFromTotal` as the whole (never the engine's point
+   * figure for the room). Absent only on an older payload.
+   */
+  rangeLoCents?: number;
+  rangeHiCents?: number;
 };
 
 export type CustomerPayload = {
@@ -161,6 +169,10 @@ export type CustomerPayload = {
    * when nobody covers the postcode and Settings names no coordinator.
    */
   estimator: { name: string; phone: string | null; covers: boolean } | null;
+  /** Quote stage v10 §5 — how much of the tree is confirmed (the envelope's share, 0–1), for the band's "N% settled". */
+  confirmedShare?: number;
+  /** Quote stage v10 §5 — the Subtotal and GST rows of the quote document, split from the two ends of the range by `lib/pricing/gst.ts`. */
+  quoteTotals?: { subtotalLoCents: number; subtotalHiCents: number; gstLoCents: number; gstHiCents: number };
 };
 
 export type CustomerRange = { rangeLoCents: number; rangeHiCents: number; bandPct: number };
@@ -188,10 +200,15 @@ export function customerPayload(
   /** C11: the resolved estimator, or null. */
   estimator: CustomerPayload["estimator"] = null,
   /** C12: the commercial widening (⚑20) and the segment block. */
-  extra: { widenPct?: number; commercial?: CustomerPayload["commercial"]; envelope?: Envelope | null; envelopeParts?: { interior: Envelope; exterior: Envelope } | null; holdDays?: number; underPct?: number } = {},
+  extra: { widenPct?: number; commercial?: CustomerPayload["commercial"]; envelope?: Envelope | null; envelopeParts?: { interior: Envelope; exterior: Envelope } | null; holdDays?: number; underPct?: number; gstRate?: number } = {},
 ): CustomerPayload {
   const loose = blocks as LooseBlock[];
+  // Quote stage v10 §5: each room's share of the range is its engine figure under the SAME band and rounding as the whole.
+  const partEnvEarly = extra.envelopeParts ?? null;
+  const envEarly = partEnvEarly ? sumEnvelopes([partEnvEarly.interior, partEnvEarly.exterior]) : (extra.envelope ?? null);
+  const roomBandPct = envEarly ? envEarly.bandPct : rangeBandPct(payload.accuracyPct, bands) + (extra.widenPct ?? 0);
   const rooms: CustomerRoomView[] = payload.rooms.map((r) => {
+    const roomRange = rangeFromTotal(r.priceCents, roomBandPct, extra.underPct ?? 0);
     const block = loose.find((b) => Number(b.id) === r.areaId);
     const origin = typeof block?.origin === "string" ? block.origin : "";
     const status = origin === "customer_stated" ? "stated" : r.status;
@@ -203,6 +220,8 @@ export function customerPayload(
       // R1.4: the card % IS the header's function — never a second lookup.
       confidencePct: r.confidencePct,
       status,
+      rangeLoCents: roomRange.loCents,
+      rangeHiCents: roomRange.hiCents,
     };
   });
 
@@ -222,11 +241,14 @@ export function customerPayload(
   // envelope already; the band-only path applies it here.
   const { loCents, hiCents } = env ? { loCents: env.loCents, hiCents: env.hiCents } : rangeFromTotal(payload.totals.totalCents, bandPct, extra.underPct ?? 0);
 
+  const gstLo = splitGst(loCents, extra.gstRate ?? 0.1), gstHi = splitGst(hiCents, extra.gstRate ?? 0.1);
   return {
     outcome: "reveal",
     rooms,
     rangeLoCents: loCents,
     rangeHiCents: hiCents,
+    ...(env ? { confirmedShare: env.confirmedShare } : {}),
+    quoteTotals: { subtotalLoCents: gstLo.exCents, subtotalHiCents: gstHi.exCents, gstLoCents: gstLo.gstCents, gstHiCents: gstHi.gstCents },
     ...(env ? { openQuestions: env.open, openClosesCents: env.closesCents } : {}),
     tightPct: bands.tightPct,
     widePct: bands.widePct,

@@ -8,6 +8,7 @@ import { quoteStageV10On } from "@/lib/wizard/ui-flags";
 import { getCompanyContact } from "@/lib/portal/data";
 import Wordmark from "@/app/wizard/Wordmark";
 import QuoteStage from "./QuoteStage";
+import { quoteNumber } from "@/lib/quote/quote";
 import "../../wizard/wizard.css";
 
 /**
@@ -47,7 +48,7 @@ export default async function QuoteStagePage({ searchParams }: { searchParams: P
 
   const { data: estimate, error } = await db
     .from("estimates")
-    .select("id, status, source, created_by, requires_site_check, builder_state, account_id, brand")
+    .select("id, status, source, created_by, requires_site_check, builder_state, account_id, brand, created_at")
     .eq("id", id)
     .maybeSingle();
   if (error) return <Holding line="We couldn't open that estimate just now — please try again shortly." />;
@@ -60,6 +61,21 @@ export default async function QuoteStagePage({ searchParams }: { searchParams: P
   // Session 1 carries the rooms; the sides editor stays the outside's detailed price until session 6.
   if (bundle.kind === "sides") redirect(`/estimate/scope?id=${encodeURIComponent(id)}`);
   const brand = (estimate as { brand?: string | null }).brand === "painthome" ? "painthome" as const : await wizardBrand();
+  // §5: the quote's prepared-for block — the account the session filed, and the address the wizard holds.
+  const accountId = (estimate as { account_id?: string | null }).account_id ?? null;
+  const { data: account, error: accountError } = accountId
+    ? await db.from("accounts").select("name, email, phone").eq("id", accountId).maybeSingle()
+    : { data: null, error: null };
+  if (accountError) return <Holding line="We couldn't open that estimate just now — please try again shortly." />;
+  const wiz = ((estimate as { builder_state?: { wizard?: { state?: { address?: { formatted?: string }; customer?: { suburb?: string; postcode?: string } } } } }).builder_state?.wizard?.state) ?? null;
+  const preparedFor = {
+    name: (account as { name?: string } | null)?.name?.trim() || null,
+    address: wiz?.address?.formatted?.trim() || [wiz?.customer?.suburb, wiz?.customer?.postcode].filter(Boolean).join(" ") || null,
+    mobile: (account as { phone?: string } | null)?.phone?.trim() || bundle.customerPhone,
+    email: (account as { email?: string } | null)?.email?.trim() || null,
+  };
+  const createdAt = (estimate as { created_at?: string }).created_at;
+  const quoteDate = new Intl.DateTimeFormat("en-AU", { day: "numeric", month: "short", year: "numeric", timeZone: "Australia/Melbourne" }).format(createdAt ? new Date(createdAt) : new Date());
   const loopRooms = bundle.initialInteriorLoop?.rooms ?? [];
   const rooms = bundle.initialRooms.map((r) => {
     const l = loopRooms.find((x) => x.areaId === r.areaId);
@@ -78,6 +94,9 @@ export default async function QuoteStagePage({ searchParams }: { searchParams: P
         estimator={bundle.estimator}
         companyPhone={bundle.companyPhone}
         customerSuburb={bundle.customerSuburb}
+        preparedFor={preparedFor}
+        quoteNo={quoteNumber(bundle.estimateId, brand)}
+        quoteDate={quoteDate}
       />
     </div>
   );
