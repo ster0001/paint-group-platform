@@ -424,7 +424,8 @@ test.describe("UI refresh S3 · the range screen, every path", () => {
     const w = await page.evaluate(() => ({ sw: document.documentElement.scrollWidth, vw: window.innerWidth }));
     expect(w.sw).toBeLessThanOrEqual(390);
     expect(w.vw).toBeLessThanOrEqual(390);
-    await expect(page.getByTestId("reveal-dock-tighten")).toBeVisible();
+    // Wizard mobile v5 (S4): on a phone the range is the gate, its one door on the sticky bar.
+    await expect(page.getByTestId("gate-bar-exact")).toBeVisible();
     await ctx.close();
   });
 });
@@ -604,7 +605,9 @@ test.describe("UI refresh S5 · home outside", () => {
     };
     await toPaint(page);
     await fits();
+    // Exterior on mobile v5 (S2–S4): Painting is four screens; the deck is on the last; About it and Each side are their own screens.
     await page.getByTestId("ext-part-walls").click();
+    for (const id of ["p-win", "p-ver", "p-around"]) { await page.getByTestId("ql-next").click(); await expect(page.locator(`[data-mobile-screen='${id}']`)).toBeVisible({ timeout: 10_000 }); }
     await page.getByTestId("ext-extra-deck").click();
     await fits();
     await quickNext(page);
@@ -622,11 +625,11 @@ test.describe("UI refresh S5 · home outside", () => {
     await lookAtEverySide(page);
     await quickNext(page);
     await passGateIfShown(page);
-    await expect(page.getByTestId("reveal-range")).toHaveText(MONEY_RANGE, { timeout: 90_000 });
-    // 21 Oct: Tighten opens the customer editor on a phone too.
-    await page.getByTestId("door-tighten").click();
-    await passDetailsSheetIfShown(page);
-    await expect(page.locator(".sd-card").first()).toBeVisible({ timeout: 90_000 });
+    // Exterior on mobile v5 (S5, S6): the phone's gate, and Get my exact price is the walk around the house.
+    await expect(page.getByTestId("gate-range")).toHaveText(MONEY_RANGE, { timeout: 90_000 });
+    await fits();
+    await page.getByTestId("gate-bar-exact").click();
+    await expect(page.getByTestId("ext-walk")).toBeVisible({ timeout: 20_000 });
     await fits();
     await ctx.close();
   });
@@ -793,11 +796,14 @@ test.describe("UI refresh S8a · the sheet pattern", () => {
     const page = await ctx.newPage();
     await toPlace(page);
     // Wizard mobile v5 (S2): on a phone Contact in the header opens the sheet straight away (no pill).
-    if (await onMobileShell(page)) await page.getByTestId("wzm-contact").click();
+    // Wizard mobile v5 (S5): Contact in the header opens the Contact sheet; the desktop's talk bar opens the talk sheet.
+    const mobile = await onMobileShell(page);
+    if (mobile) await page.getByTestId("wzm-contact").click();
     else { await openTalk(page); await page.getByTestId("ql-book").click(); }
-    await expect(page.getByTestId("talk-sheet")).toBeVisible({ timeout: 15_000 });
+    const sheetId = mobile ? "wzm-contact-sheet" : "talk-sheet";
+    await expect(page.getByTestId(sheetId)).toBeVisible({ timeout: 15_000 });
     await page.waitForTimeout(400);
-    const b = await sheetBox(page, "[data-testid='talk-sheet'] .wz-sheet");
+    const b = await sheetBox(page, `[data-testid='${sheetId}'] .wz-sheet`);
     expect(Math.round(b.bottom)).toBe(b.vh);
     expect(Math.round(b.left)).toBe(0);
     expect(Math.round(b.right)).toBe(b.vw);
