@@ -1,0 +1,398 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Paint Home — your detailed price</title>
+<style>
+:root{--ink:#1c232c;--grey:#5c6672;--mute:#98a2ad;--line:#e6eaee;--bg:#f7f8f9;--teal:#2fd3df;--teal-ink:#0e7f8a;--teal-soft:#e4f8fa;--green:#5f9a73;--mono:ui-monospace,"Martian Mono",Menlo,monospace;--r:16px}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:-apple-system,"Inter",system-ui,Segoe UI,Roboto,sans-serif;-webkit-font-smoothing:antialiased;font-size:16px}
+button{font:inherit;color:inherit}
+.demo{background:#8a4bd1;color:#fff;font-size:12px;padding:8px 12px;display:flex;gap:6px;align-items:center;overflow-x:auto}
+.demo span{opacity:.85;flex:0 0 auto}.demo button{flex:0 0 auto;border:1px solid rgba(255,255,255,.5);background:transparent;color:#fff;border-radius:999px;padding:5px 10px;font-size:12px}.demo button.on{background:#fff;color:#8a4bd1}
+.app{min-height:100vh;display:flex;flex-direction:column}
+header{display:flex;align-items:center;justify-content:space-between;padding:14px 20px 0}
+.logo{font-weight:800;letter-spacing:.06em;font-size:13px}.logo span{color:var(--teal-ink)}
+.back{width:40px;height:40px;border:0;background:transparent;border-radius:50%;font-size:22px;line-height:1;margin-left:-10px;color:var(--grey)}.back[disabled]{opacity:0;pointer-events:none}
+.help{border:1px solid var(--line);background:#fff;border-radius:999px;padding:8px 14px;font-size:13px;font-weight:600}
+.bar{height:3px;background:var(--line);margin:14px 20px 0;border-radius:3px;overflow:hidden}.bar i{display:block;height:100%;width:55%;background:var(--teal);transition:width .35s ease}
+.strip{display:flex;align-items:center;gap:12px;margin:12px 20px 0;background:#fff;border:1px solid var(--line);border-radius:14px;padding:6px 12px 6px 6px;text-align:left;width:calc(100% - 40px)}
+.strip .thumb{width:60px;height:52px;border-radius:9px;overflow:hidden;background:#eef2f5;flex:0 0 auto}.strip .thumb svg{width:100%;height:100%;display:block}
+.strip .txt{flex:1;min-width:0;font-size:12px;color:var(--mute);line-height:1.35}.strip .txt b{display:block;font-size:13px;color:var(--ink);font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.strip .chev{color:var(--mute);font-size:20px;padding-right:2px}
+.tiles-row{display:flex;gap:8px;margin:12px 20px 0}.tiles-row .strip{margin:0;flex:1;min-width:0;width:auto;padding:5px 8px 5px 5px;gap:8px}.tiles-row .strip .thumb{width:40px;height:40px}.tiles-row .strip .txt b{font-size:12px}.tiles-row .strip .txt{font-size:11px;line-height:1.3}.tiles-row .strip .chev{display:none}
+.tile-sm{flex:0 0 auto;width:72px;background:#fff;border:1px solid var(--line);border-radius:14px;padding:5px 5px 4px;display:flex;flex-direction:column;align-items:center;gap:3px}
+.tile-sm .thumb{width:60px;height:40px;border-radius:8px;overflow:hidden;background:#eef2f5}.tile-sm .thumb svg{width:100%;height:100%;display:block}
+.tile-sm span{font-size:10px;color:var(--grey);font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:62px}
+.tile-sm.hide{display:none}
+.qpanel{margin:8px 20px 0;display:none}.qpanel.open{display:block}.qpanel .quote{margin:0;max-height:30vh;overflow:auto;padding:10px 14px}.qpanel .qh{padding-bottom:8px}.qpanel .qfor{display:none}
+.tiles-row .strip .chev{display:block!important;transition:transform .2s}.tiles-row .strip.open .chev{transform:rotate(180deg)}
+.rq-head{display:flex;justify-content:space-between;align-items:center;cursor:pointer;padding:12px 14px;border:1px solid var(--line);border-radius:14px;background:#fff;font-size:13px;font-weight:600}
+.rq-head small{display:block;font-weight:400;color:var(--mute);font-size:11px}.rq-head .amt{font:600 13px var(--mono)}.rq-head .arr{color:var(--mute);margin-left:10px;transition:transform .2s}
+.rq.open .rq-head .arr{transform:rotate(180deg)}.rq .quote{display:none;border-top:0;border-radius:0 0 14px 14px;margin-top:-1px}.rq.open .quote{display:block}.rq.open .rq-head{border-radius:14px 14px 0 0}
+.pic .base{fill:#e4e8ec;stroke:#cfd5db;stroke-width:1}.pic .trimbase{fill:#dfe3e7;stroke:#c9cfd5;stroke-width:1}
+.bigpic{border-radius:14px;overflow:hidden;background:#eef2f5;aspect-ratio:5/3}.bigpic svg{width:100%;height:100%;display:block}
+.sheet .cap{font-size:13px;color:var(--grey);margin:10px 0 0}
+.plan{border-radius:14px;overflow:hidden;background:#fff;border:1px solid var(--line)}.plan svg{width:100%;display:block}
+#rail-left{display:none}
+.band{margin:14px 20px 0;display:flex;align-items:baseline;justify-content:space-between;gap:10px}
+.band .p{font:700 22px/1 var(--mono);letter-spacing:-.02em;white-space:nowrap}
+.band .l{font-size:12px;color:var(--mute);text-align:right;line-height:1.3}
+.track{margin:8px 20px 0;height:6px;background:var(--line);border-radius:6px;position:relative;overflow:hidden}
+.track i{position:absolute;top:0;bottom:0;border-radius:6px;transition:left .9s cubic-bezier(.2,.8,.2,1),right .9s cubic-bezier(.2,.8,.2,1),background .9s}
+main{flex:1;padding:18px 20px 130px;position:relative}
+.screen{animation:in .26s ease both}
+@keyframes in{from{opacity:0;transform:translateX(18px)}to{opacity:1;transform:none}}
+h1{font-size:25px;line-height:1.15;letter-spacing:-.015em;margin:8px 0 6px;font-weight:700}
+.sub{color:var(--grey);font-size:15px;margin:0 0 18px;line-height:1.45}
+.stage{font-size:12px;color:var(--teal-ink);font-weight:600;margin-top:2px}
+.opts{display:grid;gap:10px}.opts.three{grid-template-columns:1fr 1fr 1fr}.opts.two{grid-template-columns:1fr 1fr}.opts.four{grid-template-columns:1fr 1fr}
+.opt{display:flex;align-items:center;justify-content:center;gap:10px;border:1.5px solid var(--line);background:#fff;border-radius:var(--r);padding:16px 12px;text-align:center;width:100%;min-height:62px;font-weight:600;font-size:15px;transition:border-color .15s,background .15s,transform .1s}
+.opt:active{transform:scale(.985)}.opt.sel{border-color:var(--teal-ink);background:var(--teal-soft)}
+.opt small{display:block;font-weight:400;font-size:12px;color:var(--grey);margin-top:3px}
+.opt.pic{flex-direction:column;gap:8px;padding:12px 10px 14px}.opt.pic .pimg{width:64px;height:64px;display:block}.opt.pic .pimg svg{width:100%;height:100%}
+.chips{display:flex;flex-wrap:wrap;gap:8px}
+.chip{border:1.5px solid var(--line);background:#fff;border-radius:999px;padding:12px 16px;font-weight:600;font-size:15px;display:flex;align-items:center;gap:8px}
+.chip.sel{border-color:var(--teal-ink);background:var(--teal-soft)}.chip.sel:before{content:"";width:8px;height:8px;border-radius:50%;background:var(--teal-ink)}
+.chip.add{border-style:dashed;color:var(--grey);font-weight:500}
+.chip .n{display:inline-flex;align-items:center;gap:6px;margin-left:4px;font-family:var(--mono);font-size:13px}.chip .n b{width:26px;height:26px;border-radius:50%;border:1.5px solid var(--line);display:inline-flex;align-items:center;justify-content:center;font-size:15px;background:#fff}
+.seg{display:inline-flex;gap:4px;margin-left:6px}.seg span{font-size:11px;padding:4px 8px;border-radius:999px;border:1px solid var(--line);font-family:var(--mono)}.seg span.sel{background:var(--teal-ink);color:#fff;border-color:var(--teal-ink)}
+.grp{font-size:12px;color:var(--mute);font-weight:600;letter-spacing:.04em;text-transform:uppercase;margin:16px 0 8px}
+.meas{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}
+.meas label{background:#fff;border:1.5px solid var(--line);border-radius:14px;padding:10px 12px 12px;display:block}
+.meas span{display:block;font-size:11px;color:var(--mute);margin-bottom:2px}
+.meas input{border:0;outline:0;width:100%;font:600 22px var(--mono);background:transparent;color:var(--ink);padding:2px 0}
+.meas label:focus-within{border-color:var(--teal-ink)}.meas label.typ input{color:var(--mute)}
+.meas em{font-style:normal;font-size:11px;color:var(--mute)}
+.photo{display:flex;align-items:center;gap:12px;border:1.5px dashed var(--line);border-radius:14px;padding:12px 14px;background:#fff;margin-top:12px;font-size:14px;color:var(--grey)}.photo b{color:var(--ink);display:block;font-size:14px}.photo .cam{width:40px;height:40px;border-radius:50%;background:var(--teal-soft);display:inline-flex;align-items:center;justify-content:center;flex:0 0 auto;color:var(--teal-ink)}
+.photo.has{border-style:solid;border-color:var(--teal-ink)}
+.skip{text-align:center;margin-top:16px;font-size:13px;color:var(--mute)}.skip a{color:var(--grey);text-decoration:underline}
+.foot{position:fixed;left:0;right:0;bottom:0;background:linear-gradient(transparent,var(--bg) 30%);padding:24px 20px calc(16px + env(safe-area-inset-bottom));display:none}.foot.on{display:block}
+.cta{display:block;width:100%;border:0;border-radius:999px;background:var(--ink);color:#fff;font-weight:700;font-size:17px;padding:18px;text-align:center}.cta.teal{background:var(--teal);color:var(--ink)}.cta[disabled]{opacity:.35}
+.cta small{display:block;font-weight:500;font-size:12px;opacity:.75;margin-top:3px}
+.label{font-size:13px;color:var(--teal-ink);font-weight:600}
+.price{font:700 36px/1.05 var(--mono);letter-spacing:-.03em;margin:8px 0 10px}
+.fine{font-size:12px;color:var(--mute);line-height:1.5;margin:0 0 20px}
+/* formal quote */
+.quote{border:1px solid var(--line);border-radius:14px;background:#fff;padding:16px;margin:0 0 18px}
+.qh{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:1px solid var(--line);padding-bottom:12px;margin-bottom:6px}
+.qh .brand{font-weight:800;letter-spacing:.06em;font-size:12px}.qh .brand span{color:var(--teal-ink)}
+.qh .meta{font-size:11px;color:var(--mute);line-height:1.5;text-align:right}.qh .meta b{color:var(--ink);font-weight:600;display:block;font-size:12px}
+.qfor{font-size:12px;color:var(--grey);line-height:1.5;padding:4px 0 8px}.qfor b{color:var(--ink);display:block;font-size:13px}
+.ql{display:flex;justify-content:space-between;align-items:center;padding:9px 0;border-bottom:1px solid var(--line);font-size:14px}
+.ql small{display:block;color:var(--mute);font-size:11.5px;line-height:1.35}
+.ql .amt{font:600 13px var(--mono);color:var(--ink);min-width:62px;text-align:right}
+.ql.todo,.ql.todo .amt{color:var(--mute)}.ql.now{color:var(--teal-ink)}.ql.now .amt{color:var(--teal-ink)}.ql.typical .amt{font-size:11px;color:var(--mute)}
+.ql.sum{border:0;padding:6px 0;font-size:13px;color:var(--grey)}.ql.sum .amt{font-size:12px;color:var(--grey)}
+.ql.total{font-weight:700;border-top:2px solid var(--line);margin-top:4px;padding-top:12px;border-bottom:0}.ql.total .amt{font-size:15px}
+.alt{text-align:center;font-size:14px;color:var(--grey);margin:14px 0 0}.alt a{color:var(--teal-ink);font-weight:600;text-decoration:underline}
+.tiles{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin:22px 0 8px}
+.tile{background:#fff;border:1px solid var(--line);border-radius:14px;padding:12px 12px 14px;font-size:12px;line-height:1.35;color:var(--grey)}.tile b{display:block;color:var(--ink);font-size:13px;margin:6px 0 2px}
+.tile .k{display:inline-flex;width:22px;height:22px;border-radius:50%;align-items:center;justify-content:center;font-size:11px;font-weight:700;border:1.5px solid var(--line)}
+.tile.done .k{background:var(--green);border-color:var(--green);color:#fff}.tile.now{border-color:var(--teal-ink)}.tile.now .k{background:var(--teal-soft);border-color:var(--teal-ink);color:var(--teal-ink)}
+.sheet-bg{position:fixed;inset:0;background:rgba(28,35,44,.4);display:none;z-index:40}
+.sheet{position:fixed;left:0;right:0;bottom:0;background:#fff;border-radius:22px 22px 0 0;padding:12px 20px calc(24px + env(safe-area-inset-bottom));z-index:41;display:none;max-height:88vh;overflow:auto}
+.sheet.open,.sheet-bg.open{display:block}.grab{width:40px;height:4px;background:var(--line);border-radius:4px;margin:0 auto 14px}
+.srow{display:flex;align-items:center;gap:12px;padding:14px 0;border-bottom:1px solid var(--line);font-weight:600}.srow small{display:block;font-weight:400;color:var(--grey);font-size:12px}.srow:last-child{border:0}
+.av{width:40px;height:40px;border-radius:50%;background:var(--teal);display:inline-flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;color:var(--ink);flex:0 0 auto}
+.sarah{display:flex;align-items:center;gap:12px;margin:22px 0 0;padding-top:18px;border-top:1px solid var(--line);font-size:14px;color:var(--grey)}.sarah b{color:var(--ink);display:block}
+.roller{opacity:0;transition:opacity .15s}.roller.on{opacity:1}
+.rooms{list-style:none;margin:0;padding:0}.rooms li{display:flex;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--line);font-size:15px}.rooms li span{color:var(--mute);font-size:13px}
+textarea{width:100%;border:1.5px solid var(--line);border-radius:14px;padding:12px;font:inherit;font-size:15px;min-height:80px;background:#fff;margin-top:10px}
+@media (min-width:900px){
+  body{background:#eef1f4}
+  .app{max-width:1360px;margin:0 auto;background:var(--bg);min-height:100vh;display:grid;grid-template-columns:260px 1fr 420px;grid-template-rows:auto auto 1fr;column-gap:0}
+  header{grid-column:1/-1;padding:22px 40px 0}
+  .bar{grid-column:1/-1;margin:18px 40px 0}
+  .tiles-row,.band,.track{display:none}
+  #rail-left{display:block;grid-column:1;grid-row:3;padding:36px 0 60px 40px;position:sticky;top:0;align-self:start}
+  .rl-h{font-size:12px;color:var(--teal-ink);font-weight:600;margin-bottom:8px}.rl-cap{font-size:12px;color:var(--mute);margin:8px 0 0}
+  #rail .rq .quote{max-height:calc(100vh - 380px)}
+  #rail-left .bigpic{aspect-ratio:5/3}
+  main{grid-column:2;padding:36px 40px 60px;max-width:640px}
+  h1{font-size:30px}
+  .foot{position:static;background:none;padding:28px 0 0;grid-column:2;margin-left:40px;max-width:544px;display:block;visibility:hidden}.foot.on{visibility:visible}
+  #rail{grid-column:3;grid-row:3;padding:36px 40px 60px 0;position:sticky;top:0;align-self:start}
+  #rail .band{display:flex;margin:0 0 6px}#rail .track{display:block;margin:0 0 18px}
+  #rail .quote{margin:0;overflow:auto}
+  #rail .ql.now{background:var(--teal-soft);margin:0 -8px;padding-left:8px;padding-right:8px;border-radius:8px}
+  .keys{font-size:12px;color:var(--mute);margin-top:22px}.keys b{display:inline-block;border:1px solid var(--line);border-radius:5px;padding:1px 6px;font:600 11px var(--mono);color:var(--grey);background:#fff;margin-right:4px}
+  .sheet-bg,#sheet-quote,#sheet-room,#sheet-plan,.qpanel{display:none!important}
+}
+@media (min-width:900px) and (max-width:1120px){.app{grid-template-columns:200px 1fr 360px}}
+</style>
+</head>
+<body>
+<div class="demo"><span>Prototype — job type:</span><button class="on" data-j="interior">Whole interior</button><button data-j="trims">Doors &amp; trims</button><button data-j="exterior">Outside</button><span style="margin-left:10px">Floorplan uploaded:</span><button id="fp-toggle" class="on" onclick="togglePlan()">Yes</button></div>
+<div class="app">
+  <header><button class="back" id="back">‹</button><div class="logo">PAINT <span>HOME</span></div><button class="help" onclick="openSheet('contact')">Contact</button></header>
+  <div class="bar"><i id="bar"></i></div>
+  <div class="tiles-row" id="tilesrow">
+    <button class="strip" id="strip" onclick="toggleQuote()"><div class="thumb" id="thumb"></div><div class="txt"><b id="strip-b">Your quote</b><span id="strip-s"></span></div><div class="chev" id="qchev">▾</div></button>
+    <button class="tile-sm" id="tile-room" onclick="openSheet('room')"><div class="thumb" id="thumb-room"></div><span id="tile-room-l">Bed 1</span></button>
+    <button class="tile-sm" id="tile-plan" onclick="openSheet('plan')"><div class="thumb" id="thumb-plan"></div><span>Plan</span></button>
+  </div>
+  <div class="qpanel" id="qpanel"><div id="qpanel-body"></div></div>
+  <div class="band"><div class="p" id="band-p"></div><div class="l" id="band-l"></div></div>
+  <div class="track"><i id="track"></i></div>
+  <main id="main"></main>
+  <div class="foot" id="foot"><button class="cta" id="next">Continue</button></div>
+  <aside id="rail-left"><div class="rl-h" id="rl-room-l">Bed 1</div><div class="bigpic" id="rail-room"></div><p class="rl-cap">Updates as you answer</p></aside>
+  <aside id="rail"><div class="rl-h" id="rl-plan-h">Your floorplan</div><div class="plan" id="rail-plan" style="margin-bottom:18px"></div><div class="band"><div class="p" id="band-p2"></div><div class="l" id="band-l2"></div></div><div class="track"><i id="track2"></i></div><div id="rail-quote"></div></aside>
+</div>
+<div class="sheet-bg" id="sbg" onclick="closeSheets()"></div>
+<div class="sheet" id="sheet-quote"><div class="grab"></div><div id="sheet-quote-body"></div></div>
+<div class="sheet" id="sheet-room"><div class="grab"></div><div class="bigpic" id="bigroom"></div><p class="cap" id="bigroom-cap"></p></div>
+<div class="sheet" id="sheet-plan"><div class="grab"></div><div class="plan" id="bigplan"></div><p class="cap">Your floorplan. Tap a room to jump to it.</p></div>
+<div class="sheet" id="sheet-contact"><div class="grab"></div><div class="srow" style="border:0;padding-top:4px"><span class="av">SR</span><div>Sarah Reid<small>Your estimator for Northcote</small></div></div><button class="cta teal" style="margin:8px 0 14px">Book a visit<small>Sarah comes to you. About 40 minutes, no charge.</small></button><a class="srow" href="tel:0388409414" style="text-decoration:none;color:inherit">Call 03 8840 9414<small>Mon–Fri, 8–6</small></a><div class="srow">Send a message<small>We reply the same day</small></div><div class="srow">Save and come back later<small>We text you the link</small></div></div>
+
+<script>
+const $=id=>document.getElementById(id);
+const CUST={name:'Tom Roman',addr:'15 Westgarth St, Northcote VIC 3070',mobile:'0400 000 000',email:'tom@example.com',no:'PH-10432',date:'29 Oct 2026'};
+/* ---------------- option drawings ---------------- */
+function doorSVG(k){const f='#f4f1ea',s='#9aa4ae';const panels=k==='panel'?`<rect x="19" y="12" width="18" height="30" rx="1" fill="none" stroke="${s}"/><rect x="43" y="12" width="18" height="30" rx="1" fill="none" stroke="${s}"/><rect x="19" y="50" width="18" height="40" rx="1" fill="none" stroke="${s}"/><rect x="43" y="50" width="18" height="40" rx="1" fill="none" stroke="${s}"/>`:'';
+  return `<svg viewBox="0 0 80 100"><rect x="10" y="4" width="60" height="94" fill="${f}" stroke="${s}" stroke-width="1.5"/>${panels}<circle cx="63" cy="52" r="2.2" fill="${s}"/></svg>`;}
+function winSVG(k){const g='#dbeaf0',s='#9aa4ae';let inner='';
+  if(k==='casement')inner=`<line x1="40" y1="6" x2="40" y2="74" stroke="${s}"/><path d="M14,10 L36,40 L14,70" fill="none" stroke="${s}" stroke-dasharray="3 2"/>`;
+  if(k==='sash')inner=`<rect x="12" y="6" width="56" height="34" fill="none" stroke="${s}" stroke-width="2"/><rect x="14" y="40" width="52" height="32" fill="none" stroke="${s}" stroke-width="2"/><line x1="12" y1="40" x2="68" y2="40" stroke="${s}" stroke-width="3"/>`;
+  if(k==='colonial')inner=[20,40,60].map(x=>`<line x1="${x}" y1="6" x2="${x}" y2="74" stroke="${s}"/>`).join('')+[23,40,57].map(y=>`<line x1="8" y1="${y}" x2="72" y2="${y}" stroke="${s}"/>`).join('');
+  if(k==='winder')inner=`<line x1="8" y1="28" x2="72" y2="28" stroke="${s}"/><line x1="8" y1="52" x2="72" y2="52" stroke="${s}"/><path d="M12,30 L68,24" stroke="${s}" stroke-dasharray="3 2"/><path d="M12,54 L68,48" stroke="${s}" stroke-dasharray="3 2"/><circle cx="40" cy="70" r="3" fill="none" stroke="${s}"/><line x1="40" y1="70" x2="46" y2="66" stroke="${s}"/>`;
+  return `<svg viewBox="0 0 80 80"><rect x="8" y="6" width="64" height="68" fill="${g}" stroke="${s}" stroke-width="2"/>${inner}</svg>`;}
+
+/* ---------------- room / side / plan drawings ---------------- */
+function surf(p,k,shapes,trim,on,fill){const b=trim?'trimbase':'base';return `<g data-surf="${k}"><g class="${b}">${shapes}</g><clipPath id="cp-${p}-${k}"><rect class="cprect" x="0" y="0" width="${on?200:0}" height="130"/></clipPath><g clip-path="url(#cp-${p}-${k})" fill="${fill||'#fff'}" stroke="#c4cad0" stroke-width="1">${shapes}</g></g>`;}
+function wallFill(){const c=A.gen&&A.gen.colour;return c==='New colour'?'#cfe3d6':'#dcecef';}
+function roomSVG(p,l){const s=l.surf||{};const wallsOn=s.walls>0;const wc=wallFill();
+  const walls=`<polygon points="0,0 50,30 50,90 0,120"/><rect x="50" y="30" width="100" height="60"/><polygon points="200,0 150,30 150,90 200,120"/>`;
+  const ceil=`<polygon points="0,0 200,0 150,30 50,30"/>`;
+  const corn=`<rect x="50" y="29" width="100" height="2.5"/><polygon points="0,0 50,30 50,32.5 0,2.5"/><polygon points="200,0 150,30 150,32.5 200,2.5"/>`;
+  const skirt=`<rect x="50" y="86" width="100" height="4"/><polygon points="0,120 50,90 50,86 0,114"/><polygon points="200,120 150,90 150,86 200,114"/>`;
+  // ---- layout: doors (16 wide) then windows across the back wall, spill to side walls, never overlap
+  const nD=s.doors||0,nW=s.windows||0;const wsz={S:[16,13],M:[24,20],L:[34,26]}[s.winSize||'M'];
+  const items=[];for(let k=0;k<nW;k++)items.push({t:'win',w:wsz[0]});for(let k=0;k<nD;k++)items.push({t:'door',w:16});
+  const back=[],left=[],right=[];let used=0;const gap=6,backW=92;
+  items.forEach(it=>{if(used+it.w<=backW){back.push(it);used+=it.w+gap;}else if(it.t==='door'&&right.length<2)right.push(it);else if(left.length<3)left.push(it);else right.push(it);});
+  let doors='',arch='',wins='',glass='';
+  const drawDoor=(x,y,sk)=>{const d=`<rect x="${x}" y="${y}" width="16" height="40" rx="1"${sk}/>`;const a=`<rect x="${x-2}" y="${y-2}" width="20" height="2"${sk}/><rect x="${x-2}" y="${y-2}" width="2" height="42"${sk}/><rect x="${x+16}" y="${y-2}" width="2" height="42"${sk}/>`;doors+=d;arch+=a;};
+  const drawWin=(x,y,sk)=>{wins+=`<rect x="${x}" y="${y}" width="${wsz[0]}" height="${wsz[1]}" rx="1"${sk}/>`;glass+=`<rect x="${x+2}" y="${y+2}" width="${wsz[0]/2-3}" height="${wsz[1]-4}" fill="#dbeaf0"${sk}/><rect x="${x+wsz[0]/2+1}" y="${y+2}" width="${wsz[0]/2-3}" height="${wsz[1]-4}" fill="#dbeaf0"${sk}/>`;};
+  // back wall: spread evenly between 52 and 148
+  const total=back.reduce((a,b)=>a+b.w,0);const free=backW-total;const g=back.length>1?free/(back.length+1):free/2;let x=54+g;
+  back.forEach(it=>{if(it.t==='door')drawDoor(x,50,'');else drawWin(x,42,'');x+=it.w+g;});
+  // left wall (perspective skew), items stacked front-to-back
+  const skL=' transform="skewY(31)"',skR=' transform="translate(200,0) skewY(-31) translate(-200,0)"';
+  left.forEach((it,k)=>{const lx=8+k*(it.w+6);if(it.t==='door')drawDoor(lx,50-31*0+0,skL);else drawWin(lx,38,skL);});
+  right.forEach((it,k)=>{const rx=192-it.w-k*(it.w+6);if(it.t==='door')drawDoor(rx,50,skR);else drawWin(rx,38,skR);});
+  const robe=l.robe==='yes'?`<polygon points="152,34 190,12 190,118 152,88"/>`:'';const robeDoors=l.robe==='yes'?`<polygon points="154,36 170,27 170,96 154,87"/><polygon points="172,26 188,17 188,106 172,96"/>`:'';
+  let prep='';(l.prep||[]).forEach((k,n)=>{const px=60+n*25,py=45+(n%2)*18;if(k==='crack')prep+=`<path d="M${px},${py} l4,6 -2,5 3,6" stroke="#9aa4ae" stroke-width=".9" fill="none"/>`;else if(k==='hole')prep+=`<circle cx="${px}" cy="${py+6}" r="2.2" fill="#b7bfc7"/>`;else if(k==='flaking')prep+=`<path d="M${px},${py} l5,2 -3,4 5,2" stroke="#b7bfc7" fill="none"/>`;else if(k==='water')prep+=`<ellipse cx="${px+3}" cy="${py+4}" rx="7" ry="4" fill="#d8d2c4" opacity=".8"/>`;else if(k==='mould')prep+=`<circle cx="${px}" cy="${py}" r="1.4" fill="#8a9a8c"/><circle cx="${px+4}" cy="${py+3}" r="1.2" fill="#8a9a8c"/><circle cx="${px+1}" cy="${py+5}" r="1" fill="#8a9a8c"/>`;else if(k==='wallpaper')prep+=`<path d="M${px},${py} q3,3 0,6 q-3,3 0,6" stroke="#b7bfc7" fill="none"/>`;});
+  const feat=(l.prep||[]).includes('feature')?`<polygon points="0,0 50,30 50,90 0,120" fill="#f5e1dc" opacity=".9"/>`:'';
+  // unticked trims are not drawn at all (Tom, 29 Oct); walls/ceiling stay grey when not painting
+  return `<svg class="pic" viewBox="0 0 200 120" xmlns="http://www.w3.org/2000/svg"><rect width="200" height="120" fill="#eef2f5"/><polygon points="0,120 50,90 150,90 200,120" fill="#d9c9b2"/>
+  ${surf(p,'ceiling',ceil,false,!!s.ceiling,'#fafaf8')}${surf(p,'walls',walls,false,wallsOn,wc)}${feat}${s.walls&&s.walls<100?`<rect x="${50+100*s.walls/100}" y="30" width="${100-100*s.walls/100}" height="60" fill="#e4e8ec" stroke="#cfd5db"/>`:''}${prep}
+  ${s.cornices?surf(p,'cornices',corn,true,true):''}${s.skirtings?surf(p,'skirtings',skirt,true,true):''}${l.robe==='yes'?surf(p,'robeinside',robe,false,!!l.robeInside,'#f3f1ea'):''}${l.robe==='yes'&&l.robeDoors?surf(p,'robedoors',robeDoors,true,true):''}
+  ${s.architraves&&nD?surf(p,'architraves',arch,true,true):''}${nD?surf(p,'doors',doors,true,true):''}${glass}${nW?surf(p,'windows',wins,true,true):''}
+  <g><rect x="60" y="84" width="10" height="8" rx="1" fill="#2fd3df"/><rect x="61" y="82" width="8" height="2" fill="#0e7f8a"/></g></svg>`;}
+function sideSVG(p,l){const w=l.w,h=l.h,sc=Math.min(150/w,84/(h+2)),x0=100-w*sc/2,x1=x0+w*sc,G=108,top=G-h*sc,rr=Math.min(1.6,w*.16)*sc;
+  const walls=`<rect x="${x0}" y="${top}" width="${x1-x0}" height="${G-top}"/>`;let wins='',glass='';const ww=.9*sc,wh=1.2*sc,sill=G-.9*sc-wh;
+  for(let k=0;k<l.windows;k++){const x=x0+(x1-x0)*(k+1)/(l.windows+1)-ww/2;wins+=`<rect x="${x}" y="${sill}" width="${ww}" height="${wh}"/>`;glass+=`<rect x="${x+1}" y="${sill+1}" width="${ww-2}" height="${wh-2}" fill="#dbeaf0"/>`;}
+  let doors='';for(let k=0;k<l.doors;k++){const x=x0+(x1-x0)*.25+k*1.4*sc;doors+=`<rect x="${x}" y="${G-2.1*sc}" width="${.9*sc}" height="${2.1*sc}"/>`;}
+  let cond='';if(l.cond==='peeling')cond=`<g fill="#c7ccd1"><path d="M${x0+8},${top+10} l6,2 -4,4 6,2 -4,4"/><path d="M${x1-14},${top+20} l6,2 -4,4 6,2"/></g>`;if(l.cond==='weathered')cond=`<g fill="#d3d7db">${[0,1,2,3].map(n=>`<rect x="${x0+6+n*((x1-x0-12)/4)}" y="${top+6}" width="${(x1-x0-12)/4-3}" height="${(G-top-10)}" opacity=".35"/>`).join('')}</g>`;
+  return `<svg class="pic" viewBox="0 0 200 120" xmlns="http://www.w3.org/2000/svg"><rect width="200" height="120" fill="#eef2f5"/><rect y="${G}" width="200" height="12" fill="#cfdccf"/>${surf(p,'walls',walls,false,true,'#cfe3d6')}${cond}<polygon points="${x0-6},${top} ${x0+(x1-x0)*.22},${top-rr} ${x1-(x1-x0)*.22},${top-rr} ${x1+6},${top}" fill="#5b6672"/>${surf(p,'fascias',`<rect x="${x0-6}" y="${top-4}" width="${x1-x0+12}" height="3"/>`,true,true)}${surf(p,'gutters',`<rect x="${x0-6}" y="${top-1}" width="${x1-x0+12}" height="2.5"/>`,true,true)}${glass}${surf(p,'windows',wins,true,l.windows>0)}${surf(p,'doors',doors,true,l.doors>0)}<circle cx="18" cy="104" r="9" fill="#9fbfa8"/></svg>`;}
+function planSVG(cur){ // demo floorplan laid out from the room list
+  const rooms=A.lines.filter(l=>l.kind==='room');const cols=3,cw=60,chh=38,pad=4;const rowsN=Math.ceil(rooms.length/cols);
+  return `<svg viewBox="0 0 ${cols*cw+pad*2} ${rowsN*chh+pad*2}" xmlns="http://www.w3.org/2000/svg"><rect width="100%" height="100%" fill="#fff"/>${rooms.map((l,k)=>{const idx=A.lines.indexOf(l);const x=pad+(k%cols)*cw,y=pad+Math.floor(k/cols)*chh;const done=l.state==='done'||l.state==='typical';const now=idx===cur;return `<g data-plan="${idx}" style="cursor:pointer"><rect x="${x+1}" y="${y+1}" width="${cw-2}" height="${chh-2}" fill="${now?'#e4f8fa':done?'#eef5f0':'#fff'}" stroke="${now?'#0e7f8a':'#6b7580'}" stroke-width="${now?1.6:1}"/><text x="${x+cw/2}" y="${y+chh/2-2}" text-anchor="middle" font-size="6.5" font-family="system-ui" fill="#1c232c" font-weight="600">${l.name}</text><text x="${x+cw/2}" y="${y+chh/2+7}" text-anchor="middle" font-size="5.5" font-family="system-ui" fill="#8a94a0">${l.w} × ${l.d}${done?' ✓':''}</text></g>`;}).join('')}</svg>`;}
+const anims=new WeakMap();
+function paintSurf(k){document.querySelectorAll(`[data-surf="${k}"]`).forEach(g=>{const r=g.querySelector('.cprect');if(!r)return;const t0=performance.now();if(anims.has(g))cancelAnimationFrame(anims.get(g));const step=now=>{const t=Math.min(1,(now-t0)/520),e=1-Math.pow(1-t,3);r.setAttribute('width',Math.max(0,200*e));if(t<1)anims.set(g,requestAnimationFrame(step));};anims.set(g,requestAnimationFrame(step));});}
+let planUploaded=true;function togglePlan(){planUploaded=!planUploaded;$('fp-toggle').textContent=planUploaded?'Yes':'No';$('fp-toggle').classList.toggle('on',planUploaded);updatePics();}
+function curLine(){const id=route[i];return /^[abcd]-/.test(id)?+id.slice(2):-1;}
+function updatePics(){const k=curLine();const l=k>=0?A.lines[k]:A.lines[0];const isRoom=l.kind==='room',isSide=l.kind==='side';
+  const pic=p=>isRoom?roomSVG(p,l):isSide?sideSVG(p,l):'';
+  const show=isRoom||isSide;$('tile-room').classList.toggle('hide',!show);$('tile-room-l').textContent=l.name;$('thumb-room').innerHTML=pic('t');$('bigroom').innerHTML=pic('b');$('bigroom-cap').textContent=isRoom?`${l.name} — ${l.w} × ${l.d} × ${l.h} m. Updates as you answer.`:`${l.name} — ${l.w} × ${l.h} m.`;
+  $('rail-room').innerHTML=pic('r');$('rl-room-l').textContent=show?l.name:'';$('rail-room').style.display=show?'':'none';
+  const hasPlan=planUploaded&&J.kind==='room';$('tile-plan').classList.toggle('hide',!hasPlan);$('rl-plan-h').style.display=hasPlan?'':'none';$('rail-plan').style.display=hasPlan?'':'none';
+  if(hasPlan){const ph=planSVG(k);$('thumb-plan').innerHTML=ph;$('bigplan').innerHTML=ph;$('rail-plan').innerHTML=ph;document.querySelectorAll('#bigplan [data-plan],#rail-plan [data-plan]').forEach(g=>g.onclick=()=>{const idx=+g.dataset.plan;closeSheets();A.lines[idx].state=A.lines[idx].state==='done'?'done':'todo';i=route.indexOf('a-'+idx);render();});}}
+
+/* ---------------- question sets ---------------- */
+const GEN_INT=[
+ {id:'cornices',q:'Do you have cornices?',sub:'The moulding where the walls meet the ceiling.',opts:['Yes','No'],effect:{Yes:1.04,No:0.98}},
+ {id:'ceil',q:'How high are the ceilings?',sub:'Most are 2.4 m. Period homes are often 2.7 m or more. You can change it room by room.',opts:['2.4 m','2.7 m','3 m or more','Varies'],effect:{'2.4 m':1,'2.7 m':1.09,'3 m or more':1.2,'Varies':1.08}},
+ {id:'doors',q:'The doors — mostly panelled, or flat?',sub:'',opts:['Panel','Flat'],effect:{Panel:1.03,Flat:1},img:{Panel:doorSVG('panel'),Flat:doorSVG('flat')}},
+ {id:'win',q:'The windows — which type, mostly?',sub:'',opts:['Casement','Sash','Colonial','Winder'],effect:{Casement:1,Sash:1.08,Colonial:1.12,Winder:1.02},img:{Casement:winSVG('casement'),Sash:winSVG('sash'),Colonial:winSVG('colonial'),Winder:winSVG('winder')},hint:{Casement:'Hinged at the side, opens out',Sash:'Slides up and down',Colonial:'Small panes in a grid',Winder:'Opens with a handle you wind'}},
+ {id:'trims',q:'Water-based or oil-based paint on the trims?',sub:'If the woodwork was last painted in oil and you want water-based, an undercoat goes on first.',opts:['Water-based','Oil-based','Not sure'],effect:{'Water-based':1,'Oil-based':1.07,'Not sure':1.03}},
+ {id:'occ',q:'Will anyone be living there while we paint?',sub:'We work room by room and pack down each day.',opts:['No, it\'ll be empty','Yes, we\'ll be there'],effect:{'No, it\'ll be empty':1,'Yes, we\'ll be there':1.06}},
+ {id:'clear',q:'Will the rooms be cleared before we start?',sub:'',opts:['Yes','Mostly','Furniture stays'],effect:{Yes:1,Mostly:1.03,'Furniture stays':1.08}},
+ {id:'void',q:'A stairwell or void with high walls?',sub:'',opts:['No','Yes'],effect:{No:1,Yes:1.05}},
+];
+const JOBS={
+ interior:{title:'Whole interior',general:GEN_INT,kind:'room',
+  lines:[['Bed 1',3.5,3.25,true],['Bed 2',3.2,3.0,true],['Bed 3',3.0,3.0,true],['Living room',5.0,4.2,false],['Kitchen / Meals',4.5,3.6,false],['Hall & Entry',6.0,1.2,true],['Bathroom',2.4,2.0,false],['Laundry',2.0,1.8,true]].map(([n,w,d,robe])=>({name:n,w,d,h:2.4,kind:'room',robe:robe?null:'none',robeDoors:null,robeInside:null,surf:{walls:100,ceiling:true,cornices:true,skirtings:true,architraves:true,doors:1,doorFrame:true,windows:n==='Hall & Entry'?0:1,winSize:'M'},prep:[],prepAmt:null,photo:false,roomPhoto:false})),
+ },
+ trims:{title:'Doors, windows and trims',kind:'count',
+  general:[GEN_INT[2],GEN_INT[3],GEN_INT[4],{id:'colour',q:'Same white, or a new colour?',sub:'',opts:['Same white','New colour'],effect:{'Same white':1,'New colour':1.1}},GEN_INT[5]],
+  lines:[{name:'Doors',kind:'count',unit:'doors',n:9,each:220,sub:'Both sides and the frame'},{name:'Window frames',kind:'count',unit:'windows',n:7,each:190,sub:'Frames and sashes'},{name:'Skirtings and architraves',kind:'count',unit:'rooms',n:8,each:160,sub:'Per room'}],
+ },
+ exterior:{title:'Outside · Californian bungalow',kind:'side',general:[],
+  lines:[['Front',11,3.0],['Right side',14.5,3.0],['Back',11,3.0],['Left side',14.5,3.0]].map(([n,w,h])=>({name:n,w,h,kind:'side',windows:Math.max(1,Math.round(w/4.5)),doors:n==='Front'||n==='Back'?1:0,cond:null,prep:[],photo:false})),
+ },
+};
+const PREP=[['crack','Crack'],['hole','Hole or dent'],['flaking','Flaking'],['water','Water mark'],['mould','Mould'],['wallpaper','Wallpaper'],['feature','Feature wall'],['other','Something else']];
+let job='interior',J,A,i,route;
+function load(j){job=j;J=JSON.parse(JSON.stringify(JOBS[j]));A={gen:{},extras:new Set(),note:'',lines:J.lines.map(l=>({...l,state:'todo',measured:false}))};route=buildRoute();i=0;document.querySelectorAll('.demo button').forEach(b=>b.classList.toggle('on',b.dataset.j===j));lastLo=lastHi=null;base=null;render();}
+function buildRoute(){const r=J.general.map(g=>'g-'+g.id);A.lines.forEach((l,k)=>{r.push('a-'+k);if(l.kind==='room')r.push('b-'+k,'c-'+k,'d-'+k);if(l.kind==='side')r.push('b-'+k,'d-'+k);});if(J.kind!=='side')r.push('rooms');r.push('extras','done');return r;}
+
+/* ---------------- pricing (placeholder) ---------------- */
+const SP={walls:34,ceiling:18,cornices:9,skirtings:11,arch:6,door:220,frame:60,window:{S:120,M:180,L:260},robeDoor:140,robeInside:160};
+const PREPCOST={spots:120,patches:320,most:700};
+function lineBase(l){
+  if(l.kind==='room'){const per=l.w*l.d,wall=2*(l.w+l.d)*l.h;let t=0;t+=wall*SP.walls*(l.surf.walls/100);if(l.surf.ceiling)t+=per*SP.ceiling;if(l.surf.cornices)t+=2*(l.w+l.d)*SP.cornices;if(l.surf.skirtings)t+=2*(l.w+l.d)*SP.skirtings;if(l.surf.architraves)t+=2*(l.w+l.d)*SP.arch;t+=l.surf.doors*(SP.door+(l.surf.doorFrame?SP.frame:0))+l.surf.windows*SP.window[l.surf.winSize];
+    if(l.robeDoors)t+=2*SP.robeDoor;if(l.robeInside)t+=SP.robeInside;if(l.prep.length&&l.prepAmt)t+=PREPCOST[l.prepAmt];return t;}
+  if(l.kind==='count')return l.n*l.each;
+  if(l.kind==='side'){let t=l.w*l.h*38+l.w*36+l.windows*180+l.doors*220;const cm={weathered:1.2,peeling:1.35}[l.cond]||1;if(l.prep.length)t+=300;return t*cm;}
+}
+function genMult(){let m=1;J.general.forEach(g=>{const v=A.gen[g.id];m*=v?g.effect[v]:1;});return m;}
+function genUnc(){let u=0;J.general.forEach(g=>{if(!A.gen[g.id]){const v=Object.values(g.effect);u+=(Math.max(...v)-Math.min(...v))/2;}});return u;}
+function lineUnc(l){ // never zero: prep allowance floor
+  if(l.state==='todo')return 0.22;if(l.state==='typical')return 0.12;
+  let u=l.measured?0.04:0.12; if(l.prep&&l.prep.length&&!l.photo)u+=0.04; return u;}
+function totals(){const m=genMult();let total=0,unc=0;A.lines.forEach(l=>{const b=lineBase(l)*m;total+=b;unc+=b*lineUnc(l);});unc+=genUnc()*total;const ex=[...A.extras].reduce((s,e)=>s+({vent:50,mantle:340,rose:180,colour:0}[e]||0),0);total+=ex;return{total:total*1.1,lo:(total-unc)*1.1,hi:(total+unc)*1.1,settled:A.lines.every(l=>l.state==='done'||l.state==='typical')&&J.general.every(g=>A.gen[g.id])};}
+const f=n=>'$'+(Math.round(n/10)*10).toLocaleString('en-AU');
+
+/* ---------------- render ---------------- */
+function render(){const id=route[i];$('main').innerHTML=`<section class="screen">${screen(id)}${keysHTML(id)}</section>`;bind(id);const fi=document.querySelector('main input[data-m]');if(fi&&window.innerWidth>=900)setTimeout(()=>fi.focus(),50);
+  $('back').disabled=i===0;$('bar').style.width=(55+Math.round(i/(route.length-1)*45))+'%';
+  const foot=$('foot'),next=$('next');const needs=!(id.startsWith('g-'));foot.classList.toggle('on',needs);next.disabled=false;next.className='cta';
+  if(id.startsWith('a-')){const l=lineOf(id);next.textContent=l.kind==='count'?'Next':'That\'s the size';}
+  if(id.startsWith('b-')||id.startsWith('c-'))next.textContent='Next';
+  if(id.startsWith('d-')){const l=lineOf(id);next.textContent=l.prep.length?'Add it':'Nothing to fix — next';if(l.prep.length&&l.kind==='room'&&!l.prepAmt)next.disabled=true;}
+  if(id==='rooms')next.textContent='That\'s all of them';if(id==='extras')next.textContent='Finish my quote';
+  if(id==='done'){next.textContent='Book Sarah to confirm it';next.className='cta teal';}
+  A.lines.forEach(l=>{if(l.state==='now')l.state='todo';});if(/^[abcd]-/.test(id)){const l=lineOf(id);if(l.state==='todo')l.state='now';}
+  updateQuote();updateBand(true);updatePics();window.scrollTo(0,0);}
+function lineOf(id){return A.lines[+id.slice(2)];}
+function screen(id){
+  if(id.startsWith('g-')){const g=J.general.find(x=>x.id===id.slice(2));const n=J.general.indexOf(g)+1;return `<div class="stage">A few things first · ${n} of ${J.general.length}</div><h1>${g.q}</h1>${g.sub?`<p class="sub">${g.sub}</p>`:''}<div class="opts ${g.opts.length===3?'three':g.opts.length===4?'four':'two'}">${g.opts.map(o=>`<button class="opt ${g.img?'pic':''} ${A.gen[g.id]===o?'sel':''}" data-g="${g.id}" data-v="${o}">${g.img?`<span class="pimg">${g.img[o]}</span>`:''}<span>${o}${g.hint?`<small>${g.hint[o]}</small>`:''}</span></button>`).join('')}</div>`;}
+  const k=+id.slice(2),l=A.lines[k],pos=`${k+1} of ${A.lines.length}`;
+  if(id.startsWith('a-')){
+    if(l.kind==='room')return `<div class="stage">${l.name} · ${pos}</div><h1>How big is ${l.name.toLowerCase()}?</h1><p class="sub">Wall to wall, floor to ceiling. No tape? Walk it out — one large step is about a metre.</p>
+      <div class="meas"><label class="${l.measured?'':'typ'}"><span>Width</span><input inputmode="decimal" data-m="w" value="${l.w}"><em>m</em></label><label class="${l.measured?'':'typ'}"><span>Length</span><input inputmode="decimal" data-m="d" value="${l.d}"><em>m</em></label><label class="${l.measured?'':'typ'}"><span>Ceiling</span><input inputmode="decimal" data-m="h" value="${l.h}"><em>m</em></label></div>
+      ${l.measured?'':'<p class="skip" style="margin-top:8px;text-align:left">The grey numbers are typical for this room — type yours over them.</p>'}
+      <button class="photo ${l.roomPhoto?'has':''}" data-roomphoto><span class="cam">📷</span><div><b>${l.roomPhoto?'Photo added':'Add a photo of the room'}</b>Optional. Helps Sarah check it before she visits.</div></button>
+      <p class="skip"><a href="#" data-typical>Not sure — use the typical size for now</a></p>`;
+    if(l.kind==='side')return `<div class="stage">${l.name} · ${pos}</div><h1>How big is the ${l.name.toLowerCase()}?</h1><p class="sub">Corner to corner, ground to the gutter line. No tape? Walk it out — one large step is about a metre.</p>
+      <div class="meas" style="grid-template-columns:1fr 1fr"><label class="${l.measured?'':'typ'}"><span>Across</span><input inputmode="decimal" data-m="w" value="${l.w}"><em>m</em></label><label class="${l.measured?'':'typ'}"><span>High</span><input inputmode="decimal" data-m="h" value="${l.h}"><em>m</em></label></div>
+      <button class="photo ${l.photo?'has':''}" data-roomphoto><span class="cam">📷</span><div><b>${l.photo?'Photo added':'Add a photo of this side'}</b>Optional.</div></button>
+      <p class="skip"><a href="#" data-typical>Not sure — use the typical size for now</a></p>`;
+    if(l.kind==='count')return `<div class="stage">${l.name} · ${pos}</div><h1>${l.name} — how many?</h1><p class="sub">${l.sub}. Count them up.</p><div class="chips"><span class="chip sel" style="font-size:18px">${l.name}<span class="n"><b data-cnt="-1">−</b>${l.n}<b data-cnt="1">+</b></span></span></div>`;}
+  if(id.startsWith('b-')){
+    if(l.kind==='room'){const s=l.surf;return `<div class="stage">${l.name}</div><h1>What we're painting in here</h1><p class="sub">Untick anything we're not doing.</p>
+      <div class="chips"><span class="chip ${s.walls?'sel':''}" data-tog="walls">Walls<span class="seg">${[100,75,50,25].map(p=>`<span class="${s.walls===p?'sel':''}" data-wall="${p}">${p===100?'All':p+'%'}</span>`).join('')}</span></span>
+      ${[['ceiling','Ceiling'],['cornices','Cornices'],['skirtings','Skirting boards'],['architraves','Architraves']].map(([k,n])=>`<button class="chip ${s[k]?'sel':''}" data-s="${k}">${n}</button>`).join('')}
+      <span class="chip ${s.doors?'sel':''}">Doors<span class="n"><b data-c="doors" data-d="-1">−</b>${s.doors}<b data-c="doors" data-d="1">+</b></span><span class="seg"><span class="${s.doorFrame?'':'sel'}" data-frame="0">door</span><span class="${s.doorFrame?'sel':''}" data-frame="1">+ frame</span></span></span>
+      <span class="chip ${s.windows?'sel':''}">Windows<span class="n"><b data-c="windows" data-d="-1">−</b>${s.windows}<b data-c="windows" data-d="1">+</b></span><span class="seg">${['S','M','L'].map(z=>`<span class="${s.winSize===z?'sel':''}" data-wsize="${z}">${z}</span>`).join('')}</span></span>
+      <button class="chip add" data-addsurf>+ Add a surface</button></div>
+      <p class="skip" style="text-align:left;margin-top:10px">Windows: S under 50 × 50 cm · M to 1.5 m · L over 1.5 m</p>`;}
+    if(l.kind==='side')return `<div class="stage">${l.name}</div><h1>On this side</h1><div class="chips"><span class="chip sel">Windows<span class="n"><b data-c="windows" data-d="-1">−</b>${l.windows}<b data-c="windows" data-d="1">+</b></span></span><span class="chip ${l.doors?'sel':''}">Doors<span class="n"><b data-c="doors" data-d="-1">−</b>${l.doors}<b data-c="doors" data-d="1">+</b></span></span></div><p class="sub" style="margin:18px 0 10px">How's the paint on this side?</p><div class="chips">${[['good','Good, just tired'],['weathered','Weathered'],['peeling','Peeling or flaking']].map(([k,n])=>`<button class="chip ${l.cond===k?'sel':''}" data-cond="${k}">${n}</button>`).join('')}</div>`;}
+  if(id.startsWith('c-')){return `<div class="stage">${l.name}</div><h1>Any built-in robes or cupboards being painted?</h1><p class="sub">Wardrobes, linen press, hall cupboards.</p>
+      <div class="opts two"><button class="opt ${l.robe==='none'?'sel':''}" data-robe="none">No</button><button class="opt ${l.robe==='yes'?'sel':''}" data-robe="yes">Yes</button></div>
+      ${l.robe==='yes'?`<div class="grp">Paint the robe doors?</div><div class="opts two"><button class="opt ${l.robeDoors===true?'sel':''}" data-rd="1">Yes</button><button class="opt ${l.robeDoors===false?'sel':''}" data-rd="0">No</button></div>
+      <div class="grp">Paint the walls inside?</div><div class="opts two"><button class="opt ${l.robeInside===true?'sel':''}" data-ri="1">Yes</button><button class="opt ${l.robeInside===false?'sel':''}" data-ri="0">No</button></div><p class="skip" style="text-align:left">Inside: shelves out, filling minor cracks and sanding — allowances set by us.</p>`:''}`;}
+  if(id.startsWith('d-')){return `<div class="stage">${l.name}</div><h1>Anything needing attention?</h1><p class="sub">Tap what you can see. A photo lets us price the repair straight away; without one, a person prices it.</p>
+      <div class="chips">${PREP.filter(([k])=>l.kind==='room'||!['feature','wallpaper'].includes(k)).map(([k,n])=>`<button class="chip ${l.prep.includes(k)?'sel':''}" data-prep="${k}">${n}</button>`).join('')}</div>
+      ${l.prep.length&&l.kind==='room'?`<div class="grp">How much of it is there?</div><div class="opts three">${[['spots','A couple of spots'],['patches','Patches here and there'],['most','Most of it']].map(([k,n])=>`<button class="opt ${l.prepAmt===k?'sel':''}" data-amt="${k}" style="font-size:13px">${n}</button>`).join('')}</div>`:''}
+      ${l.prep.length?`<button class="photo ${l.photo?'has':''}" data-prepphoto><span class="cam">📷</span><div><b>${l.photo?'Photo added':'Take a photo of the spot'}</b>${l.photo?'We\'ll price the repair from this.':'Without one, a person prices it.'}</div></button>`:''}`;}
+  if(id==='rooms'){return `<div class="stage">Last checks</div><h1>Have we got every room?</h1><p class="sub">Hallways are the rooms people forget most — and they make the biggest difference. Laundries, toilets, studies and garages go missing too.</p><ul class="rooms">${A.lines.map(l=>`<li>${l.name}<span>${l.w} × ${l.d} m</span></li>`).join('')}</ul><div class="chips" style="margin-top:12px"><button class="chip add" data-addroom>+ Add a room</button></div>`;}
+  if(id==='extras'){return `<div class="stage">Last checks</div><h1>Anything we haven't listed?</h1><p class="sub">Name it and we'll price it. Anything unusual, tell us and a person prices it rather than guessing.</p>
+      <div class="chips">${[['vent','Air vent · $50'],['mantle','Mantle · $340'],['rose','Ceiling rose · $180'],['colour','Help me choose colours']].map(([k,n])=>`<button class="chip ${A.extras.has(k)?'sel':''}" data-ex="${k}">${n}</button>`).join('')}</div>
+      <textarea id="note" placeholder="Something else? In your own words.">${A.note}</textarea>`;}
+  if(id==='done'){const t=totals();const typ=A.lines.filter(l=>l.state==='typical');const prepN=A.lines.filter(l=>l.prep&&l.prep.length).length;
+    return `<div class="label">${CUST.name.split(' ')[0]}, your detailed price</div><div class="price">${f(t.lo)} – ${f(t.hi)}</div>
+    <p class="fine">${typ.length?`${typ.length} ${typ.length===1?'room is':'rooms are'} on typical sizes — tap it below to measure it. `:''}${prepN?`Repairs in ${prepN} ${prepN===1?'room':'rooms'} are allowed for and confirmed on the day. `:''}Based on what you've told us — anything different on the day changes the price. Sarah confirms it with you before anything is fixed. Includes GST.</p>
+    ${quoteHTML(true)}
+    <div class="tiles"><div class="tile done"><span class="k">✓</span><b>Your range</b>Done</div><div class="tile done"><span class="k">✓</span><b>Your detailed price</b>Just now</div><div class="tile now"><span class="k">3</span><b>Sarah confirms</b>In person, 40 min</div></div>
+    <div class="sarah"><span class="av">SR</span><div><b>Sarah Reid, your estimator</b>Checks it in person before anything is fixed.</div></div>`;}
+  return '';}
+function keysHTML(id){if(window.innerWidth<900)return '';if(id.startsWith('g-')||id.startsWith('c-'))return `<p class="keys"><b>1</b><b>2</b><b>3</b> choose · <b>←</b> back</p>`;if(id.startsWith('a-')&&lineOf(id).kind!=='count')return `<p class="keys"><b>Tab</b> next field · <b>Enter</b> that's the size · <b>←</b> back</p>`;return `<p class="keys"><b>Enter</b> next · <b>←</b> back</p>`;}
+document.addEventListener('keydown',e=>{if(window.innerWidth<900)return;const id=route[i];const tag=document.activeElement.tagName;
+  if(e.key==='Enter'&&tag!=='TEXTAREA'){if($('foot').classList.contains('on')&&!$('next').disabled){e.preventDefault();$('next').click();}return;}
+  if(e.key==='ArrowLeft'&&tag!=='INPUT'&&tag!=='TEXTAREA'){$('back').click();return;}
+  if(/^[1-4]$/.test(e.key)&&tag!=='INPUT'&&tag!=='TEXTAREA'){const opts=[...document.querySelectorAll('main .opt')];const b=opts[+e.key-1];if(b)b.click();}});
+function bind(id){
+  document.querySelectorAll('[data-g]').forEach(b=>b.onclick=()=>{A.gen[b.dataset.g]=b.dataset.v;if(b.dataset.g==='ceil'){const h={'2.4 m':2.4,'2.7 m':2.7,'3 m or more':3.0,'Varies':2.4}[b.dataset.v];A.lines.forEach(l=>{if(l.kind==='room'&&!l.measured)l.h=h;});}b.parentElement.querySelectorAll('.opt').forEach(x=>x.classList.remove('sel'));b.classList.add('sel');updateBand();setTimeout(advance,300);});
+  if(/^[abcd]-/.test(id)){const l=lineOf(id);
+    document.querySelectorAll('[data-m]').forEach(inp=>{inp.addEventListener('input',()=>{const v=parseFloat(inp.value);if(!isNaN(v)&&v>0){l[inp.dataset.m]=v;l.measured=true;inp.closest('label').classList.remove('typ');updateBand();}});inp.addEventListener('focus',()=>inp.select());});
+    document.querySelectorAll('[data-typical]').forEach(a=>a.onclick=e=>{e.preventDefault();l.measured=false;l.state='typical';i=nextLineIndex(id);render();});
+    document.querySelectorAll('[data-roomphoto]').forEach(b=>b.onclick=()=>{if(l.kind==='room')l.roomPhoto=!l.roomPhoto;else l.photo=!l.photo;render();});
+    document.querySelectorAll('[data-s]').forEach(c=>c.onclick=()=>{l.surf[c.dataset.s]=!l.surf[c.dataset.s];render();if(l.surf[c.dataset.s])paintSurf(c.dataset.s);});
+    document.querySelectorAll('[data-wall]').forEach(s=>s.onclick=e=>{e.stopPropagation();l.surf.walls=+s.dataset.wall;render();});
+    document.querySelectorAll('[data-tog="walls"]').forEach(c=>c.onclick=()=>{l.surf.walls=l.surf.walls?0:100;render();});
+    document.querySelectorAll('[data-frame]').forEach(s=>s.onclick=e=>{e.stopPropagation();l.surf.doorFrame=s.dataset.frame==='1';render();});
+    document.querySelectorAll('[data-wsize]').forEach(s=>s.onclick=e=>{e.stopPropagation();l.surf.winSize=s.dataset.wsize;render();paintSurf('windows');});
+    document.querySelectorAll('[data-c]').forEach(b=>b.onclick=e=>{e.stopPropagation();const o=l.kind==='room'?l.surf:l;o[b.dataset.c]=Math.max(0,o[b.dataset.c]+ +b.dataset.d);render();if(+b.dataset.d>0)paintSurf(b.dataset.c);});
+    document.querySelectorAll('[data-cnt]').forEach(b=>b.onclick=()=>{l.n=Math.max(0,l.n+ +b.dataset.cnt);render();});
+    document.querySelectorAll('[data-cond]').forEach(b=>b.onclick=()=>{l.cond=b.dataset.cond;render();});
+    document.querySelectorAll('[data-robe]').forEach(b=>b.onclick=()=>{l.robe=b.dataset.robe;if(l.robe==='none'){l.robeDoors=null;l.robeInside=null;setTimeout(advance,280);}render();});
+    document.querySelectorAll('[data-rd]').forEach(b=>b.onclick=()=>{l.robeDoors=b.dataset.rd==='1';render();if(l.robeDoors)paintSurf('robedoors');});
+    document.querySelectorAll('[data-ri]').forEach(b=>b.onclick=()=>{l.robeInside=b.dataset.ri==='1';render();if(l.robeInside)paintSurf('robeinside');});
+    document.querySelectorAll('[data-prep]').forEach(b=>b.onclick=()=>{const k=b.dataset.prep;l.prep=l.prep.includes(k)?l.prep.filter(x=>x!==k):[...l.prep,k];if(!l.prep.length){l.prepAmt=null;l.photo=false;}render();});
+    document.querySelectorAll('[data-amt]').forEach(b=>b.onclick=()=>{l.prepAmt=b.dataset.amt;render();});
+    document.querySelectorAll('[data-prepphoto]').forEach(b=>b.onclick=()=>{l.photo=!l.photo;render();});
+    document.querySelectorAll('[data-addsurf]').forEach(b=>b.onclick=()=>{const n=prompt('Surface (e.g. balustrade, feature wall)');if(n){alert(n+' added — priced by your estimator');}});
+  }
+  if(id==='rooms')document.querySelectorAll('[data-addroom]').forEach(b=>b.onclick=()=>{const n=prompt('Room name');if(n){A.lines.push({name:n,w:3,d:3,h:A.lines[0].h,kind:'room',robe:null,robeDoors:null,robeInside:null,surf:{walls:100,ceiling:true,cornices:true,skirtings:true,architraves:true,doors:1,doorFrame:true,windows:1,winSize:'M'},prep:[],prepAmt:null,photo:false,roomPhoto:false,state:'todo',measured:false});route=buildRoute();i=route.indexOf('a-'+(A.lines.length-1));render();}});
+  if(id==='extras'){document.querySelectorAll('[data-ex]').forEach(b=>b.onclick=()=>{const k=b.dataset.ex;A.extras.has(k)?A.extras.delete(k):A.extras.add(k);b.classList.toggle('sel',A.extras.has(k));updateBand();});$('note').addEventListener('input',e=>A.note=e.target.value);}
+  if(id==='done')document.querySelectorAll('.ql.typical,.ql.todo').forEach(el=>{el.style.cursor='pointer';el.onclick=()=>{const k=+el.dataset.ql;A.lines[k].state='todo';i=route.indexOf('a-'+k);render();};});
+}
+function nextLineIndex(id){const k=+id.slice(2);let n=route.indexOf('a-'+k)+1;while(n<route.length&&/^[bcd]-/.test(route[n])&&+route[n].slice(2)===k)n++;return n;}
+function advance(){let n=i+1;while(n<route.length-1){const id=route[n];if(/^[abcd]-/.test(id)){const l=lineOf(id);if(l.state==='done'||l.state==='typical')n++;else break;}else if(id.startsWith('g-')&&A.gen[id.slice(2)])n++;else break;}i=Math.min(n,route.length-1);render();}
+$('back').onclick=()=>{i=Math.max(0,i-1);render();};
+$('next').onclick=()=>{const id=route[i];
+  if(id==='done'){openSheet('contact');return;}
+  if(id.startsWith('a-')){const l=lineOf(id);if(l.kind!=='count')l.measured=true;}
+  if(id.startsWith('d-')){const l=lineOf(id);const was=l.state==='done';l.state='done';if(!was)sweep(+id.slice(2));advance();return;}
+  if(id.startsWith('a-')&&lineOf(id).kind==='count'){const l=lineOf(id);const was=l.state==='done';l.state='done';if(!was)sweep(+id.slice(2));}
+  if(id==='rooms'||id==='extras'){A.lines.forEach(l=>{if(l.state==='now')l.state='todo';});}
+  i=Math.min(i+1,route.length-1);render();};
+
+/* ---------------- quote ---------------- */
+function lineSub(l){if(l.kind==='room'){const s=l.surf;const parts=[];if(s.walls)parts.push(s.walls===100?'walls':'walls '+s.walls+'%');if(s.ceiling)parts.push('ceiling');if(s.cornices)parts.push('cornices');if(s.skirtings)parts.push('skirtings');if(s.architraves)parts.push('architraves');if(s.doors)parts.push(s.doors+(s.doorFrame?' door'+(s.doors>1?'s':'')+' + frames':' door'+(s.doors>1?'s':'')));if(s.windows)parts.push(s.windows+' window'+(s.windows>1?'s':'')+' ('+s.winSize+')');if(l.robeDoors)parts.push('robe doors');if(l.robeInside)parts.push('inside robe');if(l.prep.length)parts.push('repairs: '+l.prep.map(k=>PREP.find(p=>p[0]===k)[1].toLowerCase()).join(', '));
+    return `${l.w} × ${l.d} × ${l.h} m${l.measured?'':' (typical)'}${l.state==='done'||l.state==='typical'?' · '+parts.join(', '):''}`;}
+  if(l.kind==='side')return `${l.w} × ${l.h} m${l.measured?'':' (typical)'}${l.state==='done'?' · '+l.windows+' windows'+(l.doors?', '+l.doors+' doors':'')+(l.cond?', '+l.cond:'')+(l.prep.length?', repairs':''):''}`;
+  return `${l.n} ${l.unit}`;}
+function quoteHTML(final){const t=totals();const m=genMult();const sub=t.total/1.1;const prepSum=A.lines.reduce((s,l)=>s+(l.kind==='room'&&l.prep.length&&l.prepAmt?PREPCOST[l.prepAmt]*m:0),0);
+  return `<div class="quote"><div class="qh"><div class="brand">PAINT <span>HOME</span><div style="font-weight:500;letter-spacing:0;font-size:11px;color:var(--mute);margin-top:2px">${t.settled?'Quote':'Draft quote'} · ${CUST.no}</div></div><div class="meta"><b>${CUST.date}</b>Valid 30 days<br>Includes GST</div></div>
+  <div class="qfor"><b>${CUST.name}</b>${CUST.addr}<br>${CUST.mobile} · ${CUST.email}</div>
+  ${A.lines.map((l,k)=>{const amt=(l.state==='done'||l.state==='typical')?f(lineBase(l)*m*1.1):'—';return `<div class="ql ${l.state}" data-ql="${k}"><div>${l.name}<small>${lineSub(l)}</small></div><div class="amt">${amt}</div></div>`;}).join('')}
+  ${[...A.extras].filter(e=>e!=='colour').map(e=>`<div class="ql"><div>${{vent:'Air vent',mantle:'Mantle',rose:'Ceiling rose'}[e]}</div><div class="amt">${f({vent:50,mantle:340,rose:180}[e]*1.1)}</div></div>`).join('')}
+  ${A.extras.has('colour')?`<div class="ql"><div>Colour consult<small>With Sarah, on her visit</small></div><div class="amt">included</div></div>`:''}
+  ${prepSum?`<div class="ql sum"><div>Repairs allowed for<small>Confirmed on the day</small></div><div class="amt">${f(prepSum*1.1)}</div></div>`:''}
+  <div class="ql sum"><div>Subtotal</div><div class="amt">${f(t.lo/1.1)} – ${f(t.hi/1.1)}</div></div><div class="ql sum"><div>GST</div><div class="amt">${f(t.lo/11)} – ${f(t.hi/11)}</div></div>
+  <div class="ql total"><div>${t.settled?'Your price':'Your range'}</div><div class="amt">${f(t.lo)} – ${f(t.hi)}</div></div></div>`;}
+function updateQuote(){const left=A.lines.filter(l=>l.state!=='done'&&l.state!=='typical').length,gl=J.general.filter(g=>!A.gen[g.id]).length;const done=route[i]==='done';
+  $('strip-b').textContent=done?'Your quote':`Quote · ${left+gl} to go`;
+  const mins=Math.max(1,Math.ceil((left*4+gl)*7/60));$('strip-s').textContent=done?'Tap to see it':`~${mins} min · tap to see`;
+  $('thumb').innerHTML=`<svg viewBox="0 0 60 52"><rect x="10" y="4" width="40" height="44" rx="3" fill="#fff" stroke="#d5dbe1"/><rect x="15" y="8" width="12" height="1.5" fill="#0e7f8a"/><rect x="36" y="8" width="9" height="1.5" fill="#cfd5db"/>${A.lines.map((l,k)=>{const y=14+k*(26/Math.max(A.lines.length,4));const on=l.state==='done'||l.state==='typical';return `<g data-line="${k}"><rect x="15" y="${y}" width="30" height="2.2" rx="1.1" fill="#e4e8ec"/><clipPath id="cl-${k}"><rect class="cp" x="15" y="${y-1}" width="${on?30:0}" height="5"/></clipPath><rect x="15" y="${y}" width="30" height="2.2" rx="1.1" fill="${l.state==='typical'?'#c9d2d8':'#2fd3df'}" clip-path="url(#cl-${k})"/><g class="roller" transform="translate(15,${y+1})"><rect x="-3" y="-2" width="6" height="4" rx="1" fill="#0e7f8a"/></g></g>`;}).join('')}<rect x="15" y="43" width="30" height="1.2" fill="#9aa5b0"/></svg>`;
+  $('qpanel-body').innerHTML=quoteHTML(false);const t=totals();const nowL=A.lines.find(l=>l.state==='now');
+  $('rail-quote').innerHTML=`<div class="rq ${rqOpen?'open':''}"><div class="rq-head" onclick="toggleRQ()"><div>${t.settled?'Quote':'Draft quote'} · ${CUST.no}<small>${nowL?'Writing: '+nowL.name:(left+gl)+' lines to go'}</small></div><div><span class="amt">${f(t.lo)} – ${f(t.hi)}</span><span class="arr">▾</span></div></div>${quoteHTML(false)}</div>`;
+  const nowEl=$('rail-quote').querySelector('.ql.now');if(nowEl&&rqOpen&&window.innerWidth>=900)nowEl.scrollIntoView({block:'nearest'});}
+function sweep(k){updateQuote();const g=$('thumb').querySelector(`[data-line="${k}"]`);if(!g)return;const r=g.querySelector('.cp'),ro=g.querySelector('.roller');const y=+r.getAttribute('y')+1;const t0=performance.now();ro.classList.add('on');
+  const step=now=>{const t=Math.min(1,(now-t0)/600),e=1-Math.pow(1-t,3);r.setAttribute('width',Math.max(0,30*e));ro.setAttribute('transform',`translate(${15+30*e},${y})`);if(t<1)requestAnimationFrame(step);else ro.classList.remove('on');};requestAnimationFrame(step);}
+
+/* ---------------- price band (closing in, longer roll, colour shift) ---------------- */
+let lastLo=null,lastHi=null,base=null,anim=null;
+function mix(a,b,t){const p=x=>parseInt(x,16);const c=(i)=>Math.round(p(a.slice(i,i+2))*(1-t)+p(b.slice(i,i+2))*t);return `rgb(${c(1)},${c(3)},${c(5)})`;}
+function updateBand(instant){const t=totals();if(!base)base={lo:t.lo,hi:t.hi};const span=base.hi-base.lo;const settled=Math.max(0,Math.min(1,1-(t.hi-t.lo)/span));
+  const tr=$('track');tr.style.left=((t.lo-base.lo)/span*100)+'%';tr.style.right=(100-(t.hi-base.lo)/span*100)+'%';tr.style.background=mix('#2fd3df','#2f9f7a',settled);
+  $('band-l').innerHTML=t.settled?'every line settled<br>Sarah confirms on the day':`closing in<br>${Math.round(settled*100)}% settled`;$('band-l2').innerHTML=$('band-l').innerHTML;const tr2=$('track2');tr2.style.left=tr.style.left;tr2.style.right=tr.style.right;tr2.style.background=tr.style.background;
+  const from={lo:lastLo??t.lo,hi:lastHi??t.hi};lastLo=t.lo;lastHi=t.hi;cancelAnimationFrame(anim);const t0=performance.now();const dur=instant?1:1400;
+  const step=now=>{const p=Math.min(1,(now-t0)/dur),e=1-Math.pow(1-p,4);const lo=from.lo+(t.lo-from.lo)*e,hi=from.hi+(t.hi-from.hi)*e;$('band-p').textContent=f(lo)+' – '+f(hi);$('band-p2').textContent=$('band-p').textContent;if(p<1)anim=requestAnimationFrame(step);};anim=requestAnimationFrame(step);}
+
+let qOpen=false;function toggleQuote(){qOpen=!qOpen;$('qpanel').classList.toggle('open',qOpen);$('strip').classList.toggle('open',qOpen);}
+let rqOpen=false;function toggleRQ(){rqOpen=!rqOpen;$('rail-quote').querySelector('.rq').classList.toggle('open',rqOpen);}
+function openSheet(w){$('sbg').classList.add('open');$('sheet-'+w).classList.add('open');if(w==='quote')updateQuote();if(w==='room'||w==='plan')updatePics();}
+function closeSheets(){document.querySelectorAll('.sheet,.sheet-bg').forEach(x=>x.classList.remove('open'));}
+document.querySelectorAll('.demo button').forEach(b=>b.onclick=()=>load(b.dataset.j));
+load('interior');
+</script>
+</body>
+</html>

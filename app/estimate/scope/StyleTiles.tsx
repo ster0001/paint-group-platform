@@ -2,7 +2,7 @@
 import type { ReactElement } from "react";
 
 /** Tom, 14 Sep (items 14, 15): the door and window pictures from the old wizard, on the paginated questions. */
-const DOOR: Record<"panel" | "flat", ReactElement> = {
+export const DOOR_DRAWINGS: Record<"panel" | "flat", ReactElement> = {
   panel: <svg viewBox="0 0 60 64"><rect x="14" y="4" width="32" height="56" rx="2" fill="#D5DCE3" stroke="#B9C2CB" /><rect x="19" y="9" width="10" height="16" fill="#EEF2F5" stroke="#B9C2CB" /><rect x="31" y="9" width="10" height="16" fill="#EEF2F5" stroke="#B9C2CB" /><rect x="19" y="29" width="10" height="26" fill="#EEF2F5" stroke="#B9C2CB" /><rect x="31" y="29" width="10" height="26" fill="#EEF2F5" stroke="#B9C2CB" /></svg>,
   flat: <svg viewBox="0 0 60 64"><rect x="14" y="4" width="32" height="56" rx="2" fill="#D5DCE3" stroke="#B9C2CB" /><circle cx="41" cy="33" r="1.8" fill="#6B7A86" /></svg>,
 };
@@ -18,7 +18,7 @@ export function DoorTiles({ onPick, busy }: { onPick: (style: "panel" | "flat") 
     <div className="wz-pick sc-tiles" data-testid="door-tiles">
       {(["panel", "flat"] as const).map((k) => (
         <button key={k} type="button" className="wz-pk" disabled={busy} data-testid={`door-tile-${k}`} onClick={() => onPick(k)}>
-          {DOOR[k]}<small>{k === "panel" ? "Panel" : "Flat"}</small>
+          {DOOR_DRAWINGS[k]}<small>{k === "panel" ? "Panel" : "Flat"}</small>
         </button>
       ))}
     </div>

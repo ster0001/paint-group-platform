@@ -31,6 +31,13 @@ export const WIZARD_EVENT_SCHEMAS = {
   gate_cta_clicked: z.object({ cta: z.enum(["exact", "visit", "call", "message", "save"]), breakpoint }),
   contact_opened: z.object({ step }),
   scope_viewed: z.object({ from: z.literal("gate") }),
+  // Quote stage v10 (brief §7)
+  quote_stage_viewed: z.object({ job_kind: z.enum(["interior", "trims", "exterior"]), lines: z.number().int().min(0), breakpoint }),
+  quote_card_answered: z.object({ card: z.string().max(40), line: z.number().int().nullable(), measured: z.boolean() }),
+  quote_line_settled: z.object({ line: z.number().int(), state: z.enum(["measured", "typical"]) }),
+  quote_photo_added: z.object({ line: z.number().int(), kind: z.enum(["room", "prep"]) }),
+  quote_stage_done: z.object({ settled_share: z.number().min(0).max(1), typical_count: z.number().int().min(0), range_lo: money, range_hi: money }),
+  quote_book_clicked: z.object({}),
 } as const;
 export type WizardEventType = keyof typeof WIZARD_EVENT_SCHEMAS;
 export const WIZARD_EVENT_TYPES = Object.keys(WIZARD_EVENT_SCHEMAS) as WizardEventType[];
@@ -44,6 +51,12 @@ export const wizardEventBodySchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("gate_cta_clicked"), payload: WIZARD_EVENT_SCHEMAS.gate_cta_clicked }),
   z.object({ type: z.literal("contact_opened"), payload: WIZARD_EVENT_SCHEMAS.contact_opened }),
   z.object({ type: z.literal("scope_viewed"), payload: WIZARD_EVENT_SCHEMAS.scope_viewed }),
+  z.object({ type: z.literal("quote_stage_viewed"), payload: WIZARD_EVENT_SCHEMAS.quote_stage_viewed }),
+  z.object({ type: z.literal("quote_card_answered"), payload: WIZARD_EVENT_SCHEMAS.quote_card_answered }),
+  z.object({ type: z.literal("quote_line_settled"), payload: WIZARD_EVENT_SCHEMAS.quote_line_settled }),
+  z.object({ type: z.literal("quote_photo_added"), payload: WIZARD_EVENT_SCHEMAS.quote_photo_added }),
+  z.object({ type: z.literal("quote_stage_done"), payload: WIZARD_EVENT_SCHEMAS.quote_stage_done }),
+  z.object({ type: z.literal("quote_book_clicked"), payload: WIZARD_EVENT_SCHEMAS.quote_book_clicked }),
 ]);
 export type WizardEventBody = z.infer<typeof wizardEventBodySchema>;
 
