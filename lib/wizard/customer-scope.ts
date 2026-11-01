@@ -8,6 +8,7 @@
  * customer_intake/draft check); this only assembles what the editor renders.
  */
 
+import { gstRateFromSettings } from "@/lib/pricing/gst";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { loadScopeRules } from "@/lib/extract/scope-cache";
 import { adjustmentsFrom, loadPricingContext } from "@/lib/pricing/context";
@@ -181,6 +182,7 @@ export async function loadCustomerScope(db: SupabaseClient, estimate: EstimateRo
     payload, blocks, decision, bandsRow, null, [], null,
     {
       ...widen,
+      gstRate: gstRateFromSettings(ctx.settings),
       // 14 Sep: the range is the envelope over the open questions.
       // Tom, 25 Oct 2026: an exterior envelope reaches 5% further under (policy.exteriorUnderPct).
       envelope: envelopeFor({ blocks: blocks as Parameters<typeof envelopeFor>[0]["blocks"], state: snap.success ? snap.data : null, ctx, adj: adjustmentsFrom(state), bands: bandsRow, widenPct: widen.widenPct, underPct: underPctFor(blocks, policyFromSettings(settingValue(ctx.settings, "wizard_policy"))), confirmed: loopState.states }),

@@ -72,6 +72,33 @@ test.describe("quote stage v10 — session 1: the cards on a phone", () => {
     const bar0 = await page.getByTestId("wzm-bar").evaluate((el) => parseFloat((el as HTMLElement).style.width));
     expect(bar0).toBeGreaterThanOrEqual(55);
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
+    // §5 (S2) — the quote tile, the inline panel with the document (draft; every line "—" and typical), the band at 0% settled
+    await expect(page.getByTestId("q-tile-title")).toHaveText(/^Quote · \d+ to go$/);
+    await expect(page.getByTestId("q-tile-sub")).toHaveText(/^~\d+ min · tap to see$/);
+    await expect(page.getByTestId("q-panel")).toHaveAttribute("data-open", "0");
+    await page.getByTestId("q-tile-quote").tap();
+    await expect(page.getByTestId("q-panel")).toHaveAttribute("data-open", "1");
+    const doc = page.getByTestId("q-doc");
+    await expect(doc).toHaveAttribute("data-title", "Draft quote");
+    await expect(page.getByTestId("q-doc-title")).toHaveText(/^Draft quote · PG-[0-9A-F]{6}$/);
+    await expect(doc).toContainText("Valid 30 days · Includes GST");
+    await expect(page.getByTestId("q-doc-for")).toContainText("Quote Tester");
+    await expect(page.getByTestId("q-doc-for")).toContainText(`q10.${run}@example.com`);
+    const lines = doc.locator("[data-testid^='q-line-']:not([data-testid$='-amount'])");
+    expect(await lines.count()).toBeGreaterThan(2);
+    await expect(lines.first()).toHaveAttribute("data-state", "todo");
+    await expect(lines.first()).toContainText("(typical)");
+    await expect(lines.first().locator(".amt")).toHaveText("—");
+    await expect(page.getByTestId("q-doc-subtotal")).toContainText(MONEY_RANGE);
+    await expect(page.getByTestId("q-doc-gst")).toContainText(MONEY_RANGE);
+    await expect(page.getByTestId("q-doc-total")).toContainText("Your range");
+    const panelBox = (await page.getByTestId("q-panel").boundingBox())!;
+    expect(panelBox.height, "the panel takes at most a third of the screen").toBeLessThanOrEqual(780 / 3 + 2);
+    await expect(page.getByTestId("wzm-h1")).toBeInViewport();
+    await expect(page.getByTestId("q-band-settled")).toHaveText(/closing in · \d+% settled/);
+    const settled0 = Number(await page.getByTestId("q-band").getAttribute("data-settled"));
+    await page.getByTestId("q-tile-quote").tap();
+    await expect(page.getByTestId("q-panel")).toHaveAttribute("data-open", "0");
     await page.getByTestId("q-opt-cornices-standard").tap();
     await card(page, "g:height");
     await page.getByTestId("q-opt-height-2.7").tap();
@@ -114,6 +141,17 @@ test.describe("quote stage v10 — session 1: the cards on a phone", () => {
     await expect(page.getByTestId("q-typical-note")).toHaveCount(0);
     await page.getByTestId("q-size-ok").tap();
     await expect(page.getByTestId("q-stage")).toContainText(/· 2 of \d+/, { timeout: 30_000 });
+    // §5 (S2) — the measured room's line now carries its amount and no "(typical)"; the band has moved on; the tile counts one fewer
+    const firstId = (await page.getByTestId("quote-stage").getAttribute("data-quote-card"))!;
+    await page.getByTestId("q-tile-quote").tap();
+    const measuredLine = page.locator("[data-testid^='q-line-'][data-state='measured']").first();
+    await expect(measuredLine).toBeVisible();
+    await expect(measuredLine).not.toContainText("(typical)");
+    await expect(measuredLine.locator(".amt")).toHaveText(MONEY_RANGE);
+    await expect(page.getByTestId("q-thumb").locator("[data-state='measured']")).toHaveCount(1);
+    expect(Number(await page.getByTestId("q-band").getAttribute("data-settled"))).toBeGreaterThan(settled0);
+    await page.getByTestId("q-tile-quote").tap();
+    expect(firstId).toMatch(/^measure:/);
     // back: the first room now reads measured
     await page.getByTestId("wzm-back").tap();
     await expect(page.getByTestId("q-stage")).toContainText(/· 1 of \d+/);
@@ -135,6 +173,12 @@ test.describe("quote stage v10 — session 1: the cards on a phone", () => {
     await expect(page.getByTestId("gate-fine")).toContainText(/at the typical size/);
     await expect(page.getByTestId("gate-fine")).toContainText(/confirmed on the day/);
     await expect(page.getByTestId("gate-tiles").locator("li").nth(1)).toContainText("Your detailed price");
+    // §5 (S2) — the quote in full on the done screen: every line settled → "Quote", "Your price", still a range
+    const doneDoc = page.getByTestId("q-done-doc").getByTestId("q-doc");
+    await expect(doneDoc).toHaveAttribute("data-title", "Quote");
+    await expect(doneDoc.getByTestId("q-doc-total")).toContainText("Your price");
+    await expect(doneDoc.getByTestId("q-doc-total")).toContainText(MONEY_RANGE);
+    await expect(doneDoc.locator("[data-testid^='q-line-'][data-state='todo']")).toHaveCount(0);
     expect(await stage.innerText()).not.toMatch(/exact|±|within \d+%/i);
     expect(await page.getByTestId("wzm-bar").evaluate((el) => parseFloat((el as HTMLElement).style.width))).toBe(100);
     await expect(page.getByTestId("q-book")).toContainText(/Book .+ to confirm it/);

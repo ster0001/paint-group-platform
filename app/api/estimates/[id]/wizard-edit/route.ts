@@ -1,3 +1,4 @@
+import { gstRateFromSettings } from "@/lib/pricing/gst";
 import { NextResponse } from "next/server";
 import { logCrmEvent } from "@/lib/crm/events";
 import { z } from "zod";
@@ -2016,7 +2017,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     // as they are answered and rooms are confirmed, never jumps.
     // Tom, 25 Oct 2026: an exterior envelope reaches 5% further under (policy.exteriorUnderPct).
     const envelope = envelopeFor({ blocks: blocks as Parameters<typeof envelopeFor>[0]["blocks"], state: widenSnap.success ? widenSnap.data : null, ctx, adj: adjustmentsFrom(newState), bands, widenPct: widen.widenPct, underPct: underPctFor(blocks, policyFromSettings(settingValue(ctx.settings, "wizard_policy"))), confirmed: loopState.states });
-    const cp = customerPayload(payload, blocks, decision, bands, null, [], null, { ...widen, envelope });
+    const cp = customerPayload(payload, blocks, decision, bands, null, [], null, { ...widen, envelope, gstRate: gstRateFromSettings(ctx.settings) });
     const flags = (settingValue(ctx.settings, "scope_editor") ?? {}) as { visitSlots?: string[] };
     const hasExterior = blocks.some((b) => b.kind === "area" && b.type === "Exterior");
     const wizSnap = wizardStateSchema.safeParse((state.wizard as { state?: unknown } | undefined)?.state);

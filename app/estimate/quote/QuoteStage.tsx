@@ -10,6 +10,8 @@ import type { WizardBrand } from "@/lib/wizard/brand";
 import { assertCustomerShape } from "@/lib/wizard/contract";
 import { breakpointNow, sendWizardEvent } from "@/lib/wizard/wizardEvents";
 import { quoteCards, quoteProgress, typicalRoomNames, type GeneralAnswers, type GeneralCard, type MeasureCard, type QuoteRoom } from "@/lib/quote/cards";
+import { quoteDocument, quoteSummary, type PreparedFor, type QuoteDocument, type QuoteLine } from "@/lib/quote/quote";
+import { useRollerSweep } from "@/app/wizard/pictures/rollerSweep";
 import { DOOR_DRAWINGS, WINDOW_DRAWINGS } from "@/app/estimate/scope/StyleTiles";
 import Wordmark from "@/app/wizard/Wordmark";
 import MobileContact from "@/app/wizard/MobileContact";
@@ -36,7 +38,7 @@ const DRAWING: Record<NonNullable<GeneralCard["options"][number]["drawing"]>, Re
   "win-casement": WINDOW_DRAWINGS.casement, "win-sash": WINDOW_DRAWINGS.sash, "win-colonial": WINDOW_DRAWINGS.colonial, "win-winder": WINDOW_DRAWINGS.winder,
 };
 
-export default function QuoteStage({ brand, estimateId, initial, initialRooms, initialCornices, initialAccess, logoUrl, estimator, companyPhone, customerSuburb }: {
+export default function QuoteStage({ brand, estimateId, initial, initialRooms, initialCornices, initialAccess, logoUrl, estimator, companyPhone, customerSuburb, preparedFor, quoteNo, quoteDate }: {
   brand: WizardBrand;
   estimateId: string;
   initial: CustomerPayload;
@@ -47,8 +49,13 @@ export default function QuoteStage({ brand, estimateId, initial, initialRooms, i
   estimator: Estimator;
   companyPhone: string | null;
   customerSuburb: string | null;
+  /** §5: the quote document's prepared-for block, its number and its date. */
+  preparedFor: PreparedFor;
+  quoteNo: string;
+  quoteDate: string;
 }) {
   const router = useRouter();
+  const [quoteOpen, setQuoteOpen] = useState(false);
   const [payload, setPayload] = useState<Payload>(initial);
   const [rooms, setRooms] = useState<QuoteRoom[]>(initialRooms);
   const [general, setGeneral] = useState<GeneralAnswers>({ cornices: initialCornices });
@@ -62,6 +69,12 @@ export default function QuoteStage({ brand, estimateId, initial, initialRooms, i
   const current = cards[Math.min(index, cards.length - 1)];
   const pct = quoteProgress(index, cards.length);
   const who = estimator.name?.trim().split(/\s+/)[0] ?? "your estimator";
+  // §5 (R4): the quote writes itself — the document, the tile's words and the band's share, all from the server's payload.
+  const generalToGo = cards.filter((c) => c.kind === "general" && c.value == null).length;
+  const doc = quoteDocument({ payload, rooms, preparedFor, number: quoteNo, date: quoteDate, generalToGo });
+  const summary = quoteSummary(rooms, generalToGo);
+  const settled = payload.confirmedShare ?? summary.settledShare;
+  const currentAreaId = current.kind === "measure" ? current.areaId : null;
 
   // §7: the stage viewed once, the done screen once.
   useEffect(() => { sendWizardEvent("quote_stage_viewed", { job_kind: "interior", lines: initialRooms.length, breakpoint: breakpointNow() }); }, [initialRooms.length]);
@@ -125,6 +138,23 @@ export default function QuoteStage({ brand, estimateId, initial, initialRooms, i
       </header>
       <div className="wzm-bar" role="progressbar" aria-label="Progress" aria-valuemin={0} aria-valuemax={100} aria-valuenow={pct}><i style={{ width: `${pct}%` }} data-testid="wzm-bar" /></div>
 
+      {/* §2 — the tiles row (the quote tile; the room and plan tiles are sessions 4 and 5), the inline quote panel, the price band */}
+      {current.kind !== "done" && (
+        <>
+          <div className="wzq-tiles" data-testid="q-tiles">
+            <button type="button" className={`wzq-tile wzq-tile--quote ${quoteOpen ? "open" : ""}`} aria-expanded={quoteOpen} onClick={() => setQuoteOpen((o) => !o)} data-testid="q-tile-quote">
+              <span className="thumb"><QuoteThumb lines={doc.lines} /></span>
+              <span className="txt"><b data-testid="q-tile-title">{summary.toGo === 0 ? "Your quote" : `Quote · ${summary.toGo} to go`}</b><span data-testid="q-tile-sub">{summary.toGo === 0 ? "Tap to see it" : `~${summary.minutes} min · tap to see`}</span></span>
+              <span className="chev" aria-hidden="true">{quoteOpen ? "▴" : "▾"}</span>
+            </button>
+          </div>
+          <div className={`wzq-panel ${quoteOpen ? "open" : ""}`} data-testid="q-panel" data-open={quoteOpen ? "1" : "0"} aria-hidden={!quoteOpen}>
+            <QuoteDoc doc={doc} brand={brand} currentAreaId={currentAreaId} />
+          </div>
+          <PriceBand lo={payload.rangeLoCents} hi={payload.rangeHiCents} settled={settled} />
+        </>
+      )}
+
       <main className={`wzm-main ${current.kind === "general" ? "" : "has-bar"}`}>
         <section className="wzm-screen" key={current.id}>
           <p className="wzm-stage" data-testid="q-stage">{current.stage}</p>
@@ -168,6 +198,8 @@ export default function QuoteStage({ brand, estimateId, initial, initialRooms, i
                 {typicalRoomNames(rooms).length > 0 ? `${typicalRoomNames(rooms).join(", ")} ${typicalRoomNames(rooms).length === 1 ? "is" : "are"} at the typical size. ` : "Every room measured. "}
                 Repairs are allowed for and confirmed on the day. {who} confirms it with you before anything is fixed. Includes GST.
               </p>
+              {/* F: the quote in full */}
+              <div className="wzq-done-doc" data-testid="q-done-doc"><QuoteDoc doc={doc} brand={brand} currentAreaId={null} /></div>
               <ol className="wzm-tiles" data-testid="gate-tiles" data-at={2}>
                 <li className="wzm-tile done" data-state="done"><span className="k" aria-hidden="true">✓</span><b>Your range</b>Done</li>
                 <li className="wzm-tile done" data-state="done"><span className="k" aria-hidden="true">✓</span><b>Your detailed price</b>Just now</li>
@@ -222,5 +254,93 @@ function MeasureScreen({ card, busy, onSize }: { card: MeasureCard; busy: boolea
         <p className="wzm-hint"><button type="button" className="wzm-linkish" disabled={busy} onClick={() => onSize(null)} data-testid="q-size-typical">Not sure — use the typical size for now</button></p>
       </div>
     </>
+  );
+}
+
+/** §5 — the formal quote: header, prepared for, one line per room, the repairs line, the Subtotal / GST / total rows. */
+function QuoteDoc({ doc, brand, currentAreaId }: { doc: QuoteDocument; brand: WizardBrand; currentAreaId: number | null }) {
+  return (
+    <div className="wzq-doc" data-testid="q-doc" data-title={doc.title}>
+      <div className="qh">
+        <div><span className="wzq-brand">{brand === "painthome" ? <>PAINT <span>HOME</span></> : <>PAINT <span>GROUP</span></>}</span><small data-testid="q-doc-title">{doc.title} · {doc.number}</small></div>
+        <div className="meta"><b data-testid="q-doc-date">{doc.date}</b>{doc.validity}</div>
+      </div>
+      <div className="qfor" data-testid="q-doc-for">
+        <b>{doc.preparedFor.name ?? "Prepared for you"}</b>
+        {doc.preparedFor.address && <span>{doc.preparedFor.address}</span>}
+        {(doc.preparedFor.mobile || doc.preparedFor.email) && <span>{[doc.preparedFor.mobile, doc.preparedFor.email].filter(Boolean).join(" · ")}</span>}
+      </div>
+      {doc.lines.map((l) => (
+        <div key={l.areaId} className={`ql ${l.state} ${l.areaId === currentAreaId ? "now" : ""}`} data-testid={`q-line-${l.areaId}`} data-state={l.state}>
+          <div>{l.name}<small>{l.size}{l.included ? ` · ${l.included}` : ""}</small></div>
+          <div className="amt" data-testid={`q-line-${l.areaId}-amount`}>{l.amount}</div>
+        </div>
+      ))}
+      <div className="ql sum"><div>{doc.repairsLine.split(" — ")[0]}<small>{doc.repairsLine.split(" — ")[1]}</small></div><div className="amt">—</div></div>
+      {doc.subtotal && <div className="ql sum" data-testid="q-doc-subtotal"><div>Subtotal</div><div className="amt">{doc.subtotal}</div></div>}
+      {doc.gst && <div className="ql sum" data-testid="q-doc-gst"><div>GST</div><div className="amt">{doc.gst}</div></div>}
+      <div className="ql total" data-testid="q-doc-total"><div>{doc.totalLabel}</div><div className="amt">{doc.total}</div></div>
+    </div>
+  );
+}
+
+/** §5 — the mini document on the quote tile: one bar per line, grey → teal sweeping in on settle (the shared roller), mid-grey for a typical line. */
+function QuoteThumb({ lines }: { lines: QuoteLine[] }) {
+  const keys = lines.map((l) => String(l.areaId));
+  const { rectRef, rollerRef } = useRollerSweep(keys, (k) => lines.find((l) => String(l.areaId) === k)?.state !== "todo", 30, 52);
+  const step = 26 / Math.max(lines.length, 4);
+  return (
+    <svg viewBox="0 0 60 52" aria-hidden="true" data-testid="q-thumb">
+      <rect x="10" y="4" width="40" height="44" rx="3" fill="#fff" stroke="#d5dbe1" />
+      <rect x="15" y="8" width="12" height="1.5" fill="#0e7f8a" /><rect x="36" y="8" width="9" height="1.5" fill="#cfd5db" />
+      {lines.map((l, k) => {
+        const y = 14 + k * step;
+        const id = `qth-${l.areaId}`;
+        return (
+          <g key={l.areaId} data-surf={String(l.areaId)} data-state={l.state}>
+            <rect className="base" x="15" y={y} width="30" height="2.2" rx="1.1" fill="#e4e8ec" />
+            <clipPath id={id}><rect className="cprect" x="15" y={y - 1} height="5" ref={rectRef(String(l.areaId))} /></clipPath>
+            <rect x="15" y={y} width="30" height="2.2" rx="1.1" fill={l.state === "typical" ? "#c9d2d8" : "#2fd3df"} clipPath={`url(#${id})`} />
+            <g className="roller" ref={rollerRef(String(l.areaId))}><rect x="-3" y="-2" width="6" height="4" rx="1" fill="#0e7f8a" /></g>
+          </g>
+        );
+      })}
+      <rect x="15" y="43" width="30" height="1.2" fill="#9aa5b0" />
+    </svg>
+  );
+}
+
+/** §2 / §5 — the price band: the range in mono (tweening ~1.4 s after every answer), "closing in · N% settled", the track whose open segment shrinks inward and turns teal → green. */
+function PriceBand({ lo, hi, settled }: { lo: number; hi: number; settled: number }) {
+  const [shown, setShown] = useState({ lo, hi });
+  const from = useRef({ lo, hi });
+  useEffect(() => {
+    const start = { ...from.current };
+    if (start.lo === lo && start.hi === hi) return;
+    const reduce = typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+    const duration = reduce ? 1 : 1400; // reduced motion: the first frame lands on the new range
+    const t0 = performance.now();
+    let raf = 0;
+    const tick = (now: number) => {
+      const t = Math.min(1, (now - t0) / duration);
+      const e = 1 - Math.pow(1 - t, 3);
+      const cur = { lo: Math.round(start.lo + (lo - start.lo) * e), hi: Math.round(start.hi + (hi - start.hi) * e) };
+      setShown(cur);
+      if (t < 1) raf = requestAnimationFrame(tick); else from.current = { lo, hi };
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [lo, hi]);
+  const pctSettled = Math.round(Math.max(0, Math.min(1, settled)) * 100);
+  const open = 1 - pctSettled / 100;
+  const mix = (a: [number, number, number], b: [number, number, number], t: number) => `rgb(${a.map((v, i) => Math.round(v + (b[i] - v) * t)).join(",")})`;
+  return (
+    <div className="wzq-band" data-testid="q-band" data-lo={lo} data-hi={hi} data-settled={pctSettled}>
+      <div className="row">
+        <span className="p" data-testid="q-band-range">{fmt(shown.lo)} – {fmt(shown.hi)}</span>
+        <span className="l" data-testid="q-band-settled">{pctSettled >= 100 ? "settled" : `closing in · ${pctSettled}% settled`}</span>
+      </div>
+      <div className="track" aria-hidden="true"><i style={{ width: `${Math.max(6, open * 100)}%`, marginLeft: `${(1 - Math.max(0.06, open)) * 50}%`, background: mix([47, 211, 223], [52, 199, 123], pctSettled / 100) }} /></div>
+    </div>
   );
 }
