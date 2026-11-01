@@ -116,6 +116,13 @@ export const CRM_EVENT_SCHEMAS = {
   gate_cta_clicked: z.object({ cta: z.enum(["exact", "visit", "call", "message", "save"]), breakpoint: z.enum(["mobile", "desktop"]), sessionId: z.string().uuid().optional() }),
   contact_opened: z.object({ step: z.string().max(40), sessionId: z.string().uuid().optional() }),
   scope_viewed: z.object({ from: z.literal("gate"), sessionId: z.string().uuid().optional() }),
+  // Quote stage v10 (brief §7): the cards after the gate.
+  quote_stage_viewed: z.object({ job_kind: z.enum(["interior", "trims", "exterior"]), lines: z.number().int().min(0), breakpoint: z.enum(["mobile", "desktop"]), sessionId: z.string().uuid().optional() }),
+  quote_card_answered: z.object({ card: z.string().max(40), line: z.number().int().nullable(), measured: z.boolean(), sessionId: z.string().uuid().optional() }),
+  quote_line_settled: z.object({ line: z.number().int(), state: z.enum(["measured", "typical"]), sessionId: z.string().uuid().optional() }),
+  quote_photo_added: z.object({ line: z.number().int(), kind: z.enum(["room", "prep"]), sessionId: z.string().uuid().optional() }),
+  quote_stage_done: z.object({ settled_share: z.number().min(0).max(1), typical_count: z.number().int().min(0), range_lo: money, range_hi: money, sessionId: z.string().uuid().optional() }),
+  quote_book_clicked: z.object({ sessionId: z.string().uuid().optional() }),
 
   // ---- staff activity: the mockup's "Log something" chips -----------------
   call_no_answer: z.object({ note: shortText.optional(), voicemail: z.boolean().default(false) }),

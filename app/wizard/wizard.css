@@ -2739,3 +2739,21 @@
 .wz .wzm-gate-parts dt { font-size: 12px; color: var(--muted); }
 .wz .wzm-gate-parts dd { margin: 2px 0 0; font-weight: 700; font-variant-numeric: tabular-nums; }
 .wz .wzm-gate-sub { font-size: 12px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); margin: 10px 0 4px; }
+
+/* ── QUOTE STAGE v10 — S1: the cards on the v5 shell (brief §2 mobile; prototype at 390px). Under .wzq only. ── */
+.wz .wzq .wzm-opts.wzq-three { grid-template-columns: 1fr 1fr 1fr; }
+.wz .wzq .wzm-opts.wzq-four { grid-template-columns: 1fr 1fr; }
+.wz .wzq .wzm-opts.wzq-three .wzm-opt, .wz .wzq .wzm-opts.wzq-four .wzm-opt { flex-direction: column; align-items: flex-start; gap: 8px; padding: 14px 12px; }
+.wz .wzq .wzm-opts.wzq-three .wzm-opt .t { font-size: 15px; }
+.wz .wzq .wzq-pics .wzm-opt { align-items: center; text-align: center; }
+.wz .wzq .wzq-pics .wzm-opt > span:last-child { width: 100%; text-align: center; }
+.wz .wzq-pimg { display: block; width: 56px; height: 60px; margin: 0 auto; }
+.wz .wzq-pimg svg { width: 100%; height: 100%; display: block; }
+.wz .wzq-meas { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }
+.wz .wzq-field { display: flex; flex-direction: column; gap: 6px; border: 1.5px solid var(--line); border-radius: 16px; padding: 12px 12px 10px; background: var(--panel); position: relative; }
+.wz .wzq-field span { font-size: 12px; font-weight: 600; color: var(--muted); }
+.wz .wzq-field input { width: 100%; border: 0; background: transparent; font: inherit; font-size: 22px; font-weight: 700; color: var(--heading); padding: 0; outline: none; }
+.wz .wzq-field input::placeholder { color: #aab4bd; font-weight: 600; }
+.wz .wzq-field em { position: absolute; right: 12px; bottom: 12px; font-style: normal; font-size: 13px; color: var(--muted); }
+.wz .wzq .wzm-foot .wzm-cta:not(.wzm-cta--teal) { background: var(--heading); color: #fff; }
+.wz .wzq .wzm-foot .wzm-hint .wzm-linkish { font-size: 13px; color: var(--muted); text-decoration: underline; }

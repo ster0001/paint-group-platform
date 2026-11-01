@@ -32,8 +32,9 @@ export default function MobileContact({ open, onClose, brand, estimatorName, sub
   suburb: string | null;
   phone: string | null;
   onBook: () => void;
-  onMessage: () => void;
-  onSave: () => void;
+  /** Quote stage v10: a surface without a message / save door leaves the row out. */
+  onMessage?: () => void;
+  onSave?: () => void;
 }) {
   useEffect(() => {
     if (!open) return;
@@ -64,8 +65,8 @@ export default function MobileContact({ open, onClose, brand, estimatorName, sub
         {phone && (
           <a className="wzm-srow" href={`tel:${phone.replace(/\s+/g, "")}`} data-testid="wzm-contact-call" onClick={onCall}>Call {phone}<small>Mon–Fri, 8–6</small></a>
         )}
-        <button type="button" className="wzm-srow" onClick={go(onMessage)} data-testid="wzm-contact-message">Send a message<small>We reply the same day</small></button>
-        <button type="button" className="wzm-srow" onClick={go(onSave)} data-testid="wzm-contact-save">Save and come back later<small>We email you the link</small></button>
+        {onMessage && <button type="button" className="wzm-srow" onClick={go(onMessage)} data-testid="wzm-contact-message">Send a message<small>We reply the same day</small></button>}
+        {onSave && <button type="button" className="wzm-srow" onClick={go(onSave)} data-testid="wzm-contact-save">Save and come back later<small>We email you the link</small></button>}
       </div>
     </div>
   );

@@ -32,6 +32,12 @@ function keyFor(sessionId: string, e: WizardEventBody, nowIso: string): string {
     case "gate_cta_clicked": return `wiz-cta:${sessionId}:${e.payload.cta}`;
     case "contact_opened": return `wiz-contact:${sessionId}:${e.payload.step}`;
     case "scope_viewed": return `wiz-scope:${sessionId}`;
+    case "quote_stage_viewed": return `wiz-quote:${sessionId}`;
+    case "quote_card_answered": return `wiz-qcard:${sessionId}:${e.payload.card}:${e.payload.line ?? "job"}`;
+    case "quote_line_settled": return `wiz-qline:${sessionId}:${e.payload.line}:${e.payload.state}`;
+    case "quote_photo_added": return `wiz-qphoto:${sessionId}:${e.payload.line}:${e.payload.kind}:${nowIso.slice(0, 16)}`;
+    case "quote_stage_done": return `wiz-qdone:${sessionId}`;
+    case "quote_book_clicked": return `wiz-qbook:${sessionId}`;
   }
 }
 

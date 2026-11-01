@@ -28,3 +28,14 @@ export type UiFlag = keyof typeof UI_FLAGS;
 export function exteriorV2On(): boolean {
   return process.env.NEXT_PUBLIC_EXTERIOR_V2 !== "0";
 }
+
+/**
+ * Quote stage v10 (`docs/briefs/claude-code-brief-quote-stage-v10.md`): "Get
+ * my detailed price" — one card per question on the v5 shell, replacing the
+ * room-by-room scope page. OFF unless `NEXT_PUBLIC_QUOTE_STAGE_V10=1` (the
+ * switch in production is Tom's, §9 S7); the old scope page stays behind it
+ * for one release. Read at call time so a test can stub it.
+ */
+export function quoteStageV10On(): boolean {
+  return process.env.NEXT_PUBLIC_QUOTE_STAGE_V10 === "1";
+}

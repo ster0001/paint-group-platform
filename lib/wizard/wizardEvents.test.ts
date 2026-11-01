@@ -14,6 +14,12 @@ describe("the wizard's events (mobile v5 §8)", () => {
       gate_cta_clicked: { cta: "exact", breakpoint: "desktop" },
       contact_opened: { step: "beds" },
       scope_viewed: { from: "gate" },
+      quote_stage_viewed: { job_kind: "interior", lines: 6, breakpoint: "mobile" },
+      quote_card_answered: { card: "measure", line: 3, measured: true },
+      quote_line_settled: { line: 3, state: "typical" },
+      quote_photo_added: { line: 3, kind: "prep" },
+      quote_stage_done: { settled_share: 0.5, typical_count: 3, range_lo: 704_000, range_hi: 986_000 },
+      quote_book_clicked: {},
     };
     for (const t of WIZARD_EVENT_TYPES) {
       const body = wizardEventBodySchema.safeParse({ type: t, payload: samples[t] });

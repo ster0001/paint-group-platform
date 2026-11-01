@@ -50,6 +50,7 @@ import QuickLook from "./QuickLook";
 import MobileQuickLook from "./MobileQuickLook";
 import MobileGate from "./MobileGate";
 import MobileWalk from "./MobileWalk";
+import { quoteStageV10On } from "@/lib/wizard/ui-flags";
 import MobileContact from "./MobileContact";
 import { starterRoomNames } from "@/lib/wizard/some-rooms";
 import SaveAndBookSheet from "./SaveAndBookSheet";
@@ -1954,10 +1955,13 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
                 window.scrollTo({ top: 0 });
                 return;
               }
-              const go = () => { clearResume(); markScopeFromGate(); router.push(`/estimate/scope?id=${reveal.estimateId}`); };
+              // Quote stage v10 (brief R1 / D-Q2): behind the flag, "Get my detailed price" is the card stage, not the scope page.
+              const dest = quoteStageV10On() ? `/estimate/quote?id=${reveal.estimateId}` : `/estimate/scope?id=${reveal.estimateId}`;
+              const go = () => { clearResume(); markScopeFromGate(); router.push(dest); };
               if (!contactKnown) { setTalk({ mode: "details", then: go }); return; }
               go();
             }}
+            detailed={quoteStageV10On() && quick.jobType !== "exterior"}
             // Session 5: "book a time first" is the booking page (brief §4 / §5.2 — the zone's days), both shopfronts.
             onVisit={() => { void recordRangeOption(reveal.estimateId, "visit"); clearResume(); router.push(`/estimate/visit?id=${reveal.estimateId}`); }}
             onBook={() => { void recordRangeOption(reveal.estimateId, "visit"); clearResume(); router.push(`/estimate/visit?id=${reveal.estimateId}`); }}

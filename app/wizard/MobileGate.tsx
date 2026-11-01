@@ -35,7 +35,7 @@ import { breakpointNow, sendWizardEvent } from "@/lib/wizard/wizardEvents";
  */
 const fmt = (cents: number) => `$${Math.round(cents / 100).toLocaleString("en-AU")}`;
 
-export default function MobileGate({ payload, quick, outside, brand, logo, estimateId, firstName, suburb, trust, handoff, walked = false, onExact, onVisit, onBook, onContactOpen }: {
+export default function MobileGate({ payload, quick, outside, brand, logo, estimateId, firstName, suburb, trust, handoff, walked = false, detailed = false, onExact, onVisit, onBook, onContactOpen }: {
   logo: ReactNode;
   /** R6: the Contact pill, on the gate too (session 5). */
   onContactOpen: () => void;
@@ -51,6 +51,8 @@ export default function MobileGate({ payload, quick, outside, brand, logo, estim
   handoff: boolean;
   /** S6: the walk-around has re-priced the house (WizardApp's `walkDone` landed) — the exact-price stage needs that, not just the checked flags. */
   walked?: boolean;
+  /** Quote stage v10 (R1, D-Q2): the door reads "Get my detailed price" and leads to the card stage. */
+  detailed?: boolean;
   /** Get my exact price — the room-by-room editor (WizardApp decides the details sheet first). */
   onExact: () => void;
   /** "Book a time first" — the talk sheet for now (session 5: the Contact sheet at the slots). */
@@ -134,11 +136,11 @@ export default function MobileGate({ payload, quick, outside, brand, logo, estim
           </section>
         ) : (
           <section data-testid="gate-block-ask">
-            <h2 className="wzm-gate-ask">Want the exact number?</h2>
+            <h2 className="wzm-gate-ask">{detailed ? "Want the detailed price?" : "Want the exact number?"}</h2>
             <p className="wzm-gate-asksub">
               {minutes}, {how}, nothing to measure. {painthome ? `Then one short call with ${who} runs through the finer details and confirms it.` : `Then ${who} visits to run through the finer details and confirm it.`}
             </p>
-            <button type="button" className="wzm-cta wzm-cta--teal" onClick={exact} data-testid="gate-exact">Get my exact price<small>{exteriorOnly ? "Side by side · a few minutes" : both ? "Inside, then outside · about 15 min" : "Room by room · about 10 min"}</small></button>
+            <button type="button" className="wzm-cta wzm-cta--teal" onClick={exact} data-testid="gate-exact">{detailed ? "Get my detailed price" : "Get my exact price"}<small>{exteriorOnly ? "Side by side · a few minutes" : both ? "Inside, then outside · about 15 min" : "Room by room · about 10 min"}</small></button>
             <p className="wzm-gate-alt">Or <button type="button" className="wzm-linkish" onClick={visit} data-testid="gate-visit">book a time with {who} first</button></p>
           </section>
         )}
@@ -146,7 +148,7 @@ export default function MobileGate({ payload, quick, outside, brand, logo, estim
         {/* 3 · the three tiles (R4) */}
         <ol className="wzm-tiles" data-testid="gate-tiles" data-at={handoff || tightened ? 2 : 1}>
           <Tile k="✓" state="done" title="Your range" sub={tightened ? "Done" : "Just now"} />
-          <Tile k={tightened ? "✓" : "2"} state={tightened ? "done" : handoff ? "todo" : "now"} title="Your exact price" sub={tightened ? "Just now" : "Online, today"} />
+          <Tile k={tightened ? "✓" : "2"} state={tightened ? "done" : handoff ? "todo" : "now"} title={detailed ? "Your detailed price" : "Your exact price"} sub={tightened ? "Just now" : "Online, today"} />
           <Tile k="3" state={handoff || tightened ? "now" : "todo"} title={`${who} confirms`} sub={painthome && !handoff ? "On one short call" : "In person, 40 min"} />
         </ol>
 
@@ -211,7 +213,7 @@ export default function MobileGate({ payload, quick, outside, brand, logo, estim
       <div className="wzm-foot" data-testid="gate-bar">
         {handoff || tightened
           ? <button type="button" className="wzm-cta wzm-cta--teal" onClick={book} data-testid="gate-bar-book">Book a visit</button>
-          : <button type="button" className="wzm-cta wzm-cta--teal" onClick={exact} data-testid="gate-bar-exact">Get my exact price</button>}
+          : <button type="button" className="wzm-cta wzm-cta--teal" onClick={exact} data-testid="gate-bar-exact">{detailed ? "Get my detailed price" : "Get my exact price"}</button>}
       </div>
     </div>
   );
