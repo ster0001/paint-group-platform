@@ -149,16 +149,21 @@ export default function Reveal({
   const first = firstName?.trim().split(/\s+/)[0] ?? "";
   // Exterior wizard v2 (S5, brief §5.3): the tier is an accuracy label — Detailed once the band is inside the mid band.
   const detailed = exteriorOnly && !!outside?.v2 && payload.bandPct <= DEFAULT_BANDS.midPct;
-  const tierWord = detailed ? "detailed" : "guide";
-  const kicker = payload.commercial ? `${payload.commercial.name} · your guide range` : first ? `${first}, here’s your ${tierWord} range` : `Your ${tierWord} range`;
+  // D-E1 (exterior on mobile v5, Tom 30 Oct 2026): the drawn-house gate shows NO tolerance and no tier label on either width —
+  // v5 R2 is a liability ruling, not a layout one. The band stays on the root as data for the specs; the ladder keeps its stage names.
+  const noTier = exteriorOnly && !!outside?.v2;
+  const tierWord = noTier ? "" : detailed ? "detailed " : "guide ";
+  const kicker = payload.commercial ? `${payload.commercial.name} · your guide range` : first ? `${first}, here’s your ${tierWord}range` : `Your ${tierWord}range`;
 
   return (
-    <div className="wz-wrap wz-reveal wz-reveal--v2" data-testid="reveal" data-estimate-id={estimateId}>
+    <div className="wz-wrap wz-reveal wz-reveal--v2" data-testid="reveal" data-estimate-id={estimateId} data-band={payload.bandPct}>
       <div className="wz-rv-hero">
         <section className="wz-rv-card" aria-labelledby="reveal-kicker">
           <p className="wz-rv-label">
             <span className="wz-kick" id="reveal-kicker" data-testid="reveal-kicker">{kicker}</span>
-            <span className={`wz-rv-pill ${detailed ? "wz-rv-pill--det" : ""}`} data-testid="reveal-tier" data-tier={detailed ? "detailed" : "guide"}>{detailed ? "Detailed" : "Guide"} · within <span data-testid="range-width">{payload.bandPct}</span>%</span>
+            {!noTier && (
+              <span className={`wz-rv-pill ${detailed ? "wz-rv-pill--det" : ""}`} data-testid="reveal-tier" data-tier={detailed ? "detailed" : "guide"}>{detailed ? "Detailed" : "Guide"} · within <span data-testid="range-width">{payload.bandPct}</span>%</span>
+            )}
           </p>
           {/* C11 — the roller reveal: the one motion moment on this screen (S3 keeps it rather
               than adding a count-up — the run sheet allows one, not both), and none at all for

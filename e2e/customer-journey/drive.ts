@@ -79,7 +79,8 @@ export async function driveNoPlanWizard(page: Page, opts: DriveOptions = {}) {
    * it with `opts.email` (or a throwaway) so every journey still reaches the
    * range; under "range first" the gate never appears and this is skipped.
    */
-  const reveal = page.getByTestId("reveal");
+  // Wizard mobile v5 (S4): on the phone shell the range is the GATE screen (`wzm-gate`, `gate-range`, one door `gate-bar-exact`).
+  const reveal = page.getByTestId("reveal").or(page.getByTestId("wzm-gate"));
   const bounced = page.locator(".wz-err");
   if (opts.stopAtGate) {
     await expect(page.locator("[data-quick-step='gate']").or(reveal).or(bounced)).toBeVisible({ timeout: 90_000 });
@@ -88,7 +89,7 @@ export async function driveNoPlanWizard(page: Page, opts: DriveOptions = {}) {
   await passGateIfShown(page, { name: opts.contactName, email: opts.email, mobile: opts.mobile });
   await expect(reveal.or(bounced)).toBeVisible({ timeout: 90_000 });
   if (await bounced.count()) throw new Error(`quick look submit failed: ${await bounced.first().innerText()}`);
-  await expect(page.getByTestId("reveal-range")).toHaveText(MONEY_RANGE);
+  await expect(page.getByTestId("reveal-range").or(page.getByTestId("gate-range"))).toHaveText(MONEY_RANGE);
 
   /**
    * "Keep this estimate" — the door that files an ACCOUNT.
@@ -109,7 +110,8 @@ export async function driveNoPlanWizard(page: Page, opts: DriveOptions = {}) {
   }
   if (opts.stopAtReveal) return;
 
-  await page.getByTestId("door-tighten").click();
+  if (await page.getByTestId("gate-bar-exact").count()) await page.getByTestId("gate-bar-exact").click();
+  else await page.getByTestId("door-tighten").click();
   await passDetailsSheetIfShown(page, { name: opts.contactName, email: opts.email, mobile: opts.mobile });
   await expect(page.locator(".sc-r").first()).toHaveText(MONEY_RANGE, { timeout: 60_000 });
 }
