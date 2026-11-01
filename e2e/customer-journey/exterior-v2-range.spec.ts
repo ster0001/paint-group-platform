@@ -34,7 +34,9 @@ test("the guide range on a bungalow: the pill, one row per side with the gable o
   await passGateIfShown(page);
   await expect(page.getByTestId("reveal-range")).toContainText(MONEY_RANGE, { timeout: 90_000 });
   await expect(page.locator(".wz-rv-pill")).toHaveCount(0);
-  await expect(page.getByTestId("reveal")).not.toContainText(/±|within \d+%|Guide|Detailed/);
+  // no tolerance anywhere on the gate; the "How the range narrows" ladder keeps its stage names (Tom's ruling), so only the header is word-free
+  await expect(page.getByTestId("reveal")).not.toContainText(/±|within \d+%/);
+  await expect(page.locator(".wz-rv-label")).not.toContainText(/Guide|Detailed/);
   await expect(page.getByTestId("reveal")).toHaveAttribute("data-band", /^\d+$/);
   await expect(page.getByTestId("reveal-kicker")).toContainText(/your range$/);
   // The rows.
