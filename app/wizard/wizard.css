@@ -2839,7 +2839,6 @@
 .wz .wzq-tile--room .thumb svg { width: 100%; height: 100%; display: block; }
 .wz .wzq-tiles .wzq-tile--quote { flex: 1 1 0; }
 .wz .wzq-tiles .wzq-tile--room { flex: 0 1 auto; max-width: 48%; }
-\n
 
 /* ── QUOTE STAGE v10 — S5: the plan tile (only when a plan was uploaded) and its sheet: the image, the ticked room list, tap-to-jump. ── */
 .wz .wzq-tile--plan { flex: 0 0 auto; flex-direction: column; gap: 4px; padding: 6px 8px; }
