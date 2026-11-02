@@ -118,9 +118,9 @@ test.describe("S6 — the gate", () => {
     const posted = (await submitReq).postDataJSON() as { state: Record<string, unknown> & { contact: { name: string; email: string; phone: string } } };
     await expect(page.getByTestId("reveal")).toBeVisible({ timeout: 90_000 }); // estimate 1 for this email
     // The test project raises the visitor cap for the volume runs; the replays need the real default
-    // (2 per 24 h). Lowered only NOW: the cap counts by email OR by IP, and in a full run every earlier
-    // spec came from this IP, so lowering it before the walk refused estimate 1 itself ("Looks like
-    // you're busy"). The gate check runs before the cap in the route, so the 409 below is unaffected.
+    // (2 per 24 h). Lowered only NOW (it used to count by email OR by IP; since 2 Nov a visitor with an
+    // email is counted by that email alone, the IP only for an emailless run). The gate check runs
+    // before the cap in the route, so the 409 below is unaffected.
     await db!.from("settings").upsert({ key: "wizard_limits", value: { ...(limitsBefore ?? {}), maxEstimatesPerVisitor: 2 } }, { onConflict: "key" });
     const state = posted.state;
     const noContact = { ...state, contact: { name: "", email: "", phone: "" } };
@@ -128,8 +128,8 @@ test.describe("S6 — the gate", () => {
     expect(refused.status(), await refused.text()).toBe(409);
     expect((await refused.json()).code).toBe("gate_required");
     const withContact = { ...state, contact: { name: "Api Tester", email, phone: "0400 222 333" } };
-    // The cap (2 per 24 h) counts by email OR by IP, and every test in this run comes from one IP —
-    // so the refusal may come on the first replay or the second. It must come within the cap.
+    // The cap (2 per 24 h) counts this email's runs — the lead above is one, so the refusal comes on
+    // the second or third replay. It must come within the cap.
     const statuses: number[] = [];
     for (let i = 0; i < 3 && !statuses.includes(429); i++) {
       const r = await page.request.post("/api/wizard/submit", { data: { state: withContact } });
