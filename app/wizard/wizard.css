@@ -2840,3 +2840,20 @@
 .wz .wzq-tiles .wzq-tile--quote { flex: 1 1 0; }
 .wz .wzq-tiles .wzq-tile--room { flex: 0 1 auto; max-width: 48%; }
 \n
+
+/* ── QUOTE STAGE v10 — S5: the plan tile (only when a plan was uploaded) and its sheet: the image, the ticked room list, tap-to-jump. ── */
+.wz .wzq-tile--plan { flex: 0 0 auto; flex-direction: column; gap: 4px; padding: 6px 8px; }
+.wz .wzq-tile--plan .thumb { width: 56px; height: 46px; overflow: hidden; }
+.wz .wzq-tile--plan .thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.wz .wzq-tile--plan .txt { font-size: 11px; text-align: center; }
+.wz .wzq-tile--plan .txt b { font-size: 12px; }
+.wz .wzq-tiles .wzq-tile--room { max-width: 44%; }
+.wz .wzq-plan-sheet { max-height: 88vh; overflow-y: auto; }
+.wz .wzq-plan .wz-planframe { aspect-ratio: 4 / 3; }
+.wz .wzq-plan-rooms li { padding: 0; }
+.wz .wzq-plan-rooms li button { display: flex; align-items: center; gap: 8px; width: 100%; padding: 10px 14px; background: none; border: 0; font: inherit; font-weight: 600; color: var(--heading); text-align: left; cursor: pointer; }
+.wz .wzq-plan-rooms li button > span:last-child { margin-left: auto; color: var(--muted); font-weight: 400; font-variant-numeric: tabular-nums; }
+.wz .wzq-plan-rooms li .tick { width: 18px; color: var(--cyan); font-weight: 700; }
+.wz .wzq-plan-rooms li[data-state="typical"] .tick { color: var(--muted); }
+.wz .wzq-plan-rooms li.now { background: var(--wash); }
+

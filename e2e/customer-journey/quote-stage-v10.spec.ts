@@ -2,7 +2,7 @@ import { expect, type Page } from "@playwright/test";
 import { randomBytes } from "node:crypto";
 import { test } from "../helpers";
 import { serviceClient } from "../fixtures/woLoop";
-import { MONEY_RANGE, driveMobileQuickLook, openQuickLook, fillQuickAddress } from "./drive";
+import { MONEY_RANGE, driveMobileQuickLook, openQuickLook, fillQuickAddress, quickNext } from "./drive";
 /** D-Q5: `lib/wizard/spotPhoto.ts SPOT_PHOTO_MAX_BYTES` (not imported — that module loads the browser client). */
 const SPOT_PHOTO_MAX_BYTES = 5 * 1024 * 1024;
 
@@ -110,6 +110,7 @@ test.describe("quote stage v10 — session 1: the cards on a phone", () => {
     await expect(page.getByTestId("q-tile-title")).toHaveText(/^Quote · \d+ to go$/);
     await expect(page.getByTestId("q-tile-sub")).toHaveText(/^~\d+ min · tap to see$/);
     await expect(page.getByTestId("q-panel")).toHaveAttribute("data-open", "0");
+    await expect(page.getByTestId("q-tile-plan"), "no plan uploaded → no plan tile (R6)").toHaveCount(0);
     await page.getByTestId("q-tile-quote").tap();
     await expect(page.getByTestId("q-panel")).toHaveAttribute("data-open", "1");
     const doc = page.getByTestId("q-doc");
@@ -347,5 +348,80 @@ test.describe("quote stage v10 — session 1: the cards on a phone", () => {
     await page.getByTestId("q-book").tap();
     await expect(page).toHaveURL(/\/estimate\/visit\?id=/, { timeout: 30_000 });
     expect(events.map((e) => e.type)).toContain("quote_book_clicked");
+  });
+});
+
+/**
+ * Session 5 (R6, D-Q1): the plan tile shows only when a floorplan was
+ * uploaded, and its sheet is the plan image with the ticked room list —
+ * the plan read returns no room positions, so the list is the tap-to-jump.
+ * A plan is uploaded on the desktop quick look's place screen (the phone
+ * shell has no upload), then the stage is opened at phone width.
+ */
+test.describe("quote stage v10 — session 5: the plan tile", () => {
+  test.skip(!FLAG_ON, "quote stage v10 is off in this environment (NEXT_PUBLIC_QUOTE_STAGE_V10)");
+  test.skip(!db, "needs SUPABASE_SERVICE_ROLE_KEY");
+  test.use({ viewport: { width: 1280, height: 900 } });
+  const run = randomBytes(3).toString("hex");
+  const suburb = `E2E Q10P ${run}`;
+  test.afterAll(async () => {
+    if (!db) return;
+    const { data: rows } = await db.from("wizard_drafts").select("estimate_id").eq("suburb", suburb);
+    await db.from("wizard_drafts").delete().eq("suburb", suburb);
+    for (const r of rows ?? []) if (r.estimate_id) await db.from("estimates").delete().eq("id", r.estimate_id);
+  });
+
+  test("no plan → no tile; with a plan → the tile, the sheet with the image and the ticked rooms, tap-to-jump", async ({ page }) => {
+    test.setTimeout(300_000);
+    await openQuickLook(page);
+    await fillQuickAddress(page, { suburb });
+    await quickNext(page);
+    await expect(page.locator("[data-quick-step='place']")).toBeVisible({ timeout: 30_000 });
+    const [chooser] = await Promise.all([page.waitForEvent("filechooser"), page.getByTestId("ql-plan-upload").click()]);
+    await chooser.setFiles("e2e/fixtures/not-a-plan-a.png");
+    await expect(page.getByTestId("ql-plan-upload")).toContainText(/Floorplan uploaded/i, { timeout: 60_000 });
+    await quickNext(page);
+    await expect(page.locator("[data-quick-step='job']")).toBeVisible({ timeout: 30_000 });
+    await page.getByTestId("ql-scope-whole").click();
+    await page.getByTestId("ql-excl-none").click();
+    await quickNext(page);
+    await expect(page.locator("[data-quick-step='rooms']")).toBeVisible({ timeout: 30_000 });
+    await quickNext(page);
+    await expect(page.locator("[data-quick-step='condition']")).toBeVisible({ timeout: 30_000 });
+    await quickNext(page);
+    await expect(page.getByTestId("reveal-range")).toContainText(MONEY_RANGE, { timeout: 240_000 });
+    await page.getByTestId("door-tighten").click();
+    await expect(page).toHaveURL(/\/estimate\/scope\?id=/, { timeout: 60_000 });
+    const id = new URL(page.url()).searchParams.get("id")!;
+    // the stage at phone width, on the same session
+    await page.setViewportSize({ width: 390, height: 780 });
+    await page.goto(`/estimate/quote?id=${id}`);
+    const stage = page.getByTestId("quote-stage");
+    await expect(stage).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByTestId("q-tile-plan")).toBeVisible();
+    await expect(page.getByTestId("q-tile-plan").locator("img")).toHaveAttribute("src", /./);
+    await page.getByTestId("q-tile-plan").click();
+    await expect(page.getByTestId("q-plan-sheet")).toBeVisible();
+    await expect(page.getByTestId("q-plan-viewer").locator("img")).toBeVisible();
+    await expect(page.getByTestId("q-plan-cap")).toHaveText("Your floorplan. Tap a room to jump to it.");
+    const planRooms = page.getByTestId("q-plan-rooms").locator("li");
+    expect(await planRooms.count()).toBeGreaterThan(1);
+    await expect(planRooms.first()).toHaveAttribute("data-state", "todo");
+    // tap a room → its size card; the sheet closes
+    const target = planRooms.nth(1);
+    const targetId = (await target.getAttribute("data-testid"))!.replace("q-plan-room-", "");
+    await target.locator("button").click();
+    await expect(page.getByTestId("q-plan-sheet")).toHaveCount(0);
+    await expect(stage).toHaveAttribute("data-quote-card", `measure:${targetId}`, { timeout: 15_000 });
+    // measure it → the plan list ticks it
+    await page.getByTestId("q-measure-w").fill("3.4");
+    await page.getByTestId("q-measure-l").fill("3.1");
+    await page.getByTestId("q-size-ok").click();
+    await expect(stage).toHaveAttribute("data-quote-card", `surfaces:${targetId}`, { timeout: 30_000 });
+    await page.getByTestId("q-tile-plan").click();
+    await expect(page.getByTestId(`q-plan-room-${targetId}`)).toHaveAttribute("data-state", "measured");
+    await expect(page.getByTestId(`q-plan-room-${targetId}`).locator(".tick")).toHaveText("✓");
+    await page.keyboard.press("Escape");
+    await expect(page.getByTestId("q-plan-sheet")).toHaveCount(0);
   });
 });
