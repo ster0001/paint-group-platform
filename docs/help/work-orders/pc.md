@@ -120,6 +120,15 @@ An untouched job reads **The working scope matches the accepted estimate**. Befo
 11e. **The reminder before saving.** If a save in Revise scope would change the contractor's hours or their hourly rate, the builder asks first and says where it goes — *"Contractor hours have changed: 40.0 h → 44.0 h. Hours go to the customer to sign first, then to the contractor to approve"*, or *"The contractor's hourly rate has changed: $60/h → $65/h. This does not go to the customer…"*. **OK** saves; **Cancel** saves nothing. The same question comes up before **Save & draft variations for signature**.
 
 11f. **The office is told when the customer signs** (since 12 Oct 2026). Every staff login with **Change approved** ticked under Settings → Staff logins gets an email (or text) listing what the customer approved and the net figure. Wording: Settings → Automations → *Customer approved a change*. Nobody is ticked to start with — tick it for the Office login (info@) to get it there.
+11g. **The costs as a PDF for the customer** (since 2 Nov 2026). In Revise scope, press **View invoice** (or the **INVOICE** tab at the top). Above the sheet, **Download PDF** saves the invoice as a file you can email to a customer who wants to see where the costs stand. The PDF is the same sheet as the tab, with **every variation that is priced or signed**, including the ones still waiting on the customer:
+   - A variation priced on this console (the hours-only quick price) is its own line under **Variations**. A signed one reads "✓ Approved" and the date. One still waiting reads **Awaiting your approval**.
+   - A change drafted in Revise scope is already inside the room prices, so it gets no line of its own. If it is still waiting, the amber note at the top names it, for example "Garage — +$1,234.00 inc GST (in the prices above)".
+   - The note at the top reads "Costs to date, for your information — not a request for payment" and says how many changes are still awaiting approval. The totals count those changes as if they were approved.
+   - The staff line ("Live from the working scope…") is on the tab only. It is never printed in the PDF.
+   - The PDF is made from the **saved** working scope. With unsaved edits, the button says "Save the working scope first — the PDF is made from what's saved". Press **Save working scope** and download again.
+   - Nothing is issued or stored. The sheet still says DRAFT and carries no invoice number. To bill the customer, use **Invoice in full** or **Request a payment** on the job's Payments panel.
+   - Before 2 Nov 2026 the INVOICE tab left out console-priced variations entirely, signed or pending. They are on it now, so its total can be higher than it used to be.
+
 11d. Drafting again after a signature drafts only what goes beyond it, and joins any offer still waiting on the customer; a change that nets back to nothing retires its draft.
 
 ### Ticking for the painter — By surface

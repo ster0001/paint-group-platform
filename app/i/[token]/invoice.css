@@ -95,6 +95,8 @@
 .invoice-view table.lines td .t { font-weight: 600; }
 .invoice-view table.lines td .d { color: var(--soft); font-size: 12px; margin-top: 2px; }
 .invoice-view table.lines td .appr { font-family: var(--mono); font-size: 9.5px; color: var(--emerald); margin-top: 4px; }
+.invoice-view table.lines td .appr.pending { color: var(--amber); }
+.invoice-view .pending-list { margin-top: 4px; padding-left: 16px; }
 .invoice-view table.lines td.r { font-family: var(--mono); font-size: 12.5px; }
 .invoice-view tr.group-h td {
   border-bottom: 0; padding: 18px 0 2px;

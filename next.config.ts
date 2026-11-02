@@ -72,6 +72,9 @@ const nextConfig: NextConfig = {
     "/help/**": ["./docs/help/**"],
     "/portal/help/**": ["./docs/help/**"],
     "/api/help/**": ["./docs/help/**"],
+    // The revision invoice PDF reads the invoice stylesheet with fs and
+    // inlines it into the HTML Chromium prints — same blind spot.
+    "/api/quote/invoice-pdf": ["./app/i/*/invoice.css"],
   },
 };
 

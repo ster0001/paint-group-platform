@@ -16,6 +16,7 @@ import { parseBackTo } from "@/lib/navigation/backTo";
 import { estimateDocuments } from "@/lib/wizard/documents";
 import type { ExistingRevisionVariation } from "./RevisionPanel";
 import { reportError } from "@/lib/monitoring/report";
+import { loadInvoiceVariations } from "@/lib/revision/invoiceVariations";
 
 export const dynamic = "force-dynamic";
 
@@ -205,6 +206,11 @@ export default async function QuotePage({
         .eq("work_order_id", woId).not("revision_block_ref", "is", null)
         .order("created_at", { ascending: true })
     : { data: null };
+  // The revision INVOICE carries every priced or signed variation, pending
+  // ones too (Tom, 2 Nov 2026). A failed read says so on the tab — never an
+  // invoice that silently leaves the variations off.
+  const invoiceVars = revisionMode && woId ? await loadInvoiceVariations(supabase, woId) : { rows: [], error: null };
+  if (invoiceVars.error) reportError(invoiceVars.error, { where: "quote.page.invoiceVariations", extra: { woId }, bestEffort: true });
   // Tom, 7 Oct 2026 (12A Cavell Court): opened from a painter's request on the
   // job page, the builder prices THAT request — the change drafted here is
   // written into the painter's own row (20270222), so it moves on their portal
@@ -342,6 +348,8 @@ export default async function QuotePage({
       revisionBaseline={revisionScope?.accepted ?? null}
       revisionVariations={(revVarRows ?? []) as ExistingRevisionVariation[]}
       revisionRequest={revisionRequest}
+      invoiceVariations={invoiceVars.rows}
+      invoiceVariationsFailed={Boolean(invoiceVars.error)}
       rateItems={rateItems.data ?? []}
       modifiers={modifiers.data ?? []}
       products={products.data ?? []}

@@ -3,8 +3,6 @@
 import { z } from "zod";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
-import type { PricingContext } from "@/lib/pricing/estimate";
-import type { RateItem, Product } from "@/lib/pricing/types";
 import { diffRevision, type RevisionState } from "@/lib/revision/diff";
 import { revisionContractorPay } from "@/lib/revision/contractorRate";
 import { reportError } from "@/lib/monitoring/report";
@@ -16,6 +14,7 @@ import { after } from "next/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import { notifyPayChangeSent } from "@/lib/contractor/notify";
 import { revisionCredit } from "@/lib/revision/hoursOnly";
+import { estimatePricingContext } from "@/lib/revision/pricingContext";
 
 /**
  * The revision builder's server side (addendum A2).
@@ -48,35 +47,6 @@ const saveInput = z.object({
 
 type Db = Awaited<ReturnType<typeof createClient>>;
 
-/**
- * The estimate's own pricing context. rate_card_id can be null on ancient
- * rows — fall back to the active card, which is then also what the builder
- * showed. Never the active card for an estimate that HAS one: a signed job
- * must not silently reprice on a newer card.
- */
-async function estimatePricingContext(supabase: Db, rateCardId: string | null): Promise<{ ctx: PricingContext; cardId: string | null }> {
-  let cardId = rateCardId;
-  if (!cardId) {
-    const { data: active } = await supabase.from("rate_cards").select("id").eq("is_active", true).single();
-    cardId = active?.id ?? null;
-  }
-  const [rateItemsRes, productsRes, modifiersRes, settingsRes] = await Promise.all([
-    supabase.from("rate_items").select("*").eq("rate_card_id", cardId ?? ""),
-    supabase.from("products").select("*"),
-    supabase.from("modifiers").select("*").eq("active", true),
-    supabase.from("settings").select("key, value"),
-  ]);
-  for (const r of [rateItemsRes, productsRes, modifiersRes, settingsRes]) {
-    if (r.error) reportError(r.error, { where: "revision.pricingContext", bestEffort: true });
-  }
-  const ctx: PricingContext = {
-    rateItems: (rateItemsRes.data ?? []) as unknown as RateItem[],
-    products: (productsRes.data ?? []) as unknown as Product[],
-    modifiers: (modifiersRes.data ?? []) as PricingContext["modifiers"],
-    settings: (settingsRes.data ?? []) as PricingContext["settings"],
-  };
-  return { ctx, cardId };
-}
 
 /**
  * Tom, 24 Sep 2026: "if I adjust the contractor rate in the revision working

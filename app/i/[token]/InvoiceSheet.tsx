@@ -16,6 +16,10 @@ export type SheetLine = {
   source: "estimate_snapshot" | "variation" | "manual" | "adjustment";
   qty: number | null;
   approved_on: string | null;
+  /** A priced variation the customer has not signed yet — only the revision
+   *  builder's invoice (preview + its PDF) ever sets it; an issued invoice
+   *  carries approved variations only. */
+  pending?: boolean;
 };
 
 export type SheetPayment = {
@@ -105,6 +109,7 @@ export default function InvoiceSheet({
           <div className="t">{title}</div>
           {rest.length > 0 && <div className="d">{rest.join(" — ")}</div>}
           {l.approved_on && <div className="appr">✓ Approved {shortDay(l.approved_on)}</div>}
+          {l.pending && <div className="appr pending" data-testid="line-pending">Awaiting your approval</div>}
         </td>
         <td className="r">{l.amount_ex_cents < 0 ? "−" + money(-l.amount_ex_cents) : money(l.amount_ex_cents)}</td>
       </tr>
@@ -171,7 +176,9 @@ export default function InvoiceSheet({
           )}
           {contractLines.map(line)}
           {variationLines.length > 0 && (
-            <tr className="group-h"><td colSpan={2}>Variations — approved during the job</td></tr>
+            <tr className="group-h"><td colSpan={2}>
+              {variationLines.some((l) => l.pending) ? "Variations — during the job, approved or awaiting your approval" : "Variations — approved during the job"}
+            </td></tr>
           )}
           {variationLines.map(line)}
           {otherLines.length > 0 && contractLines.length + variationLines.length > 0 && (

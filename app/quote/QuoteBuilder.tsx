@@ -59,9 +59,11 @@ import { PHOTO_REVIEW_KIND } from "@/lib/wizard/merge";
 import { acceptAttr, checkUpload, mediaKindOf } from "@/lib/uploads/validate";
 import { isVideoUrl, videoExtensionForMime } from "@/lib/media/video";
 import { downscale, SCREEN_MAX_EDGE } from "@/lib/uploads/downscale";
-import { reportIfError, errorMessage } from "@/lib/monitoring/report";
+import { reportError, reportIfError, errorMessage } from "@/lib/monitoring/report";
 import RevisionPanel, { type ExistingRevisionVariation, type RevisionRequest } from "./RevisionPanel";
 import InvoiceSheet, { type SheetLine } from "@/app/i/[token]/InvoiceSheet";
+import RevisionInvoiceNote from "./RevisionInvoiceNote";
+import { revisionInvoiceDoc, type InvoiceVariationRow } from "@/lib/revision/invoiceDoc";
 import "@/app/i/[token]/invoice.css";
 import { saveWorkingScopeAction } from "./revisionActions";
 import { diffRevision, type RevisionState } from "@/lib/revision/diff";
@@ -314,6 +316,8 @@ export default function QuoteBuilder({
   revisionBaseline = null,
   revisionVariations = [],
   revisionRequest = null,
+  invoiceVariations = [],
+  invoiceVariationsFailed = false,
 }: {
   rateCardId: string | null;
   rateCardVersion: number | null;
@@ -363,6 +367,11 @@ export default function QuoteBuilder({
   revisionVariations?: ExistingRevisionVariation[];
   /** The painter's raised request this revision prices (?variation=), if any. */
   revisionRequest?: RevisionRequest | null;
+  /** Every priced or signed variation on the job — the revision INVOICE
+   * carries them, pending ones too (lib/revision/invoiceDoc.ts). */
+  invoiceVariations?: InvoiceVariationRow[];
+  /** The variations read failed — the tab says so instead of showing none. */
+  invoiceVariationsFailed?: boolean;
 }) {
   const chargeFor = (t: string) => chargeOutCents(t, rateItems, hourlyRateOverride);
 
@@ -1700,6 +1709,76 @@ export default function QuoteBuilder({
     };
   }
 
+  /** The revision INVOICE's contract part — the working scope's lines, ex GST.
+   * One function for the INVOICE tab and its Download PDF, so the file is the
+   * screen (lib/revision/invoiceDoc.ts adds the variations). */
+  function revisionInvoiceInput() {
+    const snap = buildCustomerDoc(shareToken ?? "PREVIEW00");
+    const plain = (h: string) => h.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
+    const asLine = (title2: string, html: string, cents: number): SheetLine => ({
+      description: plain(html) ? `${title2} — ${plain(html)}` : title2,
+      amount_ex_cents: cents, source: "estimate_snapshot", qty: null, approved_on: null,
+    });
+    const sheetLines: SheetLine[] = [
+      ...(snap.preparation ? [asLine(snap.preparation.title, snap.preparation.descriptionHtml, snap.preparation.priceCents)] : []),
+      ...snap.areas.map((a) => asLine(a.title, a.descriptionHtml, a.priceCents)),
+      ...snap.lineItems.map((l) => asLine(l.title, l.descriptionHtml, l.priceCents)),
+    ];
+    const linesSum = sheetLines.reduce((n, l) => n + l.amount_ex_cents, 0);
+    const sundriesResidual = snap.baseSubtotalCents - linesSum;
+    if (sundriesResidual > 0) {
+      sheetLines.push({ description: PREPARATION_TITLE, amount_ex_cents: sundriesResidual, source: "estimate_snapshot", qty: null, approved_on: null });
+    }
+    if (totals.discountCents > 0) {
+      sheetLines.push({ description: "Discount", amount_ex_cents: -totals.discountCents, source: "adjustment", qty: null, approved_on: null });
+    }
+    return {
+      header: { billed_to: snap.contactName, job_address: snap.jobAddress, job_title: snap.jobTitle },
+      contractLines: sheetLines,
+      contractSubtotalExCents: totals.netSubtotal,
+    };
+  }
+
+  // Download PDF (Tom, 2 Nov 2026): the browser sends the working scope's
+  // lines; the server re-reads the job's variations, rebuilds the same
+  // document and prints it through the invoice Chromium pipeline.
+  const [pdfBusy, setPdfBusy] = useState(false);
+  const [pdfError, setPdfError] = useState<string | null>(null);
+  async function downloadInvoicePdf() {
+    if (!quoteId) return;
+    setPdfBusy(true);
+    setPdfError(null);
+    try {
+      const res = await fetch("/api/quote/invoice-pdf", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ estimateId: quoteId, ...revisionInvoiceInput() }),
+      });
+      if (!res.ok) {
+        setPdfError(res.status === 409
+          ? "Save the working scope first — the PDF is made from what's saved."
+          : "Couldn't make the PDF — try again in a moment.");
+        return;
+      }
+      const blob = await res.blob();
+      const name = /filename="([^"]+)"/.exec(res.headers.get("Content-Disposition") ?? "")?.[1] ?? "invoice.pdf";
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = name;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      reportError(e, { where: "quote.downloadInvoicePdf" });
+      setPdfError("Couldn't make the PDF — check the connection and try again.");
+    } finally {
+      setPdfBusy(false);
+    }
+  }
+
+
   // Build the work-order (job sheet) document live from the current estimate.
   // Contractor-safe: no customer pricing/margin, no surname/email.
   /**
@@ -2391,6 +2470,18 @@ export default function QuoteBuilder({
                 Edit estimate
               </button>
             )}
+            {revision && quoteId && (
+              <button
+                onClick={() => { void downloadInvoicePdf(); }}
+                disabled={pdfBusy}
+                className="rounded-md border border-amber-400 bg-white px-3 py-1.5 text-xs font-medium text-amber-800 hover:bg-amber-100 disabled:opacity-50"
+                data-testid="download-invoice-pdf"
+                title="A PDF of this invoice — the working scope with every pending variation — to send a customer who wants to see the costs"
+              >
+                {pdfBusy ? "Making the PDF…" : "Download PDF"}
+              </button>
+            )}
+            {pdfError && <span className="text-rose-700" role="alert" data-testid="invoice-pdf-error">{pdfError}</span>}
             {revision && (
               <button
                 onClick={() => setViewMode("builder")}
@@ -2405,58 +2496,39 @@ export default function QuoteBuilder({
             /* THE INVOICE, previewed (Tom, 25 Aug): the same white A4 sheet as
                /i/[token] — whose Chromium print IS the PDF — fed LIVE from the
                working scope. Same component, so preview, page and paper agree. */
-            const snap = buildCustomerDoc(shareToken ?? "PREVIEW00");
-            const plain = (h: string) => h.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
-            const asLine = (title2: string, html: string, cents: number): SheetLine => ({
-              description: plain(html) ? `${title2} — ${plain(html)}` : title2,
-              amount_ex_cents: cents, source: "estimate_snapshot", qty: null, approved_on: null,
-            });
-            const sheetLines: SheetLine[] = [
-              ...(snap.preparation ? [asLine(snap.preparation.title, snap.preparation.descriptionHtml, snap.preparation.priceCents)] : []),
-              ...snap.areas.map((a) => asLine(a.title, a.descriptionHtml, a.priceCents)),
-              ...snap.lineItems.map((l) => asLine(l.title, l.descriptionHtml, l.priceCents)),
-            ];
-            const linesSum = sheetLines.reduce((n, l) => n + l.amount_ex_cents, 0);
-            const sundriesResidual = snap.baseSubtotalCents - linesSum;
-            if (sundriesResidual > 0) {
-              sheetLines.push({ description: PREPARATION_TITLE, amount_ex_cents: sundriesResidual, source: "estimate_snapshot", qty: null, approved_on: null });
-            }
-            if (totals.discountCents > 0) {
-              sheetLines.push({ description: "Discount", amount_ex_cents: -totals.discountCents, source: "adjustment", qty: null, approved_on: null });
-            }
             const signedCount = revisionVariations.filter(
               (v) => v.status === "customer_approved" || v.status === "contractor_accepted").length;
             const unsigned = revisionDiff?.changes.length ?? 0;
+            // The one invoice builder (lib/revision/invoiceDoc.ts): the working
+            // scope plus every priced or signed variation, pending ones too —
+            // the PDF route builds the same document from the same rows.
+            const invoice = revisionInvoiceDoc({ ...revisionInvoiceInput(), variations: invoiceVariations });
             return (
               <div className="invoice-view" data-testid="invoice-preview">
                 <div className="sheet-wrap">
                   <InvoiceSheet
-                    doc={{
-                      number: null, kind: "final", status: "draft",
-                      issued_on: null, due_on: null,
-                      subtotal_ex_cents: totals.netSubtotal,
-                      gst_cents: totals.gst,
-                      total_inc_cents: totals.total,
-                      billed_to: snap.contactName,
-                      job_address: snap.jobAddress,
-                      job_title: snap.jobTitle,
-                      lines: sheetLines, payments: [], paid_cents: 0,
-                      adjusted_contract_cents: null,
-                      previously_invoiced_cents: null, previous_numbers: null,
-                    }}
+                    doc={invoice.doc}
                     entity={{
                       tradingName: company.name,
                       address: [company.addressLine1, company.addressLine2].filter(Boolean).join(", "),
                       abn: company.abn,
                     }}
                     bank={{ accountName: company.bankName, bank: company.bank, bsb: company.bsb, acc: company.acc }}
-                    extraNote={
+                    extraNote={<>
                       <div className="status-note" data-testid="live-preview-note">
                         Live from the working scope — every edit updates these figures.
                         {signedCount > 0 ? ` ${signedCount} signed change${signedCount === 1 ? "" : "s"} built in.` : ""}
                         {unsigned > 0 ? ` ${unsigned} change${unsigned === 1 ? "" : "s"} shown here still need${unsigned === 1 ? "s" : ""} the customer's signature before reaching their invoice.` : ""}
+                        {" The PDF leaves this line out and carries the one below."}
                       </div>
-                    }
+                      {invoiceVariationsFailed && (
+                        <div className="status-note void" role="alert" data-testid="invoice-variations-failed">
+                          Couldn&rsquo;t load this job&rsquo;s variations — reload before sending this to the customer.
+                        </div>
+                      )}
+                      <RevisionInvoiceNote pendingCount={invoice.pendingCount} pendingInScope={invoice.pendingInScope} />
+                    </>}
+
                   />
                 </div>
               </div>
