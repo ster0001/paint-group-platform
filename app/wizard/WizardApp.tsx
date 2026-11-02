@@ -1947,8 +1947,9 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
             walked={walked}
             onExact={() => {
               void recordRangeOption(reveal.estimateId, "tighten");
-              // Exterior on mobile v5 (S6; plan §2 screen 12): on a phone an outside job's exact price is the walk-around, side by side.
-              if (quick.jobType === "exterior" && outside.v2) {
+              // Exterior on mobile v5 (S6; plan §2 screen 12): on a phone an outside job's exact price is the walk-around, side by side —
+              // until the quote stage (v10 S6, §3 C): behind the flag the outside's detailed price is the stage's side cards.
+              if (quick.jobType === "exterior" && outside.v2 && !quoteStageV10On()) {
                 const first = paintedSides(outside.v2)[0];
                 if (first) setWalkAt(first);
                 setWalking(true);
@@ -1961,7 +1962,7 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
               if (!contactKnown) { setTalk({ mode: "details", then: go }); return; }
               go();
             }}
-            detailed={quoteStageV10On() && quick.jobType !== "exterior"}
+            detailed={quoteStageV10On()}
             // Session 5: "book a time first" is the booking page (brief §4 / §5.2 — the zone's days), both shopfronts.
             onVisit={() => { void recordRangeOption(reveal.estimateId, "visit"); clearResume(); router.push(`/estimate/visit?id=${reveal.estimateId}`); }}
             onBook={() => { void recordRangeOption(reveal.estimateId, "visit"); clearResume(); router.push(`/estimate/visit?id=${reveal.estimateId}`); }}
