@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { browserClient } from "@/lib/supabase/lazyClient";
+import { uploadSpotPhoto } from "@/lib/wizard/spotPhoto";
 import {
   EXTENT_LABEL, majorExtentNotice, OTHER_TAG_KEY, prepPrompt, SPOT_EXTENTS, tagsFor,
   type RoomCondition, type SpotExtent,
@@ -92,38 +92,8 @@ export default function RoomSpots({
     }
   }
 
-  /** Stage one photo, claim it, and read it. */
-  async function uploadPhoto(file: File): Promise<{ sourceId: string | null; suggestion: SuggestedSpot | null }> {
-    const supabase = await browserClient();
-    const prep = await fetch("/api/extract/upload-url", {
-      method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ files: [{ name: file.name, size: file.size }] }),
-    });
-    const prepJson = await prep.json().catch(() => ({}));
-    if (!prep.ok) throw new Error(prepJson.error ?? "That photo couldn't be uploaded.");
-    const slot = (prepJson.uploads ?? [])[0] as { path: string; token: string } | undefined;
-    if (!slot) throw new Error("That photo couldn't be uploaded.");
-    const { error: upErr } = await supabase.storage
-      .from("estimate-sources").uploadToSignedUrl(slot.path, slot.token, file);
-    if (upErr) throw new Error("That photo couldn't be uploaded — try a smaller one.");
-    const res = await fetch("/api/extract/photos", {
-      method: "POST", headers: { "Content-Type": "application/json" },
-      // estimateId CLAIMS the row. Without it the photo is written with
-      // estimate_id null and nothing ever sets it — the orphaned-photo bug
-      // that left 92 rows unreachable (R5, estimate-documents).
-      body: JSON.stringify({
-        uploads: [{ path: slot.path, name: `${roomName} — ${file.name}`.slice(0, 200) }],
-        estimateId,
-        // Phase 9: read it, so the customer confirms rather than types.
-        analyse: true,
-      }),
-    });
-    const j = await res.json().catch(() => ({}));
-    if (!res.ok) throw new Error(j.error ?? "That photo couldn't be saved.");
-    const ids: string[] = Array.isArray(j.sourceIds) ? j.sourceIds : [];
-    const per = Array.isArray(j.perPhoto) ? j.perPhoto : [];
-    return { sourceId: ids[0] ?? null, suggestion: per[0]?.suggestion ?? null };
-  }
+  /** Stage one photo, claim it, and read it — the one upload path (`lib/wizard/spotPhoto.ts`). */
+  const uploadPhoto = (file: File) => uploadSpotPhoto(file, { estimateId, label: roomName, analyse: true });
 
   const isOther = tag === OTHER_TAG_KEY;
   const canAdd = tag != null && !(isOther && note.trim() === "") && !busy && !pending && !reading;

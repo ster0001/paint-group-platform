@@ -3,6 +3,8 @@ import { randomBytes } from "node:crypto";
 import { test } from "../helpers";
 import { serviceClient } from "../fixtures/woLoop";
 import { MONEY_RANGE, driveMobileQuickLook, openQuickLook, fillQuickAddress } from "./drive";
+/** D-Q5: `lib/wizard/spotPhoto.ts SPOT_PHOTO_MAX_BYTES` (not imported — that module loads the browser client). */
+const SPOT_PHOTO_MAX_BYTES = 5 * 1024 * 1024;
 
 /**
  * QUOTE STAGE v10 — session 1, the skeleton (`docs/briefs/claude-code-brief-quote-stage-v10.md`
@@ -16,6 +18,15 @@ import { MONEY_RANGE, driveMobileQuickLook, openQuickLook, fillQuickAddress } fr
  * greyed typicals, "That's the size" or "Not sure — use the typical"; then
  * a done screen with the range (never one number), which rooms stayed
  * typical, and "Book <estimator> to confirm it". Nothing says "exact".
+ *
+ * Session 3 (§3 B2–B4, E, F): after each room's size — what we're painting
+ * in here (chips with counts, scope and sizes), robes and cupboards (No
+ * advances; Yes asks the loop's own two questions), anything needing
+ * attention (tags, how much, a photo of the spot — D-Q5 limits); then
+ * "Have we got every room?" (the list, + Add a room opening on its size
+ * card, the doors-and-windows check) and "Anything we haven't listed?";
+ * the done screen names the customer and a typical line taps back to its
+ * size card.
  */
 const FLAG_ON = process.env.NEXT_PUBLIC_QUOTE_STAGE_V10 === "1";
 const db = serviceClient();
@@ -33,6 +44,23 @@ test.describe("quote stage v10 — session 1: the cards on a phone", () => {
     for (const r of rows ?? []) if (r.estimate_id) await db.from("estimates").delete().eq("id", r.estimate_id);
   });
   const card = (page: Page, id: string) => expect(page.getByTestId("quote-stage")).toHaveAttribute("data-quote-card", id, { timeout: 15_000 });
+  const cardId = (page: Page) => page.getByTestId("quote-stage").getAttribute("data-quote-card");
+  /** Pass one card the quickest honest way: typical size, Next, No robe, nothing to fix, every room, Next. */
+  const passCard = async (page: Page) => {
+    const id = (await cardId(page))!;
+    if (id.startsWith("measure:")) await page.getByTestId("q-size-typical").tap();
+    else if (id.startsWith("robe:")) await page.getByTestId("q-robe-none").tap();
+    else await page.getByTestId("q-next").tap();
+    await expect.poll(() => cardId(page), { timeout: 30_000 }).not.toBe(id);
+  };
+  const passUntil = async (page: Page, stop: (id: string) => boolean) => {
+    for (let i = 0; i < 60; i++) {
+      const id = (await cardId(page))!;
+      if (stop(id)) return;
+      await passCard(page);
+    }
+    throw new Error("never reached the card");
+  };
 
   test("the gate's door, the whole-house cards in order with drawings, a measure card per room, the done screen", async ({ page }) => {
     test.setTimeout(300_000);
@@ -140,9 +168,11 @@ test.describe("quote stage v10 — session 1: the cards on a phone", () => {
     await page.getByTestId("q-measure-l").fill("3.5");
     await expect(page.getByTestId("q-typical-note")).toHaveCount(0);
     await page.getByTestId("q-size-ok").tap();
-    await expect(page.getByTestId("q-stage")).toContainText(/· 2 of \d+/, { timeout: 30_000 });
+    // S3: the size card is followed by this room's three other cards — "What we're painting in here" first
+    await expect(stage).toHaveAttribute("data-quote-card", /^surfaces:/, { timeout: 30_000 });
+    await expect(page.getByTestId("q-stage")).toContainText(/· 1 of \d+/);
     // §5 (S2) — the measured room's line now carries its amount and no "(typical)"; the band has moved on; the tile counts one fewer
-    const firstId = (await page.getByTestId("quote-stage").getAttribute("data-quote-card"))!;
+    const firstId = (await cardId(page))!;
     await page.getByTestId("q-tile-quote").tap();
     const measuredLine = page.locator("[data-testid^='q-line-'][data-state='measured']").first();
     await expect(measuredLine).toBeVisible();
@@ -151,27 +181,97 @@ test.describe("quote stage v10 — session 1: the cards on a phone", () => {
     await expect(page.getByTestId("q-thumb").locator("[data-state='measured']")).toHaveCount(1);
     expect(Number(await page.getByTestId("q-band").getAttribute("data-settled"))).toBeGreaterThan(settled0);
     await page.getByTestId("q-tile-quote").tap();
-    expect(firstId).toMatch(/^measure:/);
+    expect(firstId).toMatch(/^surfaces:/);
+    const firstArea = Number(firstId.split(":")[1]);
     // back: the first room now reads measured
     await page.getByTestId("wzm-back").tap();
-    await expect(page.getByTestId("q-stage")).toContainText(/· 1 of \d+/);
+    await card(page, `measure:${firstArea}`);
     await expect(page.getByTestId("q-measure")).toHaveAttribute("data-measured", "1");
     await expect(page.getByTestId("q-measure-w")).toHaveAttribute("placeholder", "4");
+    // B1 (S3): the room photo control, with the D-Q5 size limit enforced before anything is sent
+    await expect(page.getByTestId("q-room-photo-label")).toContainText("Add a photo of the room");
+    await page.getByTestId("q-room-photo").setInputFiles({ name: "huge.png", mimeType: "image/png", buffer: Buffer.alloc(SPOT_PHOTO_MAX_BYTES + 1) });
+    await expect(page.getByTestId("q-photo-error")).toContainText("over 5 MB");
     await page.getByTestId("q-size-ok").tap();
-    await expect(page.getByTestId("q-stage")).toContainText(/· 2 of \d+/, { timeout: 30_000 });
-    // the rest: Not sure — use the typical size for now
-    for (let i = 0; i < 12; i++) {
-      const id = await stage.getAttribute("data-quote-card");
-      if (id === "done") break;
-      await page.getByTestId("q-size-typical").tap();
-      await expect.poll(() => stage.getAttribute("data-quote-card"), { timeout: 30_000 }).not.toBe(id);
+    await card(page, `surfaces:${firstArea}`);
+    // B2 — what we're painting in here: the tiles as chips; doors + → 2; the door scope and the window key
+    await expect(page.getByTestId("wzm-h1")).toHaveText("What we’re painting in here");
+    const chips = page.getByTestId("q-surfaces").locator("button.wzm-chip");
+    expect(await chips.count()).toBeGreaterThan(3);
+    await expect(page.getByTestId("q-surf-walls")).toHaveAttribute("aria-pressed", "true");
+    await expect(page.getByTestId("q-walls-share-100")).toHaveClass(/sel/);
+    const doorsBefore = Number(await page.getByTestId("q-count-doors").locator("b").innerText());
+    await page.getByTestId("q-count-doors").getByRole("button", { name: "More" }).tap();
+    await expect(page.getByTestId("q-count-doors").locator("b")).toHaveText(String(doorsBefore + 1), { timeout: 30_000 });
+    await expect(page.getByTestId("q-win-key")).toContainText("S under 50 × 50 cm");
+    await page.getByTestId("q-add-surface").tap();
+    await expect(page.getByTestId("q-add-panel")).toBeVisible();
+    await page.getByTestId("q-add-surface").tap();
+    await page.getByTestId("q-next").tap();
+    await expect(stage).toHaveAttribute("data-quote-card", new RegExp(`^(robe|attention):${firstArea}$`), { timeout: 30_000 });
+    // B3 — robes and cupboards (only where the loop offers a row): Yes opens the loop's own questions
+    if ((await cardId(page)) === `robe:${firstArea}`) {
+      await expect(page.getByTestId("wzm-h1")).toContainText("robes or cupboards");
+      await page.getByTestId("q-robe-yes").tap();
+      await expect(page.getByTestId("q-robe-more")).toBeVisible();
+      await page.getByTestId("q-robe-doors-yes").tap();
+      await expect(page.getByTestId("q-robe-doors-yes")).toHaveAttribute("aria-pressed", "true");
+      await page.getByTestId("q-next").tap();
     }
+    await card(page, `attention:${firstArea}`);
+    // B4 — anything needing attention: a crack, patches here and there, a photo of the spot (the real upload path), Add it
+    await expect(page.getByTestId("wzm-h1")).toHaveText("Anything needing attention?");
+    await expect(page.getByTestId("q-next")).toHaveText("Nothing to fix — next");
+    await page.getByTestId("q-prep-crack").tap();
+    await expect(page.getByTestId("q-prep-extent")).toBeVisible();
+    await page.getByTestId("q-prep-extent-patches").tap();
+    await page.getByTestId("q-prep-photo").setInputFiles("e2e/fixtures/condition-photo.png");
+    await expect(page.getByTestId("q-prep-photo-label")).toContainText("Photo added", { timeout: 90_000 });
+    await page.getByTestId("q-prep-add").tap();
+    await expect(stage).toHaveAttribute("data-quote-card", /^measure:/, { timeout: 30_000 });
+    // back: the crack is noted on the room, removable; nothing picked → "Nothing to fix — next"
+    await page.getByTestId("wzm-back").tap();
+    await card(page, `attention:${firstArea}`);
+    await expect(page.getByTestId("q-spots-noted")).toContainText(/crack/i);
+    await page.getByTestId("q-next").tap();
+    // the rest of the rooms: the typical size, Next, No robe, nothing to fix — until the last checks
+    await passUntil(page, (id) => id === "rooms");
+    // E1 — have we got every room? the list, the doors-and-windows check, + Add a room → its size card
+    await expect(page.getByTestId("wzm-h1")).toHaveText("Have we got every room?");
+    const listed = await page.getByTestId("q-rooms").locator("li").count();
+    expect(listed).toBeGreaterThan(2);
+    await expect(page.getByTestId("q-dw")).toContainText(/\d+ doors? and \d+ windows? across the house/);
+    await page.getByTestId("q-dw-yes").tap();
+    await page.getByTestId("q-add-room").tap();
+    const study = page.getByTestId("q-room-type-study");
+    if (await study.count()) await study.tap(); else await page.getByTestId("q-add-room-panel").locator("button.wzm-chip").first().tap();
+    await page.getByTestId("q-room-name").fill("Study");
+    await page.getByTestId("q-add-room-go").tap();
+    await expect(stage).toHaveAttribute("data-quote-card", /^measure:/, { timeout: 30_000 });
+    await expect(page.getByTestId("q-stage")).toContainText("Study");
+    await passUntil(page, (id) => id === "rooms");
+    await expect(page.getByTestId("q-rooms").locator("li")).toHaveCount(listed + 1);
+    await expect(page.getByTestId("q-rooms")).toContainText("Study");
+    await page.getByTestId("q-next").tap();
+    await card(page, "extras");
+    // E2 — anything we haven't listed? a priced extra (where the rate card offers one), help with colours, a note
+    await expect(page.getByTestId("wzm-h1")).toHaveText("Anything we haven’t listed?");
+    const extra = page.getByTestId("q-extras").locator("button[data-testid^='q-extra-']:not([data-testid='q-extra-colour'])").first();
+    if (await extra.count()) {
+      await expect(extra).toContainText(/\$\d/);
+      await extra.tap();
+      await expect(extra).toHaveAttribute("aria-pressed", "true", { timeout: 30_000 });
+    }
+    await page.getByTestId("q-extra-colour").tap();
+    await expect(page.getByTestId("q-extra-colour")).toHaveAttribute("aria-pressed", "true", { timeout: 30_000 });
+    await page.getByTestId("q-extra-note").fill("The ceiling rose in the hall");
+    await page.getByTestId("q-next").tap();
     await card(page, "done");
     // F — the done screen: a range, never one number; the typical rooms named; no "exact" / "±"; the one door
-    await expect(page.getByTestId("gate-label")).toHaveText("Your detailed price");
+    await expect(page.getByTestId("gate-label")).toHaveText("Quote, your detailed price");
     await expect(page.getByTestId("gate-range")).toHaveText(MONEY_RANGE);
     await expect(page.getByTestId("gate-fine")).toContainText(/at the typical size/);
-    await expect(page.getByTestId("gate-fine")).toContainText(/confirmed on the day/);
+    await expect(page.getByTestId("gate-fine")).toContainText(/Repairs in 1 room are allowed for and confirmed on the day/);
     await expect(page.getByTestId("gate-tiles").locator("li").nth(1)).toContainText("Your detailed price");
     // §5 (S2) — the quote in full on the done screen: every line settled → "Quote", "Your price", still a range
     const doneDoc = page.getByTestId("q-done-doc").getByTestId("q-doc");
@@ -180,6 +280,16 @@ test.describe("quote stage v10 — session 1: the cards on a phone", () => {
     await expect(doneDoc.getByTestId("q-doc-total")).toContainText(MONEY_RANGE);
     await expect(doneDoc.locator("[data-testid^='q-line-'][data-state='todo']")).toHaveCount(0);
     expect(await stage.innerText()).not.toMatch(/exact|±|within \d+%/i);
+    // F (S3): a typical line taps back to that room's size card; measure it and come back through its cards
+    const typicalLine = doneDoc.locator("[data-testid^='q-line-'][data-state='typical']").first();
+    const typicalArea = (await typicalLine.getAttribute("data-testid"))!.replace("q-line-", "");
+    await typicalLine.tap();
+    await card(page, `measure:${typicalArea}`);
+    await page.getByTestId("q-measure-w").fill("3.6");
+    await page.getByTestId("q-measure-l").fill("3.1");
+    await page.getByTestId("q-size-ok").tap();
+    await passUntil(page, (id) => id === "done");
+    await expect(page.getByTestId("q-done-doc").getByTestId(`q-line-${typicalArea}`)).toHaveAttribute("data-state", "measured");
     expect(await page.getByTestId("wzm-bar").evaluate((el) => parseFloat((el as HTMLElement).style.width))).toBe(100);
     await expect(page.getByTestId("q-book")).toContainText(/Book .+ to confirm it/);
     // Contact from a card
@@ -194,6 +304,8 @@ test.describe("quote stage v10 — session 1: the cards on a phone", () => {
     expect(events.some((e) => e.type === "quote_line_settled" && e.payload.state === "measured")).toBe(true);
     expect(events.some((e) => e.type === "quote_line_settled" && e.payload.state === "typical")).toBe(true);
     expect(types).toContain("quote_stage_done");
+    expect(events.some((e) => e.type === "quote_photo_added" && e.payload.kind === "prep")).toBe(true);
+    expect(events.some((e) => e.type === "quote_card_answered" && e.payload.card === "attention")).toBe(true);
     // the door
     await page.getByTestId("q-book").tap();
     await expect(page).toHaveURL(/\/estimate\/visit\?id=/, { timeout: 30_000 });

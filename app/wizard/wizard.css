@@ -2796,3 +2796,39 @@
 .wz .wzq-doc .ql.total .amt { font-family: var(--mono, ui-monospace, "Martian Mono", monospace); font-size: 15px; }
 .wz .wzq-done-doc { margin: 14px 0 18px; }
 .wz .wzq-tile .roller { opacity: 0; } .wz .wzq-tile .roller.on { opacity: 1; }
+
+/* ── QUOTE STAGE v10 — S3: the room cards (what we're painting, robes, attention), the last checks, the photo button. ── */
+.wz .wzq .wzm-chip { position: relative; }
+.wz .wzq .wzm-chip .n { display: inline-flex; align-items: center; gap: 2px; margin-left: 4px; }
+.wz .wzq .wzm-chip .n button { width: 30px; height: 30px; border-radius: 50%; border: 1.5px solid var(--line); background: var(--panel2); font: inherit; font-size: 18px; line-height: 1; color: var(--heading); cursor: pointer; padding: 0; }
+.wz .wzq .wzm-chip .n button:disabled { opacity: .4; }
+.wz .wzq .wzm-chip .n b { min-width: 22px; text-align: center; font-variant-numeric: tabular-nums; }
+.wz .wzq .wzm-chip .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 999px; overflow: hidden; margin-left: 4px; }
+.wz .wzq .wzm-chip .seg span { padding: 4px 8px; font-size: 12px; font-weight: 600; color: var(--muted); cursor: pointer; }
+.wz .wzq .wzm-chip .seg span.sel { background: var(--cyan); color: #fff; }
+.wz .wzq .wzm-chip.on { flex-wrap: wrap; }
+.wz .wzq-addpanel { margin-top: 12px; padding: 12px; border: 1px dashed var(--line); border-radius: 14px; background: var(--panel2); display: grid; gap: 10px; }
+.wz .wzq-field--text { display: block; border: 1.5px solid var(--line); border-radius: 14px; padding: 8px 12px; background: var(--panel); }
+.wz .wzq-field--text > span { display: block; font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; }
+.wz .wzq-field--text > input, .wz .wzq-field--text > textarea { width: 100%; border: 0; background: transparent; font: inherit; font-size: 16px; color: var(--text); outline: none; padding: 2px 0 0; }
+.wz .wzq-field--text > textarea { resize: vertical; min-height: 64px; }
+.wz .wzq-sub { margin-top: 14px; }
+.wz .wzq-grp { font-size: 14px; font-weight: 600; color: var(--heading); margin: 14px 0 8px; }
+.wz .wzq-noted { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 10px; }
+.wz .wzq-noted-row { display: inline-flex; align-items: center; gap: 6px; padding: 6px 8px 6px 12px; border-radius: 999px; background: var(--wash); border: 1px solid var(--cyan); font-size: 13px; font-weight: 600; color: var(--heading); }
+.wz .wzq-noted-row button { width: 22px; height: 22px; border-radius: 50%; border: 0; background: var(--panel); color: var(--muted); font: inherit; font-size: 14px; line-height: 1; cursor: pointer; }
+.wz .wzq-photo { margin-top: 12px; }
+.wz .wzq .sc-photodrop { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border: 1.5px dashed var(--line); border-radius: 14px; background: var(--panel); cursor: pointer; }
+.wz .wzq .sc-photodrop input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+.wz .wzq .sc-photodrop.ready { border-style: solid; border-color: var(--cyan); background: var(--wash); }
+.wz .wzq .sc-photodrop.off { opacity: .5; cursor: default; }
+.wz .wzq .sc-photodrop-icon { font-size: 20px; }
+.wz .wzq .sc-photodrop-text b { display: block; font-size: 14px; color: var(--heading); }
+.wz .wzq .sc-photodrop-text span { display: block; font-size: 12px; color: var(--muted); }
+.wz .wzq-rooms { list-style: none; margin: 0; padding: 0; border: 1px solid var(--line); border-radius: 14px; background: var(--panel); overflow: hidden; }
+.wz .wzq-rooms li { display: flex; justify-content: space-between; padding: 10px 14px; border-bottom: 1px solid var(--line); font-size: 15px; font-weight: 600; color: var(--heading); }
+.wz .wzq-rooms li:last-child { border-bottom: 0; }
+.wz .wzq-rooms li span { color: var(--muted); font-weight: 400; font-variant-numeric: tabular-nums; }
+.wz .wzq-doc .ql.tap { cursor: pointer; }
+.wz .wzq-doc .ql.tap:hover { background: var(--wash); }
+

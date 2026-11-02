@@ -1,15 +1,22 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import type { CustomerPayload } from "@/lib/wizard/view";
 import type { RoomLoopView } from "@/lib/wizard/rooms-loop";
+import type { CustomerScopeRoom, CustomerTile } from "@/lib/wizard/scope-editor";
+import type { InteriorLoopView } from "@/lib/wizard/customer-scope";
+import type { JobExtra } from "@/lib/wizard/extras";
+import { EXTENT_LABEL, OTHER_TAG_KEY, SPOT_EXTENTS, tagsFor, type SpotExtent } from "@/lib/wizard/spots";
+import { SPOT_PHOTOS_PER_ROOM, SPOT_PHOTO_MAX_BYTES, uploadSpotPhoto } from "@/lib/wizard/spotPhoto";
+import { ADD_ROOM_TYPES, roomTypeForName } from "@/lib/wizard/quick-look";
+import PhotoDrop from "@/app/estimate/scope/PhotoDrop";
 import type { SiteAccess } from "@/lib/wizard/site-access";
 import type { Estimator } from "@/lib/wizard/estimator";
 import type { WizardBrand } from "@/lib/wizard/brand";
 import { assertCustomerShape } from "@/lib/wizard/contract";
 import { breakpointNow, sendWizardEvent } from "@/lib/wizard/wizardEvents";
-import { quoteCards, quoteProgress, typicalRoomNames, type GeneralAnswers, type GeneralCard, type MeasureCard, type QuoteRoom } from "@/lib/quote/cards";
+import { quoteCards, quoteProgress, quoteRoomsFrom, typicalRoomNames, type AttentionCard, type GeneralAnswers, type GeneralCard, type MeasureCard, type QuoteRoom, type RobeCard, type RoomsCard, type SurfacesCard } from "@/lib/quote/cards";
 import { quoteDocument, quoteSummary, type PreparedFor, type QuoteDocument, type QuoteLine } from "@/lib/quote/quote";
 import { useRollerSweep } from "@/app/wizard/pictures/rollerSweep";
 import { DOOR_DRAWINGS, WINDOW_DRAWINGS } from "@/app/estimate/scope/StyleTiles";
@@ -27,22 +34,38 @@ import MobileContact from "@/app/wizard/MobileContact";
  * typical, Book <estimator>), and the events of §7. Every answer is one of
  * the scope page's own `wizard-edit` actions (R0): the server re-prices and
  * answers with the same customer payload the scope page draws; this file
- * computes nothing about money. The quote document, the price band, the
- * three other room cards, the drawing, the floorplan and the desktop
- * format are sessions 2–6.
+ * computes nothing about money. Session 3 adds the three other room cards
+ * (what we're painting in here, robes and cupboards, anything needing
+ * attention — with the room and spot photos, D-Q5), the last checks (every
+ * room? anything we haven't listed?) and the done screen's name line; the
+ * drawing, the floorplan and the desktop format are sessions 4–6.
  */
-type Payload = CustomerPayload & { interiorLoop?: { rooms: RoomLoopView[] } | null; error?: string; outcome?: string; message?: string };
+type RoomExtrasRow = { featureWalls: number; wallpaper: boolean; other: string };
+type JobExtrasState = { on: string[]; counts: Record<string, number>; colourHelp: boolean; note: string };
+type Payload = CustomerPayload & {
+  interiorLoop?: { rooms: RoomLoopView[]; catalogue?: InteriorLoopView["catalogue"] } | null;
+  scopeRooms?: CustomerScopeRoom[]; roomExtras?: Record<string, RoomExtrasRow>; jobExtras?: JobExtrasState;
+  error?: string; outcome?: string; message?: string;
+};
+type Act = (body: Record<string, unknown>) => Promise<Payload | null>;
 const fmt = (cents: number) => `$${Math.round(cents / 100).toLocaleString("en-AU")}`;
 const DRAWING: Record<NonNullable<GeneralCard["options"][number]["drawing"]>, ReactNode> = {
   "door-panel": DOOR_DRAWINGS.panel, "door-flat": DOOR_DRAWINGS.flat,
   "win-casement": WINDOW_DRAWINGS.casement, "win-sash": WINDOW_DRAWINGS.sash, "win-colonial": WINDOW_DRAWINGS.colonial, "win-winder": WINDOW_DRAWINGS.winder,
 };
 
-export default function QuoteStage({ brand, estimateId, initial, initialRooms, initialCornices, initialAccess, logoUrl, estimator, companyPhone, customerSuburb, preparedFor, quoteNo, quoteDate }: {
+export default function QuoteStage({ brand, estimateId, initial, initialScopeRooms, initialLoop, catalogue, initialRoomExtras, initialExtras, roomTypes, initialCornices, initialAccess, logoUrl, estimator, companyPhone, customerSuburb, preparedFor, quoteNo, quoteDate }: {
   brand: WizardBrand;
   estimateId: string;
   initial: CustomerPayload;
-  initialRooms: QuoteRoom[];
+  /** The scope page's own three room views, joined here by `quoteRoomsFrom`. */
+  initialScopeRooms: CustomerScopeRoom[];
+  initialLoop: RoomLoopView[];
+  catalogue: InteriorLoopView["catalogue"];
+  initialRoomExtras: Record<string, RoomExtrasRow>;
+  /** §3 E2 — the extras on offer (from the rate card) and what is on. */
+  initialExtras: { offer: JobExtra[] } & JobExtrasState;
+  roomTypes: string[];
   initialCornices: "none" | "standard" | "decorative" | null;
   initialAccess: { answers: SiteAccess; asksLift: boolean };
   logoUrl: string | null;
@@ -57,7 +80,11 @@ export default function QuoteStage({ brand, estimateId, initial, initialRooms, i
   const router = useRouter();
   const [quoteOpen, setQuoteOpen] = useState(false);
   const [payload, setPayload] = useState<Payload>(initial);
-  const [rooms, setRooms] = useState<QuoteRoom[]>(initialRooms);
+  const [scopeRooms, setScopeRooms] = useState<CustomerScopeRoom[]>(initialScopeRooms);
+  const [loop, setLoop] = useState<RoomLoopView[]>(initialLoop);
+  const [roomExtras, setRoomExtras] = useState<Record<string, RoomExtrasRow>>(initialRoomExtras);
+  const [jobExtras, setJobExtras] = useState<JobExtrasState>({ on: initialExtras.on, counts: initialExtras.counts, colourHelp: initialExtras.colourHelp, note: initialExtras.note });
+  const rooms = useMemo(() => quoteRoomsFrom(scopeRooms, loop, roomExtras), [scopeRooms, loop, roomExtras]);
   const [general, setGeneral] = useState<GeneralAnswers>({ cornices: initialCornices });
   const [access, setAccess] = useState<SiteAccess>(initialAccess.answers);
   const [index, setIndex] = useState(0);
@@ -74,38 +101,42 @@ export default function QuoteStage({ brand, estimateId, initial, initialRooms, i
   const doc = quoteDocument({ payload, rooms, preparedFor, number: quoteNo, date: quoteDate, generalToGo });
   const summary = quoteSummary(rooms, generalToGo);
   const settled = payload.confirmedShare ?? summary.settledShare;
-  const currentAreaId = current.kind === "measure" ? current.areaId : null;
+  const currentAreaId = "areaId" in current ? current.areaId : null;
+  const firstName = preparedFor.name?.trim().split(/\s+/)[0] ?? null;
 
   // §7: the stage viewed once, the done screen once.
-  useEffect(() => { sendWizardEvent("quote_stage_viewed", { job_kind: "interior", lines: initialRooms.length, breakpoint: breakpointNow() }); }, [initialRooms.length]);
+  useEffect(() => { sendWizardEvent("quote_stage_viewed", { job_kind: "interior", lines: initialScopeRooms.length, breakpoint: breakpointNow() }); }, [initialScopeRooms.length]);
   useEffect(() => { window.scrollTo({ top: 0 }); }, [current.id]);
 
   /** One whitelisted action to the scope page's own route; the server's payload comes back and is the truth. */
-  const act = useCallback(async (body: Record<string, unknown>): Promise<boolean> => {
+  const act = useCallback<Act>(async (body) => {
     setBusy(true); setError(null);
     try {
       const res = await fetch(`/api/estimates/${estimateId}/wizard-edit`, {
         method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...body, view: "customer" }),
       });
       const j = (await res.json().catch(() => ({}))) as Payload;
-      if (!res.ok) { setError(j.error ?? "That didn't save — try again."); return false; }
+      if (!res.ok) { setError(j.error ?? "That didn't save — try again."); return null; }
       assertCustomerShape(j, "QuoteStage");
-      if (typeof j.outcome === "string" && j.outcome !== "reveal") { setError(j.message ?? "That change needs one of our team — we'll be in touch."); return false; }
+      if (typeof j.outcome === "string" && j.outcome !== "reveal") { setError(j.message ?? "That change needs one of our team — we'll be in touch."); return null; }
       setPayload(j);
-      if (j.interiorLoop?.rooms) {
-        const loop = j.interiorLoop.rooms;
-        setRooms((rs) => rs.map((r) => { const l = loop.find((x) => x.areaId === r.areaId); return l ? { ...r, lengthM: l.lengthM, widthM: l.widthM, heightM: l.heightM, size: l.size, confirmed: l.confirmed } : r; }));
-      }
-      return true;
+      if (j.scopeRooms) setScopeRooms(j.scopeRooms);
+      if (j.interiorLoop?.rooms) setLoop(j.interiorLoop.rooms);
+      if (j.roomExtras) setRoomExtras(j.roomExtras);
+      if (j.jobExtras) setJobExtras(j.jobExtras);
+      return j;
     } catch {
       setError("That didn't save — check your connection and try again.");
-      return false;
+      return null;
     } finally { setBusy(false); }
   }, [estimateId]);
 
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => () => { if (timer.current) clearTimeout(timer.current); }, []);
   const advance = () => setIndex((i) => Math.min(i + 1, cards.length - 1));
+  /** F: a typical or open line on the done screen jumps back to that room's size card; E1's new room opens on its size card. */
+  const jumpTo = (id: string) => { const k = cards.findIndex((c) => c.id === id); if (k >= 0) setIndex(k); };
+  const answered = (card: string, line: number | null) => sendWizardEvent("quote_card_answered", { card, line, measured: false });
   const back = () => { if (timer.current) clearTimeout(timer.current); if (index > 0) setIndex(index - 1); else router.back(); };
 
   // A: a single choice — the answer is kept locally for the pre-select, written through the action, and the card moves on ~300ms later.
@@ -122,6 +153,7 @@ export default function QuoteStage({ brand, estimateId, initial, initialRooms, i
 
   // F: Book <who> to confirm it — the visit page, the one door of the done screen (and Contact's).
   const book = () => { sendWizardEvent("quote_book_clicked", {}); router.push(`/estimate/visit?id=${estimateId}`); };
+  const prepRooms = rooms.filter((r) => r.spots.length > 0 || r.extras.featureWalls > 0 || r.extras.wallpaper).length;
   useEffect(() => {
     if (current.kind !== "done") return;
     const typical = typicalRoomNames(rooms).length;
@@ -178,7 +210,7 @@ export default function QuoteStage({ brand, estimateId, initial, initialRooms, i
           )}
 
           {current.kind === "measure" && (
-            <MeasureScreen key={current.id} card={current} busy={busy}
+            <MeasureScreen key={current.id} card={current} busy={busy} estimateId={estimateId}
               onSize={async (dims) => {
                 const ok = dims
                   ? await act({ action: "room_dims", areaId: current.areaId, lengthM: dims.lengthM, widthM: dims.widthM, ...(dims.heightM != null ? { heightM: dims.heightM } : {}) })
@@ -190,16 +222,35 @@ export default function QuoteStage({ brand, estimateId, initial, initialRooms, i
               }} />
           )}
 
+          {current.kind === "surfaces" && (
+            <SurfacesScreen key={current.id} card={current} busy={busy} act={act} catalogue={catalogue} onNext={() => { answered("surfaces", current.areaId); advance(); }} />
+          )}
+          {current.kind === "robe" && (
+            <RobeScreen key={current.id} card={current} busy={busy} act={act} onNext={() => { answered("robe", current.areaId); advance(); }} />
+          )}
+          {current.kind === "attention" && (
+            <AttentionScreen key={current.id} card={current} busy={busy} act={act} estimateId={estimateId} onNext={() => { answered("attention", current.areaId); advance(); }} />
+          )}
+          {current.kind === "rooms" && (
+            <RoomsScreen key={current.id} card={current} busy={busy} act={act} roomTypes={roomTypes}
+              onAdded={(areaId) => { answered("rooms", areaId); jumpTo(`measure:${areaId}`); }}
+              onNext={() => { answered("rooms", null); advance(); }} />
+          )}
+          {current.kind === "extras" && (
+            <ExtrasScreen key={current.id} offer={initialExtras.offer} state={jobExtras} busy={busy} act={act} onNext={() => { answered("extras", null); advance(); }} />
+          )}
+
           {current.kind === "done" && (
             <section data-testid="q-done">
-              <p className="wzm-gate-label" data-testid="gate-label">Your detailed price</p>
+              <p className="wzm-gate-label" data-testid="gate-label">{firstName ? `${firstName}, your detailed price` : "Your detailed price"}</p>
               <p className="wzm-gate-price" data-testid="gate-range">{fmt(payload.rangeLoCents)} – {fmt(payload.rangeHiCents)}</p>
               <p className="wzm-gate-fine" data-testid="gate-fine">
-                {typicalRoomNames(rooms).length > 0 ? `${typicalRoomNames(rooms).join(", ")} ${typicalRoomNames(rooms).length === 1 ? "is" : "are"} at the typical size. ` : "Every room measured. "}
-                Repairs are allowed for and confirmed on the day. {who} confirms it with you before anything is fixed. Includes GST.
+                {typicalRoomNames(rooms).length > 0 ? `${typicalRoomNames(rooms).join(", ")} ${typicalRoomNames(rooms).length === 1 ? "is" : "are"} at the typical size — tap it below to measure it. ` : "Every room measured. "}
+                {prepRooms > 0 ? `Repairs in ${prepRooms} ${prepRooms === 1 ? "room are" : "rooms are"} allowed for and confirmed on the day. ` : "Repairs are allowed for and confirmed on the day. "}
+                {who} confirms it with you before anything is fixed. Includes GST.
               </p>
-              {/* F: the quote in full */}
-              <div className="wzq-done-doc" data-testid="q-done-doc"><QuoteDoc doc={doc} brand={brand} currentAreaId={null} /></div>
+              {/* F: the quote in full; a typical or open line jumps back to that room's size card */}
+              <div className="wzq-done-doc" data-testid="q-done-doc"><QuoteDoc doc={doc} brand={brand} currentAreaId={null} onLineTap={(areaId) => jumpTo(`measure:${areaId}`)} /></div>
               <ol className="wzm-tiles" data-testid="gate-tiles" data-at={2}>
                 <li className="wzm-tile done" data-state="done"><span className="k" aria-hidden="true">✓</span><b>Your range</b>Done</li>
                 <li className="wzm-tile done" data-state="done"><span className="k" aria-hidden="true">✓</span><b>Your detailed price</b>Just now</li>
@@ -225,8 +276,9 @@ export default function QuoteStage({ brand, estimateId, initial, initialRooms, i
 }
 
 /** §3 B1 — "How big is {room}?": typed numbers over greyed typicals (R2); the typical stands unless something is typed. */
-function MeasureScreen({ card, busy, onSize }: { card: MeasureCard; busy: boolean; onSize: (dims: { lengthM: number; widthM: number; heightM: number | null } | null) => void }) {
+function MeasureScreen({ card, busy, estimateId, onSize }: { card: MeasureCard; busy: boolean; estimateId: string; onSize: (dims: { lengthM: number; widthM: number; heightM: number | null } | null) => void }) {
   const [draft, setDraft] = useState<{ w: string; l: string; h: string }>({ w: "", l: "", h: "" });
+  const photo = useRoomPhotos(estimateId, card.areaId, card.name, "room", false);
   const typed = draft.w.trim() !== "" || draft.l.trim() !== "" || draft.h.trim() !== "";
   const num = (v: string, fallback: number) => { const n = parseFloat(v.replace(/[^0-9.]/g, "")); return isNaN(n) || n <= 0 ? fallback : n; };
   const submit = () => {
@@ -249,6 +301,11 @@ function MeasureScreen({ card, busy, onSize }: { card: MeasureCard; busy: boolea
         {field("w", "Width", card.widthM)}{field("l", "Length", card.lengthM)}{field("h", "Ceiling", card.heightM)}
       </div>
       {!typed && <p className="wzm-note" data-testid="q-typical-note">{card.measured ? "Your numbers — type over them to change them." : "The grey numbers are typical for this room — type yours over them."}</p>}
+      {/* B1: an optional photo of the room (D-Q5: three per room, 5 MB each, the one upload path) */}
+      <div className="wzq-photo">
+        <PhotoDrop testId="q-room-photo" title="Add a photo of the room" hint="Optional. Helps us check it before the visit." ready={photo.ready} disabled={photo.busy || photo.full} onFiles={photo.add} />
+        {photo.error && <p className="wz-err" data-testid="q-photo-error">{photo.error}</p>}
+      </div>
       <div className="wzm-foot" data-testid="wzm-foot">
         <button type="button" className="wzm-cta" disabled={busy} onClick={submit} data-testid="q-size-ok">{busy ? "Saving…" : "That's the size"}</button>
         <p className="wzm-hint"><button type="button" className="wzm-linkish" disabled={busy} onClick={() => onSize(null)} data-testid="q-size-typical">Not sure — use the typical size for now</button></p>
@@ -258,7 +315,7 @@ function MeasureScreen({ card, busy, onSize }: { card: MeasureCard; busy: boolea
 }
 
 /** §5 — the formal quote: header, prepared for, one line per room, the repairs line, the Subtotal / GST / total rows. */
-function QuoteDoc({ doc, brand, currentAreaId }: { doc: QuoteDocument; brand: WizardBrand; currentAreaId: number | null }) {
+function QuoteDoc({ doc, brand, currentAreaId, onLineTap }: { doc: QuoteDocument; brand: WizardBrand; currentAreaId: number | null; onLineTap?: (areaId: number) => void }) {
   return (
     <div className="wzq-doc" data-testid="q-doc" data-title={doc.title}>
       <div className="qh">
@@ -271,7 +328,9 @@ function QuoteDoc({ doc, brand, currentAreaId }: { doc: QuoteDocument; brand: Wi
         {(doc.preparedFor.mobile || doc.preparedFor.email) && <span>{[doc.preparedFor.mobile, doc.preparedFor.email].filter(Boolean).join(" · ")}</span>}
       </div>
       {doc.lines.map((l) => (
-        <div key={l.areaId} className={`ql ${l.state} ${l.areaId === currentAreaId ? "now" : ""}`} data-testid={`q-line-${l.areaId}`} data-state={l.state}>
+        <div key={l.areaId} className={`ql ${l.state} ${l.areaId === currentAreaId ? "now" : ""} ${onLineTap && l.state !== "measured" ? "tap" : ""}`} data-testid={`q-line-${l.areaId}`} data-state={l.state}
+          role={onLineTap && l.state !== "measured" ? "button" : undefined} tabIndex={onLineTap && l.state !== "measured" ? 0 : undefined}
+          onClick={onLineTap && l.state !== "measured" ? () => onLineTap(l.areaId) : undefined}>
           <div>{l.name}<small>{l.size}{l.included ? ` · ${l.included}` : ""}</small></div>
           <div className="amt" data-testid={`q-line-${l.areaId}-amount`}>{l.amount}</div>
         </div>
@@ -342,5 +401,323 @@ function PriceBand({ lo, hi, settled }: { lo: number; hi: number; settled: numbe
       </div>
       <div className="track" aria-hidden="true"><i style={{ width: `${Math.max(6, open * 100)}%`, marginLeft: `${(1 - Math.max(0.06, open)) * 50}%`, background: mix([47, 211, 223], [52, 199, 123], pctSettled / 100) }} /></div>
     </div>
+  );
+}
+
+/** D-Q5 — the room's photos this session: three per room, 5 MB each, through the one upload path; `kind` names the event. */
+function useRoomPhotos(estimateId: string, areaId: number, roomName: string, kind: "room" | "prep", analyse: boolean) {
+  const [count, setCount] = useState(0);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [last, setLast] = useState<{ sourceId: string | null; suggestion: { tag: string; extent: SpotExtent; severity?: 1 | 2 | 3 } | null } | null>(null);
+  const full = count >= SPOT_PHOTOS_PER_ROOM;
+  const add = async (files: File[]) => {
+    const f = files[0];
+    if (!f || full) return;
+    if (f.size > SPOT_PHOTO_MAX_BYTES) { setError("That photo is over 5 MB — try a smaller one."); return; }
+    setBusy(true); setError(null);
+    try {
+      const r = await uploadSpotPhoto(f, { estimateId, label: roomName, analyse });
+      setLast({ sourceId: r.sourceId, suggestion: r.suggestion ? { tag: r.suggestion.tag, extent: r.suggestion.extent, severity: r.suggestion.severity } : null });
+      setCount((n) => n + 1);
+      sendWizardEvent("quote_photo_added", { line: areaId, kind });
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "That photo didn't upload — you can still carry on.");
+    } finally { setBusy(false); }
+  };
+  const ready = count === 0 ? null : count === 1 ? "Photo added" : `${count} photos added`;
+  return { count, busy, error, full, add, ready, last, clear: () => setLast(null) };
+}
+
+/** A chip with − / + (the doors, the window groups, an extra's count). */
+function Counter({ value, min, max, onChange, testId, disabled }: { value: number; min: number; max: number; onChange: (n: number) => void; testId: string; disabled?: boolean }) {
+  return (
+    <span className="n" data-testid={testId}>
+      <button type="button" aria-label="Fewer" disabled={disabled || value <= min} onClick={(e) => { e.stopPropagation(); onChange(value - 1); }}>−</button>
+      <b>{value}</b>
+      <button type="button" aria-label="More" disabled={disabled || value >= max} onClick={(e) => { e.stopPropagation(); onChange(value + 1); }}>+</button>
+    </span>
+  );
+}
+
+/** §3 B2 — "What we're painting in here": the room's tiles as chips; walls with their share, doors with count and scope, the window groups with count and size; + Add a surface. */
+function SurfacesScreen({ card, busy, act, catalogue, onNext }: { card: SurfacesCard; busy: boolean; act: Act; catalogue: InteriorLoopView["catalogue"]; onNext: () => void }) {
+  const room = card.room;
+  const [adding, setAdding] = useState(false);
+  const [custom, setCustom] = useState("");
+  const tile = (key: string) => room.tiles.find((t) => String(t.key) === key);
+  const walls = tile("walls"); const doors = tile("doors"); const windows = tile("windows");
+  const plain = room.tiles.filter((t) => !["walls", "doors", "windows"].includes(String(t.key)) && (t.on || !t.longTail));
+  const toggle = (t: CustomerTile) => t.surfaceId != null && t.on
+    ? act({ action: "room_remove_line", areaId: room.areaId, surfaceId: t.surfaceId })
+    : act({ action: "toggle_surface", areaId: room.areaId, key: String(t.key), on: !t.on });
+  const chip = (t: CustomerTile, extra?: ReactNode) => (
+    <button key={String(t.key)} type="button" className={`wzm-chip ${t.on ? "on" : ""}`} aria-pressed={t.on} disabled={busy} data-testid={`q-surf-${String(t.key).replace(/[^a-z0-9]+/gi, "-")}`} onClick={() => void toggle(t)}>
+      {t.label}{t.on && extra}
+    </button>
+  );
+  const seg = (opts: Array<[string, string]>, value: string, pick: (v: string) => void, testId: string) => (
+    <span className="seg" data-testid={testId}>
+      {opts.map(([v, label]) => <span key={v} role="button" tabIndex={0} className={value === v ? "sel" : ""} data-testid={`${testId}-${v}`} onClick={(e) => { e.stopPropagation(); pick(v); }} onKeyDown={(e) => { if (e.key === "Enter") { e.stopPropagation(); pick(v); } }}>{label}</span>)}
+    </span>
+  );
+  const offered = (catalogue ?? []).filter((o) => !room.tiles.some((t) => t.on && t.label.toLowerCase() === o.label.toLowerCase()));
+  const tail = room.tiles.filter((t) => t.longTail && !t.on);
+  return (
+    <>
+      <h1 data-testid="wzm-h1">What we&rsquo;re painting in here</h1>
+      <p className="wzm-sub" data-testid="wzm-sub">Untick anything we&rsquo;re not doing.</p>
+      <div className="wzm-chips wzq-surf" data-testid="q-surfaces">
+        {walls && chip(walls, seg([["100", "All"], ["75", "75%"], ["50", "50%"], ["25", "25%"]], String(walls.wallsPct ?? 100), (v) => void act({ action: "walls_share", areaId: room.areaId, pct: Number(v) }), "q-walls-share"))}
+        {plain.map((t) => chip(t, t.countable && t.count != null ? <Counter value={t.count} min={1} max={20} testId={`q-count-${String(t.key).replace(/[^a-z0-9]+/gi, "-")}`} disabled={busy}
+          onChange={(n) => void act(t.surfaceId != null ? { action: "room_line_count", areaId: room.areaId, surfaceId: t.surfaceId, count: n } : { action: "set_count", areaId: room.areaId, key: String(t.key), count: n })} /> : undefined))}
+        {doors && chip(doors, <>
+          <Counter value={doors.count ?? 1} min={1} max={12} testId="q-count-doors" disabled={busy} onChange={(n) => void act({ action: "set_count", areaId: room.areaId, key: "doors", count: n })} />
+          {seg([["door", "door"], ["frame", "+ frame"], ["architrave", "+ architrave"]], doors.doorScope ?? "frame", (v) => void act({ action: "room_door_scope", areaId: room.areaId, scope: v }), "q-door-scope")}
+        </>)}
+        {windows && (windows.on && room.windows.length > 0
+          ? room.windows.map((w) => (
+            <button key={w.id} type="button" className="wzm-chip on" aria-pressed data-testid={`q-win-${w.id}`} disabled={busy} onClick={() => void act({ action: "room_remove_line", areaId: room.areaId, surfaceId: w.id })}>
+              {w.label}
+              <Counter value={w.count} min={1} max={20} testId={`q-count-win-${w.id}`} disabled={busy} onChange={(n) => void act({ action: "room_line_count", areaId: room.areaId, surfaceId: w.id, count: n })} />
+              {seg([["S", "S"], ["M", "M"], ["L", "L"]], w.sizeBand, (v) => void act({ action: "room_win_size", areaId: room.areaId, surfaceId: w.id, size: v }), `q-win-size-${w.id}`)}
+            </button>
+          ))
+          : chip(windows))}
+        <button type="button" className="wzm-chip add" data-testid="q-add-surface" onClick={() => setAdding((a) => !a)} aria-expanded={adding}>+ Add a surface</button>
+      </div>
+      {adding && (
+        <div className="wzq-addpanel" data-testid="q-add-panel">
+          <div className="wzm-chips">
+            {tail.map((t) => <button key={String(t.key)} type="button" className="wzm-chip" disabled={busy} data-testid={`q-add-${String(t.key).replace(/[^a-z0-9]+/gi, "-")}`} onClick={() => { void act({ action: "toggle_surface", areaId: room.areaId, key: String(t.key), on: true }); setAdding(false); }}>+ {t.label}</button>)}
+            {offered.map((o) => <button key={`${o.via}:${o.key}`} type="button" className="wzm-chip" disabled={busy} data-testid={`q-add-${o.key.replace(/[^a-z0-9]+/gi, "-")}`}
+              onClick={() => { void act(o.via === "substrate" ? { action: "toggle_surface", areaId: room.areaId, key: o.key, on: true } : { action: "room_add_catalogue", areaId: room.areaId, code: o.key }); setAdding(false); }}>+ {o.label}</button>)}
+            {windows?.on && <button type="button" className="wzm-chip" disabled={busy} data-testid="q-add-window-group" onClick={() => { void act({ action: "room_add_window_group", areaId: room.areaId }); setAdding(false); }}>+ More windows — a different size</button>}
+          </div>
+          <label className="wzq-field wzq-field--text">
+            <span>Something else</span>
+            <input value={custom} placeholder="e.g. balustrade" data-testid="q-custom-surface" onChange={(e) => setCustom(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter" && custom.trim()) { void act({ action: "room_custom", areaId: room.areaId, name: custom.trim().slice(0, 120) }); setCustom(""); setAdding(false); } }} />
+          </label>
+          <p className="wzm-note">Priced by your estimator. Press Enter to add it.</p>
+        </div>
+      )}
+      <p className="wzm-note" data-testid="q-win-key">Windows: S under 50 × 50 cm · M to 1.5 m · L over 1.5 m</p>
+      <div className="wzm-foot" data-testid="wzm-foot">
+        <button type="button" className="wzm-cta" disabled={busy} onClick={onNext} data-testid="q-next">{busy ? "Saving…" : "Next"}</button>
+      </div>
+    </>
+  );
+}
+
+/** §3 B3 — robes and cupboards: No advances; Yes asks the loop's own two questions (the doors, the walls inside) — `room_cupboard` / `room_cupboard_interior`. */
+function RobeScreen({ card, busy, act, onNext }: { card: RobeCard; busy: boolean; act: Act; onNext: () => void }) {
+  const room = card.room;
+  const [robe, setRobe] = useState<"none" | "yes" | null>(room.cupboard?.on === true || room.cupboardInterior?.on === true ? "yes" : room.cupboard?.on === false ? "none" : null);
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => () => { if (timer.current) clearTimeout(timer.current); }, []);
+  const pick = (v: "none" | "yes") => {
+    setRobe(v);
+    if (v === "none") {
+      void act({ action: "room_cupboard", areaId: room.areaId, on: false, count: null });
+      if (room.cupboardInterior) void act({ action: "room_cupboard_interior", areaId: room.areaId, on: false, count: null });
+      timer.current = setTimeout(onNext, 300);
+    }
+  };
+  const yn = (value: boolean | null, pickYn: (on: boolean) => void, testId: string) => (
+    <div className="wzm-opts two" data-testid={testId}>
+      <button type="button" className={`wzm-opt ${value === true ? "on" : ""}`} aria-pressed={value === true} disabled={busy} data-testid={`${testId}-yes`} onClick={() => pickYn(true)}><span><span className="t">Yes</span></span></button>
+      <button type="button" className={`wzm-opt ${value === false ? "on" : ""}`} aria-pressed={value === false} disabled={busy} data-testid={`${testId}-no`} onClick={() => pickYn(false)}><span><span className="t">No</span></span></button>
+    </div>
+  );
+  return (
+    <>
+      <h1 data-testid="wzm-h1">Any built-in robes or cupboards being painted?</h1>
+      <p className="wzm-sub" data-testid="wzm-sub">Wardrobes, linen press, hall cupboards.</p>
+      <div className="wzm-opts two" data-testid="q-robe">
+        <button type="button" className={`wzm-opt ${robe === "none" ? "on" : ""}`} aria-pressed={robe === "none"} disabled={busy} data-testid="q-robe-none" onClick={() => pick("none")}><span><span className="t">No</span></span></button>
+        <button type="button" className={`wzm-opt ${robe === "yes" ? "on" : ""}`} aria-pressed={robe === "yes"} disabled={busy} data-testid="q-robe-yes" onClick={() => pick("yes")}><span><span className="t">Yes</span></span></button>
+      </div>
+      {robe === "yes" && (
+        <div className="wzq-sub" data-testid="q-robe-more">
+          {room.cupboard && <><p className="wzq-grp">{room.cupboard.question}</p>{yn(room.cupboard.on, (on) => void act({ action: "room_cupboard", areaId: room.areaId, on, count: null }), "q-robe-doors")}</>}
+          {room.cupboardInterior && <><p className="wzq-grp">{room.cupboardInterior.question}</p>{yn(room.cupboardInterior.on, (on) => void act({ action: "room_cupboard_interior", areaId: room.areaId, on, count: null }), "q-robe-inside")}</>}
+          <p className="wzm-note">Inside: shelves out, filling minor cracks and sanding — allowances set by us.</p>
+        </div>
+      )}
+      {robe === "yes" && (
+        <div className="wzm-foot" data-testid="wzm-foot">
+          <button type="button" className="wzm-cta" disabled={busy} onClick={onNext} data-testid="q-next">{busy ? "Saving…" : "Next"}</button>
+        </div>
+      )}
+    </>
+  );
+}
+
+/** §3 B4 — anything needing attention: the spot tags (+ a feature wall), how much of it, a photo of the spot; "Nothing to fix — next" or "Add it". */
+function AttentionScreen({ card, busy, act, estimateId, onNext }: { card: AttentionCard; busy: boolean; act: Act; estimateId: string; onNext: () => void }) {
+  const room = card.room;
+  const tags = tagsFor("interior");
+  const [picked, setPicked] = useState<string[]>([]);
+  const [extent, setExtent] = useState<SpotExtent>("spots");
+  const [note, setNote] = useState("");
+  const photo = useRoomPhotos(estimateId, room.areaId, room.name, "prep", true);
+  const toggle = (k: string) => setPicked((p) => (p.includes(k) ? p.filter((x) => x !== k) : [...p, k]));
+  const featureOn = room.extras.featureWalls > 0;
+  const needsNote = picked.includes(OTHER_TAG_KEY) && note.trim() === "";
+  const addAll = async () => {
+    for (const k of picked) {
+      if (k === "feature_wall") { await act({ action: "room_extra", areaId: room.areaId, kind: "feature_wall", count: 1 }); continue; }
+      const sug = photo.last?.suggestion;
+      await act({ action: "add_spot", areaId: room.areaId, tag: k, extent, ...(sug && sug.tag === k && sug.severity ? { severity: sug.severity } : {}), sourceId: photo.last?.sourceId ?? null, ...(k === OTHER_TAG_KEY ? { note: note.trim().slice(0, 300) } : {}) });
+    }
+    setPicked([]); setNote(""); photo.clear();
+    onNext();
+  };
+  return (
+    <>
+      <h1 data-testid="wzm-h1">Anything needing attention?</h1>
+      <p className="wzm-sub" data-testid="wzm-sub">Tap what you can see. A photo lets us price the repair straight away; without one, a person prices it.</p>
+      {(room.spots.length > 0 || featureOn) && (
+        <div className="wzq-noted" data-testid="q-spots-noted">
+          {room.spots.map((sp) => (
+            <span key={sp.surfaceId} className="wzq-noted-row" data-testid={`q-spot-${sp.surfaceId}`}>{sp.label}<button type="button" aria-label={`Remove ${sp.label}`} disabled={busy} onClick={() => void act({ action: "remove_spot", areaId: room.areaId, surfaceId: sp.surfaceId })}>×</button></span>
+          ))}
+          {featureOn && <span className="wzq-noted-row" data-testid="q-spot-feature">Feature wall<button type="button" aria-label="Remove feature wall" disabled={busy} onClick={() => void act({ action: "room_extra", areaId: room.areaId, kind: "feature_wall", count: 0 })}>×</button></span>}
+        </div>
+      )}
+      <div className="wzm-chips" data-testid="q-prep">
+        {tags.map((t) => <button key={t.key} type="button" className={`wzm-chip ${picked.includes(t.key) ? "on" : ""}`} aria-pressed={picked.includes(t.key)} data-testid={`q-prep-${t.key}`} onClick={() => toggle(t.key)}>{t.label}</button>)}
+        {!featureOn && <button type="button" className={`wzm-chip ${picked.includes("feature_wall") ? "on" : ""}`} aria-pressed={picked.includes("feature_wall")} data-testid="q-prep-feature" onClick={() => toggle("feature_wall")}>Feature wall</button>}
+      </div>
+      {picked.includes(OTHER_TAG_KEY) && (
+        <label className="wzq-field wzq-field--text" data-testid="q-prep-note">
+          <span>What is it?</span>
+          <input value={note} placeholder="In your own words" maxLength={300} data-testid="q-prep-note-input" onChange={(e) => setNote(e.target.value)} />
+        </label>
+      )}
+      {picked.some((k) => k !== "feature_wall") && (
+        <>
+          <p className="wzq-grp">How much of it is there?</p>
+          <div className="wzm-opts wzq-three" data-testid="q-prep-extent">
+            {SPOT_EXTENTS.map((x) => <button key={x} type="button" className={`wzm-opt ${extent === x ? "on" : ""}`} aria-pressed={extent === x} data-testid={`q-prep-extent-${x}`} onClick={() => setExtent(x)}><span><span className="t">{EXTENT_LABEL[x]}</span></span></button>)}
+          </div>
+          <div className="wzq-photo">
+            <PhotoDrop testId="q-prep-photo" title="Take a photo of the spot" hint="With a photo we price the repair; without one, a person does." ready={photo.ready ? `${photo.ready} — we'll price the repair from it` : null} disabled={photo.busy || photo.full} onFiles={photo.add} />
+            {photo.error && <p className="wz-err" data-testid="q-photo-error">{photo.error}</p>}
+          </div>
+        </>
+      )}
+      <div className="wzm-foot" data-testid="wzm-foot">
+        {picked.length === 0
+          ? <button type="button" className="wzm-cta" disabled={busy} onClick={onNext} data-testid="q-next">{busy ? "Saving…" : "Nothing to fix — next"}</button>
+          : <button type="button" className="wzm-cta" disabled={busy || photo.busy || needsNote} onClick={() => void addAll()} data-testid="q-prep-add">{busy ? "Saving…" : "Add it"}</button>}
+      </div>
+    </>
+  );
+}
+
+/** §3 E1 — have we got every room? The list, + Add a room (opens on its size card), a plan garage, and the doors-and-windows check kept from the live page. */
+function RoomsScreen({ card, busy, act, roomTypes, onAdded, onNext }: { card: RoomsCard; busy: boolean; act: Act; roomTypes: string[]; onAdded: (areaId: number) => void; onNext: () => void }) {
+  const [adding, setAdding] = useState(false);
+  const [type, setType] = useState<string | null>(null);
+  const [name, setName] = useState("");
+  const [dwOk, setDwOk] = useState<boolean | null>(null);
+  const label = (t: string) => ADD_ROOM_TYPES.find((x) => x.value === t)?.label ?? (t === "wc" ? "WC" : t.replace(/_/g, " ").replace(/^./, (c) => c.toUpperCase()));
+  const types = [...roomTypes].sort((a, b) => (a === "hallway" ? -1 : b === "hallway" ? 1 : a.localeCompare(b)));
+  const dims = (r: QuoteRoom) => `${r.widthM} × ${r.lengthM} m`;
+  const add = async () => {
+    const roomType = type ?? (name.trim() ? roomTypeForName(name) : null);
+    if (!roomType) return;
+    const before = new Set(card.rooms.map((r) => r.areaId));
+    const j = await act({ action: "add_room", roomType, ...(name.trim() ? { name: name.trim().slice(0, 120) } : {}) });
+    if (!j) return;
+    const fresh = (j.scopeRooms ?? []).find((r) => !before.has(r.areaId));
+    setAdding(false); setType(null); setName("");
+    if (fresh) onAdded(fresh.areaId);
+  };
+  const done = async () => {
+    if (dwOk === null) await act({ action: "iloop_check_done", item: "dw" });
+    const j = await act({ action: "iloop_check_done", item: "sweep" });
+    if (j) onNext();
+  };
+  return (
+    <>
+      <h1 data-testid="wzm-h1">Have we got every room?</h1>
+      <p className="wzm-sub" data-testid="wzm-sub">Hallways are the rooms people forget most — and they make the biggest difference. Laundries, toilets, studies and garages go missing too.</p>
+      <ul className="wzq-rooms" data-testid="q-rooms">
+        {card.rooms.map((r) => <li key={r.areaId} data-testid={`q-room-${r.areaId}`}>{r.name}<span>{dims(r)}</span></li>)}
+      </ul>
+      {card.rooms.filter((r) => r.garagePending).map((r) => (
+        <div key={`g${r.areaId}`} className="wzq-sub" data-testid={`q-garage-${r.areaId}`}>
+          <p className="wzq-grp">The plan shows a garage — are we painting it?</p>
+          <div className="wzm-chips">
+            <button type="button" className="wzm-chip" disabled={busy} data-testid={`q-garage-${r.areaId}-yes`} onClick={() => void act({ action: "set_garage", areaId: r.areaId, on: true })}>Yes</button>
+            <button type="button" className="wzm-chip" disabled={busy} data-testid={`q-garage-${r.areaId}-no`} onClick={() => void act({ action: "set_garage", areaId: r.areaId, on: false })}>No</button>
+          </div>
+        </div>
+      ))}
+      <div className="wzm-chips" style={{ marginTop: 12 }}>
+        <button type="button" className="wzm-chip add" data-testid="q-add-room" aria-expanded={adding} onClick={() => setAdding((a) => !a)}>+ Add a room</button>
+      </div>
+      {adding && (
+        <div className="wzq-addpanel" data-testid="q-add-room-panel">
+          <div className="wzm-chips">
+            {types.map((t) => <button key={t} type="button" className={`wzm-chip ${type === t ? "on" : ""}`} aria-pressed={type === t} data-testid={`q-room-type-${t}`} onClick={() => { setType(t); if (!name.trim()) setName(label(t)); }}>{label(t)}</button>)}
+          </div>
+          <label className="wzq-field wzq-field--text">
+            <span>Name</span>
+            <input value={name} placeholder="e.g. Study" data-testid="q-room-name" onChange={(e) => setName(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") void add(); }} />
+          </label>
+          <button type="button" className="wzm-chip on" disabled={busy || (!type && !name.trim())} data-testid="q-add-room-go" onClick={() => void add()}>Add it</button>
+        </div>
+      )}
+      {(card.doors > 0 || card.windows > 0) && (
+        <div className="wzq-sub" data-testid="q-dw">
+          <p className="wzq-grp">{card.doors} {card.doors === 1 ? "door" : "doors"} and {card.windows} {card.windows === 1 ? "window" : "windows"} across the house — right?</p>
+          <div className="wzm-chips">
+            <button type="button" className={`wzm-chip ${dwOk === true ? "on" : ""}`} aria-pressed={dwOk === true} disabled={busy} data-testid="q-dw-yes" onClick={() => { setDwOk(true); void act({ action: "iloop_check_done", item: "dw" }); }}>Yes</button>
+            <button type="button" className={`wzm-chip ${dwOk === false ? "on" : ""}`} aria-pressed={dwOk === false} disabled={busy} data-testid="q-dw-no" onClick={() => { setDwOk(false); void act({ action: "iloop_dw", ok: false }); }}>Not quite</button>
+          </div>
+          {dwOk === false && <p className="wzm-note" data-testid="q-dw-hint">Tap ‹ to go back to a room and use − / + on its doors or windows.</p>}
+        </div>
+      )}
+      <div className="wzm-foot" data-testid="wzm-foot">
+        <button type="button" className="wzm-cta" disabled={busy} onClick={() => void done()} data-testid="q-next">{busy ? "Saving…" : "That's every room"}</button>
+      </div>
+    </>
+  );
+}
+
+/** §3 E2 — anything we haven't listed? The rate card's named extras (priced), help with colours, and a note a person prices. */
+function ExtrasScreen({ offer, state, busy, act, onNext }: { offer: JobExtra[]; state: JobExtrasState; busy: boolean; act: Act; onNext: () => void }) {
+  const [note, setNote] = useState(state.note);
+  const on = new Set(state.on);
+  const slug = (code: string) => code.replace(/\s+/g, "-").toLowerCase();
+  const flushNote = async () => { if (note.trim() !== state.note.trim()) await act({ action: "extra_note", note: note.trim().slice(0, 400) }); };
+  return (
+    <>
+      <h1 data-testid="wzm-h1">Anything we haven&rsquo;t listed?</h1>
+      <p className="wzm-sub" data-testid="wzm-sub">Name it and we&rsquo;ll price it. Anything unusual, tell us and a person prices it rather than guessing.</p>
+      <div className="wzm-chips" data-testid="q-extras">
+        {offer.map((e) => {
+          const isOn = on.has(e.code);
+          return (
+            <button key={e.code} type="button" className={`wzm-chip ${isOn ? "on" : ""}`} aria-pressed={isOn} disabled={busy} data-testid={`q-extra-${slug(e.code)}`} onClick={() => void act({ action: "toggle_job_extra", code: e.code, on: !isOn })}>
+              {e.label} · ${e.priceDollars.toLocaleString("en-AU")}
+              {isOn && <Counter value={state.counts[e.code] ?? 1} min={1} max={20} testId={`q-extra-count-${slug(e.code)}`} disabled={busy} onChange={(n) => void act({ action: "toggle_job_extra", code: e.code, on: true, count: n })} />}
+            </button>
+          );
+        })}
+        <button type="button" className={`wzm-chip ${state.colourHelp ? "on" : ""}`} aria-pressed={state.colourHelp} disabled={busy} data-testid="q-extra-colour" onClick={() => void act({ action: "set_colour_help", want: !state.colourHelp })}>Help me choose colours</button>
+      </div>
+      <label className="wzq-field wzq-field--text wzq-field--area">
+        <span>Something else?</span>
+        <textarea value={note} placeholder="In your own words." maxLength={400} rows={3} data-testid="q-extra-note" onChange={(e) => setNote(e.target.value)} onBlur={() => void flushNote()} />
+      </label>
+      <div className="wzm-foot" data-testid="wzm-foot">
+        <button type="button" className="wzm-cta" disabled={busy} onClick={async () => { await flushNote(); onNext(); }} data-testid="q-next">{busy ? "Saving…" : "Next"}</button>
+      </div>
+    </>
   );
 }

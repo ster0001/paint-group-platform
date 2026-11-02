@@ -17,8 +17,8 @@ import "../../wizard/wizard.css";
  * on the v5 shell, writing the same `wizard-edit` actions the scope page
  * writes (R0). The same guards as `/estimate/scope`: a customer opens only
  * their own draft, staff can preview. Behind `quoteStageV10On()` — off, it
- * sends the link to the scope page it replaces. Session 1: the rooms bundle
- * (an interior job); sides go to the sides editor until session 6.
+ * sends the link to the scope page it replaces. Sessions 1–3: the rooms
+ * bundle (an interior job); sides go to the sides editor until session 6.
  */
 export const dynamic = "force-dynamic";
 export async function generateMetadata() {
@@ -76,18 +76,18 @@ export default async function QuoteStagePage({ searchParams }: { searchParams: P
   };
   const createdAt = (estimate as { created_at?: string }).created_at;
   const quoteDate = new Intl.DateTimeFormat("en-AU", { day: "numeric", month: "short", year: "numeric", timeZone: "Australia/Melbourne" }).format(createdAt ? new Date(createdAt) : new Date());
-  const loopRooms = bundle.initialInteriorLoop?.rooms ?? [];
-  const rooms = bundle.initialRooms.map((r) => {
-    const l = loopRooms.find((x) => x.areaId === r.areaId);
-    return { areaId: r.areaId, name: r.name, lengthM: l?.lengthM ?? 0, widthM: l?.widthM ?? 0, heightM: l?.heightM ?? 2.4, size: l?.size ?? null, confirmed: l?.confirmed ?? false };
-  });
   return (
     <div className="wz">
       <QuoteStage
         brand={brand}
         estimateId={bundle.estimateId}
         initial={bundle.initial}
-        initialRooms={rooms}
+        initialScopeRooms={bundle.initialRooms}
+        initialLoop={bundle.initialInteriorLoop?.rooms ?? []}
+        catalogue={bundle.initialInteriorLoop?.catalogue ?? []}
+        initialRoomExtras={bundle.initialRoomExtras}
+        initialExtras={bundle.initialExtras}
+        roomTypes={bundle.roomTypes}
         initialCornices={bundle.initialCornices}
         initialAccess={bundle.initialAccess}
         logoUrl={bundle.logoUrl}

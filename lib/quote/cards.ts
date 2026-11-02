@@ -1,4 +1,6 @@
 import type { SiteAccess } from "@/lib/wizard/site-access";
+import type { CustomerScopeRoom, CustomerTile, RoomSpot } from "@/lib/wizard/scope-editor";
+import type { RoomLoopView } from "@/lib/wizard/rooms-loop";
 
 /**
  * QUOTE STAGE v10 — the cards, as data (brief §3; prototype
@@ -6,8 +8,9 @@ import type { SiteAccess } from "@/lib/wizard/site-access";
  *
  * "Get my detailed price" is one question per card: the whole-house
  * questions first (A), then the rooms one at a time (B, four cards each —
- * session 1 builds the measure card; sessions 3 adds the other three),
- * then the last checks (E) and the done screen (F). Every card writes an
+ * the size, what we're painting in here, robes and cupboards, anything
+ * needing attention), then the last checks (E — every room? anything we
+ * haven't listed?) and the done screen (F). Every card writes an
  * EXISTING `wizard-edit` action (R0, R3 — the inventory in the S0 map of
  * `docs/briefs/quote-stage-v10-progress.md`); this module only says which
  * cards exist, in what order, with what words and options. Pure: nothing
@@ -51,8 +54,18 @@ export type MeasureCard = {
   typical: boolean;
   position: { n: number; of: number };
 };
+/** §3 B2 — "What we're painting in here": the room's tiles, its window groups, the door scope and the wall share. */
+export type SurfacesCard = { kind: "surfaces"; id: string; areaId: number; name: string; stage: string; room: QuoteRoom };
+/** §3 B3 — robes and cupboards; only where the room type has a cupboard row to write (D-Q4, see the ledger). */
+export type RobeCard = { kind: "robe"; id: string; areaId: number; name: string; stage: string; room: QuoteRoom };
+/** §3 B4 — anything needing attention: the spot tags, how much, a photo; a feature wall. */
+export type AttentionCard = { kind: "attention"; id: string; areaId: number; name: string; stage: string; room: QuoteRoom };
+/** §3 E1 — have we got every room? (+ the doors-and-windows check and a plan garage, kept from the live page). */
+export type RoomsCard = { kind: "rooms"; id: "rooms"; stage: string; rooms: QuoteRoom[]; doors: number; windows: number };
+/** §3 E2 — anything we haven't listed? */
+export type ExtrasCard = { kind: "extras"; id: "extras"; stage: string };
 export type DoneCard = { kind: "done"; id: "done"; stage: string };
-export type QuoteCard = GeneralCard | MeasureCard | DoneCard;
+export type QuoteCard = GeneralCard | MeasureCard | SurfacesCard | RobeCard | AttentionCard | RoomsCard | ExtrasCard | DoneCard;
 
 export type GeneralKey = "cornices" | "height" | "doors" | "windows" | "paintBase" | "glossTrims" | "cleared" | "stairwell" | "parking" | "lift";
 export type GeneralAnswers = Partial<Record<GeneralKey, string | null>>;
@@ -64,7 +77,36 @@ export type QuoteRoom = {
   /** The loop's size state: "adjusted" = typed, "yes" = the typical accepted, null = not yet. */
   size: "yes" | "adjusted" | null;
   confirmed: boolean;
+  /** B2: the scope page's tiles for this room, as the server sends them. */
+  tiles: CustomerTile[];
+  windows: RoomLoopView["windows"];
+  /** B3: the cupboard rows (doors, the walls inside) the loop offers this room type — null = no row to write. */
+  cupboard: { question: string; on: boolean | null } | null;
+  cupboardInterior: { question: string; on: boolean | null } | null;
+  /** B4: the repairs pinned to the room, and its extras row (feature wall / wallpaper / other). */
+  spots: RoomSpot[];
+  extras: { featureWalls: number; wallpaper: boolean; other: string };
+  /** E1: a plan garage still waiting on "are we painting it?". */
+  garagePending: boolean;
 };
+
+/** One room model from the three views the server sends (`scopeRooms`, `interiorLoop.rooms`, `roomExtras`). */
+export function quoteRoomsFrom(scopeRooms: CustomerScopeRoom[], loop: RoomLoopView[], roomExtras: Record<string, { featureWalls: number; wallpaper: boolean; other: string }>): QuoteRoom[] {
+  return scopeRooms.map((r) => {
+    const l = loop.find((x) => x.areaId === r.areaId);
+    return {
+      areaId: r.areaId, name: r.name,
+      lengthM: l?.lengthM ?? 0, widthM: l?.widthM ?? 0, heightM: l?.heightM ?? 2.4,
+      size: l?.size ?? null, confirmed: l?.confirmed ?? false,
+      tiles: r.tiles, windows: l?.windows ?? [],
+      cupboard: l?.cupboard ? { question: l.cupboard.question, on: l.cupboard.on } : null,
+      cupboardInterior: l?.cupboardInterior ? { question: l.cupboardInterior.question, on: l.cupboardInterior.on } : null,
+      spots: r.spots ?? [],
+      extras: roomExtras[String(r.areaId)] ?? { featureWalls: 0, wallpaper: false, other: "" },
+      garagePending: r.garagePending === true,
+    };
+  });
+}
 
 export type QuoteInput = {
   jobKind: JobKind;
@@ -151,9 +193,36 @@ export function measureCards(i: QuoteInput): MeasureCard[] {
   }));
 }
 
-/** Every card in the brief's order: A, then B per room, then F. (E's last checks and B2–B4 arrive in session 3.) */
+/** §3 B2–B4 — the three cards after the size, per room; the robe card only where the loop offers a cupboard row. */
+export function roomCards(i: QuoteInput): QuoteCard[] {
+  const out: QuoteCard[] = [];
+  const measure = measureCards(i);
+  i.rooms.forEach((r, k) => {
+    out.push(measure[k]);
+    const stage = `${r.name} · ${k + 1} of ${i.rooms.length}`;
+    out.push({ kind: "surfaces", id: `surfaces:${r.areaId}`, areaId: r.areaId, name: r.name, stage, room: r });
+    if (r.cupboard) out.push({ kind: "robe", id: `robe:${r.areaId}`, areaId: r.areaId, name: r.name, stage, room: r });
+    out.push({ kind: "attention", id: `attention:${r.areaId}`, areaId: r.areaId, name: r.name, stage, room: r });
+  });
+  return out;
+}
+
+/** The house-wide door and window counts, from the rooms' tiles — for E1's "N doors and M windows — right?". */
+export function houseCounts(rooms: QuoteRoom[]): { doors: number; windows: number } {
+  const sum = (key: string) => rooms.reduce((n, r) => n + r.tiles.filter((t) => t.key === key && t.on).reduce((m, t) => m + (t.count ?? 1), 0), 0);
+  return { doors: sum("doors"), windows: sum("windows") };
+}
+
+/** Every card in the brief's order: A, then B ×4 per room, then E, then F. */
 export function quoteCards(i: QuoteInput): QuoteCard[] {
-  return [...generalCards(i), ...measureCards(i), { kind: "done", id: "done", stage: "Your detailed price" }];
+  const { doors, windows } = houseCounts(i.rooms);
+  return [
+    ...generalCards(i),
+    ...roomCards(i),
+    { kind: "rooms", id: "rooms", stage: "Last checks", rooms: i.rooms, doors, windows },
+    { kind: "extras", id: "extras", stage: "Last checks" },
+    { kind: "done", id: "done", stage: "Your detailed price" },
+  ];
 }
 
 /** §2 — the bar carries on from the gate's 55% to 100%. */
