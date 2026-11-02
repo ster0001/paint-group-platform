@@ -9,6 +9,8 @@ import { getCompanyContact } from "@/lib/portal/data";
 import Wordmark from "@/app/wizard/Wordmark";
 import QuoteStage from "./QuoteStage";
 import { quoteNumber } from "@/lib/quote/quote";
+import { loadExteriorTypicals } from "@/lib/wizard/exterior-typicals-db";
+import type { ExteriorV2 } from "@/lib/wizard/state";
 import "../../wizard/wizard.css";
 
 /**
@@ -58,8 +60,6 @@ export default async function QuoteStagePage({ searchParams }: { searchParams: P
 
   const bundle = await loadCustomerScope(db, estimate as EstimateRow);
   if (bundle.kind === "holding") return <Holding line={bundle.line} />;
-  // Session 1 carries the rooms; the sides editor stays the outside's detailed price until session 6.
-  if (bundle.kind === "sides") redirect(`/estimate/scope?id=${encodeURIComponent(id)}`);
   const brand = (estimate as { brand?: string | null }).brand === "painthome" ? "painthome" as const : await wizardBrand();
   // §5: the quote's prepared-for block — the account the session filed, and the address the wizard holds.
   const accountId = (estimate as { account_id?: string | null }).account_id ?? null;
@@ -67,7 +67,11 @@ export default async function QuoteStagePage({ searchParams }: { searchParams: P
     ? await db.from("accounts").select("name, email, phone").eq("id", accountId).maybeSingle()
     : { data: null, error: null };
   if (accountError) return <Holding line="We couldn't open that estimate just now — please try again shortly." />;
-  const wiz = ((estimate as { builder_state?: { wizard?: { state?: { address?: { formatted?: string }; customer?: { suburb?: string; postcode?: string } } } } }).builder_state?.wizard?.state) ?? null;
+  const wiz = ((estimate as { builder_state?: { wizard?: { state?: { address?: { formatted?: string }; customer?: { suburb?: string; postcode?: string }; quickLook?: { scope?: string }; exterior?: { v2?: ExteriorV2 } } } } }).builder_state?.wizard?.state) ?? null;
+  // §3: which stage — the sides (C) for an outside job, one card per room (D) for doors and trims, else the interior (A, B, E).
+  const jobKind = bundle.kind === "sides" ? "exterior" as const : wiz?.quickLook?.scope === "trims_doors" ? "trims" as const : "interior" as const;
+  const v2 = wiz?.exterior?.v2 ?? null;
+  const typicalRows = bundle.kind === "sides" && v2 ? await loadExteriorTypicals(db) : [];
   const preparedFor = {
     name: (account as { name?: string } | null)?.name?.trim() || null,
     address: wiz?.address?.formatted?.trim() || [wiz?.customer?.suburb, wiz?.customer?.postcode].filter(Boolean).join(" ") || null,
@@ -82,15 +86,19 @@ export default async function QuoteStagePage({ searchParams }: { searchParams: P
         brand={brand}
         estimateId={bundle.estimateId}
         initial={bundle.initial}
-        initialScopeRooms={bundle.initialRooms}
-        initialLoop={bundle.initialInteriorLoop?.rooms ?? []}
-        catalogue={bundle.initialInteriorLoop?.catalogue ?? []}
-        initialRoomExtras={bundle.initialRoomExtras}
-        initialExtras={bundle.initialExtras}
-        roomTypes={bundle.roomTypes}
+        jobKind={jobKind}
+        initialScopeRooms={bundle.kind === "rooms" ? bundle.initialRooms : []}
+        initialLoop={bundle.kind === "rooms" ? bundle.initialInteriorLoop?.rooms ?? [] : []}
+        catalogue={bundle.kind === "rooms" ? bundle.initialInteriorLoop?.catalogue ?? [] : []}
+        initialRoomExtras={bundle.kind === "rooms" ? bundle.initialRoomExtras : {}}
+        initialExtras={bundle.kind === "rooms" ? bundle.initialExtras : { offer: [], on: [], counts: {}, colourHelp: false, note: "" }}
+        roomTypes={bundle.kind === "rooms" ? bundle.roomTypes : []}
         plan={bundle.docs.plan}
-        initialCornices={bundle.initialCornices}
-        initialAccess={bundle.initialAccess}
+        initialSides={bundle.initialSides}
+        v2={v2}
+        typicalRows={typicalRows}
+        initialCornices={bundle.kind === "rooms" ? bundle.initialCornices : null}
+        initialAccess={bundle.kind === "rooms" ? bundle.initialAccess : { answers: {}, asksLift: false }}
         logoUrl={bundle.logoUrl}
         estimator={bundle.estimator}
         companyPhone={bundle.companyPhone}

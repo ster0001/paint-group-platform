@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { generalCards, houseCounts, measureCards, quoteCards, quoteProgress, quoteRoomsFrom, roomCards, typicalRoomNames, type QuoteInput, type QuoteRoom } from "./cards";
+import { generalCards, houseCounts, measureCards, quoteCards, quoteProgress, quoteRoomsFrom, quoteSidesFrom, roomCards, sideCards, typicalRoomNames, type QuoteInput, type QuoteRoom } from "./cards";
 
 const base: QuoteInput = {
   jobKind: "interior", general: {}, heightUnconfirmed: true, access: {}, asksLift: false,
@@ -74,5 +74,23 @@ describe("quote stage v10 — the cards as data (brief §3)", () => {
     expect(rs[0].windows[0].count).toBe(2);
     const bare = quoteRoomsFrom([{ areaId: 8, name: "Study", m2: null, tiles: [], spots: [], condition: "same" }], [], {});
     expect(bare[0]).toMatchObject({ size: null, heightM: 2.4, extras: { featureWalls: 0 }, garagePending: false });
+  });
+
+  it("session 6: a doors-and-trims job asks one card per room (the lines with their counters) and no cornices or height", () => {
+    const trims: QuoteInput = { ...base, jobKind: "trims" };
+    expect(roomCards(trims).map((c) => c.id)).toEqual(["surfaces:1", "surfaces:2", "surfaces:3"]);
+    expect(generalCards(trims).map((c) => c.key)).not.toContain("cornices");
+    expect(quoteCards(trims).map((c) => c.id).slice(-3)).toEqual(["rooms", "extras", "done"]);
+  });
+  it("session 6: an outside job's lines are its painted sides — three cards each, then done; a side not painting is absent", () => {
+    const side = (key: "front" | "left" | "right" | "back", areaId: number, include: boolean | null, size: "yes" | "adjusted" | "ns" | null) => ({
+      key, areaId, label: key[0].toUpperCase() + key.slice(1), customLabel: null, include, size, confirmed: false, mirroredFrom: null, L: 12, H: 3,
+      walls: [], wallSum: 100, tiles: [{ id: 5, code: "Windows", label: "Windows", count: 3, countable: true, window: true, sizeBand: "M" as const, lineal: false, metres: null }], customs: [], note: null, notePhotos: 0,
+    });
+    const rooms = quoteSidesFrom({ sides: [side("front", 11, true, "adjusted"), side("right", 12, false, null), side("back", 13, null, null)], geo: { storeys: null, substrates: [] }, dw: { windows: 0, doors: 0, ok: null }, meta: {} as never, progress: { done: 0, total: 2, allDone: false }, catalog: [], sweepItems: [], addable: [], wallOptions: [] });
+    expect(rooms.map((r) => [r.areaId, r.name, r.kind, r.lengthM, r.widthM, r.size])).toEqual([[11, "Front", "side", 12, 3, "adjusted"], [13, "Back", "side", 12, 3, null]]);
+    const ext: QuoteInput = { ...base, jobKind: "exterior", rooms };
+    expect(sideCards(ext).map((c) => c.id)).toEqual(["side-size:front", "side-on:front", "side-attn:front", "side-size:back", "side-on:back", "side-attn:back"]);
+    expect(quoteCards(ext).map((c) => c.id)).toEqual([...sideCards(ext).map((c) => c.id), "done"]);
   });
 });

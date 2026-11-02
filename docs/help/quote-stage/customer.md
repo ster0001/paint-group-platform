@@ -2,7 +2,7 @@
 feature: quote-stage
 role: customer
 title: Get your detailed price — one question at a time
-summary: After your range, your detailed price asks one question per screen — the whole house first, then four quick cards per room — while your quote writes itself above the question and your range closes as you answer. Behind a switch until it goes live.
+summary: After your range, your detailed price asks one question per screen — the whole house first, then four quick cards per room (or three per side of the house for an outside job) — while your quote writes itself beside the question and your range closes as you answer. Behind a switch until it goes live.
 ---
 
 ## What this is for
@@ -24,7 +24,10 @@ You have your range and have given your name, mobile and email. Nothing you answ
 10. **Have we got every room?** — the list with each size. **+ Add a room** (pick its kind, name it, **Add it**) opens the new room's size card and its three other cards, then brings you back here. Answer the **doors and windows across the house — right?** check, then **That's every room**.
 11. **Anything we haven't listed?** — priced extras from our rate card (tap one, − / + for how many), **Help me choose colours**, and a box for anything else, which a person prices. **Next**.
 12. **{Your name}, your detailed price** — your quote in full (now headed **Quote**, with **Your price** as a range — repairs are confirmed on the day), which rooms stayed at the typical size (tap one in the quote to measure it now), the three tiles, and **Book {estimator} to confirm it**, which takes you to the booking page.
-13. **Contact** at the top right opens the sheet on every screen: Book a visit, and Call where the shopfront lists a number.
+13. **Outside jobs** — instead of rooms you get each painted side of your home, drawn as you described it: **How big is the front?** (across and high, or the typical size), **On this side** (count the windows and doors, say how the paint is — good, weathered, or peeling), and **Anything needing attention?** (flaking, rust, rot, cracked render, a photo). Then your quote.
+14. **Doors and trims only** — the whole-house questions, then one card per room with the doors, windows and trims counted up, then the last checks.
+15. **On a laptop** — the drawing sits on the left, the question in the middle, and your floorplan, your range and your quote on the right (tap the quote's header to open it). Press **1–4** to pick an answer, **Enter** for the button, **←** to go back.
+16. **Contact** at the top right opens the sheet on every screen: Book a visit, and Call where the shopfront lists a number.
 
 ## What the colours and labels mean
 - **Grey numbers** in a size box — the typical size; yours replace them when you type.

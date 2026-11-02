@@ -60,7 +60,7 @@ export function quoteLines(rooms: QuoteRoom[], views: CustomerRoomView[]): Quote
     const amount = settled && v?.rangeLoCents != null && v.rangeHiCents != null ? range(v.rangeLoCents, v.rangeHiCents) : "—";
     return {
       areaId: r.areaId, name: r.name,
-      size: `${dims(r.widthM)} × ${dims(r.lengthM)} × ${dims(r.heightM)} m${state === "measured" ? "" : " (typical)"}`,
+      size: `${r.kind === "side" ? `${dims(r.lengthM)} × ${dims(r.widthM)} m` : `${dims(r.widthM)} × ${dims(r.lengthM)} × ${dims(r.heightM)} m`}${state === "measured" ? "" : " (typical)"}`,
       typical: state !== "measured", included: v?.summary ?? "", amount, state,
     };
   });

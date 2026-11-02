@@ -853,6 +853,8 @@ export function sidesDoneCount(blocks: LooseBlock[], meta: SidesLoopMeta): { don
 
 export type SideView = {
   key: SideKey;
+  /** Quote stage v10 (S6): the side's block id — the key of its `CustomerRoomView` (its range) in the payload. */
+  areaId: number;
   label: string;
   include: boolean | null;
   size: "yes" | "adjusted" | "ns" | null;
@@ -917,6 +919,7 @@ export function sidesView(
     const custom = sideCustomLabel(b);
     sides.push({
       key,
+      areaId: Number(b.id) || 0,
       label: custom ?? SIDE_LABEL[key],
       customLabel: custom,
       include: c.include,

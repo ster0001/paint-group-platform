@@ -1,6 +1,7 @@
 import type { SiteAccess } from "@/lib/wizard/site-access";
 import type { CustomerScopeRoom, CustomerTile, RoomSpot } from "@/lib/wizard/scope-editor";
 import type { RoomLoopView } from "@/lib/wizard/rooms-loop";
+import type { SideKey, SidesView, SideView } from "@/lib/wizard/sides";
 
 /**
  * QUOTE STAGE v10 — the cards, as data (brief §3; prototype
@@ -64,8 +65,12 @@ export type AttentionCard = { kind: "attention"; id: string; areaId: number; nam
 export type RoomsCard = { kind: "rooms"; id: "rooms"; stage: string; rooms: QuoteRoom[]; doors: number; windows: number };
 /** §3 E2 — anything we haven't listed? */
 export type ExtrasCard = { kind: "extras"; id: "extras"; stage: string };
+/** §3 C — per painted side: how big (across · high), on this side (counts, the paint's condition), anything needing attention. */
+export type SideSizeCard = { kind: "side-size"; id: string; areaId: number; sideKey: SideKey; name: string; stage: string; side: QuoteRoom; position: { n: number; of: number } };
+export type SideOnCard = { kind: "side-on"; id: string; areaId: number; sideKey: SideKey; name: string; stage: string; side: QuoteRoom };
+export type SideAttentionCard = { kind: "side-attn"; id: string; areaId: number; sideKey: SideKey; name: string; stage: string; side: QuoteRoom };
 export type DoneCard = { kind: "done"; id: "done"; stage: string };
-export type QuoteCard = GeneralCard | MeasureCard | SurfacesCard | RobeCard | AttentionCard | RoomsCard | ExtrasCard | DoneCard;
+export type QuoteCard = GeneralCard | MeasureCard | SurfacesCard | RobeCard | AttentionCard | RoomsCard | ExtrasCard | SideSizeCard | SideOnCard | SideAttentionCard | DoneCard;
 
 export type GeneralKey = "cornices" | "height" | "doors" | "windows" | "paintBase" | "glossTrims" | "cleared" | "stairwell" | "parking" | "lift";
 export type GeneralAnswers = Partial<Record<GeneralKey, string | null>>;
@@ -88,7 +93,27 @@ export type QuoteRoom = {
   extras: { featureWalls: number; wallpaper: boolean; other: string };
   /** E1: a plan garage still waiting on "are we painting it?". */
   garagePending: boolean;
+  /** S6 (§3 C): an outside job's line is a SIDE — `lengthM` is across, `widthM` is high, the side's own tiles ride here. */
+  kind?: "room" | "side";
+  sideKey?: SideKey;
+  sideTiles?: SideView["tiles"];
+  sideNote?: string | null;
+  sideNotePhotos?: number;
 };
+
+/** §3 C — an outside job's lines are its painted sides, from the sides view the scope page's sides editor reads. */
+export function quoteSidesFrom(sides: SidesView | null): QuoteRoom[] {
+  if (!sides) return [];
+  return sides.sides.filter((s) => s.include !== false).map((s) => ({
+    areaId: s.areaId, name: s.label,
+    lengthM: s.L, widthM: s.H, heightM: 0,
+    size: s.size === "adjusted" ? "adjusted" : s.size === "yes" || s.size === "ns" ? "yes" : null,
+    confirmed: s.confirmed,
+    tiles: [], windows: [], cupboard: null, cupboardInterior: null, spots: [],
+    extras: { featureWalls: 0, wallpaper: false, other: "" }, garagePending: false,
+    kind: "side", sideKey: s.key, sideTiles: s.tiles, sideNote: s.note, sideNotePhotos: s.notePhotos,
+  }));
+}
 
 /** One room model from the three views the server sends (`scopeRooms`, `interiorLoop.rooms`, `roomExtras`). */
 export function quoteRoomsFrom(scopeRooms: CustomerScopeRoom[], loop: RoomLoopView[], roomExtras: Record<string, { featureWalls: number; wallpaper: boolean; other: string }>): QuoteRoom[] {
@@ -193,16 +218,34 @@ export function measureCards(i: QuoteInput): MeasureCard[] {
   }));
 }
 
-/** §3 B2–B4 — the three cards after the size, per room; the robe card only where the loop offers a cupboard row. */
+/**
+ * §3 B2–B4 — the three cards after the size, per room; the robe card only where the loop offers a cupboard row.
+ * §3 D — a doors-and-trims job: one card per room, the lines with their counters (the surfaces card), nothing else.
+ */
 export function roomCards(i: QuoteInput): QuoteCard[] {
   const out: QuoteCard[] = [];
   const measure = measureCards(i);
   i.rooms.forEach((r, k) => {
-    out.push(measure[k]);
     const stage = `${r.name} · ${k + 1} of ${i.rooms.length}`;
+    if (i.jobKind === "trims") { out.push({ kind: "surfaces", id: `surfaces:${r.areaId}`, areaId: r.areaId, name: r.name, stage, room: r }); return; }
+    out.push(measure[k]);
     out.push({ kind: "surfaces", id: `surfaces:${r.areaId}`, areaId: r.areaId, name: r.name, stage, room: r });
     if (r.cupboard) out.push({ kind: "robe", id: `robe:${r.areaId}`, areaId: r.areaId, name: r.name, stage, room: r });
     out.push({ kind: "attention", id: `attention:${r.areaId}`, areaId: r.areaId, name: r.name, stage, room: r });
+  });
+  return out;
+}
+
+/** §3 C — three cards per painted side (an outside job's whole stage: no whole-house cards, no last checks). */
+export function sideCards(i: QuoteInput): QuoteCard[] {
+  const out: QuoteCard[] = [];
+  i.rooms.forEach((s, k) => {
+    if (s.kind !== "side" || !s.sideKey) return;
+    const stage = `${s.name} · ${k + 1} of ${i.rooms.length}`;
+    const base = { areaId: s.areaId, sideKey: s.sideKey, name: s.name, stage, side: s };
+    out.push({ kind: "side-size", id: `side-size:${s.sideKey}`, ...base, position: { n: k + 1, of: i.rooms.length } });
+    out.push({ kind: "side-on", id: `side-on:${s.sideKey}`, ...base });
+    out.push({ kind: "side-attn", id: `side-attn:${s.sideKey}`, ...base });
   });
   return out;
 }
@@ -213,8 +256,9 @@ export function houseCounts(rooms: QuoteRoom[]): { doors: number; windows: numbe
   return { doors: sum("doors"), windows: sum("windows") };
 }
 
-/** Every card in the brief's order: A, then B ×4 per room, then E, then F. */
+/** Every card in the brief's order: A, then B ×4 per room, then E, then F — or, outside, C ×3 per side, then F. */
 export function quoteCards(i: QuoteInput): QuoteCard[] {
+  if (i.jobKind === "exterior") return [...sideCards(i), { kind: "done", id: "done", stage: "Your detailed price" }];
   const { doors, windows } = houseCounts(i.rooms);
   return [
     ...generalCards(i),

@@ -2857,3 +2857,35 @@
 .wz .wzq-plan-rooms li[data-state="typical"] .tick { color: var(--muted); }
 .wz .wzq-plan-rooms li.now { background: var(--wash); }
 
+/* ── QUOTE STAGE v10 — S6: the side cards; the desktop format (R8): drawing left · the card centre · plan + price + quote right. ── */
+.wz .wzq-meas--two { grid-template-columns: 1fr 1fr; }
+.wz .wzq-rail { display: none; }
+@media (min-width: 900px) {
+  .wz .wzq { display: grid; grid-template-columns: 260px minmax(0, 1fr) 420px; grid-template-rows: auto auto 1fr; column-gap: 0; max-width: 1360px; margin: 0 auto; }
+  .wz .wzq > .wzm-head { grid-column: 1 / -1; padding: 22px 40px 0; }
+  .wz .wzq > .wzm-bar { grid-column: 1 / -1; margin: 18px 40px 0; }
+  .wz .wzq > .wzq-tiles, .wz .wzq > .wzq-panel, .wz .wzq > .wzq-band { display: none; }
+  .wz .wzq-rail { display: block; position: sticky; top: 0; align-self: start; grid-row: 3; padding: 36px 0 60px; }
+  .wz .wzq-rail--left { grid-column: 1; padding-left: 40px; }
+  .wz .wzq-rail--right { grid-column: 3; padding-right: 40px; }
+  .wz .wzq > .wzm-main { grid-column: 2; padding: 36px 40px 60px; max-width: 640px; }
+  .wz .wzq > .wzm-main.has-bar { padding-bottom: 60px; }
+  .wz .wzq .wzm-foot { position: static; background: none; padding: 28px 0 0; box-shadow: none; border: 0; }
+  .wz .wzq .wzm-screen h1 { font-size: 30px; }
+  .wz .wzq-rl-h { font-size: 12px; color: var(--cyan); font-weight: 600; margin: 0 0 8px; }
+  .wz .wzq-rl-cap { font-size: 12px; color: var(--muted); margin: 8px 0 0; }
+  .wz .wzq-rail-pic { aspect-ratio: 5 / 3; }
+  .wz .wzq-rail-plan { display: block; width: 100%; border: 1px solid var(--line); border-radius: 14px; overflow: hidden; background: #fff; padding: 0; margin: 0 0 18px; cursor: pointer; }
+  .wz .wzq-rail-plan img { display: block; width: 100%; max-height: 220px; object-fit: contain; }
+  .wz .wzq-rail .wzq-band { margin: 0 0 18px; }
+  .wz .wzq-rail-qh { display: flex; align-items: center; gap: 8px; width: 100%; border: 1px solid var(--line); background: var(--panel); border-radius: 14px; padding: 12px 14px; font: inherit; text-align: left; cursor: pointer; }
+  .wz .wzq-rail-qh b { color: var(--heading); font-size: 13px; }
+  .wz .wzq-rail-qh > span { color: var(--muted); font-size: 12px; }
+  .wz .wzq-rail-qh .chev { margin-left: auto; }
+  .wz .wzq-rail-quote { max-height: 0; overflow: hidden; transition: max-height .25s ease; }
+  .wz .wzq-rail-quote.open { max-height: calc(100vh - 380px); overflow-y: auto; margin-top: 8px; }
+}
+@media (min-width: 900px) and (max-width: 1120px) {
+  .wz .wzq { grid-template-columns: 200px minmax(0, 1fr) 360px; }
+}
+
