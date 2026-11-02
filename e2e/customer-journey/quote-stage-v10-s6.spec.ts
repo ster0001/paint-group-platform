@@ -13,6 +13,8 @@ import { MONEY_RANGE, answerOutsideQuick, driveMobileQuickLook, openQuickLook, f
  * flow (1–4 pick, Enter next, ← back).
  */
 const FLAG_ON = process.env.NEXT_PUBLIC_QUOTE_STAGE_V10 === "1";
+const SHOTS = process.env.QUOTE_SHOTS_DIR ?? "";
+const shot = async (page: Page, name: string) => { if (SHOTS) { await page.waitForTimeout(600); await page.screenshot({ path: `${SHOTS}/${name}.png`, animations: "disabled" }); } };
 const db = serviceClient();
 const cardId = (page: Page) => page.getByTestId("quote-stage").getAttribute("data-quote-card");
 const passCard = async (page: Page) => {
@@ -75,6 +77,7 @@ test.describe("quote stage v10 — session 6: outside and trims on a phone", () 
     await expect(page.getByTestId("wzm-h1")).toHaveText(/^How big is the /);
     await expect(page.getByTestId("q-tile-room").locator("svg.wz-elev")).toHaveCount(1);
     await expect(page.getByTestId("q-tile-room").locator("svg.wz-elev")).toHaveAttribute("data-side", "front");
+    await shot(page, "phone-outside-01-side-size");
     const firstKey = (await cardId(page))!.split(":")[1];
     await page.getByTestId("q-side-w").fill("12");
     await page.getByTestId("q-side-h").fill("3");
@@ -88,6 +91,7 @@ test.describe("quote stage v10 — session 6: outside and trims on a phone", () 
     await page.getByTestId("q-tile-quote").click();
     // C2 — on this side: the counted lines, the paint's condition
     await expect(page.getByTestId("wzm-h1")).toHaveText("On this side");
+    await shot(page, "phone-outside-02-on-this-side");
     await page.getByTestId("q-side-cond-weathered").click();
     await expect(page.getByTestId("q-side-cond-weathered")).toHaveAttribute("aria-pressed", "true");
     await page.getByTestId("q-next").click();
@@ -123,6 +127,7 @@ test.describe("quote stage v10 — session 6: outside and trims on a phone", () 
     // D: straight to the room's lines with their counters — no size card
     await expect(stage).toHaveAttribute("data-quote-card", /^surfaces:/);
     await expect(page.getByTestId("q-count-doors")).toBeVisible();
+    await shot(page, "phone-trims-01-room");
     await page.getByTestId("q-next").click();
     await expect(stage).toHaveAttribute("data-quote-card", /^surfaces:/, { timeout: 30_000 });
     await passUntil(page, (id) => id === "rooms");
@@ -170,6 +175,7 @@ test.describe("quote stage v10 — session 6: the desktop format and the keyboar
     await page.getByTestId("q-rail-quote-toggle").click();
     await expect(page.getByTestId("q-rail-quote")).toHaveAttribute("data-open", "1");
     await expect(page.getByTestId("q-rail-quote").getByTestId("q-doc")).toBeVisible();
+    await shot(page, "desktop-01-three-columns");
     const columns = await stage.evaluate((el) => getComputedStyle(el).gridTemplateColumns);
     expect(columns.split(" ").length, `three columns: ${columns}`).toBe(3);
     const left = (await page.getByTestId("q-rail-left").boundingBox())!, main = (await stage.locator("main").boundingBox())!, right = (await page.getByTestId("q-rail-right").boundingBox())!;
@@ -194,6 +200,7 @@ test.describe("quote stage v10 — session 6: the desktop format and the keyboar
     // the first measurement field is focused; the left rail draws this room
     await expect(page.getByTestId("q-measure-w")).toBeFocused();
     await expect(page.getByTestId("q-rail-room").locator("svg")).toHaveCount(1);
+    await shot(page, "desktop-02-measure");
     await expect(page.getByTestId("q-rail-room-name")).toHaveText(await page.getByTestId("q-stage").innerText().then((t) => t.split(" · ")[0]));
     await page.keyboard.type("4");
     await page.keyboard.press("Enter");

@@ -25,7 +25,7 @@ describe("quote stage v10 — the cards as data (brief §3)", () => {
   });
   it("the lift card only where the building asks for it; doors & trims skips the cornices and the height; outside has none", () => {
     expect(generalCards({ ...base, asksLift: true }).map((c) => c.key)).toContain("lift");
-    expect(generalCards({ ...base, jobKind: "trims" }).map((c) => c.key)).toEqual(["doors", "windows", "paintBase", "glossTrims", "cleared", "stairwell", "parking"]);
+    expect(generalCards({ ...base, jobKind: "trims" }).map((c) => c.key)).toEqual(["trimColour", "doors", "windows", "paintBase", "glossTrims", "cleared", "stairwell", "parking"]);
     expect(generalCards({ ...base, jobKind: "exterior" })).toEqual([]);
   });
   it("answers so far are pre-selected", () => {

@@ -72,7 +72,7 @@ export type SideAttentionCard = { kind: "side-attn"; id: string; areaId: number;
 export type DoneCard = { kind: "done"; id: "done"; stage: string };
 export type QuoteCard = GeneralCard | MeasureCard | SurfacesCard | RobeCard | AttentionCard | RoomsCard | ExtrasCard | SideSizeCard | SideOnCard | SideAttentionCard | DoneCard;
 
-export type GeneralKey = "cornices" | "height" | "doors" | "windows" | "paintBase" | "glossTrims" | "cleared" | "stairwell" | "parking" | "lift";
+export type GeneralKey = "cornices" | "height" | "doors" | "windows" | "paintBase" | "glossTrims" | "cleared" | "stairwell" | "parking" | "lift" | "trimColour";
 export type GeneralAnswers = Partial<Record<GeneralKey, string | null>>;
 
 export type QuoteRoom = {
@@ -165,8 +165,13 @@ export function generalCards(i: QuoteInput): GeneralCard[] {
       opt("2.4", "2.4 m", { action: "confirm_height", heightM: 2.4 }, { hint: "Most homes" }),
       opt("2.7", "2.7 m", { action: "confirm_height", heightM: 2.7 }),
       opt("3", "3 m or more", { action: "confirm_height", heightM: 3 }, { hint: "Older homes" }),
-    ], 3, g.height ?? null, "Sets every room — you can change any room on its own card.");
+      opt("varies", "Varies", { action: "confirm_height", heightM: 2.4 }, { hint: "Set each room on its card" }),
+    ], 4, g.height ?? null, "Sets every room — you can change any room on its own card.");
   }
+  if (i.jobKind === "trims") push("trimColour", "Same white, or a new colour?", [
+    opt("same", "Same white", { action: "set_paint_system", field: "colourIntent", value: "same" }),
+    opt("new", "A new colour", { action: "set_paint_system", field: "colourIntent", value: "new" }, { hint: "Priced as a colour change" }),
+  ], 2, g.trimColour ?? null);
   push("doors", "The doors — mostly panelled, or flat?", [
     opt("panel", "Panelled", { action: "set_door_style", style: "panel" }, { drawing: "door-panel" }),
     opt("flat", "Flat", { action: "set_door_style", style: "flat" }, { drawing: "door-flat" }),

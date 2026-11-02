@@ -925,6 +925,17 @@
       "sources": []
     },
     {
+      "feature": "quote-stage",
+      "role": "staff",
+      "title": "The customer's detailed-price stage, seen from the office",
+      "summary": "What a customer builds on \"Get my detailed price\" — one question per card, the quote writing itself — lands in the same estimate tree the scope page wrote; you preview it from the estimate's link, and nothing on it prices in the browser.",
+      "path": "docs/help/quote-stage/staff.md",
+      "walkthrough": null,
+      "media": [],
+      "verified_at_commit": null,
+      "sources": []
+    },
+    {
       "feature": "scheduling",
       "role": "contractor",
       "title": "Answer a job offer and manage your booked dates",

@@ -46,7 +46,7 @@ const PREP_COLOUR = { crack: "#9aa4ae", hole: "#b7bfc7", flaking: "#b7bfc7", wat
 export default function MobilePicture({ state, quote = null, testId = "wzm-pic" }: { state: MobilePictureState; quote?: QuoteRoomPicture | null; testId?: string }) {
   const id = useId().replace(/:/g, "");
   const painted = state.painted;
-  const openings = quote ? layoutOpenings(quote.doors, quote.windows, quote.winSize) : [];
+  const openings = quote ? layoutOpenings(quote.doors, quote.windows, quote.winSize, quote.robe != null) : [];
   const quoteKeys: string[] = quote
     ? ["ceilings", "walls", ...(quote.cornices ? ["cornices"] : []), ...(quote.skirting ? ["skirting"] : []), ...(quote.architraves && quote.doors > 0 ? ["architraves"] : []),
       ...(quote.robe ? ["robeinside", "robedoors"] : []), ...openings.map((o) => o.key)]
@@ -98,7 +98,7 @@ export default function MobilePicture({ state, quote = null, testId = "wzm-pic" 
         {quote.wallsPct != null && pct < 100 && <rect data-walls-rest="true" x={50 + pct} y="30" width={100 - pct} height="60" fill="#e4e8ec" stroke="#cfd5db" />}
         <g data-prep-marks="true">
           {quote.prep.map((k, n) => {
-            const px = 60 + n * 25, py = 45 + (n % 2) * 18, c = PREP_COLOUR[k];
+            const px = 60 + (n % 3) * 28, py = 40 + Math.floor(n / 3) * 20 + (n % 2) * 6, c = PREP_COLOUR[k];
             if (k === "crack") return <path key={k} data-prep={k} d={`M${px},${py} l4,6 -2,5 3,6`} stroke={c} strokeWidth=".9" fill="none" />;
             if (k === "hole") return <circle key={k} data-prep={k} cx={px} cy={py + 6} r="2.2" fill={c} />;
             if (k === "flaking") return <path key={k} data-prep={k} d={`M${px},${py} l5,2 -3,4 5,2`} stroke={c} fill="none" />;

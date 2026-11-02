@@ -1,6 +1,8 @@
 import { expect, type Page } from "@playwright/test";
 import { randomBytes } from "node:crypto";
 import { test } from "../helpers";
+/** Quote stage v10 (S7 switch-over): with the flag on, the gate's door reads "detailed" and opens /estimate/quote. */
+const V10 = process.env.NEXT_PUBLIC_QUOTE_STAGE_V10 === "1";
 import { serviceClient } from "../fixtures/woLoop";
 import { MONEY_RANGE, answerOutsideQuick, driveMobileQuickLook } from "./drive";
 
@@ -99,6 +101,11 @@ test.describe("Wizard mobile v5 — the phone, end to end on both shopfronts (se
     await expect(page.getByTestId("gate-basis")).toContainText(/good condition/);
     await expect(page.getByTestId("gate-tiles").locator("li").nth(2)).toContainText("In person, 40 min");
     await page.getByTestId("gate-bar-exact").tap();
+    if (V10) {
+      await expect(page).toHaveURL(/\/estimate\/quote\?id=/, { timeout: 30_000 });
+      await expect(page.getByTestId("quote-stage")).toBeVisible({ timeout: 30_000 });
+      return;
+    }
     await expect(page).toHaveURL(/\/estimate\/scope\?id=/, { timeout: 30_000 });
     await expect(page.locator("[data-ready='1']")).toBeAttached({ timeout: 30_000 });
     await expect(page.getByTestId("wzm-tiles")).toHaveAttribute("data-at", "1");

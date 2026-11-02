@@ -38,7 +38,7 @@ const DOOR_W = 16, DOOR_H = 40, GAP = 6, BACK_X0 = 54, BACK_W = 92;
  * and extra windows to the left wall (drawn with the perspective skew),
  * never overlapping.
  */
-export function layoutOpenings(doors: number, windows: number, winSize: WinSize): Opening[] {
+export function layoutOpenings(doors: number, windows: number, winSize: WinSize, robe = false): Opening[] {
   const [ww, wh] = WIN_SIZE[winSize];
   const items: Array<{ kind: "door" | "win"; w: number; h: number; key: string }> = [];
   for (let k = 0; k < windows; k++) items.push({ kind: "win", w: ww, h: wh, key: `win-${k}-${winSize}` });
@@ -47,7 +47,8 @@ export function layoutOpenings(doors: number, windows: number, winSize: WinSize)
   let used = 0;
   for (const it of items) {
     if (used + it.w <= BACK_W) { back.push(it); used += it.w + GAP; }
-    else if (it.kind === "door" && right.length < 2) right.push(it);
+    // a robe sits on the right wall: the overflow goes left first (S7 independent check, defect 9)
+    else if (it.kind === "door" && !robe && right.length < 2) right.push(it);
     else if (left.length < 3) left.push(it);
     else right.push(it);
   }

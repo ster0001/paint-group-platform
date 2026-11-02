@@ -1,6 +1,8 @@
 import { test, expect, type Page } from "@playwright/test";
 import { passDetailsSheetIfShown, passGateIfShown, quickNext, MONEY_RANGE, lookAtEverySide } from "./drive";
 import { toSides } from "./exterior-v2-drive";
+/** Quote stage v10 (S7 switch-over): with the flag on, the gate's door reads "detailed". */
+const V10 = process.env.NEXT_PUBLIC_QUOTE_STAGE_V10 === "1";
 
 /**
  * Exterior wizard v2 — S4: the gate and the guide range (brief §7.5; gate
@@ -178,7 +180,7 @@ test.describe("on a phone: the outside range is the v5 gate with one row per sid
     await expect(gate.locator("svg.wz-elev")).toHaveCount(0);
     await expect(page.getByTestId("wzm-strip")).toHaveCount(0);
     // the one question, the brief's words, the doors
-    await expect(page.getByTestId("gate-block-ask")).toContainText("Want the exact number?");
+    await expect(page.getByTestId("gate-block-ask")).toContainText(V10 ? "Want the detailed price?" : "Want the exact number?");
     await expect(page.getByTestId("gate-block-ask")).toContainText(/A few minutes, side by side, nothing to measure\./);
     await expect(page.getByTestId("gate-exact")).toContainText("Side by side · a few minutes");
     await expect(page.getByTestId("gate-visit")).toContainText(/book a time with .+ first/);
