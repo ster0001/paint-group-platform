@@ -14,7 +14,7 @@ import { WINDOW_DRAWINGS } from "@/app/estimate/scope/StyleTiles";
 import { jobTypesFor, propertyKindsFor, type WizardBrand } from "@/lib/wizard/brand";
 import type { ExteriorQuickLook } from "@/lib/wizard/exterior-quick-look";
 import {
-  EXTRA_LABEL, PART_LABEL, confirmSide, exteriorV2Answered, paintedSides, partsOnSide, setSideMaterial, setSidePaint, sideAddableParts, sideListParts, sideMaterial,
+  EXTRA_LABEL, PART_LABEL, confirmSide, exteriorV2Answered, paintedSides, partsOnSide, setSideCounts, setSideMaterial, setSidePaint, sideAddableParts, sideListParts, sideMaterial,
   toggleExtra, togglePart, toggleSidePart,
 } from "@/lib/wizard/exterior-model";
 import type { InteriorExcludable } from "@/lib/wizard/quick-look";
@@ -716,6 +716,21 @@ function SideScreen({ v2, side, t, onChange, onToggle, addOpen, onAddOpen }: {
                 <button key={p} type="button" className="wzm-chip" aria-pressed={false} data-testid={`ext-side-addpart-${p}`} onClick={() => { onToggle(p); onAddOpen(false); }}>{PART_LABEL[p]}</button>
               ))}
               {addable.length === 0 && <span className="wzm-note">Everything is already on this side.</span>}
+            </div>
+          )}
+          {/* Tom, 2 Nov 2026: the windows and doors are counted HERE, before the gate — the drawn house follows each tap (the thumbnail and the sheet). */}
+          {sd && (on.has("windows") || on.has("doors")) && (
+            <div className="wzm-steps" data-testid="ext-side-counts">
+              {([["windows", "Windows", sd.windows, 60], ["doors", "Doors", sd.doors, 20]] as const).filter(([k]) => on.has(k)).map(([k, label, value, max]) => (
+                <div className="wzm-step" key={k} data-testid={`ext-side-${k === "windows" ? "win" : "door"}`}>
+                  <div className="l">{label}<small>on this side</small></div>
+                  <div className="stp">
+                    <button type="button" aria-label={`Fewer ${label.toLowerCase()}`} disabled={value <= 0} onClick={() => onChange(setSideCounts(v2, side, { [k]: value - 1 }))}>−</button>
+                    <b data-testid={`ext-side-${k === "windows" ? "win" : "door"}-n`}>{value}</b>
+                    <button type="button" aria-label={`More ${label.toLowerCase()}`} disabled={value >= max} onClick={() => onChange(setSideCounts(v2, side, { [k]: value + 1 }))}>+</button>
+                  </div>
+                </div>
+              ))}
             </div>
           )}
           {on.has("walls") && (

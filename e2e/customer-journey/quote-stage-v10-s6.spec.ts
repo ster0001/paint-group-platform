@@ -68,6 +68,16 @@ test.describe("quote stage v10 — session 6: outside and trims on a phone", () 
     const inside = await driveMobileQuickLook(page, { suburb: suburbOut, jobType: "exterior" });
     expect(inside).toBe(false);
     await answerOutsideQuick(page);
+    // Tom, 2 Nov: the windows and doors are counted BEFORE the gate, on each side's screen — the drawn house in the strip follows
+    const sideWin = page.getByTestId("ext-side-win");
+    if (await sideWin.count()) {
+      const n0 = Number(await page.getByTestId("ext-side-win-n").innerText());
+      const strip = page.getByTestId("wzm-thumb").locator("svg.wz-elev");
+      await expect(strip).toHaveAttribute("data-windows", String(n0));
+      await sideWin.getByRole("button", { name: /More/ }).click();
+      await expect(page.getByTestId("ext-side-win-n")).toHaveText(String(n0 + 1));
+      await expect(strip).toHaveAttribute("data-windows", String(n0 + 1));
+    }
     await page.getByTestId("ql-next").click();
     await toGate(page, run);
     const stage = page.getByTestId("quote-stage");
@@ -89,9 +99,16 @@ test.describe("quote stage v10 — session 6: outside and trims on a phone", () 
     await expect(measured).toContainText("12 × 3 m");
     await expect(measured.locator(".amt")).toHaveText(MONEY_RANGE);
     await page.getByTestId("q-tile-quote").click();
-    // C2 — on this side: the counted lines, the paint's condition
+    // C2 — on this side: windows and doors are the drawn house's counts — + on windows redraws the side with one more
     await expect(page.getByTestId("wzm-h1")).toHaveText("On this side");
     await shot(page, "phone-outside-02-on-this-side");
+    const win0 = Number(await page.getByTestId("q-side-win-n").innerText());
+    const elev = page.getByTestId("q-tile-room").locator("svg.wz-elev");
+    await expect(elev).toHaveAttribute("data-windows", String(win0));
+    await page.getByTestId("q-side-win").getByRole("button", { name: "More" }).click();
+    await expect(page.getByTestId("q-side-win-n")).toHaveText(String(win0 + 1));
+    await expect(elev).toHaveAttribute("data-windows", String(win0 + 1));
+    await expect.poll(async () => page.getByTestId("quote-stage").getAttribute("data-busy"), { timeout: 30_000 }).not.toBe("1");
     await page.getByTestId("q-side-cond-weathered").click();
     await expect(page.getByTestId("q-side-cond-weathered")).toHaveAttribute("aria-pressed", "true");
     await page.getByTestId("q-next").click();
