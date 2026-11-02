@@ -19,6 +19,9 @@ import { breakpointNow, sendWizardEvent } from "@/lib/wizard/wizardEvents";
 import { quoteCards, quoteProgress, quoteRoomsFrom, typicalRoomNames, type AttentionCard, type GeneralAnswers, type GeneralCard, type MeasureCard, type QuoteRoom, type RobeCard, type RoomsCard, type SurfacesCard } from "@/lib/quote/cards";
 import { quoteDocument, quoteSummary, type PreparedFor, type QuoteDocument, type QuoteLine } from "@/lib/quote/quote";
 import { useRollerSweep } from "@/app/wizard/pictures/rollerSweep";
+import MobilePicture from "@/app/wizard/pictures/MobilePicture";
+import type { MobilePictureState } from "@/lib/wizard/mobilePicture";
+import { quotePictureFrom } from "@/lib/quote/roomDrawing";
 import { DOOR_DRAWINGS, WINDOW_DRAWINGS } from "@/app/estimate/scope/StyleTiles";
 import Wordmark from "@/app/wizard/Wordmark";
 import MobileContact from "@/app/wizard/MobileContact";
@@ -79,6 +82,8 @@ export default function QuoteStage({ brand, estimateId, initial, initialScopeRoo
 }) {
   const router = useRouter();
   const [quoteOpen, setQuoteOpen] = useState(false);
+  // the room sheet is open FOR a card: moving to another card closes it without an effect
+  const [roomOpenFor, setRoomOpenFor] = useState<string | null>(null);
   const [payload, setPayload] = useState<Payload>(initial);
   const [scopeRooms, setScopeRooms] = useState<CustomerScopeRoom[]>(initialScopeRooms);
   const [loop, setLoop] = useState<RoomLoopView[]>(initialLoop);
@@ -100,8 +105,21 @@ export default function QuoteStage({ brand, estimateId, initial, initialScopeRoo
   const generalToGo = cards.filter((c) => c.kind === "general" && c.value == null).length;
   const doc = quoteDocument({ payload, rooms, preparedFor, number: quoteNo, date: quoteDate, generalToGo });
   const summary = quoteSummary(rooms, generalToGo);
-  const settled = payload.confirmedShare ?? summary.settledShare;
+  // The band's "N% settled" is the QUOTE's share — lines settled over lines (the S1 proof on C1: the engine's
+  // `confirmedShare` is the tree's confirm-loop share and does not move when a room is sized).
+  const settled = summary.settledShare;
   const currentAreaId = "areaId" in current ? current.areaId : null;
+  // §4 (R5): the room tile — the one picture, drawn from the one room model, redrawn with every answer.
+  const currentRoom = currentAreaId != null ? rooms.find((r) => r.areaId === currentAreaId) ?? null : null;
+  const picture = currentRoom ? quotePictureFrom(currentRoom) : null;
+  const picState: MobilePictureState = { kind: "room", property: "house", two: false, colour: "deciding", condition: "good", painted: null };
+  const roomOpen = roomOpenFor === current.id && currentRoom != null;
+  useEffect(() => {
+    if (!roomOpen) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setRoomOpenFor(null); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [roomOpen]);
   const firstName = preparedFor.name?.trim().split(/\s+/)[0] ?? null;
 
   // §7: the stage viewed once, the done screen once.
@@ -179,6 +197,12 @@ export default function QuoteStage({ brand, estimateId, initial, initialScopeRoo
               <span className="txt"><b data-testid="q-tile-title">{summary.toGo === 0 ? "Your quote" : `Quote · ${summary.toGo} to go`}</b><span data-testid="q-tile-sub">{summary.toGo === 0 ? "Tap to see it" : `~${summary.minutes} min · tap to see`}</span></span>
               <span className="chev" aria-hidden="true">{quoteOpen ? "▴" : "▾"}</span>
             </button>
+            {currentRoom && picture && (
+              <button type="button" className="wzq-tile wzq-tile--room" onClick={() => setRoomOpenFor(current.id)} data-testid="q-tile-room" aria-label={`${currentRoom.name}. Updates as you answer.`}>
+                <span className="thumb"><MobilePicture state={picState} quote={picture} testId="q-room-pic" /></span>
+                <span className="txt"><b data-testid="q-tile-room-name">{currentRoom.name}</b><span>Updates as you answer</span></span>
+              </button>
+            )}
           </div>
           <div className={`wzq-panel ${quoteOpen ? "open" : ""}`} data-testid="q-panel" data-open={quoteOpen ? "1" : "0"} aria-hidden={!quoteOpen}>
             <QuoteDoc doc={doc} brand={brand} currentAreaId={currentAreaId} />
@@ -269,6 +293,16 @@ export default function QuoteStage({ brand, estimateId, initial, initialScopeRoo
         </div>
       )}
 
+      {roomOpen && currentRoom && picture && (
+        <div className="wz-sheetback wzm-sheetback" role="dialog" aria-modal="true" aria-label={currentRoom.name} data-testid="q-room-sheet" onClick={(e) => { if (e.target === e.currentTarget) setRoomOpenFor(null); }}>
+          <div className="wz-sheet wzm-sheet">
+            <button type="button" className="wz-sheet-x" aria-label="Close" onClick={() => setRoomOpenFor(null)} data-testid="q-room-sheet-x">×</button>
+            <div className="wzm-grab" aria-hidden="true" />
+            <div className="wzm-bigpic" data-testid="q-room-bigpic"><MobilePicture state={picState} quote={picture} testId="q-room-bigpic-pic" /></div>
+            <p className="wzm-cap" data-testid="q-room-cap">{currentRoom.name} — {currentRoom.widthM} × {currentRoom.lengthM} × {currentRoom.heightM} m. Updates as you answer.</p>
+          </div>
+        </div>
+      )}
       <MobileContact open={contactOpen} onClose={() => setContactOpen(false)} brand={brand} estimatorName={estimator.name} suburb={customerSuburb}
         phone={estimator.phone ?? companyPhone} onBook={book} onCall={() => sendWizardEvent("quote_book_clicked", {})} />
     </div>

@@ -27,6 +27,12 @@ const SPOT_PHOTO_MAX_BYTES = 5 * 1024 * 1024;
  * card, the doors-and-windows check) and "Anything we haven't listed?";
  * the done screen names the customer and a typical line taps back to its
  * size card.
+ *
+ * Session 4 (§4, R5): the room tile beside the quote tile — the one room
+ * drawing, redrawn with every answer: an added door appears as its own
+ * swept layer, S / M / L resizes, an unticked cornice is not drawn, the
+ * robe and its doors render, a crack shows its mark; the sheet draws the
+ * same picture full width.
  */
 const FLAG_ON = process.env.NEXT_PUBLIC_QUOTE_STAGE_V10 === "1";
 const db = serviceClient();
@@ -196,6 +202,15 @@ test.describe("quote stage v10 — session 1: the cards on a phone", () => {
     await card(page, `surfaces:${firstArea}`);
     // B2 — what we're painting in here: the tiles as chips; doors + → 2; the door scope and the window key
     await expect(page.getByTestId("wzm-h1")).toHaveText("What we’re painting in here");
+    // §4 (S4) — the room tile: the drawing from the room's own state (cornices were answered Standard)
+    await expect(page.getByTestId("q-tile-room-name")).toHaveText(await page.getByTestId("q-stage").innerText().then((t) => t.split(" · ")[0]));
+    const pic = page.getByTestId("q-room-pic");
+    await expect(pic).toHaveAttribute("data-quote", "true");
+    await expect(pic.locator("[data-surf='cornices']")).toHaveCount(1);
+    await expect(pic.locator("[data-surf='walls']")).toHaveAttribute("data-on", "true");
+    const picDoors = Number(await pic.getAttribute("data-doors"));
+    expect(picDoors).toBeGreaterThan(0);
+    await expect(pic.locator("[data-kind='door']")).toHaveCount(picDoors);
     const chips = page.getByTestId("q-surfaces").locator("button.wzm-chip");
     expect(await chips.count()).toBeGreaterThan(3);
     await expect(page.getByTestId("q-surf-walls")).toHaveAttribute("aria-pressed", "true");
@@ -203,6 +218,24 @@ test.describe("quote stage v10 — session 1: the cards on a phone", () => {
     const doorsBefore = Number(await page.getByTestId("q-count-doors").locator("b").innerText());
     await page.getByTestId("q-count-doors").getByRole("button", { name: "More" }).tap();
     await expect(page.getByTestId("q-count-doors").locator("b")).toHaveText(String(doorsBefore + 1), { timeout: 30_000 });
+    // §4 (S4) — the added door is drawn at once as its own layer, swept to full; untick cornices → not drawn; L → resized
+    await expect(pic.locator("[data-kind='door']")).toHaveCount(doorsBefore + 1);
+    await expect.poll(() => pic.locator(`[data-surf='door-${doorsBefore}'] rect.cprect`).getAttribute("width"), { timeout: 5_000 }).toBe("200");
+    await page.getByTestId("q-surf-cornices").tap();
+    await expect(page.getByTestId("q-surf-cornices")).toHaveAttribute("aria-pressed", "false", { timeout: 30_000 });
+    await expect(pic.locator("[data-surf='cornices']")).toHaveCount(0);
+    const sizeL = page.locator("[data-testid^='q-win-size-'][data-testid$='-L']").first();
+    if (await sizeL.count()) {
+      await sizeL.tap();
+      await expect(pic).toHaveAttribute("data-win-size", "L", { timeout: 30_000 });
+    }
+    // the sheet draws the same picture full width
+    await page.getByTestId("q-tile-room").tap();
+    await expect(page.getByTestId("q-room-sheet")).toBeVisible();
+    await expect(page.getByTestId("q-room-bigpic-pic")).toHaveAttribute("data-doors", String(doorsBefore + 1));
+    await expect(page.getByTestId("q-room-cap")).toContainText("Updates as you answer");
+    await page.keyboard.press("Escape");
+    await expect(page.getByTestId("q-room-sheet")).toHaveCount(0);
     await expect(page.getByTestId("q-win-key")).toContainText("S under 50 × 50 cm");
     await page.getByTestId("q-add-surface").tap();
     await expect(page.getByTestId("q-add-panel")).toBeVisible();
@@ -216,6 +249,8 @@ test.describe("quote stage v10 — session 1: the cards on a phone", () => {
       await expect(page.getByTestId("q-robe-more")).toBeVisible();
       await page.getByTestId("q-robe-doors-yes").tap();
       await expect(page.getByTestId("q-robe-doors-yes")).toHaveAttribute("aria-pressed", "true");
+      // §4 (S4) — the robe and its doors render on the right wall
+      await expect(page.getByTestId("q-room-pic").locator("[data-surf='robedoors']")).toHaveAttribute("data-on", "true", { timeout: 30_000 });
       await page.getByTestId("q-next").tap();
     }
     await card(page, `attention:${firstArea}`);
@@ -233,6 +268,8 @@ test.describe("quote stage v10 — session 1: the cards on a phone", () => {
     await page.getByTestId("wzm-back").tap();
     await card(page, `attention:${firstArea}`);
     await expect(page.getByTestId("q-spots-noted")).toContainText(/crack/i);
+    // §4 (S4) — the crack shows its mark on the drawing
+    await expect(page.getByTestId("q-room-pic").locator("[data-prep='crack']")).toHaveCount(1);
     await page.getByTestId("q-next").tap();
     // the rest of the rooms: the typical size, Next, No robe, nothing to fix — until the last checks
     await passUntil(page, (id) => id === "rooms");
