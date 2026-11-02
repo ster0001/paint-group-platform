@@ -2888,3 +2888,10 @@
   .wz .wzq { grid-template-columns: 200px minmax(0, 1fr) 360px; }
 }
 
+/* ── QUOTE STAGE v10 — S7: the desktop key hints (§2), hidden on a phone. ── */
+.wz .wzq-keys { display: none; }
+@media (min-width: 900px) {
+  .wz .wzq > .wzq-keys { display: block; grid-column: 2; margin: 10px 40px 40px; font-size: 12px; color: var(--muted); }
+  .wz .wzq-keys b { display: inline-block; min-width: 18px; padding: 1px 6px; margin-right: 2px; border: 1px solid var(--line); border-radius: 6px; background: var(--panel); font-weight: 600; color: var(--heading); font-size: 11px; text-align: center; }
+}
+

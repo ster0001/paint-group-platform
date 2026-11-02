@@ -19,6 +19,11 @@ describe("quote stage v10 §4 — the room drawing as data", () => {
     const big = layoutOpenings(6, 6, "L");
     for (let i = 0; i < big.length; i++) for (let j = i + 1; j < big.length; j++) expect(overlaps(big[i], big[j])).toBe(false);
   });
+  it("with a robe on the right wall the overflow doors go left, never over the robe", () => {
+    const o = layoutOpenings(3, 2, "L", true);
+    expect(o.filter((x) => x.kind === "door" && x.wall === "right")).toHaveLength(0);
+    for (let i = 0; i < o.length; i++) for (let j = i + 1; j < o.length; j++) expect(overlaps(o[i], o[j])).toBe(false);
+  });
   it("S / M / L resizes and gives each window a new key (so it sweeps in again)", () => {
     expect(layoutOpenings(0, 1, "S")[0].w).toBeLessThan(layoutOpenings(0, 1, "L")[0].w);
     expect(layoutOpenings(0, 1, "S")[0].key).not.toBe(layoutOpenings(0, 1, "L")[0].key);

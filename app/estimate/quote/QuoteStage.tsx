@@ -155,7 +155,7 @@ export default function QuoteStage({ brand, estimateId, initial, jobKind, initia
   useEffect(() => { window.scrollTo({ top: 0 }); }, [current.id]);
 
   /** One whitelisted action to the scope page's own route; the server's payload comes back and is the truth. */
-  const act = useCallback<Act>(async (body) => {
+  const post = async (body: Record<string, unknown>): Promise<Payload | null> => {
     setBusy(true); setError(null);
     try {
       const res = await fetch(`/api/estimates/${estimateId}/wizard-edit`, {
@@ -176,6 +176,16 @@ export default function QuoteStage({ brand, estimateId, initial, jobKind, initia
       setError("That didn't save — check your connection and try again.");
       return null;
     } finally { setBusy(false); }
+  };
+  // Independent check (S7, defect 2): the route reads and rewrites ONE builder_state row with no lock, so two taps in
+  // flight would race (last writer wins). Every post waits for the one before it — the same serialisation the scope
+  // editor's queue gave it. A body of `{ actions: [...] }` is the route's batch shape and rides the same chain.
+  const chain = useRef<Promise<unknown>>(Promise.resolve());
+  const act = useCallback<Act>((body) => {
+    const run = chain.current.then(() => post(body));
+    chain.current = run.catch(() => undefined);
+    return run;
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- `post` only closes over state setters and the estimate id
   }, [estimateId]);
 
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -190,12 +200,12 @@ export default function QuoteStage({ brand, estimateId, initial, jobKind, initia
     const onKey = (e: KeyboardEvent) => {
       const tag = (e.target as HTMLElement | null)?.tagName ?? "";
       const typing = tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT";
-      if (e.key === "Enter" && tag !== "TEXTAREA") {
+      if (typing) return; // a field's own Enter handler submits it (defect 12: never twice)
+      if (e.key === "Enter") {
         const next = document.querySelector<HTMLButtonElement>("[data-testid='q-next'], [data-testid='q-prep-add'], [data-testid='q-size-ok'], [data-testid='q-book']");
         if (next && !next.disabled) { e.preventDefault(); next.click(); }
         return;
       }
-      if (typing) return;
       if (e.key === "ArrowLeft") { back(); return; }
       if (/^[1-4]$/.test(e.key)) {
         const opts = Array.from(document.querySelectorAll<HTMLButtonElement>(".wzq-card .wzm-opts .wzm-opt"));
@@ -226,7 +236,7 @@ export default function QuoteStage({ brand, estimateId, initial, jobKind, initia
   useEffect(() => {
     if (current.kind !== "done") return;
     const typical = typicalRoomNames(rooms).length;
-    sendWizardEvent("quote_stage_done", { settled_share: rooms.length ? (rooms.length - typical) / rooms.length : 0, typical_count: typical, range_lo: payload.rangeLoCents, range_hi: payload.rangeHiCents });
+    sendWizardEvent("quote_stage_done", { settled_share: summary.settledShare, typical_count: typical, range_lo: payload.rangeLoCents, range_hi: payload.rangeHiCents });
     // eslint-disable-next-line react-hooks/exhaustive-deps -- once, when the done screen is reached
   }, [current.kind]);
 
@@ -356,7 +366,7 @@ export default function QuoteStage({ brand, estimateId, initial, jobKind, initia
             }} />
           )}
           {current.kind === "side-on" && (
-            <SideOnScreen key={current.id} card={current} busy={busy} act={act} condition={sidesView?.meta?.cond?.cond ?? null} onNext={() => { answered("side-on", current.areaId); advance(); }} />
+            <SideOnScreen key={current.id} card={current} busy={busy} act={act} condition={sidesView?.meta?.cond?.cond ?? null} peelingSides={sidesView?.meta?.cond?.peelingSides ?? []} onNext={() => { answered("side-on", current.areaId); advance(); }} />
           )}
           {current.kind === "side-attn" && (
             <SideAttentionScreen key={current.id} card={current} busy={busy} act={act} estimateId={estimateId} onNext={async () => {
@@ -394,6 +404,10 @@ export default function QuoteStage({ brand, estimateId, initial, jobKind, initia
           <button type="button" className="wzm-cta wzm-cta--teal" onClick={book} data-testid="q-book">Book {who} to confirm it<small>In person · about 40 minutes</small></button>
         </div>
       )}
+      {/* §2 desktop — the key hints (shown at ≥ 900px by CSS) */}
+      <p className="wzq-keys" data-testid="q-keys" aria-hidden="true">
+        {current.kind === "general" || current.kind === "robe" ? <><b>1</b><b>2</b><b>3</b> choose · </> : current.kind === "measure" || current.kind === "side-size" ? <><b>Tab</b> next field · <b>Enter</b> that&rsquo;s the size · </> : <><b>Enter</b> next · </>}<b>←</b> back
+      </p>
 
       {roomOpen && currentRoom && (picture || (currentSideKey && v2)) && (
         <div className="wz-sheetback wzm-sheetback" role="dialog" aria-modal="true" aria-label={currentRoom.name} data-testid="q-room-sheet" onClick={(e) => { if (e.target === e.currentTarget) setRoomOpenFor(null); }}>
@@ -442,7 +456,7 @@ function MeasureScreen({ card, busy, estimateId, onSize }: { card: MeasureCard; 
   const num = (v: string, fallback: number) => { const n = parseFloat(v.replace(/[^0-9.]/g, "")); return isNaN(n) || n <= 0 ? fallback : n; };
   const submit = () => {
     if (!typed) { onSize(null); return; }
-    onSize({ widthM: num(draft.w, card.widthM), lengthM: num(draft.l, card.lengthM), heightM: draft.h.trim() ? num(draft.h, card.heightM) : null });
+    onSize({ widthM: num(draft.w, card.widthM), lengthM: num(draft.l, card.lengthM), heightM: draft.h.trim() ? Math.min(6, Math.max(2, num(draft.h, card.heightM))) : null });
   };
   const field = (key: "w" | "l" | "h", label: string, typical: number) => (
     <label className={`wzq-field ${draft[key].trim() ? "" : "typ"}`}>
@@ -628,7 +642,7 @@ function SurfacesScreen({ card, busy, act, catalogue, onNext }: { card: Surfaces
       <p className="wzm-sub" data-testid="wzm-sub">Untick anything we&rsquo;re not doing.</p>
       <div className="wzm-chips wzq-surf" data-testid="q-surfaces">
         {walls && chip(walls, seg([["100", "All"], ["75", "75%"], ["50", "50%"], ["25", "25%"]], String(walls.wallsPct ?? 100), (v) => void act({ action: "walls_share", areaId: room.areaId, pct: Number(v) }), "q-walls-share"))}
-        {plain.map((t) => chip(t, t.countable && t.count != null ? <Counter value={t.count} min={1} max={20} testId={`q-count-${String(t.key).replace(/[^a-z0-9]+/gi, "-")}`} disabled={busy}
+        {plain.map((t) => chip(t, t.countable && t.count != null ? <Counter value={t.count} min={1} max={t.surfaceId != null ? 20 : 12} testId={`q-count-${String(t.key).replace(/[^a-z0-9]+/gi, "-")}`} disabled={busy}
           onChange={(n) => void act(t.surfaceId != null ? { action: "room_line_count", areaId: room.areaId, surfaceId: t.surfaceId, count: n } : { action: "set_count", areaId: room.areaId, key: String(t.key), count: n })} /> : undefined))}
         {doors && chip(doors, <>
           <Counter value={doors.count ?? 1} min={1} max={12} testId="q-count-doors" disabled={busy} onChange={(n) => void act({ action: "set_count", areaId: room.areaId, key: "doors", count: n })} />
@@ -678,8 +692,8 @@ function RobeScreen({ card, busy, act, onNext }: { card: RobeCard; busy: boolean
   const pick = (v: "none" | "yes") => {
     setRobe(v);
     if (v === "none") {
-      void act({ action: "room_cupboard", areaId: room.areaId, on: false, count: null });
-      if (room.cupboardInterior) void act({ action: "room_cupboard_interior", areaId: room.areaId, on: false, count: null });
+      const actions = [{ action: "room_cupboard", areaId: room.areaId, on: false, count: null }, ...(room.cupboardInterior ? [{ action: "room_cupboard_interior", areaId: room.areaId, on: false, count: null }] : [])];
+      void act({ actions });
       timer.current = setTimeout(onNext, 300);
     }
   };
@@ -916,12 +930,17 @@ function SideSizeScreen({ card, busy, act, onDone }: { card: SideSizeCard; busy:
 }
 
 /** §3 C2 — "On this side": the side's counted lines (windows, doors…) with − / +, a window group's S / M / L, and how the paint is on this side. */
-function SideOnScreen({ card, busy, act, condition, onNext }: { card: SideOnCard; busy: boolean; act: Act; condition: string | null; onNext: () => void }) {
+function SideOnScreen({ card, busy, act, condition, peelingSides, onNext }: { card: SideOnCard; busy: boolean; act: Act; condition: string | null; peelingSides: string[]; onNext: () => void }) {
   const tiles = card.side.sideTiles ?? [];
   const [cond, setCond] = useState<string | null>(condition);
+  // Defect 3: `loop_cond` REPLACES `peelingSides` and nulls it unless cond is peeling — so merge this side in or out of the
+  // list the server holds, and only step the whole-house condition down when no side is left peeling.
   const pickCond = (c: "good" | "weathered" | "peeling") => {
     setCond(c);
-    void act({ action: "loop_cond", cond: c, ...(c === "peeling" ? { peelingSides: [card.sideKey] } : {}) });
+    const others = peelingSides.filter((k) => k !== card.sideKey && k !== "all" && k !== "unsure");
+    const sides = c === "peeling" ? [...others, card.sideKey] : others;
+    const whole = sides.length > 0 ? "peeling" : c;
+    void act({ action: "loop_cond", cond: whole, ...(sides.length > 0 ? { peelingSides: sides } : {}) });
   };
   return (
     <>

@@ -108,7 +108,7 @@ export default function MobileGate({ payload, quick, outside, brand, logo, estim
       <main className="wzm-main has-bar">
         {/* 1 · the range */}
         <section data-testid="gate-block-range">
-          <p className="wzm-gate-label" data-testid="gate-label">{tightened ? (customer ? `${customer}, your exact price` : "Your exact price") : customer ? `${customer}, your range today` : "Your range today"}</p>
+          <p className="wzm-gate-label" data-testid="gate-label">{tightened ? (customer ? `${customer}, your ${detailed ? "detailed" : "exact"} price` : detailed ? "Your detailed price" : "Your exact price") : customer ? `${customer}, your range today` : "Your range today"}</p>
           <p className="wzm-gate-price" data-testid="gate-range">{fmt(payload.rangeLoCents)} – {fmt(payload.rangeHiCents)}</p>
           {payload.parts && (
             <dl className="wzm-gate-parts" data-testid="gate-parts">
