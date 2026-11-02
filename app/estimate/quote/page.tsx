@@ -88,6 +88,7 @@ export default async function QuoteStagePage({ searchParams }: { searchParams: P
         initialRoomExtras={bundle.initialRoomExtras}
         initialExtras={bundle.initialExtras}
         roomTypes={bundle.roomTypes}
+        plan={bundle.docs.plan}
         initialCornices={bundle.initialCornices}
         initialAccess={bundle.initialAccess}
         logoUrl={bundle.logoUrl}

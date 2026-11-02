@@ -22,6 +22,9 @@ import { useRollerSweep } from "@/app/wizard/pictures/rollerSweep";
 import MobilePicture from "@/app/wizard/pictures/MobilePicture";
 import type { MobilePictureState } from "@/lib/wizard/mobilePicture";
 import { quotePictureFrom } from "@/lib/quote/roomDrawing";
+import PlanViewer from "@/app/wizard/PlanViewer";
+import type { EstimateDocument } from "@/lib/wizard/documents";
+import { lineState } from "@/lib/quote/quote";
 import { DOOR_DRAWINGS, WINDOW_DRAWINGS } from "@/app/estimate/scope/StyleTiles";
 import Wordmark from "@/app/wizard/Wordmark";
 import MobileContact from "@/app/wizard/MobileContact";
@@ -41,7 +44,9 @@ import MobileContact from "@/app/wizard/MobileContact";
  * (what we're painting in here, robes and cupboards, anything needing
  * attention — with the room and spot photos, D-Q5), the last checks (every
  * room? anything we haven't listed?) and the done screen's name line; the
- * drawing, the floorplan and the desktop format are sessions 4–6.
+ * drawing is session 4; session 5 adds the plan tile (R6, D-Q1: the plan
+ * read has no room positions, so the sheet is the plan image with the
+ * ticked room list beside it, tap-to-jump); the desktop format is session 6.
  */
 type RoomExtrasRow = { featureWalls: number; wallpaper: boolean; other: string };
 type JobExtrasState = { on: string[]; counts: Record<string, number>; colourHelp: boolean; note: string };
@@ -57,7 +62,7 @@ const DRAWING: Record<NonNullable<GeneralCard["options"][number]["drawing"]>, Re
   "win-casement": WINDOW_DRAWINGS.casement, "win-sash": WINDOW_DRAWINGS.sash, "win-colonial": WINDOW_DRAWINGS.colonial, "win-winder": WINDOW_DRAWINGS.winder,
 };
 
-export default function QuoteStage({ brand, estimateId, initial, initialScopeRooms, initialLoop, catalogue, initialRoomExtras, initialExtras, roomTypes, initialCornices, initialAccess, logoUrl, estimator, companyPhone, customerSuburb, preparedFor, quoteNo, quoteDate }: {
+export default function QuoteStage({ brand, estimateId, initial, initialScopeRooms, initialLoop, catalogue, initialRoomExtras, initialExtras, roomTypes, plan, initialCornices, initialAccess, logoUrl, estimator, companyPhone, customerSuburb, preparedFor, quoteNo, quoteDate }: {
   brand: WizardBrand;
   estimateId: string;
   initial: CustomerPayload;
@@ -69,6 +74,8 @@ export default function QuoteStage({ brand, estimateId, initial, initialScopeRoo
   /** §3 E2 — the extras on offer (from the rate card) and what is on. */
   initialExtras: { offer: JobExtra[] } & JobExtrasState;
   roomTypes: string[];
+  /** R6: the customer's own floorplan, when one was uploaded (signed URL from `estimateDocuments`); null = no plan tile. */
+  plan: EstimateDocument | null;
   initialCornices: "none" | "standard" | "decorative" | null;
   initialAccess: { answers: SiteAccess; asksLift: boolean };
   logoUrl: string | null;
@@ -84,6 +91,7 @@ export default function QuoteStage({ brand, estimateId, initial, initialScopeRoo
   const [quoteOpen, setQuoteOpen] = useState(false);
   // the room sheet is open FOR a card: moving to another card closes it without an effect
   const [roomOpenFor, setRoomOpenFor] = useState<string | null>(null);
+  const [planOpen, setPlanOpen] = useState(false);
   const [payload, setPayload] = useState<Payload>(initial);
   const [scopeRooms, setScopeRooms] = useState<CustomerScopeRoom[]>(initialScopeRooms);
   const [loop, setLoop] = useState<RoomLoopView[]>(initialLoop);
@@ -115,11 +123,11 @@ export default function QuoteStage({ brand, estimateId, initial, initialScopeRoo
   const picState: MobilePictureState = { kind: "room", property: "house", two: false, colour: "deciding", condition: "good", painted: null };
   const roomOpen = roomOpenFor === current.id && currentRoom != null;
   useEffect(() => {
-    if (!roomOpen) return;
-    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setRoomOpenFor(null); };
+    if (!roomOpen && !planOpen) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") { setRoomOpenFor(null); setPlanOpen(false); } };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [roomOpen]);
+  }, [roomOpen, planOpen]);
   const firstName = preparedFor.name?.trim().split(/\s+/)[0] ?? null;
 
   // §7: the stage viewed once, the done screen once.
@@ -201,6 +209,13 @@ export default function QuoteStage({ brand, estimateId, initial, initialScopeRoo
               <button type="button" className="wzq-tile wzq-tile--room" onClick={() => setRoomOpenFor(current.id)} data-testid="q-tile-room" aria-label={`${currentRoom.name}. Updates as you answer.`}>
                 <span className="thumb"><MobilePicture state={picState} quote={picture} testId="q-room-pic" /></span>
                 <span className="txt"><b data-testid="q-tile-room-name">{currentRoom.name}</b><span>Updates as you answer</span></span>
+              </button>
+            )}
+            {plan && (
+              <button type="button" className="wzq-tile wzq-tile--plan" onClick={() => setPlanOpen(true)} data-testid="q-tile-plan" aria-label="Your floorplan. Tap a room to jump to it.">
+                {/* eslint-disable-next-line @next/next/no-img-element -- a signed, short-lived URL from the private bucket; next/image cannot optimise it */}
+                <span className="thumb"><img src={plan.url} alt="" /></span>
+                <span className="txt"><b>Plan</b></span>
               </button>
             )}
           </div>
@@ -300,6 +315,29 @@ export default function QuoteStage({ brand, estimateId, initial, initialScopeRoo
             <div className="wzm-grab" aria-hidden="true" />
             <div className="wzm-bigpic" data-testid="q-room-bigpic"><MobilePicture state={picState} quote={picture} testId="q-room-bigpic-pic" /></div>
             <p className="wzm-cap" data-testid="q-room-cap">{currentRoom.name} — {currentRoom.widthM} × {currentRoom.lengthM} × {currentRoom.heightM} m. Updates as you answer.</p>
+          </div>
+        </div>
+      )}
+      {planOpen && plan && (
+        <div className="wz-sheetback wzm-sheetback" role="dialog" aria-modal="true" aria-label="Your floorplan" data-testid="q-plan-sheet" onClick={(e) => { if (e.target === e.currentTarget) setPlanOpen(false); }}>
+          <div className="wz-sheet wzm-sheet wzq-plan-sheet">
+            <button type="button" className="wz-sheet-x" aria-label="Close" onClick={() => setPlanOpen(false)} data-testid="q-plan-sheet-x">×</button>
+            <div className="wzm-grab" aria-hidden="true" />
+            <div className="wzq-plan" data-testid="q-plan-viewer"><PlanViewer src={plan.url} title="YOUR FLOORPLAN" note="AS UPLOADED" /></div>
+            <p className="wzm-cap" data-testid="q-plan-cap">Your floorplan. Tap a room to jump to it.</p>
+            {/* D-Q1: no room positions in the plan read — the ticked room list beside the image is the tap-to-jump */}
+            <ul className="wzq-rooms wzq-plan-rooms" data-testid="q-plan-rooms">
+              {rooms.map((r) => {
+                const st = lineState(r);
+                return (
+                  <li key={r.areaId} data-testid={`q-plan-room-${r.areaId}`} data-state={st} className={r.areaId === currentAreaId ? "now" : ""}>
+                    <button type="button" onClick={() => { setPlanOpen(false); jumpTo(`measure:${r.areaId}`); }}>
+                      <span className="tick" aria-hidden="true">{st === "todo" ? "" : "✓"}</span>{r.name}<span>{r.widthM} × {r.lengthM} m</span>
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
           </div>
         </div>
       )}
