@@ -393,7 +393,7 @@ export default function Elevation({ v2, side, build = true, highlight = null, ro
     <svg
       ref={svgRef}
       className={`wz-elev ${notPainting ? "np" : ""} ${onPart ? "tappable" : ""} ${sweep ? "sweep" : ""}`} viewBox="0 0 400 240" aria-hidden="true"
-      data-testid="pic-outside" data-side={side} data-shape={v2.propertyType} style={style} onClick={onClick}
+      data-testid="pic-outside" data-side={side} data-shape={v2.propertyType} data-windows={v2.sides[side]?.windows ?? ""} data-doors={v2.sides[side]?.doors ?? ""} style={style} onClick={onClick}
       dangerouslySetInnerHTML={{ __html: markup }}
     />
   );

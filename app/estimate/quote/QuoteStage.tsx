@@ -21,6 +21,7 @@ import type { SidesView } from "@/lib/wizard/sides";
 import type { ExteriorV2 } from "@/lib/wizard/state";
 import type { ExteriorTypicalRow } from "@/lib/wizard/exterior-typicals";
 import Elevation from "@/app/wizard/pictures/Elevation";
+import { checkSide, setSideCond, setSideCounts, setSideSize } from "@/lib/wizard/exterior-model";
 import { quoteDocument, quoteSummary, type PreparedFor, type QuoteDocument, type QuoteLine } from "@/lib/quote/quote";
 import { useRollerSweep } from "@/app/wizard/pictures/rollerSweep";
 import MobilePicture from "@/app/wizard/pictures/MobilePicture";
@@ -111,6 +112,10 @@ export default function QuoteStage({ brand, estimateId, initial, jobKind, initia
   const [roomExtras, setRoomExtras] = useState<Record<string, RoomExtrasRow>>(initialRoomExtras);
   const [jobExtras, setJobExtras] = useState<JobExtrasState>({ on: initialExtras.on, counts: initialExtras.counts, colourHelp: initialExtras.colourHelp, note: initialExtras.note });
   const [sidesView, setSidesView] = useState<SidesView | null>(initialSides);
+  // §3 C (Tom, 2 Nov): an outside job's answers go to the ONE drawn-house model, as the walk-around's did — `ext_walk`
+  // rebuilds the sides from it, so the drawing, the counts and the price follow together. Optimistic locally, the server's
+  // payload (its `sides`) comes back as the truth.
+  const [v2State, setV2State] = useState<ExteriorV2 | null>(v2);
   const [railQuoteOpen, setRailQuoteOpen] = useState(false); // D-Q6: the desktop quote starts collapsed
   const rooms = useMemo(() => (jobKind === "exterior" ? quoteSidesFrom(sidesView) : quoteRoomsFrom(scopeRooms, loop, roomExtras)), [jobKind, sidesView, scopeRooms, loop, roomExtras]);
   const [general, setGeneral] = useState<GeneralAnswers>({ cornices: initialCornices });
@@ -137,8 +142,8 @@ export default function QuoteStage({ brand, estimateId, initial, jobKind, initia
   const picture = currentRoom && currentRoom.kind !== "side" ? quotePictureFrom(currentRoom) : null;
   const currentSideKey = currentRoom?.kind === "side" ? currentRoom.sideKey ?? null : null;
   /** The one picture for the current line: the room (S4) or the side (`Elevation`, as the walk-around draws it). */
-  const linePicture = (testId: string) => currentSideKey && v2
-    ? <Elevation v2={v2} side={currentSideKey} rows={typicalRows} sweep />
+  const linePicture = (testId: string) => currentSideKey && v2State
+    ? <Elevation v2={v2State} side={currentSideKey} rows={typicalRows} sweep />
     : picture ? <MobilePicture state={picState} quote={picture} testId={testId} /> : null;
   const picState: MobilePictureState = { kind: "room", property: "house", two: false, colour: "deciding", condition: "good", painted: null };
   const roomOpen = roomOpenFor === current.id && currentRoom != null;
@@ -194,6 +199,7 @@ export default function QuoteStage({ brand, estimateId, initial, jobKind, initia
   /** F: a typical or open line on the done screen jumps back to that room's size card; E1's new room opens on its size card. */
   const jumpTo = (id: string) => { const k = cards.findIndex((c) => c.id === id); if (k >= 0) setIndex(k); };
   const answered = (card: string, line: number | null) => sendWizardEvent("quote_card_answered", { card, line, measured: false });
+  const walk = (next: ExteriorV2) => { setV2State(next); return act({ action: "ext_walk", v2: next }); };
   const back = () => { if (timer.current) clearTimeout(timer.current); if (index > 0) setIndex(index - 1); else router.back(); };
   // §2 desktop — the keyboard flow: 1–4 pick an option, Enter = next, ← = back (never while typing in a field).
   useEffect(() => {
@@ -241,7 +247,7 @@ export default function QuoteStage({ brand, estimateId, initial, jobKind, initia
   }, [current.kind]);
 
   return (
-    <div className={`wzm wzq wzq--${jobKind}`} data-testid="quote-stage" data-quote-card={current.id} data-estimate-id={estimateId} data-job-kind={jobKind}>
+    <div className={`wzm wzq wzq--${jobKind}`} data-testid="quote-stage" data-quote-card={current.id} data-estimate-id={estimateId} data-job-kind={jobKind} data-busy={busy ? "1" : "0"}>
       <header className="wzm-head" data-testid="wzm-head">
         <button type="button" className="wzm-back" aria-label="Back" onClick={back} data-testid="wzm-back">‹</button>
         <span className="wzm-logo"><Wordmark logoUrl={logoUrl} brand={brand} /></span>
@@ -258,7 +264,7 @@ export default function QuoteStage({ brand, estimateId, initial, jobKind, initia
               <span className="txt"><b data-testid="q-tile-title">{summary.toGo === 0 ? "Your quote" : `Quote · ${summary.toGo} to go`}</b><span data-testid="q-tile-sub">{summary.toGo === 0 ? "Tap to see it" : `~${summary.minutes} min · tap to see`}</span></span>
               <span className="chev" aria-hidden="true">{quoteOpen ? "▴" : "▾"}</span>
             </button>
-            {currentRoom && (picture || (currentSideKey && v2)) && (
+            {currentRoom && (picture || (currentSideKey && v2State)) && (
               <button type="button" className="wzq-tile wzq-tile--room" onClick={() => setRoomOpenFor(current.id)} data-testid="q-tile-room" aria-label={`${currentRoom.name}. Updates as you answer.`}>
                 <span className="thumb">{linePicture("q-room-pic")}</span>
                 <span className="txt"><b data-testid="q-tile-room-name">{currentRoom.name}</b><span>Updates as you answer</span></span>
@@ -358,19 +364,20 @@ export default function QuoteStage({ brand, estimateId, initial, jobKind, initia
           {current.kind === "extras" && (
             <ExtrasScreen key={current.id} offer={initialExtras.offer} state={jobExtras} busy={busy} act={act} onNext={() => { answered("extras", null); advance(); }} />
           )}
-          {current.kind === "side-size" && (
-            <SideSizeScreen key={current.id} card={current} busy={busy} act={act} onDone={(measured) => {
+          {current.kind === "side-size" && v2State && (
+            <SideSizeScreen key={current.id} card={current} busy={busy} v2={v2State} walk={walk} onDone={(measured) => {
               sendWizardEvent("quote_card_answered", { card: "side-size", line: current.areaId, measured });
               sendWizardEvent("quote_line_settled", { line: current.areaId, state: measured ? "measured" : "typical" });
               advance();
             }} />
           )}
-          {current.kind === "side-on" && (
-            <SideOnScreen key={current.id} card={current} busy={busy} act={act} condition={sidesView?.meta?.cond?.cond ?? null} peelingSides={sidesView?.meta?.cond?.peelingSides ?? []} onNext={() => { answered("side-on", current.areaId); advance(); }} />
+          {current.kind === "side-on" && v2State && (
+            <SideOnScreen key={current.id} card={current} busy={busy} act={act} v2={v2State} walk={walk} onNext={() => { answered("side-on", current.areaId); advance(); }} />
           )}
           {current.kind === "side-attn" && (
             <SideAttentionScreen key={current.id} card={current} busy={busy} act={act} estimateId={estimateId} onNext={async () => {
               answered("side-attn", current.areaId);
+              if (v2State) await walk(checkSide(v2State, current.sideKey));
               await act({ action: "confirm_side", side: current.sideKey });
               advance();
             }} />
@@ -409,7 +416,7 @@ export default function QuoteStage({ brand, estimateId, initial, jobKind, initia
         {current.kind === "general" || current.kind === "robe" ? <><b>1</b><b>2</b><b>3</b> choose · </> : current.kind === "measure" || current.kind === "side-size" ? <><b>Tab</b> next field · <b>Enter</b> that&rsquo;s the size · </> : <><b>Enter</b> next · </>}<b>←</b> back
       </p>
 
-      {roomOpen && currentRoom && (picture || (currentSideKey && v2)) && (
+      {roomOpen && currentRoom && (picture || (currentSideKey && v2State)) && (
         <div className="wz-sheetback wzm-sheetback" role="dialog" aria-modal="true" aria-label={currentRoom.name} data-testid="q-room-sheet" onClick={(e) => { if (e.target === e.currentTarget) setRoomOpenFor(null); }}>
           <div className="wz-sheet wzm-sheet">
             <button type="button" className="wz-sheet-x" aria-label="Close" onClick={() => setRoomOpenFor(null)} data-testid="q-room-sheet-x">×</button>
@@ -648,7 +655,8 @@ function SurfacesScreen({ card, busy, act, catalogue, onNext }: { card: Surfaces
           <Counter value={doors.count ?? 1} min={1} max={12} testId="q-count-doors" disabled={busy} onChange={(n) => void act({ action: "set_count", areaId: room.areaId, key: "doors", count: n })} />
           {seg([["door", "door"], ["frame", "+ frame"], ["architrave", "+ architrave"]], doors.doorScope ?? "frame", (v) => void act({ action: "room_door_scope", areaId: room.areaId, scope: v }), "q-door-scope")}
         </>)}
-        {windows && (windows.on && room.windows.length > 0
+        {windows && windows.on && room.windows.length === 0 && chip(windows, <Counter value={windows.count ?? 1} min={1} max={12} testId="q-count-windows" disabled={busy} onChange={(n) => void act({ action: "set_count", areaId: room.areaId, key: "windows", count: n })} />)}
+        {windows && (windows.on && room.windows.length === 0 ? null : windows.on && room.windows.length > 0
           ? room.windows.map((w) => (
             <button key={w.id} type="button" className="wzm-chip on" aria-pressed data-testid={`q-win-${w.id}`} disabled={busy} onClick={() => void act({ action: "room_remove_line", areaId: room.areaId, surfaceId: w.id })}>
               {w.label}
@@ -896,14 +904,15 @@ function ExtrasScreen({ offer, state, busy, act, onNext }: { offer: JobExtra[]; 
 }
 
 /** §3 C1 — "How big is the {side}?": across · high over greyed typicals (R2); "That's the size" → `side_dims`, "Not sure" → `side_size_ok`. */
-function SideSizeScreen({ card, busy, act, onDone }: { card: SideSizeCard; busy: boolean; act: Act; onDone: (measured: boolean) => void }) {
+function SideSizeScreen({ card, busy, v2, walk, onDone }: { card: SideSizeCard; busy: boolean; v2: ExteriorV2; walk: (next: ExteriorV2) => Promise<Payload | null>; onDone: (measured: boolean) => void }) {
   const [draft, setDraft] = useState({ w: "", h: "" });
   const typed = draft.w.trim() !== "" || draft.h.trim() !== "";
   const num = (v: string, fallback: number) => { const n = parseFloat(v.replace(/[^0-9.]/g, "")); return isNaN(n) || n <= 0 ? fallback : n; };
   const submit = async () => {
+    // the walk-around's own answers: adjusted with the numbers (clamped by the model), or "not sure" = the typical stands
     const j = typed
-      ? await act({ action: "side_dims", side: card.sideKey, lengthM: num(draft.w, card.side.lengthM), heightM: num(draft.h, card.side.widthM) })
-      : await act({ action: "side_size_ok", side: card.sideKey });
+      ? await walk(setSideSize(v2, card.sideKey, "adj", { w: Math.min(60, Math.max(0.5, num(draft.w, card.side.lengthM))), h: Math.min(12, Math.max(1, num(draft.h, card.side.widthM))) }))
+      : await walk(setSideSize(v2, card.sideKey, "ns"));
     if (j) onDone(typed);
   };
   const field = (key: "w" | "h", label: string, typical: number) => (
@@ -923,29 +932,40 @@ function SideSizeScreen({ card, busy, act, onDone }: { card: SideSizeCard; busy:
       {!typed && <p className="wzm-note" data-testid="q-typical-note">{card.side.size === "adjusted" ? "Your numbers — type over them to change them." : "The grey numbers are typical for a side like this — type yours over them."}</p>}
       <div className="wzm-foot" data-testid="wzm-foot">
         <button type="button" className="wzm-cta" disabled={busy} onClick={() => void submit()} data-testid="q-size-ok">{busy ? "Saving…" : "That's the size"}</button>
-        <p className="wzm-hint"><button type="button" className="wzm-linkish" disabled={busy} onClick={async () => { const j = await act({ action: "side_size_ok", side: card.sideKey }); if (j) onDone(false); }} data-testid="q-size-typical">Not sure — use the typical size for now</button></p>
+        <p className="wzm-hint"><button type="button" className="wzm-linkish" disabled={busy} onClick={async () => { const j = await walk(setSideSize(v2, card.sideKey, "ns")); if (j) onDone(false); }} data-testid="q-size-typical">Not sure — use the typical size for now</button></p>
       </div>
     </>
   );
 }
 
 /** §3 C2 — "On this side": the side's counted lines (windows, doors…) with − / +, a window group's S / M / L, and how the paint is on this side. */
-function SideOnScreen({ card, busy, act, condition, peelingSides, onNext }: { card: SideOnCard; busy: boolean; act: Act; condition: string | null; peelingSides: string[]; onNext: () => void }) {
-  const tiles = card.side.sideTiles ?? [];
-  const [cond, setCond] = useState<string | null>(condition);
-  // Defect 3: `loop_cond` REPLACES `peelingSides` and nulls it unless cond is peeling — so merge this side in or out of the
-  // list the server holds, and only step the whole-house condition down when no side is left peeling.
-  const pickCond = (c: "good" | "weathered" | "peeling") => {
-    setCond(c);
-    const others = peelingSides.filter((k) => k !== card.sideKey && k !== "all" && k !== "unsure");
-    const sides = c === "peeling" ? [...others, card.sideKey] : others;
-    const whole = sides.length > 0 ? "peeling" : c;
-    void act({ action: "loop_cond", cond: whole, ...(sides.length > 0 ? { peelingSides: sides } : {}) });
-  };
+function SideOnScreen({ card, busy, act, v2, walk, onNext }: { card: SideOnCard; busy: boolean; act: Act; v2: ExteriorV2; walk: (next: ExteriorV2) => Promise<Payload | null>; onNext: () => void }) {
+  const sd = v2.sides[card.sideKey];
+  // windows and doors are the drawn house's own counts (the walk-around's steppers); everything else priced per item on
+  // this side keeps the tree's counter. The server derives the whole-house condition and the peeling sides from the model.
+  const tiles = (card.side.sideTiles ?? []).filter((t) => !t.window && !/door/i.test(t.label));
+  const cond = sd?.cond ?? null;
+  const pickCond = (c: "good" | "weathered" | "peeling") => { void walk(setSideCond(v2, card.sideKey, c)); };
+  const stepper = (testId: string, label: string, value: number, set: (n: number) => void, max: number) => (
+    <div className="wzm-step" data-testid={testId}>
+      <span className="l">{label}</span>
+      <span className="stp">
+        <button type="button" aria-label="Fewer" disabled={busy || value <= 0} onClick={() => set(value - 1)}>−</button>
+        <b data-testid={`${testId}-n`}>{value}</b>
+        <button type="button" aria-label="More" disabled={busy || value >= max} onClick={() => set(value + 1)}>+</button>
+      </span>
+    </div>
+  );
   return (
     <>
       <h1 data-testid="wzm-h1">On this side</h1>
       <p className="wzm-sub" data-testid="wzm-sub">Count them up — the house&rsquo;s parts you ticked, on the {card.name.toLowerCase()}.</p>
+      {sd && (
+        <div className="wzm-steps" data-testid="q-side-counts">
+          {stepper("q-side-win", "Windows", sd.windows, (n) => void walk(setSideCounts(v2, card.sideKey, { windows: n })), 60)}
+          {stepper("q-side-door", "Doors", sd.doors, (n) => void walk(setSideCounts(v2, card.sideKey, { doors: n })), 20)}
+        </div>
+      )}
       <div className="wzm-chips wzq-surf" data-testid="q-side-lines">
         {tiles.map((t) => (
           <span key={t.id} className="wzm-chip on" data-testid={`q-side-line-${t.id}`}>
@@ -958,7 +978,7 @@ function SideOnScreen({ card, busy, act, condition, peelingSides, onNext }: { ca
             )}
           </span>
         ))}
-        {tiles.length === 0 && <p className="wzm-note">Nothing counted on this side yet — the walls are priced by its size.</p>}
+        {tiles.length === 0 && !sd && <p className="wzm-note">Nothing counted on this side yet — the walls are priced by its size.</p>}
       </div>
       <p className="wzq-grp">How&rsquo;s the paint on this side?</p>
       <div className="wzm-opts wzq-three" data-testid="q-side-cond">
