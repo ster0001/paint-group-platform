@@ -95,7 +95,15 @@ export function useRollerSweep<K extends string>(
       if (!list.length) continue;
       const want = on(k) ? full : 0;
       const had = shown.current?.[k];
-      if (first || had === undefined) { for (const r of list) r.setAttribute("width", String(want)); continue; }
+      if (first) { for (const r of list) r.setAttribute("width", String(want)); continue; }
+      // Quote stage v10 §4 (S4): a key that is NEW after first paint — a door or window just added, a window re-sized
+      // (its key carries the size) — sweeps in from nothing when it is on; off, it simply shows its state.
+      if (had === undefined) {
+        if (!want || reducedMotion()) { for (const r of list) r.setAttribute("width", String(want)); continue; }
+        for (const r of list) if (r.getAttribute("width") == null) r.setAttribute("width", "0");
+        sweep(k, want);
+        continue;
+      }
       if (had === on(k)) {
         // a re-injected rect (no width yet) simply shows its state
         for (const r of list) if (r.getAttribute("width") == null) r.setAttribute("width", String(want));

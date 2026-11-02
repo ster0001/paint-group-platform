@@ -2832,3 +2832,11 @@
 .wz .wzq-doc .ql.tap { cursor: pointer; }
 .wz .wzq-doc .ql.tap:hover { background: var(--wash); }
 
+
+
+/* ── QUOTE STAGE v10 — S4: the room tile (the one picture, 76 × 52, and again full width in its sheet). ── */
+.wz .wzq-tile--room .thumb { width: 76px; height: 52px; overflow: hidden; }
+.wz .wzq-tile--room .thumb svg { width: 100%; height: 100%; display: block; }
+.wz .wzq-tiles .wzq-tile--quote { flex: 1 1 0; }
+.wz .wzq-tiles .wzq-tile--room { flex: 0 1 auto; max-width: 48%; }
+\n
