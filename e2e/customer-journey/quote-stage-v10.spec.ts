@@ -35,6 +35,9 @@ const SPOT_PHOTO_MAX_BYTES = 5 * 1024 * 1024;
  * same picture full width.
  */
 const FLAG_ON = process.env.NEXT_PUBLIC_QUOTE_STAGE_V10 === "1";
+/** S7: the proof run writes the stage's screenshots here when set (docs/wizard-quote-stage/). */
+const SHOTS = process.env.QUOTE_SHOTS_DIR ?? "";
+const shot = async (page: Page, name: string) => { if (SHOTS) { await page.waitForTimeout(600); await page.screenshot({ path: `${SHOTS}/${name}.png`, animations: "disabled" }); } };
 const db = serviceClient();
 
 test.describe("quote stage v10 — session 1: the cards on a phone", () => {
@@ -93,6 +96,7 @@ test.describe("quote stage v10 — session 1: the cards on a phone", () => {
     // R1 / D-Q2: the door's words
     await expect(page.getByTestId("gate-exact")).toContainText("Get my detailed price");
     await expect(page.getByTestId("gate-bar-exact")).toHaveText("Get my detailed price");
+    await shot(page, "phone-00-gate");
     await expect(gate).not.toContainText(/exact/i);
     await page.getByTestId("gate-bar-exact").tap();
     await expect(page).toHaveURL(/\/estimate\/quote\?id=/, { timeout: 30_000 });
@@ -103,6 +107,7 @@ test.describe("quote stage v10 — session 1: the cards on a phone", () => {
     await expect(page.getByTestId("q-stage")).toHaveText("A few things first");
     await expect(page.getByTestId("wzm-h1")).toHaveText("Do you have cornices?");
     await expect(page.getByTestId("q-card-cornices").locator("button")).toHaveCount(3);
+    await shot(page, "phone-01-general");
     const bar0 = await page.getByTestId("wzm-bar").evaluate((el) => parseFloat((el as HTMLElement).style.width));
     expect(bar0).toBeGreaterThanOrEqual(55);
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
@@ -113,6 +118,7 @@ test.describe("quote stage v10 — session 1: the cards on a phone", () => {
     await expect(page.getByTestId("q-tile-plan"), "no plan uploaded → no plan tile (R6)").toHaveCount(0);
     await page.getByTestId("q-tile-quote").tap();
     await expect(page.getByTestId("q-panel")).toHaveAttribute("data-open", "1");
+    await shot(page, "phone-02-quote-open");
     const doc = page.getByTestId("q-doc");
     await expect(doc).toHaveAttribute("data-title", "Draft quote");
     await expect(page.getByTestId("q-doc-title")).toHaveText(/^Draft quote · PG-[0-9A-F]{6}$/);
@@ -170,6 +176,7 @@ test.describe("quote stage v10 — session 1: the cards on a phone", () => {
     const typicalW = await w.getAttribute("placeholder");
     expect(Number(typicalW)).toBeGreaterThan(0);
     await expect(page.getByTestId("q-measure")).toHaveAttribute("data-measured", "0");
+    await shot(page, "phone-03-measure");
     await expect(page.getByTestId("q-typical-note")).toContainText(/typical for this room/);
     await w.fill("4");
     await page.getByTestId("q-measure-l").fill("3.5");
@@ -212,6 +219,7 @@ test.describe("quote stage v10 — session 1: the cards on a phone", () => {
     const picDoors = Number(await pic.getAttribute("data-doors"));
     expect(picDoors).toBeGreaterThan(0);
     await expect(pic.locator("[data-kind='door']")).toHaveCount(picDoors);
+    await shot(page, "phone-04-surfaces");
     const chips = page.getByTestId("q-surfaces").locator("button.wzm-chip");
     expect(await chips.count()).toBeGreaterThan(3);
     await expect(page.getByTestId("q-surf-walls")).toHaveAttribute("aria-pressed", "true");
@@ -260,6 +268,7 @@ test.describe("quote stage v10 — session 1: the cards on a phone", () => {
     await expect(page.getByTestId("q-next")).toHaveText("Nothing to fix — next");
     await page.getByTestId("q-prep-crack").tap();
     await expect(page.getByTestId("q-prep-extent")).toBeVisible();
+    await shot(page, "phone-05-attention");
     await page.getByTestId("q-prep-extent-patches").tap();
     await page.getByTestId("q-prep-photo").setInputFiles("e2e/fixtures/condition-photo.png");
     await expect(page.getByTestId("q-prep-photo-label")).toContainText("Photo added", { timeout: 90_000 });
@@ -276,6 +285,7 @@ test.describe("quote stage v10 — session 1: the cards on a phone", () => {
     await passUntil(page, (id) => id === "rooms");
     // E1 — have we got every room? the list, the doors-and-windows check, + Add a room → its size card
     await expect(page.getByTestId("wzm-h1")).toHaveText("Have we got every room?");
+    await shot(page, "phone-06-rooms");
     const listed = await page.getByTestId("q-rooms").locator("li").count();
     expect(listed).toBeGreaterThan(2);
     await expect(page.getByTestId("q-dw")).toContainText(/\d+ doors? and \d+ windows? across the house/);
@@ -307,6 +317,7 @@ test.describe("quote stage v10 — session 1: the cards on a phone", () => {
     await card(page, "done");
     // F — the done screen: a range, never one number; the typical rooms named; no "exact" / "±"; the one door
     await expect(page.getByTestId("gate-label")).toHaveText("Quote, your detailed price");
+    await shot(page, "phone-07-done");
     await expect(page.getByTestId("gate-range")).toHaveText(MONEY_RANGE);
     await expect(page.getByTestId("gate-fine")).toContainText(/at the typical size/);
     await expect(page.getByTestId("gate-fine")).toContainText(/Repairs in 1 room are allowed for and confirmed on the day/);
