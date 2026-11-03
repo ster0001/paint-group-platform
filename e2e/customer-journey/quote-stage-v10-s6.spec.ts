@@ -29,7 +29,14 @@ const passUntil = async (page: Page, stop: (id: string) => boolean) => {
   throw new Error("never reached the card");
 };
 const toGate = async (page: Page, run: string) => {
-  await expect(page.locator("[data-mobile-screen='details']")).toBeVisible({ timeout: 30_000 });
+  // the phone's Each side step takes one "Looks right — next side" per painted side before the details screen
+  const details = page.locator("[data-mobile-screen='details']");
+  for (let i = 0; i < 5 && !(await details.isVisible()); i++) {
+    const next = page.getByTestId("ql-next");
+    if (await next.isVisible()) await next.click();
+    await page.waitForTimeout(600);
+  }
+  await expect(details).toBeVisible({ timeout: 30_000 });
   await page.getByTestId("gate-name").fill("Quote Tester");
   await page.getByTestId("gate-mobile").fill(`04${String(Date.now()).slice(-8)}`);
   await page.getByTestId("gate-email").fill(`q10s6.${run}.${Date.now()}@example.com`);
@@ -138,6 +145,9 @@ test.describe("quote stage v10 — session 6: outside and trims on a phone", () 
     await toGate(page, run);
     const stage = page.getByTestId("quote-stage");
     await expect(stage).toHaveAttribute("data-job-kind", "trims");
+    // D's own first card (S7): "Same white, or a new colour?" — then the doors
+    await expect(stage).toHaveAttribute("data-quote-card", "g:trimColour", { timeout: 15_000 });
+    await page.getByTestId("q-opt-trimColour-same").click();
     await expect(stage).toHaveAttribute("data-quote-card", "g:doors", { timeout: 15_000 });
     await page.getByTestId("q-opt-doors-panel").click();
     await passUntil(page, (id) => !id.startsWith("g:"));
