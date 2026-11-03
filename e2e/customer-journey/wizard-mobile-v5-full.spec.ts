@@ -2,7 +2,7 @@ import { expect, type Page } from "@playwright/test";
 import { randomBytes } from "node:crypto";
 import { test } from "../helpers";
 /** Quote stage v10 (S7 switch-over): with the flag on, the gate's door reads "detailed" and opens /estimate/quote. */
-const V10 = process.env.NEXT_PUBLIC_QUOTE_STAGE_V10 === "1";
+const V10 = process.env.NEXT_PUBLIC_QUOTE_STAGE_V10 !== "0";
 import { serviceClient } from "../fixtures/woLoop";
 import { MONEY_RANGE, answerOutsideQuick, driveMobileQuickLook } from "./drive";
 

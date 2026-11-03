@@ -2,7 +2,7 @@ import { test, expect, type Page } from "@playwright/test";
 import { passDetailsSheetIfShown, passGateIfShown, quickNext, MONEY_RANGE, lookAtEverySide } from "./drive";
 import { toSides } from "./exterior-v2-drive";
 /** Quote stage v10 (S7 switch-over): with the flag on, the gate's door reads "detailed". */
-const V10 = process.env.NEXT_PUBLIC_QUOTE_STAGE_V10 === "1";
+const V10 = process.env.NEXT_PUBLIC_QUOTE_STAGE_V10 !== "0";
 
 /**
  * Exterior wizard v2 — S4: the gate and the guide range (brief §7.5; gate

@@ -34,14 +34,14 @@ const SPOT_PHOTO_MAX_BYTES = 5 * 1024 * 1024;
  * robe and its doors render, a crack shows its mark; the sheet draws the
  * same picture full width.
  */
-const FLAG_ON = process.env.NEXT_PUBLIC_QUOTE_STAGE_V10 === "1";
+const FLAG_ON = process.env.NEXT_PUBLIC_QUOTE_STAGE_V10 !== "0";
 /** S7: the proof run writes the stage's screenshots here when set (docs/wizard-quote-stage/). */
 const SHOTS = process.env.QUOTE_SHOTS_DIR ?? "";
 const shot = async (page: Page, name: string) => { if (SHOTS) { await page.waitForTimeout(600); await page.screenshot({ path: `${SHOTS}/${name}.png`, animations: "disabled" }); } };
 const db = serviceClient();
 
 test.describe("quote stage v10 — session 1: the cards on a phone", () => {
-  test.skip(!FLAG_ON, "quote stage v10 is off in this environment (NEXT_PUBLIC_QUOTE_STAGE_V10)");
+  test.skip(!FLAG_ON, "quote stage v10 is switched off in this environment (NEXT_PUBLIC_QUOTE_STAGE_V10=0)");
   test.skip(!db, "needs SUPABASE_SERVICE_ROLE_KEY");
   test.use({ viewport: { width: 390, height: 780 }, isMobile: true, hasTouch: true });
   const run = randomBytes(3).toString("hex");
@@ -370,7 +370,7 @@ test.describe("quote stage v10 — session 1: the cards on a phone", () => {
  * shell has no upload), then the stage is opened at phone width.
  */
 test.describe("quote stage v10 — session 5: the plan tile", () => {
-  test.skip(!FLAG_ON, "quote stage v10 is off in this environment (NEXT_PUBLIC_QUOTE_STAGE_V10)");
+  test.skip(!FLAG_ON, "quote stage v10 is switched off in this environment (NEXT_PUBLIC_QUOTE_STAGE_V10=0)");
   test.skip(!db, "needs SUPABASE_SERVICE_ROLE_KEY");
   test.use({ viewport: { width: 1280, height: 900 } });
   const run = randomBytes(3).toString("hex");
