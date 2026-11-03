@@ -1,0 +1,30 @@
+Accept Estimate
+Estimate Total
+$9,900.00
+Contact
+About Us
+Paint Group
+1 Office Rd
+Testville, VIC 3000
+Estimate
+Contact
+Casey Example
+Robin Example
+Example Owners Corporation Management
+10 Agent St
+Sampletown, VIC 3001
+casey@example.com
+robin@example.com
+0400 000 111
+Job Address
+12 Sample St
+Exampleton, VIC 3183
+Estimate ID
+9001
+Date
+Exclusions
+Please find below a list of all items excluded from the quote as discussed:
+Balustrades
+Gutters
+Client Responsibilities
+Move furniture
