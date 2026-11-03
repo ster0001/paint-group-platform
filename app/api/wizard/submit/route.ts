@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { leadIdentityFilter } from "@/lib/wizard/leadIdentity";
 import { loadExteriorTypicals } from "@/lib/wizard/exterior-typicals-db";
 import { parseAddressText } from "@/lib/wizard/addressText";
 import { DEFAULT_BOOKING_RULES, speakWithUsFor } from "@/lib/visits/schedule";
@@ -222,19 +223,13 @@ export async function POST(request: Request) {
     const limits = (limitRow?.value ?? {}) as { maxEstimatesPerVisitor?: number; holdMessage?: string };
     const max = typeof limits.maxEstimatesPerVisitor === "number" ? limits.maxEstimatesPerVisitor : 2;
     const since = new Date(Date.now() - 24 * 3600 * 1000).toISOString();
-    // ⚑1 (phase 2): a visitor can now reach a price without giving an email,
-    // so `email` is legitimately empty here. `email.eq.` would match every
-    // emailless lead ever written and rate-limit the whole world after two —
-    // an emailless run is identified by its IP hash alone.
-    // PostgREST's or= filter is comma/bracket-delimited, and `contact.email`
-    // is only length-checked — an address with `,` or `(` in it would rewrite
-    // the filter (18 Sep audit: a bogus column made the count query 400 and
-    // the dropped error read as "0 estimates", i.e. no limit at all). An
-    // unsafe address counts by IP alone, like the emailless run.
-    const safeEmail = /^[^,()]+$/.test(email) ? email : "";
+    // Tom, 2 Nov 2026: the cap blocks the SAME visitor with the SAME details — a visitor who gave an email is
+    // identified by that email alone; the IP hash identifies only an emailless run (⚑1 phase 2: a desktop range
+    // read before any details). Counting `email OR ip_hash` put a new customer on a shared connection — or the same
+    // person with new details — against the first run's count. `lib/wizard/leadIdentity.ts` is the one filter.
     const { count, error: countError } = await db.from("wizard_leads")
       .select("id", { count: "exact", head: true })
-      .or(safeEmail ? `email.eq.${safeEmail},ip_hash.eq.${ipHash}` : `ip_hash.eq.${ipHash}`)
+      .or(leadIdentityFilter(email, ipHash))
       .neq("outcome", "rate_limited")
       .gte("created_at", since);
     if (countError) {
