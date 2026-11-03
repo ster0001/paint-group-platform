@@ -211,7 +211,8 @@ test.describe("quote stage v10 — session 1: the cards on a phone", () => {
     // B2 — what we're painting in here: the tiles as chips; doors + → 2; the door scope and the window key
     await expect(page.getByTestId("wzm-h1")).toHaveText("What we’re painting in here");
     // §4 (S4) — the room tile: the drawing from the room's own state (cornices were answered Standard)
-    await expect(page.getByTestId("q-tile-room-name")).toHaveText(await page.getByTestId("q-stage").innerText().then((t) => t.split(" · ")[0]));
+    const stageRoom = (await page.getByTestId("q-stage").innerText()).split(" · ")[0]; // the stage line is upper-cased by CSS
+    expect((await page.getByTestId("q-tile-room-name").innerText()).toLowerCase()).toBe(stageRoom.toLowerCase());
     const pic = page.getByTestId("q-room-pic");
     await expect(pic).toHaveAttribute("data-quote", "true");
     await expect(pic.locator("[data-surf='cornices']")).toHaveCount(1);
@@ -402,7 +403,10 @@ test.describe("quote stage v10 — session 5: the plan tile", () => {
     await quickNext(page);
     // details first: the gate before the range on the desktop too
     await passGateIfShown(page, { name: "Plan Tester", email: `q10p.${run}@example.com` });
-    await expect(page.getByTestId("reveal-range")).toContainText(MONEY_RANGE, { timeout: 240_000 });
+    const bounced = page.locator(".wz-err");
+    await expect(page.getByTestId("reveal").or(bounced)).toBeVisible({ timeout: 240_000 });
+    if (await bounced.count()) throw new Error(`quick look submit failed: ${await bounced.first().innerText()}`);
+    await expect(page.getByTestId("reveal-range")).toContainText(MONEY_RANGE, { timeout: 60_000 });
     await page.getByTestId("door-tighten").click();
     await expect(page).toHaveURL(/\/estimate\/scope\?id=/, { timeout: 60_000 });
     const id = new URL(page.url()).searchParams.get("id")!;

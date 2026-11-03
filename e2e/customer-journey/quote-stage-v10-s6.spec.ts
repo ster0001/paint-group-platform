@@ -117,6 +117,8 @@ test.describe("quote stage v10 — session 6: outside and trims on a phone", () 
     await expect(page.getByTestId("q-side-win-n")).toHaveText(String(win0 + 1));
     await expect(elev).toHaveAttribute("data-windows", String(win0 + 1));
     await expect.poll(async () => page.getByTestId("quote-stage").getAttribute("data-busy"), { timeout: 30_000 }).not.toBe("1");
+    // the condition chips sit low on the card: scroll them to the middle first, or the sticky bar sits over them
+    await page.getByTestId("q-side-cond-weathered").evaluate((el) => el.scrollIntoView({ block: "center" }));
     await page.getByTestId("q-side-cond-weathered").click();
     await expect(page.getByTestId("q-side-cond-weathered")).toHaveAttribute("aria-pressed", "true");
     await page.getByTestId("q-next").click();
@@ -217,7 +219,8 @@ test.describe("quote stage v10 — session 6: the desktop format and the keyboar
     await expect(page.getByTestId("q-measure-w")).toBeFocused();
     await expect(page.getByTestId("q-rail-room").locator("svg")).toHaveCount(1);
     await shot(page, "desktop-02-measure");
-    await expect(page.getByTestId("q-rail-room-name")).toHaveText(await page.getByTestId("q-stage").innerText().then((t) => t.split(" · ")[0]));
+    const stageRoom = (await page.getByTestId("q-stage").innerText()).split(" · ")[0]; // the stage line is upper-cased by CSS
+    expect((await page.getByTestId("q-rail-room-name").innerText()).toLowerCase()).toBe(stageRoom.toLowerCase());
     await page.keyboard.type("4");
     await page.keyboard.press("Enter");
     await expect(stage).toHaveAttribute("data-quote-card", /^surfaces:/, { timeout: 30_000 });
