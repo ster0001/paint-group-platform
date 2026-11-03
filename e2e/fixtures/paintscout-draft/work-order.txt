@@ -1,0 +1,48 @@
+Hours
+21
+Work Order
+Estimate ID
+9001
+Total Hours
+21
+Product Description
+Dulux Weathershield  (Estimated: 10 Litre - $230.00)
+Areas
+Exterior Preparation
+hr
+Total
+Scaffolding
+hr
+Total
+Painting: 3
+=
+3
+Front Side
+(10'x6')
+hr
+Fascias (10m)
+Fascias 2 Coats
+Dulux Weathershield  - 2.00 Litre - $46.00
+Coats: 2
+	
+4
+Windows (3)
+Windows 2 Coats
+Dulux Weathershield  - 3.00 Litre - $69.00
+Coats: 2
+	
+6
+Communal Windows (1)
+Windows 2 Coats
+Dulux Weathershield  - 2.00 Litre - $46.00
+Coats: 2
+	
+4
+Mystery Item (2)
+Coats: 2
+	
+4
+Total
+Painting: 18
+=
+18
