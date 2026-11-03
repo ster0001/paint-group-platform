@@ -14,6 +14,7 @@
  *   npx tsx scripts/import/paintscout-draft.ts run   --quote … --wo …                     # writes the draft (twice is once)
  *     --save-dir <dir>   keep each page's text (re-runnable from the files)
  *     --finish <1-5>     level of finish (default 3)
+ *     --quote-url / --wo-url <url>   the share links, when the pages are read from saved files
  *     --lead-source <key> where the job came from (lib/crm/attribution SOURCES, e.g. referral, repeat_customer);
  *                        left blank, the builder asks for it on the first save
  *
@@ -43,6 +44,8 @@ const woSrc = flag("--wo");
 const saveDir = flag("--save-dir");
 const finish = Number(flag("--finish") ?? 3);
 const leadSource = flag("--lead-source") ?? null;
+const quoteUrlFlag = flag("--quote-url");
+const woUrlFlag = flag("--wo-url");
 const ORIGIN = "paintscout-draft";
 const nameMapSchema = z.array(z.object({ paintscout_item: z.string(), side: z.enum(["interior", "exterior"]), platform_rate_code: z.string() }));
 
@@ -79,8 +82,10 @@ async function main() {
   if (!cmd || !["parse", "check", "run"].includes(cmd) || !quoteSrc || !woSrc) usage();
   if (!(finish >= 1 && finish <= 5)) throw new Error("--finish expects 1–5");
   if (leadSource != null && !isLeadSource(leadSource)) throw new Error(`--lead-source "${leadSource}" is not a lead source`);
-  const q = await pageText(quoteSrc, "quote.txt");
-  const w = await pageText(woSrc, "work-order.txt");
+  const q0 = await pageText(quoteSrc, "quote.txt");
+  const w0 = await pageText(woSrc, "work-order.txt");
+  const q = { ...q0, url: q0.url || quoteUrlFlag || "" };
+  const w = { ...w0, url: w0.url || woUrlFlag || "" };
   const quote = parseQuoteText(q.text);
   const wo = parseWorkOrderText(w.text);
   const qNo = quote.quoteNo ?? wo.quoteNo;
