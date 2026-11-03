@@ -2900,3 +2900,8 @@
 .wz .wzq-tile--room .thumb .wz-elev, .wz .wzq-rail-pic .wz-elev, .wz .wzq .wzm-bigpic .wz-elev { position: absolute; inset: 0; width: 100%; height: 100%; }
 .wz .wzq-rail-pic { position: relative; }
 
+/* ── QUOTE STAGE v10 — the card fades in WITHOUT a transform: a transformed ancestor would pin the fixed bottom bar to the card's
+   bottom edge instead of the screen's, and the bar then sat over each card's last rows (the C1 proof, 4 Nov). ── */
+.wz .wzq .wzm-screen { animation: wzqin .28s ease both; }
+@keyframes wzqin { from { opacity: 0; } to { opacity: 1; } }
+
