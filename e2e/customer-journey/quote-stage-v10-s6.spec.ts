@@ -12,7 +12,7 @@ import { MONEY_RANGE, answerOutsideQuick, driveMobileQuickLook, openQuickLook, f
  * left, the card centre, plan + price + collapsed quote right, the keyboard
  * flow (1–4 pick, Enter next, ← back).
  */
-const FLAG_ON = process.env.NEXT_PUBLIC_QUOTE_STAGE_V10 === "1";
+const FLAG_ON = process.env.NEXT_PUBLIC_QUOTE_STAGE_V10 !== "0";
 const SHOTS = process.env.QUOTE_SHOTS_DIR ?? "";
 const shot = async (page: Page, name: string) => { if (SHOTS) { await page.waitForTimeout(600); await page.screenshot({ path: `${SHOTS}/${name}.png`, animations: "disabled" }); } };
 const db = serviceClient();
@@ -52,7 +52,7 @@ const cleanup = (suburb: string) => async () => {
 };
 
 test.describe("quote stage v10 — session 6: outside and trims on a phone", () => {
-  test.skip(!FLAG_ON, "quote stage v10 is off in this environment (NEXT_PUBLIC_QUOTE_STAGE_V10)");
+  test.skip(!FLAG_ON, "quote stage v10 is switched off in this environment (NEXT_PUBLIC_QUOTE_STAGE_V10=0)");
   test.skip(!db, "needs SUPABASE_SERVICE_ROLE_KEY");
   test.use({ viewport: { width: 390, height: 780 }, isMobile: true, hasTouch: true });
   const run = randomBytes(3).toString("hex");
@@ -154,7 +154,7 @@ test.describe("quote stage v10 — session 6: outside and trims on a phone", () 
 });
 
 test.describe("quote stage v10 — session 6: the desktop format and the keyboard", () => {
-  test.skip(!FLAG_ON, "quote stage v10 is off in this environment (NEXT_PUBLIC_QUOTE_STAGE_V10)");
+  test.skip(!FLAG_ON, "quote stage v10 is switched off in this environment (NEXT_PUBLIC_QUOTE_STAGE_V10=0)");
   test.skip(!db, "needs SUPABASE_SERVICE_ROLE_KEY");
   test.use({ viewport: { width: 1280, height: 900 } });
   const run = randomBytes(3).toString("hex");
