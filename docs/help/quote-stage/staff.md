@@ -6,7 +6,7 @@ summary: What a customer builds on "Get my detailed price" — one question per 
 ---
 
 ## What this is for
-When the detailed-price stage is switched on (`NEXT_PUBLIC_QUOTE_STAGE_V10=1`), the phone gate's **Get my detailed price** opens `/estimate/quote?id=…` instead of the room-by-room scope page. Every tap posts one of the scope page's existing actions, so the estimate, its lines, its repairs and its photos arrive in **Waiting on you** exactly as before. This page is for previewing what the customer saw.
+The detailed-price stage is on by default (`NEXT_PUBLIC_QUOTE_STAGE_V10=0` switches it off for a release); the phone gate's **Get my detailed price** opens `/estimate/quote?id=…` instead of the room-by-room scope page. Every tap posts one of the scope page's existing actions, so the estimate, its lines, its repairs and its photos arrive in **Waiting on you** exactly as before. This page is for previewing what the customer saw.
 
 ## Before you start
 You are signed in as staff. The estimate is still a draft (an accepted estimate shows "its scope is locked in").
@@ -23,7 +23,7 @@ You are signed in as staff. The estimate is still a draft (an accepted estimate 
 - **closing in · N% settled** — the share of the quote's lines settled, not the engine's accuracy figure.
 
 ## If something goes wrong
-- The link opens the old scope page — the stage is off on this environment (the flag), or the estimate predates the sides rebuild (a holding line says so).
+- The link opens the old scope page — the stage was switched off on this environment (`NEXT_PUBLIC_QUOTE_STAGE_V10=0`), or the estimate predates the sides rebuild (a holding line says so).
 - A card will not save — the customer sees "That didn't save"; the action is one of the scope page's own, so check the estimate's draft state and the route's response in the error monitor.
 
 ## Related

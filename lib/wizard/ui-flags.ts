@@ -32,10 +32,11 @@ export function exteriorV2On(): boolean {
 /**
  * Quote stage v10 (`docs/briefs/claude-code-brief-quote-stage-v10.md`): "Get
  * my detailed price" — one card per question on the v5 shell, replacing the
- * room-by-room scope page. OFF unless `NEXT_PUBLIC_QUOTE_STAGE_V10=1` (the
- * switch in production is Tom's, §9 S7); the old scope page stays behind it
- * for one release. Read at call time so a test can stub it.
+ * room-by-room scope page. ON by default since 4 Nov 2026 (Tom: "make it
+ * on by default") — `NEXT_PUBLIC_QUOTE_STAGE_V10=0` is the kill switch, the
+ * exterior-v2 precedent; the old scope page stays behind it for one release.
+ * Read at call time so a test can stub it.
  */
 export function quoteStageV10On(): boolean {
-  return process.env.NEXT_PUBLIC_QUOTE_STAGE_V10 === "1";
+  return process.env.NEXT_PUBLIC_QUOTE_STAGE_V10 !== "0";
 }
