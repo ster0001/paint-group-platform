@@ -160,7 +160,7 @@ test.describe("Wizard mobile v5 — the gate on a phone (session 4)", () => {
     await expect.poll(() => events.some((e) => e.type === "gate_viewed" && e.payload.breakpoint === "mobile" && e.payload.bigger_job === false), { timeout: 10_000 }).toBe(true);
     // the door writes its event, then the scope
     await bar.getByTestId("gate-bar-exact").tap();
-    await expect(page).toHaveURL(/\/estimate\/scope\?id=/, { timeout: 30_000 });
+    await expect(page).toHaveURL(V10 ? /\/estimate\/quote\?id=/ : /\/estimate\/scope\?id=/, { timeout: 30_000 });
     expect(events.some((e) => e.type === "gate_cta_clicked" && e.payload.cta === "exact" && e.payload.breakpoint === "mobile")).toBe(true);
   });
 

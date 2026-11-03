@@ -2,7 +2,8 @@ import { expect, type Page } from "@playwright/test";
 import { randomBytes } from "node:crypto";
 import { test } from "../helpers";
 import { serviceClient } from "../fixtures/woLoop";
-import { MONEY_RANGE, driveMobileQuickLook, openQuickLook, fillQuickAddress, quickNext } from "./drive";
+import { readFileSync } from "node:fs";
+import { MONEY_RANGE, driveMobileQuickLook, driveNoPlanWizard, openQuickLook, fillQuickAddress } from "./drive";
 /** D-Q5: `lib/wizard/spotPhoto.ts SPOT_PHOTO_MAX_BYTES` (not imported — that module loads the browser client). */
 const SPOT_PHOTO_MAX_BYTES = 5 * 1024 * 1024;
 
@@ -119,20 +120,20 @@ test.describe("quote stage v10 — session 1: the cards on a phone", () => {
     await page.getByTestId("q-tile-quote").tap();
     await expect(page.getByTestId("q-panel")).toHaveAttribute("data-open", "1");
     await shot(page, "phone-02-quote-open");
-    const doc = page.getByTestId("q-doc");
+    const doc = page.getByTestId("q-panel").getByTestId("q-doc"); // the desktop rail holds a second copy, hidden on a phone
     await expect(doc).toHaveAttribute("data-title", "Draft quote");
-    await expect(page.getByTestId("q-doc-title")).toHaveText(/^Draft quote · PG-[0-9A-F]{6}$/);
+    await expect(doc.getByTestId("q-doc-title")).toHaveText(/^Draft quote · PG-[0-9A-F]{6}$/);
     await expect(doc).toContainText("Valid 30 days · Includes GST");
-    await expect(page.getByTestId("q-doc-for")).toContainText("Quote Tester");
-    await expect(page.getByTestId("q-doc-for")).toContainText(`q10.${run}@example.com`);
+    await expect(doc.getByTestId("q-doc-for")).toContainText("Quote Tester");
+    await expect(doc.getByTestId("q-doc-for")).toContainText(`q10.${run}@example.com`);
     const lines = doc.locator("[data-testid^='q-line-']:not([data-testid$='-amount'])");
     expect(await lines.count()).toBeGreaterThan(2);
     await expect(lines.first()).toHaveAttribute("data-state", "todo");
     await expect(lines.first()).toContainText("(typical)");
     await expect(lines.first().locator(".amt")).toHaveText("—");
-    await expect(page.getByTestId("q-doc-subtotal")).toContainText(MONEY_RANGE);
-    await expect(page.getByTestId("q-doc-gst")).toContainText(MONEY_RANGE);
-    await expect(page.getByTestId("q-doc-total")).toContainText("Your range");
+    await expect(doc.getByTestId("q-doc-subtotal")).toContainText(MONEY_RANGE);
+    await expect(doc.getByTestId("q-doc-gst")).toContainText(MONEY_RANGE);
+    await expect(doc.getByTestId("q-doc-total")).toContainText("Your range");
     const panelBox = (await page.getByTestId("q-panel").boundingBox())!;
     expect(panelBox.height, "the panel takes at most a third of the screen").toBeLessThanOrEqual(780 / 3 + 2);
     await expect(page.getByTestId("wzm-h1")).toBeInViewport();
@@ -188,7 +189,7 @@ test.describe("quote stage v10 — session 1: the cards on a phone", () => {
     // §5 (S2) — the measured room's line now carries its amount and no "(typical)"; the band has moved on; the tile counts one fewer
     const firstId = (await cardId(page))!;
     await page.getByTestId("q-tile-quote").tap();
-    const measuredLine = page.locator("[data-testid^='q-line-'][data-state='measured']").first();
+    const measuredLine = page.getByTestId("q-panel").locator("[data-testid^='q-line-'][data-state='measured']").first();
     await expect(measuredLine).toBeVisible();
     await expect(measuredLine).not.toContainText("(typical)");
     await expect(measuredLine.locator(".amt")).toHaveText(MONEY_RANGE);
@@ -211,7 +212,8 @@ test.describe("quote stage v10 — session 1: the cards on a phone", () => {
     // B2 — what we're painting in here: the tiles as chips; doors + → 2; the door scope and the window key
     await expect(page.getByTestId("wzm-h1")).toHaveText("What we’re painting in here");
     // §4 (S4) — the room tile: the drawing from the room's own state (cornices were answered Standard)
-    await expect(page.getByTestId("q-tile-room-name")).toHaveText(await page.getByTestId("q-stage").innerText().then((t) => t.split(" · ")[0]));
+    const stageRoom = (await page.getByTestId("q-stage").innerText()).split(" · ")[0]; // the stage line is upper-cased by CSS
+    expect((await page.getByTestId("q-tile-room-name").innerText()).toLowerCase()).toBe(stageRoom.toLowerCase());
     const pic = page.getByTestId("q-room-pic");
     await expect(pic).toHaveAttribute("data-quote", "true");
     await expect(pic.locator("[data-surf='cornices']")).toHaveCount(1);
@@ -375,8 +377,10 @@ test.describe("quote stage v10 — session 5: the plan tile", () => {
   test.use({ viewport: { width: 1280, height: 900 } });
   const run = randomBytes(3).toString("hex");
   const suburb = `E2E Q10P ${run}`;
+  const planPaths: string[] = [];
   test.afterAll(async () => {
     if (!db) return;
+    if (planPaths.length) await db.storage.from("estimate-sources").remove(planPaths);
     const { data: rows } = await db.from("wizard_drafts").select("estimate_id").eq("suburb", suburb);
     await db.from("wizard_drafts").delete().eq("suburb", suburb);
     for (const r of rows ?? []) if (r.estimate_id) await db.from("estimates").delete().eq("id", r.estimate_id);
@@ -384,26 +388,19 @@ test.describe("quote stage v10 — session 5: the plan tile", () => {
 
   test("no plan → no tile; with a plan → the tile, the sheet with the image and the ticked rooms, tap-to-jump", async ({ page }) => {
     test.setTimeout(300_000);
-    await openQuickLook(page);
-    await fillQuickAddress(page, { suburb });
-    await quickNext(page);
-    await expect(page.locator("[data-quick-step='place']")).toBeVisible({ timeout: 30_000 });
-    const [chooser] = await Promise.all([page.waitForEvent("filechooser"), page.getByTestId("ql-plan-upload").click()]);
-    await chooser.setFiles("e2e/fixtures/not-a-plan-a.png");
-    await expect(page.getByTestId("ql-plan-upload")).toContainText(/Floorplan uploaded/i, { timeout: 60_000 });
-    await quickNext(page);
-    await expect(page.locator("[data-quick-step='job']")).toBeVisible({ timeout: 30_000 });
-    await page.getByTestId("ql-scope-whole").click();
-    await page.getByTestId("ql-excl-none").click();
-    await quickNext(page);
-    await expect(page.locator("[data-quick-step='rooms']")).toBeVisible({ timeout: 30_000 });
-    await quickNext(page);
-    await expect(page.locator("[data-quick-step='condition']")).toBeVisible({ timeout: 30_000 });
-    await quickNext(page);
-    await expect(page.getByTestId("reveal-range")).toContainText(MONEY_RANGE, { timeout: 240_000 });
+    // the desktop quick look to its range (the shared drive fills the gate), then the desktop door (the old editor this release) for the id
+    await driveNoPlanWizard(page, { suburb, stopAtReveal: true, contactName: "Plan Tester", email: `q10p.${run}@example.com` });
     await page.getByTestId("door-tighten").click();
     await expect(page).toHaveURL(/\/estimate\/scope\?id=/, { timeout: 60_000 });
     const id = new URL(page.url()).searchParams.get("id")!;
+    // a plan ON FILE: the fixtures are not readable plans (the reader refuses them and the submit fails), so the plan is put on
+    // file the way the upload route leaves it — the image in the bucket and its `estimate_sources` row — through the service client
+    const path = `e2e/${run}/plan.png`;
+    const { error: upErr } = await db!.storage.from("estimate-sources").upload(path, readFileSync("e2e/fixtures/not-a-plan-a.png"), { contentType: "image/png", upsert: true });
+    expect(upErr, upErr?.message).toBeNull();
+    const { error: rowErr } = await db!.from("estimate_sources").insert({ estimate_id: id, kind: "floorplan", storage_path: path, page_no: 1, mime_type: "image/png", page_class: "floorplan_interior" });
+    expect(rowErr, rowErr?.message).toBeNull();
+    planPaths.push(path);
     // the stage at phone width, on the same session
     await page.setViewportSize({ width: 390, height: 780 });
     await page.goto(`/estimate/quote?id=${id}`);
