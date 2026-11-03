@@ -2,7 +2,7 @@ import { expect, type Page } from "@playwright/test";
 import { randomBytes } from "node:crypto";
 import { test } from "../helpers";
 import { serviceClient } from "../fixtures/woLoop";
-import { MONEY_RANGE, driveMobileQuickLook, openQuickLook, fillQuickAddress, quickNext } from "./drive";
+import { MONEY_RANGE, driveMobileQuickLook, openQuickLook, fillQuickAddress, passGateIfShown, quickNext } from "./drive";
 /** D-Q5: `lib/wizard/spotPhoto.ts SPOT_PHOTO_MAX_BYTES` (not imported — that module loads the browser client). */
 const SPOT_PHOTO_MAX_BYTES = 5 * 1024 * 1024;
 
@@ -119,20 +119,20 @@ test.describe("quote stage v10 — session 1: the cards on a phone", () => {
     await page.getByTestId("q-tile-quote").tap();
     await expect(page.getByTestId("q-panel")).toHaveAttribute("data-open", "1");
     await shot(page, "phone-02-quote-open");
-    const doc = page.getByTestId("q-doc");
+    const doc = page.getByTestId("q-panel").getByTestId("q-doc"); // the desktop rail holds a second copy, hidden on a phone
     await expect(doc).toHaveAttribute("data-title", "Draft quote");
-    await expect(page.getByTestId("q-doc-title")).toHaveText(/^Draft quote · PG-[0-9A-F]{6}$/);
+    await expect(doc.getByTestId("q-doc-title")).toHaveText(/^Draft quote · PG-[0-9A-F]{6}$/);
     await expect(doc).toContainText("Valid 30 days · Includes GST");
-    await expect(page.getByTestId("q-doc-for")).toContainText("Quote Tester");
-    await expect(page.getByTestId("q-doc-for")).toContainText(`q10.${run}@example.com`);
+    await expect(doc.getByTestId("q-doc-for")).toContainText("Quote Tester");
+    await expect(doc.getByTestId("q-doc-for")).toContainText(`q10.${run}@example.com`);
     const lines = doc.locator("[data-testid^='q-line-']:not([data-testid$='-amount'])");
     expect(await lines.count()).toBeGreaterThan(2);
     await expect(lines.first()).toHaveAttribute("data-state", "todo");
     await expect(lines.first()).toContainText("(typical)");
     await expect(lines.first().locator(".amt")).toHaveText("—");
-    await expect(page.getByTestId("q-doc-subtotal")).toContainText(MONEY_RANGE);
-    await expect(page.getByTestId("q-doc-gst")).toContainText(MONEY_RANGE);
-    await expect(page.getByTestId("q-doc-total")).toContainText("Your range");
+    await expect(doc.getByTestId("q-doc-subtotal")).toContainText(MONEY_RANGE);
+    await expect(doc.getByTestId("q-doc-gst")).toContainText(MONEY_RANGE);
+    await expect(doc.getByTestId("q-doc-total")).toContainText("Your range");
     const panelBox = (await page.getByTestId("q-panel").boundingBox())!;
     expect(panelBox.height, "the panel takes at most a third of the screen").toBeLessThanOrEqual(780 / 3 + 2);
     await expect(page.getByTestId("wzm-h1")).toBeInViewport();
@@ -188,7 +188,7 @@ test.describe("quote stage v10 — session 1: the cards on a phone", () => {
     // §5 (S2) — the measured room's line now carries its amount and no "(typical)"; the band has moved on; the tile counts one fewer
     const firstId = (await cardId(page))!;
     await page.getByTestId("q-tile-quote").tap();
-    const measuredLine = page.locator("[data-testid^='q-line-'][data-state='measured']").first();
+    const measuredLine = page.getByTestId("q-panel").locator("[data-testid^='q-line-'][data-state='measured']").first();
     await expect(measuredLine).toBeVisible();
     await expect(measuredLine).not.toContainText("(typical)");
     await expect(measuredLine.locator(".amt")).toHaveText(MONEY_RANGE);
@@ -400,6 +400,8 @@ test.describe("quote stage v10 — session 5: the plan tile", () => {
     await quickNext(page);
     await expect(page.locator("[data-quick-step='condition']")).toBeVisible({ timeout: 30_000 });
     await quickNext(page);
+    // details first: the gate before the range on the desktop too
+    await passGateIfShown(page, { name: "Plan Tester", email: `q10p.${run}@example.com` });
     await expect(page.getByTestId("reveal-range")).toContainText(MONEY_RANGE, { timeout: 240_000 });
     await page.getByTestId("door-tighten").click();
     await expect(page).toHaveURL(/\/estimate\/scope\?id=/, { timeout: 60_000 });

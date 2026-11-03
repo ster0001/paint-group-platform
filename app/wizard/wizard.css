@@ -2895,3 +2895,8 @@
   .wz .wzq-keys b { display: inline-block; min-width: 18px; padding: 1px 6px; margin-right: 2px; border: 1px solid var(--line); border-radius: 6px; background: var(--panel); font-weight: 600; color: var(--heading); font-size: 11px; text-align: center; }
 }
 
+/* ── QUOTE STAGE v10 — the drawn house stays inside the room tile (its svg is absolute, so the thumb is its box). ── */
+.wz .wzq-tile--room .thumb { position: relative; }
+.wz .wzq-tile--room .thumb .wz-elev, .wz .wzq-rail-pic .wz-elev, .wz .wzq .wzm-bigpic .wz-elev { position: absolute; inset: 0; width: 100%; height: 100%; }
+.wz .wzq-rail-pic { position: relative; }
+

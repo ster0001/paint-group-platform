@@ -2,7 +2,7 @@ import { expect, type Page } from "@playwright/test";
 import { randomBytes } from "node:crypto";
 import { test } from "../helpers";
 import { serviceClient } from "../fixtures/woLoop";
-import { MONEY_RANGE, answerOutsideQuick, driveMobileQuickLook, openQuickLook, fillQuickAddress, quickNext } from "./drive";
+import { MONEY_RANGE, answerOutsideQuick, driveMobileQuickLook, driveNoPlanWizard } from "./drive";
 
 /**
  * QUOTE STAGE v10 — session 6 (`docs/briefs/claude-code-brief-quote-stage-v10.md`
@@ -19,7 +19,8 @@ const db = serviceClient();
 const cardId = (page: Page) => page.getByTestId("quote-stage").getAttribute("data-quote-card");
 const passCard = async (page: Page) => {
   const id = (await cardId(page))!;
-  if (id.startsWith("measure:") || id.startsWith("side-size:")) await page.getByTestId("q-size-typical").click();
+  if (id.startsWith("g:")) await page.locator(".wzq-card .wzm-opts .wzm-opt").first().click(); // a single choice advances itself
+  else if (id.startsWith("measure:") || id.startsWith("side-size:")) await page.getByTestId("q-size-typical").click();
   else if (id.startsWith("robe:")) await page.getByTestId("q-robe-none").click();
   else await page.getByTestId("q-next").click();
   await expect.poll(() => cardId(page), { timeout: 30_000 }).not.toBe(id);
@@ -173,20 +174,8 @@ test.describe("quote stage v10 — session 6: the desktop format and the keyboar
 
   test("three columns at 1280: drawing left, the card centre, price + collapsed quote right; 1–4, Enter and ← drive it", async ({ page }) => {
     test.setTimeout(300_000);
-    await openQuickLook(page);
-    await fillQuickAddress(page, { suburb });
-    await quickNext(page);
-    await expect(page.locator("[data-quick-step='place']")).toBeVisible({ timeout: 30_000 });
-    await quickNext(page);
-    await expect(page.locator("[data-quick-step='job']")).toBeVisible({ timeout: 30_000 });
-    await page.getByTestId("ql-scope-whole").click();
-    await page.getByTestId("ql-excl-none").click();
-    await quickNext(page);
-    await expect(page.locator("[data-quick-step='rooms']")).toBeVisible({ timeout: 30_000 });
-    await quickNext(page);
-    await expect(page.locator("[data-quick-step='condition']")).toBeVisible({ timeout: 30_000 });
-    await quickNext(page);
-    await expect(page.getByTestId("reveal-range")).toContainText(MONEY_RANGE, { timeout: 240_000 });
+    // the desktop quick look to its range (the shared drive fills the gate's details on the way), then the desktop door (still the old editor this release)
+    await driveNoPlanWizard(page, { suburb, stopAtReveal: true, contactName: "Desk Tester", email: `q10d.${run}@example.com` });
     await page.getByTestId("door-tighten").click();
     await expect(page).toHaveURL(/\/estimate\/scope\?id=/, { timeout: 60_000 });
     const id = new URL(page.url()).searchParams.get("id")!;
