@@ -2,7 +2,7 @@ import { expect, type Page } from "@playwright/test";
 import { randomBytes } from "node:crypto";
 import { test } from "../helpers";
 import { serviceClient } from "../fixtures/woLoop";
-import { MONEY_RANGE, answerOutsideQuick, driveMobileQuickLook, driveNoPlanWizard } from "./drive";
+import { MONEY_RANGE, answerOutsideQuick, driveMobileQuickLook, driveNoPlanWizard, openQuickLook, fillQuickAddress } from "./drive";
 
 /**
  * QUOTE STAGE v10 — session 6 (`docs/briefs/claude-code-brief-quote-stage-v10.md`
