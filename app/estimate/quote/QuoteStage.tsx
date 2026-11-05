@@ -650,11 +650,18 @@ function SurfacesScreen({ card, busy, act, catalogue, onNext }: { card: Surfaces
   const toggle = (t: CustomerTile) => t.surfaceId != null && t.on
     ? act({ action: "room_remove_line", areaId: room.areaId, surfaceId: t.surfaceId })
     : act({ action: "toggle_surface", areaId: room.areaId, key: String(t.key), on: !t.on });
-  const chip = (t: CustomerTile, extra?: ReactNode) => (
-    <button key={String(t.key)} type="button" className={`wzm-chip ${t.on ? "on" : ""}`} aria-pressed={t.on} disabled={busy} data-testid={`q-surf-${String(t.key).replace(/[^a-z0-9]+/gi, "-")}`} onClick={() => void toggle(t)}>
-      {t.label}{t.on && extra}
-    </button>
-  );
+  // a chip that carries a counter or a segment is a <span role="button">: a <button> cannot contain buttons (the console's hydration error, 5 Nov)
+  const chip = (t: CustomerTile, extra?: ReactNode) => {
+    const cls = `wzm-chip ${t.on ? "on" : ""}`; const tid = `q-surf-${String(t.key).replace(/[^a-z0-9]+/gi, "-")}`;
+    if (extra && t.on) return (
+      <span key={String(t.key)} role="button" tabIndex={busy ? -1 : 0} className={cls} aria-pressed={t.on} aria-disabled={busy} data-testid={tid} onClick={() => { if (!busy) void toggle(t); }} onKeyDown={(e) => { if (e.key === "Enter" && !busy) void toggle(t); }}>
+        {t.label}{extra}
+      </span>
+    );
+    return (
+      <button key={String(t.key)} type="button" className={cls} aria-pressed={t.on} disabled={busy} data-testid={tid} onClick={() => void toggle(t)}>{t.label}</button>
+    );
+  };
   const seg = (opts: Array<[string, string]>, value: string, pick: (v: string) => void, testId: string) => (
     <span className="seg" data-testid={testId}>
       {opts.map(([v, label]) => <span key={v} role="button" tabIndex={0} className={value === v ? "sel" : ""} data-testid={`${testId}-${v}`} onClick={(e) => { e.stopPropagation(); pick(v); }} onKeyDown={(e) => { if (e.key === "Enter") { e.stopPropagation(); pick(v); } }}>{label}</span>)}
@@ -677,11 +684,11 @@ function SurfacesScreen({ card, busy, act, catalogue, onNext }: { card: Surfaces
         {windows && windows.on && room.windows.length === 0 && chip(windows, <Counter value={windows.count ?? 1} min={1} max={12} testId="q-count-windows" disabled={busy} onChange={(n) => void act({ action: "set_count", areaId: room.areaId, key: "windows", count: n })} />)}
         {windows && (windows.on && room.windows.length === 0 ? null : windows.on && room.windows.length > 0
           ? room.windows.map((w) => (
-            <button key={w.id} type="button" className="wzm-chip on" aria-pressed data-testid={`q-win-${w.id}`} disabled={busy} onClick={() => void act({ action: "room_remove_line", areaId: room.areaId, surfaceId: w.id })}>
+            <span key={w.id} role="button" tabIndex={busy ? -1 : 0} className="wzm-chip on" aria-pressed aria-disabled={busy} data-testid={`q-win-${w.id}`} onClick={() => { if (!busy) void act({ action: "room_remove_line", areaId: room.areaId, surfaceId: w.id }); }} onKeyDown={(e) => { if (e.key === "Enter" && !busy) void act({ action: "room_remove_line", areaId: room.areaId, surfaceId: w.id }); }}>
               {w.label}
               <Counter value={w.count} min={1} max={20} testId={`q-count-win-${w.id}`} disabled={busy} onChange={(n) => void act({ action: "room_line_count", areaId: room.areaId, surfaceId: w.id, count: n })} />
               {seg([["S", "S"], ["M", "M"], ["L", "L"]], w.sizeBand, (v) => void act({ action: "room_win_size", areaId: room.areaId, surfaceId: w.id, size: v }), `q-win-size-${w.id}`)}
-            </button>
+            </span>
           ))
           : chip(windows))}
         <button type="button" className="wzm-chip add" data-testid="q-add-surface" onClick={() => setAdding((a) => !a)} aria-expanded={adding}>+ Add a surface</button>
@@ -903,10 +910,16 @@ function ExtrasScreen({ offer, state, busy, act, onNext }: { offer: JobExtra[]; 
         {offer.map((e) => {
           const isOn = on.has(e.code);
           return (
-            <button key={e.code} type="button" className={`wzm-chip ${isOn ? "on" : ""}`} aria-pressed={isOn} disabled={busy} data-testid={`q-extra-${slug(e.code)}`} onClick={() => void act({ action: "toggle_job_extra", code: e.code, on: !isOn })}>
-              {e.label} · ${e.priceDollars.toLocaleString("en-AU")}
-              {isOn && <Counter value={state.counts[e.code] ?? 1} min={1} max={20} testId={`q-extra-count-${slug(e.code)}`} disabled={busy} onChange={(n) => void act({ action: "toggle_job_extra", code: e.code, on: true, count: n })} />}
-            </button>
+            isOn ? (
+              <span key={e.code} role="button" tabIndex={busy ? -1 : 0} className="wzm-chip on" aria-pressed aria-disabled={busy} data-testid={`q-extra-${slug(e.code)}`} onClick={() => { if (!busy) void act({ action: "toggle_job_extra", code: e.code, on: false }); }} onKeyDown={(ev) => { if (ev.key === "Enter" && !busy) void act({ action: "toggle_job_extra", code: e.code, on: false }); }}>
+                {e.label} · ${e.priceDollars.toLocaleString("en-AU")}
+                <Counter value={state.counts[e.code] ?? 1} min={1} max={20} testId={`q-extra-count-${slug(e.code)}`} disabled={busy} onChange={(n) => void act({ action: "toggle_job_extra", code: e.code, on: true, count: n })} />
+              </span>
+            ) : (
+              <button key={e.code} type="button" className="wzm-chip" aria-pressed={false} disabled={busy} data-testid={`q-extra-${slug(e.code)}`} onClick={() => void act({ action: "toggle_job_extra", code: e.code, on: true })}>
+                {e.label} · ${e.priceDollars.toLocaleString("en-AU")}
+              </button>
+            )
           );
         })}
         <button type="button" className={`wzm-chip ${state.colourHelp ? "on" : ""}`} aria-pressed={state.colourHelp} disabled={busy} data-testid="q-extra-colour" onClick={() => void act({ action: "set_colour_help", want: !state.colourHelp })}>Help me choose colours</button>

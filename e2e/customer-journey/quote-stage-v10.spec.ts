@@ -222,7 +222,7 @@ test.describe("quote stage v10 — session 1: the cards on a phone", () => {
     expect(picDoors).toBeGreaterThan(0);
     await expect(pic.locator("[data-kind='door']")).toHaveCount(picDoors);
     await shot(page, "phone-04-surfaces");
-    const chips = page.getByTestId("q-surfaces").locator("button.wzm-chip");
+    const chips = page.getByTestId("q-surfaces").locator(".wzm-chip");
     expect(await chips.count()).toBeGreaterThan(3);
     await expect(page.getByTestId("q-surf-walls")).toHaveAttribute("aria-pressed", "true");
     await expect(page.getByTestId("q-walls-share-100")).toHaveClass(/sel/);
@@ -306,7 +306,7 @@ test.describe("quote stage v10 — session 1: the cards on a phone", () => {
     await card(page, "extras");
     // E2 — anything we haven't listed? a priced extra (where the rate card offers one), help with colours, a note
     await expect(page.getByTestId("wzm-h1")).toHaveText("Anything we haven’t listed?");
-    const extra = page.getByTestId("q-extras").locator("button[data-testid^='q-extra-']:not([data-testid='q-extra-colour'])").first();
+    const extra = page.getByTestId("q-extras").locator("[data-testid^='q-extra-']:not([data-testid='q-extra-colour'])").first();
     if (await extra.count()) {
       await expect(extra).toContainText(/\$\d/);
       await extra.tap();
