@@ -502,8 +502,10 @@ export async function mobileQuickNext(page: Page) {
     const now = await shell.getAttribute("data-mobile-screen");
     if ((await stepOf()) !== stepBefore) return;
     if (now === screen) {
-      // the screen moves on, or the shell goes (a booking, the range, the processing screen)
-      await expect.poll(async () => ((await shell.count()) ? shell.getAttribute("data-mobile-screen") : null), { timeout: 10_000 }).not.toBe(screen);
+      // the screen moves on, or the shell goes (a booking, the range, the processing screen). The details screen's
+      // bar sends the texted code first — a server round trip (`/api/wizard/otp/send`) that took over 10 s on the
+      // test stack at the end of a long "both" walk (5 Nov 2026), so it gets the same 30 s the bar's enabling does.
+      await expect.poll(async () => ((await shell.count()) ? shell.getAttribute("data-mobile-screen") : null), { timeout: screen === "details" ? 30_000 : 10_000 }).not.toBe(screen);
       if (!(await shell.count()) || (await stepOf()) !== stepBefore) return;
     }
   }

@@ -592,8 +592,14 @@ test.describe("UI refresh S5 · home outside", () => {
     await fillQuickAddress(page);
     const router = await onMobileShell(page);
     await page.getByTestId("ql-jobtype-exterior").click();
-    if (!router) await quickNext(page); // the router's card advances itself
-    await quickNext(page);
+    if (router) {
+      // the router: Outside advances itself to the place screen, and the place (House, pre-set) to the home step
+      await expect(page.locator("[data-mobile-screen='property']")).toBeVisible({ timeout: 20_000 });
+      await page.getByTestId("ql-kind-house").click();
+    } else {
+      await quickNext(page);
+      await quickNext(page);
+    }
     await expect(page.locator("[data-quick-step='home']")).toBeVisible({ timeout: 20_000 });
     await page.getByTestId("ql-ext-type-wb").click();
     await page.getByTestId("ql-ext-size-md").click();
