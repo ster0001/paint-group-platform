@@ -1,12 +1,12 @@
 ---
 feature: quote-stage
 role: staff
-title: The customer's detailed-price stage, seen from the office
-summary: What a customer builds on "Get my detailed price" — one question per card, the quote writing itself — lands in the same estimate tree the scope page wrote; you preview it from the estimate's link, and nothing on it prices in the browser.
+title: The customer's quote-range stage, seen from the office
+summary: What a customer builds on "Get my quote range" — one question per card, the quote writing itself — lands in the same estimate tree the scope page wrote; you preview it from the estimate's link, and nothing on it prices in the browser.
 ---
 
 ## What this is for
-The detailed-price stage is on by default (`NEXT_PUBLIC_QUOTE_STAGE_V10=0` switches it off for a release); the phone gate's **Get my detailed price** opens `/estimate/quote?id=…` instead of the room-by-room scope page. Every tap posts one of the scope page's existing actions, so the estimate, its lines, its repairs and its photos arrive in **Waiting on you** exactly as before. This page is for previewing what the customer saw.
+The quote-range stage is on by default (`NEXT_PUBLIC_QUOTE_STAGE_V10=0` switches it off for a release); the phone gate's **Get my quote range** opens `/estimate/quote?id=…` instead of the room-by-room scope page. Every tap posts one of the scope page's existing actions, so the estimate, its lines, its repairs and its photos arrive in **Waiting on you** exactly as before. This page is for previewing what the customer saw.
 
 ## Before you start
 You are signed in as staff. The estimate is still a draft (an accepted estimate shows "its scope is locked in").

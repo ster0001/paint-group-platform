@@ -47,7 +47,7 @@ const toGate = async (page: Page, run: string) => {
   const bounced = page.locator(".wz-err");
   await expect(gate.or(bounced)).toBeVisible({ timeout: 90_000 });
   if (await bounced.count()) throw new Error(`submit failed: ${await bounced.first().innerText()}`);
-  await expect(page.getByTestId("gate-bar-exact")).toHaveText("Get my detailed price");
+  await expect(page.getByTestId("gate-bar-exact")).toHaveText("Get my quote range");
   await page.getByTestId("gate-bar-exact").click();
   await expect(page).toHaveURL(/\/estimate\/quote\?id=/, { timeout: 30_000 });
   await expect(page.getByTestId("quote-stage")).toBeVisible({ timeout: 30_000 });
@@ -110,6 +110,13 @@ test.describe("quote stage v10 — session 6: outside and trims on a phone", () 
     // C2 — on this side: windows and doors are the drawn house's counts — + on windows redraws the side with one more
     await expect(page.getByTestId("wzm-h1")).toHaveText("On this side");
     await shot(page, "phone-outside-02-on-this-side");
+    // the windows stepper is there only when windows are a ticked part (the quick-look drive ticks walls + fascias) — add them here, then count
+    await expect(page.getByTestId("q-side-parts")).toBeVisible();
+    if (!(await page.getByTestId("q-side-win").count())) {
+      await page.getByTestId("q-side-add-open").click();
+      await page.getByTestId("q-side-addpart-windows").click();
+      await expect(page.getByTestId("q-side-win")).toBeVisible({ timeout: 30_000 });
+    }
     const win0 = Number(await page.getByTestId("q-side-win-n").innerText());
     const elev = page.getByTestId("q-tile-room").locator("svg.wz-elev");
     await expect(elev).toHaveAttribute("data-windows", String(win0));
@@ -117,6 +124,9 @@ test.describe("quote stage v10 — session 6: outside and trims on a phone", () 
     await expect(page.getByTestId("q-side-win-n")).toHaveText(String(win0 + 1));
     await expect(elev).toHaveAttribute("data-windows", String(win0 + 1));
     await expect.poll(async () => page.getByTestId("quote-stage").getAttribute("data-busy"), { timeout: 30_000 }).not.toBe("1");
+    // and a part can be unticked on this side
+    await page.getByTestId("q-side-part-fascias").click();
+    await expect(page.getByTestId("q-side-part-fascias")).toHaveAttribute("aria-pressed", "false", { timeout: 30_000 });
     // the condition chips sit low on the card: scroll them to the middle first, or the sticky bar sits over them
     await page.getByTestId("q-side-cond-weathered").evaluate((el) => el.scrollIntoView({ block: "center" }));
     await page.getByTestId("q-side-cond-weathered").click();
@@ -133,7 +143,7 @@ test.describe("quote stage v10 — session 6: outside and trims on a phone", () 
     await expect(page.getByTestId("q-side-noted")).toContainText("Flaking");
     await page.getByTestId("q-next").click();
     await passUntil(page, (id) => id === "done");
-    await expect(page.getByTestId("gate-label")).toHaveText("Quote Tester, your detailed price");
+    await expect(page.getByTestId("gate-label")).toHaveText("Quote Tester, your quote range");
     await expect(page.getByTestId("gate-range")).toHaveText(MONEY_RANGE);
     await expect(page.getByTestId("q-done-doc").locator("[data-testid^='q-line-'][data-state='todo']")).toHaveCount(0);
     expect(await stage.innerText()).not.toMatch(/exact|±|within \d+%/i);

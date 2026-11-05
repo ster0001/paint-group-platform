@@ -144,14 +144,14 @@ export default function AddressField({
    * up". Now the top suggestion (when the list has one) is resolved first,
    * so the suburb and postcode travel with the address.
    */
-  async function submit() {
+  async function submit(scopeNow: Scope = scope) {
     let p = picked;
     let text = value.trim();
     if (!p && suggestions.length > 0) {
       const r = await resolve(suggestions[0]);
       if (r) { p = r.address; text = r.address.formatted; setValue(text); setPicked(p); }
     }
-    onSubmit(text, mode, scope, p);
+    onSubmit(text, mode, scopeNow, p);
   }
 
   function choose(next: Mode) {
@@ -163,6 +163,8 @@ export default function AddressField({
     stopGhostNow();
     setScope(next);
     track(next === "interior" ? "scope_interior" : "scope_exterior", { where });
+    // Tom, 5 Nov 2026: with an address in the box, Inside / Outside IS the go — no second tap on See my price
+    if (value.trim()) { setOpen(false); void submit(next); }
   }
 
   return (

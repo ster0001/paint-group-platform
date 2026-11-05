@@ -1,18 +1,18 @@
 ---
 feature: quote-stage
 role: customer
-title: Get your detailed price — one question at a time
-summary: After your range, your detailed price asks one question per screen — the whole house first, then four quick cards per room (or three per side of the house for an outside job) — while your quote writes itself beside the question and your range closes as you answer. Behind a switch until it goes live.
+title: Get your quote range — one question at a time
+summary: After your range, your quote range asks one question per screen — the whole house first, then four quick cards per room (or three per side of the house for an outside job) — while your quote writes itself beside the question and your range closes as you answer. Behind a switch until it goes live.
 ---
 
 ## What this is for
-After **Your range today**, **Get my detailed price** takes you through the questions that turn your range into a detailed price, one at a time, on your phone. The price stays a range (repairs are confirmed on the day); it narrows as you answer.
+After **Your range today**, **Get my quote range** takes you through the questions that turn your range into a quote range, one at a time, on your phone. The price stays a range (repairs are confirmed on the day); it narrows as you answer.
 
 ## Before you start
 You have your range and have given your name, mobile and email. Nothing you answer here commits you to anything.
 
 ## Steps
-1. On your range, tap **Get my detailed price** (the big button, or the bar at the bottom). The thin bar at the top carries on from where the range left it.
+1. On your range, tap **Get my quote range** (the big button, or the bar at the bottom). The thin bar at the top carries on from where the range left it.
 2. **Your room, drawn** — on every room card a small picture of that room sits beside the Quote tile and redraws with every answer: the doors and windows you count appear (and spill onto the side walls when the back wall is full), their size follows S / M / L, an unticked cornice or skirting disappears, walls go grey when you're not painting them, a robe appears on the right wall, and each repair you point out leaves its mark. Tap the picture to see it full width; × or Escape closes it.
 3. **Your floorplan, one tap away** — if you uploaded a plan, a small **Plan** tile sits beside the others. Tap it to see the plan full size (pinch or use + / − to zoom) with your rooms listed under it; a tick means that room's size is settled. Tap a room to jump to its size card.
 4. **Your quote, above every question** — the **Quote** tile says how many lines are still to go and about how long that takes; tap it to open your draft quote (your name and address, a line per room with its size and what's included, the amount once that room is measured, repairs confirmed on the day, subtotal, GST and your range) and tap it again to close it. Under the tile, your range in large figures and **closing in · N% settled**; the thin bar beneath it shrinks inward and turns green as the rooms settle.
@@ -23,7 +23,7 @@ You have your range and have given your name, mobile and email. Nothing you answ
 9. **Anything needing attention?** — tap what you can see (crack, hole or dent, flaking, water mark, mould, wallpaper, feature wall, something else), say how much of it there is, and **Take a photo of the spot** if you can: with a photo we price the repair straight away, without one a person does. **Add it**, or **Nothing to fix — next**. Anything already noted shows above the chips with a × to remove it.
 10. **Have we got every room?** — the list with each size. **+ Add a room** (pick its kind, name it, **Add it**) opens the new room's size card and its three other cards, then brings you back here. Answer the **doors and windows across the house — right?** check, then **That's every room**.
 11. **Anything we haven't listed?** — priced extras from our rate card (tap one, − / + for how many), **Help me choose colours**, and a box for anything else, which a person prices. **Next**.
-12. **{Your name}, your detailed price** — your quote in full (now headed **Quote**, with **Your price** as a range — repairs are confirmed on the day), which rooms stayed at the typical size (tap one in the quote to measure it now), the three tiles, and **Book {estimator} to confirm it**, which takes you to the booking page.
+12. **{Your name}, your quote range** — your quote in full (now headed **Quote**, with **Your price** as a range — repairs are confirmed on the day), which rooms stayed at the typical size (tap one in the quote to measure it now), the three tiles, and **Book {estimator} to confirm it**, which takes you to the booking page.
 13. **Outside jobs** — instead of rooms you get each painted side of your home, drawn as you described it: **How big is the front?** (across and high, or the typical size), **On this side** (count the windows and doors, say how the paint is — good, weathered, or peeling), and **Anything needing attention?** (flaking, rust, rot, cracked render, a photo). Then your quote.
 14. **Doors and trims only** — the whole-house questions, then one card per room with the doors, windows and trims counted up, then the last checks.
 15. **On a laptop** — the drawing sits on the left, the question in the middle, and your floorplan, your range and your quote on the right (tap the quote's header to open it). Press **1–4** to pick an answer, **Enter** for the button, **←** to go back.
@@ -38,7 +38,7 @@ You have your range and have given your name, mobile and email. Nothing you answ
 
 ## If something goes wrong
 - A question will not save — the screen says so; check your connection and tap again.
-- The link opens the older room-by-room editor — the detailed price stage is still switched off on that shopfront.
+- The link opens the older room-by-room editor — the quote range stage is still switched off on that shopfront.
 
 ## Related
 - [Your estimate on a phone](../estimator/customer.md)

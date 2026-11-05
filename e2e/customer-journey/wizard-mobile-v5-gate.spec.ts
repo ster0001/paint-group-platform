@@ -109,10 +109,10 @@ test.describe("Wizard mobile v5 — the gate on a phone (session 4)", () => {
     expect(font.family).toMatch(/Mono|monospace/i);
     expect(font.size).toBe("40px");
     await expect(page.getByTestId("gate-basis")).toContainText(/3-bedroom/);
-    await expect(page.getByTestId("gate-fine")).toHaveText(/^Based on what you’ve told us — anything different on the day changes the price\. .+ confirms it with you before anything is fixed\. Includes GST\.$/);
+    await expect(page.getByTestId("gate-fine")).toHaveText(/^Price is subject to change based on the information provided\. .+ confirms it with you before anything is fixed\. Includes GST\.$/);
     // 2 · the question
-    await expect(page.getByTestId("gate-block-ask").getByRole("heading")).toHaveText(V10 ? "Want the detailed price?" : "Want the exact number?");
-    await expect(page.getByTestId("gate-exact")).toContainText(V10 ? "Get my detailed price" : "Get my exact price");
+    await expect(page.getByTestId("gate-block-ask").getByRole("heading")).toHaveText(V10 ? "Want your quote range?" : "Want the exact number?");
+    await expect(page.getByTestId("gate-exact")).toContainText(V10 ? "Get my quote range" : "Get my exact price");
     await expect(page.getByTestId("gate-exact")).toContainText("Room by room · about 10 min");
     await expect(page.getByTestId("gate-visit")).toContainText(/book a time with .+ first/);
     await expect(page.getByTestId("gate-block-bigger")).toHaveCount(0);
@@ -122,7 +122,7 @@ test.describe("Wizard mobile v5 — the gate on a phone (session 4)", () => {
     await expect(tiles.nth(0)).toHaveAttribute("data-state", "done");
     await expect(tiles.nth(0)).toContainText("Your range");
     await expect(tiles.nth(1)).toHaveAttribute("data-state", "now");
-    await expect(tiles.nth(1)).toContainText(V10 ? "Your detailed price" : "Your exact price");
+    await expect(tiles.nth(1)).toContainText(V10 ? "Your quote range" : "Your exact price");
     await expect(tiles.nth(2)).toContainText(/confirms/);
     // 4 · 5 · the person and the trust line
     await expect(page.getByTestId("gate-estimator")).toBeVisible();
@@ -153,7 +153,7 @@ test.describe("Wizard mobile v5 — the gate on a phone (session 4)", () => {
     // §4.1 the sticky bar: one button, on the bottom edge
     const bar = page.getByTestId("gate-bar");
     await expect(bar.locator("button")).toHaveCount(1);
-    await expect(bar.getByTestId("gate-bar-exact")).toHaveText(V10 ? "Get my detailed price" : "Get my exact price");
+    await expect(bar.getByTestId("gate-bar-exact")).toHaveText(V10 ? "Get my quote range" : "Get my exact price");
     const b = (await bar.boundingBox())!;
     expect(Math.round(b.y + b.height)).toBe(780);
     if (SHOTS) { await page.waitForTimeout(700); await page.screenshot({ path: `${SHOTS}/12-gate.png`, animations: "disabled" }); await page.screenshot({ path: `${SHOTS}/12-gate-full.png`, fullPage: true, animations: "disabled" }); }

@@ -2905,3 +2905,29 @@
 .wz .wzq .wzm-screen { animation: wzqin .28s ease both; }
 @keyframes wzqin { from { opacity: 0; } to { opacity: 1; } }
 
+/* ── Tom's batch, 5 Nov 2026: the frozen top (bar · tiles · quote panel · band), the bigger logo after the gate, the glowing door,
+   the consent line, the two-field side box, the condition cards with a line each, the save row. ── */
+.wz .wzq-sticky.on { position: sticky; top: 0; z-index: 30; background: var(--bg); padding-bottom: 10px; box-shadow: 0 8px 14px -12px rgba(13, 22, 28, .35); }
+.wz .wzq .wzm-logo .wz-logo { max-height: 32px; height: 32px; max-width: 200px; }
+.wz .wzq .wzm-logo { transform: scale(1.15); transform-origin: center; }
+.wz .wzm-cta--glow { animation: wzglow 1.8s ease-in-out infinite; }
+@keyframes wzglow { 0%, 100% { box-shadow: 0 0 0 0 rgba(47, 211, 223, .55); } 50% { box-shadow: 0 0 0 10px rgba(47, 211, 223, 0), 0 0 24px 4px rgba(47, 160, 223, .55); } }
+@media (prefers-reduced-motion: reduce) { .wz .wzm-cta--glow { animation: none; box-shadow: 0 0 18px 2px rgba(47, 160, 223, .45); } }
+.wz .wzm-consent { margin: 12px 0 0; font-size: 12px; color: var(--muted); line-height: 1.45; }
+.wz .wzq-meas--two .wzq-field { min-width: 0; }
+.wz .wzq-meas .wzq-field input { padding-right: 26px; }
+.wz .wzq-cond { display: grid; gap: 10px; grid-template-columns: 1fr; }
+.wz .wzq-cond .wzm-opt { flex-direction: column; align-items: flex-start; gap: 4px; padding: 12px 14px; }
+.wz .wzq-cond .wzm-opt .d { font-size: 12px; color: var(--muted); line-height: 1.4; display: block; margin-top: 2px; }
+.wz .wzq-save { margin: 14px 20px 0; font-size: 13px; color: var(--muted); text-align: center; }
+.wz .wzq-save .wzm-linkish { font-size: 13px; }
+.wz .wzq .wzm-main.has-bar .wzq-save, .wz .wzq .wzm-main .wzq-save { margin-top: 18px; }
+@media (min-width: 900px) { .wz .wzq > .wzq-save { grid-column: 2; margin: 0 40px 10px; } .wz .wzq-sticky.on { position: static; box-shadow: none; } }
+
+/* ── 5 Nov: on the desktop the frozen group dissolves into the grid (its children were the grid's direct children before). ── */
+@media (min-width: 900px) {
+  .wz .wzq > .wzq-sticky { display: contents; }
+  .wz .wzq .wzq-sticky > .wzm-bar { grid-column: 1 / -1; margin: 18px 40px 0; }
+  .wz .wzq .wzq-sticky > .wzq-tiles, .wz .wzq .wzq-sticky > .wzq-panel, .wz .wzq .wzq-sticky > .wzq-band { display: none; }
+}
+

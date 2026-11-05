@@ -180,7 +180,7 @@ test.describe("on a phone: the outside range is the v5 gate with one row per sid
     await expect(gate.locator("svg.wz-elev")).toHaveCount(0);
     await expect(page.getByTestId("wzm-strip")).toHaveCount(0);
     // the one question, the brief's words, the doors
-    await expect(page.getByTestId("gate-block-ask")).toContainText(V10 ? "Want the detailed price?" : "Want the exact number?");
+    await expect(page.getByTestId("gate-block-ask")).toContainText(V10 ? "Want your quote range?" : "Want the exact number?");
     await expect(page.getByTestId("gate-block-ask")).toContainText(/A few minutes, side by side, nothing to measure\./);
     await expect(page.getByTestId("gate-exact")).toContainText("Side by side · a few minutes");
     await expect(page.getByTestId("gate-visit")).toContainText(/book a time with .+ first/);

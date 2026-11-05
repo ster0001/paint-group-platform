@@ -40,10 +40,8 @@ export default function PhotoDrop({
         type="file"
         accept={accept}
         multiple={multiple}
-        // capture="environment" opens the CAMERA on a phone rather than the
-        // file browser — on site that is the difference between one tap and
-        // four, and it falls back to the picker everywhere else.
-        capture="environment"
+        // Tom, 5 Nov 2026: no `capture` — the phone offers "Take photo" AND the library, so a
+        // photo already on the phone can be attached (capture="environment" forced the camera).
         disabled={disabled}
         data-testid={testId}
         onChange={(e) => { onFiles(Array.from(e.target.files ?? [])); e.currentTarget.value = ""; }}
