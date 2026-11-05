@@ -1,0 +1,24 @@
+/* Revise scope → INVOICE tab → "Download as PDF" (Tom, 5 Nov 2026).
+   The PDF is the browser's print of the builder page. While the body carries
+   data-print-invoice, everything that is not the previewed sheet (or one of its
+   ancestors) is taken out of the print, so the paper carries the white A4 sheet
+   alone — the same sheet, with the same print rules, that /i/[token] prints as
+   the invoice PDF (invoice.css). The attribute is set by the button and removed
+   after the dialog closes; on screen nothing here applies. */
+@media print {
+  body[data-print-invoice] *:not(:has(.invoice-view)):not(.invoice-view):not(.invoice-view *) {
+    display: none !important;
+  }
+  body[data-print-invoice],
+  body[data-print-invoice] :has(.invoice-view) {
+    margin: 0 !important;
+    padding: 0 !important;
+    background: #fff !important;
+    border: 0 !important;
+    box-shadow: none !important;
+    overflow: visible !important;
+    min-height: 0 !important;
+    max-width: none !important;
+  }
+  body[data-print-invoice] .invoice-view { min-height: 0; }
+}

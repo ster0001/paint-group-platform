@@ -196,6 +196,21 @@ test.describe("the revision builder — diff → signed variations", () => {
     await expect(preview).toContainText("How to pay — bank transfer");
     await expect(preview.getByTestId("total-inc")).toBeVisible();
     await expect(preview).not.toContainText("Accept estimate");
+
+    // Tom, 5 Nov: "Download as PDF" — the browser's print of this page, with
+    // everything but the sheet taken off the paper. The dialog is stubbed; the
+    // print stylesheet is checked under print media.
+    await page.evaluate(() => { (window as unknown as { __printed: number }).__printed = 0; window.print = () => { (window as unknown as { __printed: number }).__printed += 1; }; });
+    await page.getByTestId("download-invoice-pdf").click();
+    expect(await page.evaluate(() => (window as unknown as { __printed: number }).__printed)).toBe(1);
+    await expect(page.locator("body[data-print-invoice]")).toHaveCount(1);
+    await page.emulateMedia({ media: "print" });
+    await expect(preview.getByTestId("invoice-sheet")).toBeVisible();
+    await expect(page.getByTestId("back-to-revision")).toBeHidden();          // the toolbar is off the paper
+    await expect(page.getByTestId("revision-badge")).toBeHidden();            // so is the builder header
+    await expect(preview.getByTestId("live-preview-note")).toBeHidden();      // and the "live from the working scope" note
+    await page.emulateMedia({ media: null });
+    await page.evaluate(() => document.body.removeAttribute("data-print-invoice"));
     await page.getByTestId("back-to-revision").click();
     await expect(page.getByTestId("revision-panel")).toBeVisible();
   });
