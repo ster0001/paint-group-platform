@@ -134,6 +134,7 @@ export function jobFromWorkOrder(existing: ExistingImportedJob, wo: ParsedWorkOr
     } else mapping.push(`${a.name}: heading only (no price, no hours)`);
     return {
       name: a.name, price_ex_gst_cents: price, hours_prep: a.hours_prep, hours_paint: a.hours_paint,
+      ...(a.material ? { material: { product: a.material.product, litres: a.material.litres, material_cents: a.material.materialCents } } : {}),
       hours_total: items.length > 0 ? Math.round(hours * 100) / 100 : a.hours_total,
       length_m: a.length_m, width_m: a.width_m, height_m: a.height_m, items,
     };

@@ -40,6 +40,8 @@ export const bookedAreaSchema = z.object({
   width_m: nullableNum,
   height_m: nullableNum,
   items: z.array(bookedItemSchema).default([]),
+  /** A paint printed on an area with no itemised lines (work-order page only). */
+  material: z.object({ product: z.string(), litres: nullableNum, material_cents: z.union([z.number().int().nonnegative(), z.null()]) }).optional(),
 });
 export type BookedArea = z.infer<typeof bookedAreaSchema>;
 

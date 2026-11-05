@@ -58,6 +58,8 @@ export type ParsedWorkOrderArea = {
   hours_paint: number | null;
   hours_total: number | null;
   items: ParsedWorkOrderItem[];
+  /** A paint printed on an area with no itemised lines ("Dulux Metalshield - 1 - $190.00"). */
+  material?: { product: string; litres: number | null; materialCents: number | null };
 };
 
 export type ParsedWorkOrder = {
@@ -77,6 +79,8 @@ const itemRe = /^(.{2,60}?)\s*\((\d+(?:\.\d+)?)\s*(m²|m2|m)?\)$/;
 const dimsRe = /^\(([\d.]+)'?\s*x\s*([\d.]+)'?(?:\s*x\s*([\d.]+)'?)?\)$/i;
 const bareNumber = /^\d+(?:\.\d+)?$/;
 const productLineRe = /^(.+?)\s+-\s+([\d.]+)\s*litres?\s+-\s+\$([\d,]+(?:\.\d+)?)?/i;
+/** A free-text area's paint: no "Litre" on it (13 Foley St, Steelwork, 6 Nov 2026). */
+const areaMaterialRe = /^(.+?)\s+-\s+([\d.]+)\s+-\s+\$([\d,]+(?:\.\d+)?)$/;
 const materialRe = /^(.+?)\s*\(Estimated:\s*([\d.]+)\s*litres?\b(?:\s*-\s*\$([\d,]+(?:\.\d+)?))?.*\)$/i;
 /** "$1,800.00" → 180000; null when absent. */
 const dollarsToCents = (s: string | undefined): number | null => {
@@ -163,6 +167,12 @@ export function parseWorkOrderText(text: string): ParsedWorkOrder {
       continue;
     }
     if (!current) continue;
+
+    const am = current.items.length === 0 ? l.match(areaMaterialRe) : null;
+    if (am && current) {
+      current.material = { product: am[1].trim(), litres: num(am[2]), materialCents: dollarsToCents(am[3]) };
+      continue;
+    }
 
     if (/^Total$/i.test(l)) {
       // "Prep: X" "+" "Painting: Y" "=" "Z" — read only what is actually there.

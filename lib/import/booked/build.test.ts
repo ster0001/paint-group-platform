@@ -239,6 +239,13 @@ describe("work-order materials and the contractor pay", () => {
     expect(filled.totals.hours).toBe(plain.totals.hours);
   });
 
+  it("a paint on an hours-only area reaches the materials budget (13 Foley St Steelwork)", () => {
+    const job: BookedJob = { ...SYNTHETIC, areas: SYNTHETIC.areas.map((x) => x.name !== "Cleaning" ? x : { ...x, material: { product: "Paint not in the catalogue", litres: 1, material_cents: 19000 } }) };
+    const built = buildBookedJob(job, new SubstrateResolver(SYNTHETIC_MAP), ctxFor(CODES), COMPANY, "abcdefgh12345678901234567890");
+    expect(built.totals.materialsCostCents).toBe(19000);
+    expect(built.totals.totalCents).toBe(plain.totals.totalCents);
+  });
+
   it("a $0 offer is a blank: the sheet's pay is priced from the hours; a real offer is kept", () => {
     const blank = buildBookedJob({ ...SYNTHETIC, contractor_offer_cents: 0 }, new SubstrateResolver(SYNTHETIC_MAP), ctxFor(CODES), COMPANY, "t");
     expect(blank.woDoc.contractorPaymentCents).toBeGreaterThan(0);

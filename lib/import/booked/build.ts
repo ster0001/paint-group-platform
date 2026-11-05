@@ -299,7 +299,9 @@ export function buildBookedJob(
           id: nextId++, code: CUSTOM_SURFACE_CODE, internalLabel: area.name, clientLabel: area.name, coats: 1, count: 1,
           size: null, hidden: false, isOption: false, media: [], measureL: null, measureH: null, qtyOverride: 1, rateOverride: null,
           paintingHrOverride: areaHours, prepHr: 0, priceOverride: dollars(price),
-          productName: null, color: "", colorHex: "", coverageOverride: null, volumeOverride: 0, unitPriceOverride: null,
+          // A paint printed on the area itself carries across, as on an itemised line.
+          ...lineMaterials(area.material ?? {}),
+          color: "", colorHex: "", coverageOverride: null,
           crewNote: "", hideQty: true, showCoats: false, showPrice: false, useCustomRate: false, customRate: null, open: false,
         }],
       });

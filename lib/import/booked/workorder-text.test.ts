@@ -241,6 +241,14 @@ describe("parseWorkOrderText", () => {
     expect(withSummary.optionHeadings).toEqual(wo.optionHeadings);
   });
 
+  it("reads a paint printed on an area with no itemised lines, and adds no hours for it (13 Foley St)", () => {
+    const area = "Steelwork\nhr\nSteelwork\nAreas to be painted: posts\nDulux Metalshield - 1 - $190.00\n\t\n41\nTotal\nPainting: 41\n=\n41\n";
+    const page = parseWorkOrderText(PAGE.replace("Options\nThese items", `${area}Options\nThese items`));
+    const steel = page.areas.find((x) => x.name === "Steelwork");
+    expect(steel).toMatchObject({ items: [], hours_total: 41, material: { product: "Dulux Metalshield", litres: 1, materialCents: 19000 } });
+    expect(page.hoursFromLines).toBe(wo.hoursFromLines + 41);
+  });
+
   it("a page with no Areas block yields nothing, not a crash", () => {
     const empty = parseWorkOrderText("Estimate ID\n1\nTotal Hours\n0\n");
     expect(empty).toMatchObject({ quoteNo: "1", totalHours: 0, areas: [], hoursFromLines: 0 });
