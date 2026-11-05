@@ -12,6 +12,7 @@ import {
   type ExteriorQuickLook,
 } from "@/lib/wizard/exterior-quick-look";
 import type { BookContact } from "./CommercialScreens";
+import OtpCode, { type OtpHandlers, type OtpUi } from "./OtpCode";
 // Lighthouse S7 (20 Oct 2026): the commercial screens load when a commercial
 // property is picked (prefetched below), not with every home's first screen.
 const commercialScreens = () => import("./CommercialScreens");
@@ -128,7 +129,11 @@ export default function QuickLook({
   /** R3: "Send a message". */
   onMessage: () => void;
   /** S6 (R5): the gate — the last question before the range, when the session's order is "details first". */
-  gate?: { contact: { name: string; email: string; phone: string }; onContact: (c: { name: string; email: string; phone: string }) => void; marketing: boolean; onMarketing: (v: boolean) => void } | null;
+  gate?: {
+    contact: { name: string; email: string; phone: string }; onContact: (c: { name: string; email: string; phone: string }) => void; marketing: boolean; onMarketing: (v: boolean) => void;
+    /** Tom, 5 Nov 2026: the texted code — when its phase is "code" the step shows the boxes instead of the fields. */
+    otp?: { ui: OtpUi; on: OtpHandlers } | null;
+  } | null;
   /** C8: the "both" choice screen (prototype `s-both`). */
   onChooseBoth: (how: "self" | "book") => void;
   /** The office number, for "Call us". Null = the card offers booking only. */
@@ -734,7 +739,15 @@ export default function QuickLook({
 
       {error && <div className="wz-err" data-testid="ql-error">{error}</div>}
 
-      {step === "gate" && gate && (
+      {step === "gate" && gate?.otp?.ui.phase === "code" && (
+        <>
+          <p className="wz-kick">Last question</p>
+          <h1 data-testid="gate-otp-heading">Enter the code we texted to {gate.otp.ui.masked}</h1>
+          <p className="wz-sub">Six digits. It can take a few seconds to arrive.</p>
+          <OtpCode otp={gate.otp.ui} on={gate.otp.on} />
+        </>
+      )}
+      {step === "gate" && gate && gate.otp?.ui.phase !== "code" && (
         <>
           <p className="wz-kick">Last question</p>
           <h1>Where shall we send your estimate?</h1>

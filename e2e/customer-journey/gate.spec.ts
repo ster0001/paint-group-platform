@@ -1,7 +1,7 @@
 import { expect } from "@playwright/test";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { serviceClient } from "../fixtures/woLoop";
-import { driveNoPlanWizard, openQuickLook, quickNext } from "./drive";
+import { driveNoPlanWizard, openQuickLook, passOtpIfShown, quickNext } from "./drive";
 import { userIdFor, test } from "../helpers";
 import { loginStaff, RUN, staffEmail } from "./visitHelpers";
 
@@ -74,6 +74,7 @@ test.describe("S6 — the gate", () => {
     await page.getByTestId("gate-email").fill(email);
     await page.getByTestId("gate-mobile").fill("0400 123 456");
     await go.click();
+    await passOtpIfShown(page); // Tom, 5 Nov 2026: the texted code before the range
     await expect(page.getByTestId("reveal")).toBeVisible({ timeout: 90_000 });
 
     // R24: the options, in order; Tighten is the hero; no "Keep this estimate".
@@ -85,7 +86,7 @@ test.describe("S6 — the gate", () => {
     expect(ids.indexOf("door-message")).toBeGreaterThan(ids.indexOf("door-book"));
     if (ids.includes("door-speak")) expect(ids.indexOf("door-speak")).toBe(1);
     await expect(page.getByTestId("door-tighten")).toHaveAttribute("data-hero", "1");
-    await expect(page.getByTestId("door-tighten")).toContainText("Tighten my price");
+    await expect(page.getByTestId("door-tighten")).toContainText(/Tighten my price|Get my detailed price/); // desktop one-press (5 Nov 2026): "Get my detailed price"
     await expect(page.getByTestId("door-tighten")).toContainText("Get a more accurate quote now");
     expect(await page.locator("body").innerText()).not.toContain("Request a quote");
 
@@ -115,6 +116,7 @@ test.describe("S6 — the gate", () => {
     await page.getByTestId("gate-mobile").fill("0400 222 333");
     const submitReq = page.waitForRequest((r) => r.url().includes("/api/wizard/submit") && r.method() === "POST");
     await page.locator("[data-quick-step='gate']").getByRole("button", { name: "Show my guide price" }).click();
+    await passOtpIfShown(page); // the code first; the submit the browser makes follows the right code
     const posted = (await submitReq).postDataJSON() as { state: Record<string, unknown> & { contact: { name: string; email: string; phone: string } } };
     await expect(page.getByTestId("reveal")).toBeVisible({ timeout: 90_000 }); // estimate 1 for this email
     // The test project raises the visitor cap for the volume runs; the replays need the real default

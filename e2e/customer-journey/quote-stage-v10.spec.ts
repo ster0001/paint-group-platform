@@ -3,7 +3,7 @@ import { randomBytes } from "node:crypto";
 import { test } from "../helpers";
 import { serviceClient } from "../fixtures/woLoop";
 import { readFileSync } from "node:fs";
-import { MONEY_RANGE, driveMobileQuickLook, driveNoPlanWizard, openQuickLook, fillQuickAddress } from "./drive";
+import { MONEY_RANGE, driveMobileQuickLook, driveNoPlanWizard, openQuickLook, fillQuickAddress, passOtpIfShown } from "./drive";
 /** D-Q5: `lib/wizard/spotPhoto.ts SPOT_PHOTO_MAX_BYTES` (not imported — that module loads the browser client). */
 const SPOT_PHOTO_MAX_BYTES = 25 * 1024 * 1024; // Tom, 5 Nov: any phone-sized photo — the adapter's own limit
 
@@ -93,6 +93,7 @@ test.describe("quote stage v10 — session 1: the cards on a phone", () => {
     await page.getByTestId("gate-email").fill(`q10.${run}@example.com`);
     await expect(page.getByTestId("ql-next")).toBeEnabled({ timeout: 30_000 });
     await page.getByTestId("ql-next").tap();
+    await passOtpIfShown(page); // Tom, 5 Nov 2026: the texted code before the range
     const gate = page.getByTestId("wzm-gate");
     const bounced = page.locator(".wz-err");
     await expect(gate.or(bounced)).toBeVisible({ timeout: 90_000 });

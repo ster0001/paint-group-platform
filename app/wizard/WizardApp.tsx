@@ -48,9 +48,12 @@ import AddressField from "./AddressField";
 import type { PickedAddress } from "@/app/components/useAddressLookup";
 import QuickLook from "./QuickLook";
 import MobileQuickLook from "./MobileQuickLook";
+import type { OtpHandlers, OtpUi } from "./OtpCode";
+import { otpSend, otpVerify } from "@/lib/wizard/otpClient";
+import { maskMobile, normaliseMobile } from "@/lib/wizard/otpFormat";
 import MobileGate from "./MobileGate";
 import MobileWalk from "./MobileWalk";
-import { quoteStageV10On } from "@/lib/wizard/ui-flags";
+import { quoteStageV10On, wizardDesktopOnePressOn } from "@/lib/wizard/ui-flags";
 import MobileContact from "./MobileContact";
 import { starterRoomNames } from "@/lib/wizard/some-rooms";
 import SaveAndBookSheet from "./SaveAndBookSheet";
@@ -163,6 +166,8 @@ const subscribeMobile = (cb: () => void) => {
 const mobileSnapshot = () => typeof window !== "undefined" && Boolean(window.matchMedia?.(MOBILE_QUERY).matches);
 const notMobile = () => false;
 const snapshotFalse = () => false;
+/** The quick-look steps `mobileScreensFor` renders as they are (no screens of its own) — on a laptop they keep the grouped page. */
+const UNSPLIT_STEPS = new Set<QuickLookStep>(["both", "segment", "com_areas", "com_warehouse", "com_job", "com_brief", "com_book", "outside"]);
 
 /** Rotating lines on the processing screen — something worth reading while
  * the AI measures and prices (Tom, 31 Aug: make the wait interactive). */
@@ -307,6 +312,17 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
   const [holdDays, setHoldDays] = useState(60);
   const [bookError, setBookError] = useState<string | null>(null);
   const [booking, setBooking] = useState(false);
+  /**
+   * Tom, 5 Nov 2026: the gate's one-time code. The customer sees the range only
+   * after the mobile they typed is proven: Continue on the details texts a six-
+   * digit code (/api/wizard/otp/send), the code screen checks it (…/verify), and
+   * quickNext on the gate step refuses to submit until this draft's mobile is
+   * verified — the server (`otp_required`) refuses too. `otpVerifiedRef` holds
+   * the digits verified in this session; a reload asks the server again, which
+   * answers "verified" for a mobile already proven on this draft.
+   */
+  const [otp, setOtp] = useState<OtpUi>({ phase: "idle", masked: "", mobile: "", code: "", error: null, busy: false, sentAt: null });
+  const otpVerifiedRef = useRef<string | null>(null);
   const [briefDone, setBriefDone] = useState<{ slot: string | null; emailed: boolean; booked: boolean; bookingProblem: string | null; email: string } | null>(null);
   /**
    * The quick look's answers, written to the state as they are tapped.
@@ -1069,6 +1085,8 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
     if (!res.ok) {
       setScreen("pages");
       if (Array.isArray(j.path) && j.path.length) setPage(pageForPath(j.path));
+      // Tom, 5 Nov 2026: the server did not see this mobile verified — the next Continue texts a code again
+      if (j.code === "otp_required") { otpVerifiedRef.current = null; setOtp((o) => ({ ...o, phase: "idle", code: "" })); }
       setError(j.error ?? "Something didn't work — please check the answers and try again.");
       return;
     }
@@ -1493,11 +1511,18 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
   // Wizard mobile v5 §8: one `wizard_step_viewed` per step per session (the route dedupes), with the breakpoint it was seen on.
   // The phone's shell (MobileQuickLook) writes one per SCREEN instead — the place step is three of them there.
   const mobileShell = useSyncExternalStore(subscribeMobile, mobileSnapshot, notMobile);
+  /**
+   * Desktop one-press (addendum, Tom 5 Nov 2026; `wizardDesktopOnePress`): on a laptop the quick look's split
+   * steps render the phone's one-question router inside the two-column shell. A step the router does not split
+   * (the "both" doors, the commercial screens, the old outside screen) stays on the grouped page, as it is.
+   */
+  const desktopOnePress = wizardDesktopOnePressOn() && !mobileShell && isCustomer && entry === "questions" && quickActive && !UNSPLIT_STEPS.has(quickStep);
   useEffect(() => {
     if (!isCustomer || !quickActive) return;
-    if (breakpointNow() === "mobile" && entry === "questions") return;
+    // the one-question router writes one per SCREEN instead (the phone's shell, and the laptop's one-press)
+    if ((breakpointNow() === "mobile" && entry === "questions") || desktopOnePress) return;
     sendWizardEvent("wizard_step_viewed", { step: quickStep, breakpoint: breakpointNow() });
-  }, [isCustomer, quickActive, quickStep, entry]);
+  }, [isCustomer, quickActive, quickStep, entry, desktopOnePress]);
   useEffect(() => {
     if (screen !== "reveal") return;
     const t = setTimeout(() => { void import("./ExteriorWalk"); }, 800);
@@ -1617,6 +1642,63 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
     set({ details: { ...state.details, damagePhotoCount: state.details.damagePhotoCount + files.length } });
   };
 
+  // ---- the gate's one-time code (Tom, 5 Nov 2026) ----------------------------
+  /** Continue on the details: text the code, or learn the mobile is already verified for this draft. */
+  async function otpBegin(): Promise<"sent" | "verified" | "failed"> {
+    const c = state.contact;
+    if (!(c.name.trim().length >= 2 && /.+@.+\..+/.test(c.email.trim()) && c.phone.replace(/\D/g, "").length >= 10)) {
+      setError("Please fill in your name, email and mobile number.");
+      return "failed";
+    }
+    const digits = normaliseMobile(c.phone);
+    if (!digits) { setError("Enter an Australian mobile number (04…)."); return "failed"; }
+    if (!isCustomer || otpVerifiedRef.current === digits) return "verified";
+    setError(null);
+    setOtp((o) => ({ ...o, busy: true, error: null }));
+    const r = await otpSend(c.phone, state.brand);
+    if (r.status === "verified") { otpVerifiedRef.current = digits; setOtp((o) => ({ ...o, phase: "idle", busy: false })); return "verified"; }
+    if (r.status === "sent") { setOtp({ phase: "code", masked: r.masked || maskMobile(digits), mobile: digits, code: "", error: null, busy: false, sentAt: Date.now() }); return "sent"; }
+    if (r.status === "too_soon") {
+      // a code for this number is already on its way (a reload, a double tap): the code screen, with the wait shown
+      setOtp({ phase: "code", masked: maskMobile(digits), mobile: digits, code: "", error: null, busy: false, sentAt: Date.now() - (60 - r.waitSeconds) * 1000 });
+      return "sent";
+    }
+    setOtp((o) => ({ ...o, busy: false }));
+    setError(r.error);
+    return "failed";
+  }
+  /** The six digits against the server; a match submits as the gate always did. */
+  function otpVerifyNow(code: string) {
+    if (otp.busy) return;
+    if (code.length !== 6) { setOtp((o) => ({ ...o, error: "Enter the six digits we texted you." })); return; }
+    const digits = otp.mobile;
+    setOtp((o) => ({ ...o, busy: true, error: null }));
+    void otpVerify(digits, code).then((r) => {
+      if (r.status === "ok") {
+        otpVerifiedRef.current = digits;
+        setOtp((o) => ({ ...o, phase: "idle", busy: false, code: "", error: null }));
+        quickNext();
+        return;
+      }
+      setOtp((o) => ({ ...o, busy: false, code: r.status === "wrong" ? "" : o.code, error: r.error }));
+    });
+  }
+  function otpResend() {
+    if (otp.busy) return;
+    setOtp((o) => ({ ...o, busy: true, error: null }));
+    void otpSend(otp.mobile, state.brand).then((r) => {
+      if (r.status === "sent") { setOtp((o) => ({ ...o, busy: false, code: "", error: null, sentAt: Date.now() })); return; }
+      if (r.status === "verified") { otpVerifiedRef.current = otp.mobile; setOtp((o) => ({ ...o, phase: "idle", busy: false })); quickNext(); return; }
+      if (r.status === "too_soon") { setOtp((o) => ({ ...o, busy: false, sentAt: Date.now() - (60 - r.waitSeconds) * 1000, error: r.error })); return; }
+      setOtp((o) => ({ ...o, busy: false, error: r.error }));
+    });
+  }
+  /** Wrong number? Change it — back to the details with everything kept. */
+  function otpChange() {
+    setOtp((o) => ({ ...o, phase: "idle", code: "", error: null, busy: false }));
+  }
+  const otpOn: OtpHandlers = { onCode: (code) => setOtp((o) => ({ ...o, code, error: null })), onVerify: otpVerifyNow, onResend: otpResend, onChange: otpChange };
+
   function quickNext() {
     setError(null);
     // 14 Sep: "Some rooms" needs at least one room ticked.
@@ -1634,6 +1716,14 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
       const c = state.contact;
       if (!(c.name.trim().length >= 2 && /.+@.+\..+/.test(c.email.trim()) && c.phone.replace(/\D/g, "").length >= 10)) {
         setError("Please fill in your name, email and mobile number.");
+        return;
+      }
+      // Tom, 5 Nov 2026: and the texted code, before anything is priced. The code screen's own
+      // Continue verifies; the details' Continue sends (or learns the mobile is already verified).
+      const digits = normaliseMobile(c.phone);
+      if (isCustomer && digits !== otpVerifiedRef.current) {
+        if (otp.phase === "code") { otpVerifyNow(otp.code); return; }
+        void otpBegin().then((r) => { if (r === "verified") quickNext(); });
         return;
       }
     }
@@ -2008,6 +2098,7 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
           payload={reveal.payload}
           quick={quick}
           outside={outside}
+          onePress={wizardDesktopOnePressOn()}
           commercial={reveal.payload.commercial && commercialSeg && commercialAnswers
             ? { segment: commercialSeg, answers: commercialAnswers, photos: reveal.payload.commercial.photos }
             : null}
@@ -2150,6 +2241,7 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
         onContact: (c) => set({ contact: c }),
         marketing: state.marketingOptIn,
         onMarketing: (v) => set({ marketingOptIn: v }),
+        otp: { ui: otp, on: otpOn },
       } : null}
       onChooseBoth={chooseBoth}
       phone={companyPhone}
@@ -2311,6 +2403,8 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
             renderStep={() => renderQuickLook("mobile")}
             resumed={resumed}
             onStartAgain={startAgain}
+            otp={hasGate ? otp : null}
+            otpOn={hasGate ? { ...otpOn, onBegin: otpBegin } : null}
           />
         </>
       ) : screen === "processing" ? (
@@ -2359,7 +2453,63 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
           {/* §3's quick look replaces the interior question pages for a
               customer. The pages themselves are untouched and still serve
               staff, the describe route and the upload route. */}
-          {quickActive ? (
+          {quickActive && desktopOnePress ? (
+            // Desktop one-press: the router keeps which screen of the step is showing, so it lives OUTSIDE the
+            // per-step keyed wrapper (a remount on every step would lose "last screen" on the way back).
+            <div className="wz-step wz-step--onepress">
+              <input
+                ref={quickPhotoRef} type="file" hidden multiple accept="image/*" data-testid="com-photo-input"
+                onChange={(e) => { addQuickPhotos([...(e.target.files ?? [])]); e.target.value = ""; }}
+              />
+              <MobileQuickLook
+                brand={brand}
+                logo={<Wordmark logoUrl={logoUrl} brand={brand} />}
+                steps={quickSteps}
+                step={quickStep}
+                quick={quick}
+                onQuick={setQuick}
+                outside={outside}
+                onOutside={setOutside}
+                exteriorTypicals={exteriorTypicals}
+                address={{
+                  text: state.address?.formatted ?? quickAddress,
+                  known: Boolean(state.address) || Boolean(state.customer?.suburb.trim() && state.customer.postcode.trim()),
+                  field: addressFieldNode,
+                }}
+                contact={hasGate ? state.contact : null}
+                onContact={(c) => set({ contact: c })}
+                roomNames={state.planRooms != null && state.planRooms.length > 0 ? state.planRooms.map((r) => r.name) : starterRoomNames(quick)}
+                addedRooms={state.addedRooms}
+                onAddRoom={(r) => set({ addedRooms: [...state.addedRooms, r] })}
+                onRemoveAdded={(i) => set({ addedRooms: state.addedRooms.filter((_, k) => k !== i) })}
+                error={error}
+                busy={uploading || booking}
+                canContinue={!nav.disabled}
+                whyNot={nav.note}
+                onNext={quickNext}
+                onBack={quickBack}
+                canBack={page > 1}
+                onContactOpen={(screenId) => { flushDraft(lastScreen); sendWizardEvent("contact_opened", { step: screenId }); setContactOpen(screenId); }}
+                renderStep={() => renderQuickLook("mobile")}
+                resumed={resumed}
+                onStartAgain={startAgain}
+                otp={hasGate ? otp : null}
+                otpOn={hasGate ? { ...otpOn, onBegin: otpBegin } : null}
+                desktop={{
+                  suburb: state.address?.suburb || state.customer?.suburb || null,
+                  estimatorName,
+                  phone: companyPhone,
+                  // Paint Home brief §5: the mid-flow door asks for a call, never a site visit (as the grouped page's talk card).
+                  onBook: () => { flushDraft(lastScreen); sendWizardEvent("contact_opened", { step: quickStep }); setTalk({ mode: brand === "painthome" ? "call" : "visit" }); },
+                  onMessage: () => { flushDraft(lastScreen); sendWizardEvent("contact_opened", { step: quickStep }); setTalk({ mode: "message" }); },
+                  onGo: quickGo,
+                  planRooms: state.planRooms,
+                  planPreviewUrl: state.planPreviewUrl,
+                  planPending: state.planRunIds.length > 0 && state.planRooms == null,
+                }}
+              />
+            </div>
+          ) : quickActive ? (
             <div className={landingStepKey === quickStepKey ? "wz-step wz-landing" : "wz-step"} key={quickStepKey}>
               {/* C12: the open-space photo rides the condition-photo upload —
                   it goes up with the submit and the estimator reviews it. */}

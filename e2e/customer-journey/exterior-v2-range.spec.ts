@@ -1,5 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
-import { passDetailsSheetIfShown, passGateIfShown, quickNext, MONEY_RANGE, lookAtEverySide } from "./drive";
+import { passDetailsSheetIfShown, passGateIfShown, quickNext, MONEY_RANGE, lookAtEverySide, passOtpIfShown } from "./drive";
 import { toSides } from "./exterior-v2-drive";
 /** Quote stage v10 (S7 switch-over): with the flag on, the gate's door reads "detailed". */
 const V10 = process.env.NEXT_PUBLIC_QUOTE_STAGE_V10 !== "0";
@@ -167,6 +167,7 @@ test.describe("on a phone: the outside range is the v5 gate with one row per sid
     await page.getByTestId("gate-email").fill(`s5.${run}@example.com`);
     await expect(page.getByTestId("ql-next")).toBeEnabled({ timeout: 30_000 });
     await page.getByTestId("ql-next").tap();
+    await passOtpIfShown(page); // Tom, 5 Nov 2026: the texted code before the range
     const gate = page.getByTestId("wzm-gate");
     const bounced = page.locator(".wz-err");
     await expect(gate.or(bounced)).toBeVisible({ timeout: 90_000 });

@@ -1,7 +1,7 @@
 import { expect, type Page } from "@playwright/test";
 import { mkdirSync } from "node:fs";
 import { test } from "./helpers";
-import { fillQuickAddress, openQuickLook, MONEY_RANGE } from "./customer-journey/drive";
+import { fillQuickAddress, openQuickLook, MONEY_RANGE, passOtpIfShown } from "./customer-journey/drive";
 
 /**
  * Diagnostic, not a gate — exterior on mobile v5's screenshot set (plan §5
@@ -54,6 +54,7 @@ test.describe("exterior mobile screenshots (the plan's set)", () => {
     await page.getByTestId("gate-email").fill("exterior.shots@example.com");
     await expect(page.getByTestId("ql-next")).toBeEnabled({ timeout: 30_000 });
     await tap("ql-next");
+    await passOtpIfShown(page); // Tom, 5 Nov 2026: the texted code before the range
     await expect(page.getByTestId("wzm-gate")).toBeVisible({ timeout: 90_000 });
     await expect(page.getByTestId("gate-range")).toHaveText(MONEY_RANGE);
     await shot("11-gate");

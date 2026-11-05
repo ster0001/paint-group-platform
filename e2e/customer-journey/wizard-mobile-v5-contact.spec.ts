@@ -1,6 +1,7 @@
 import { expect, type Page } from "@playwright/test";
 import { randomBytes } from "node:crypto";
 import { test } from "../helpers";
+import { passOtpIfShown } from "./drive";
 import { serviceClient } from "../fixtures/woLoop";
 
 /**
@@ -149,6 +150,7 @@ test.describe("Wizard mobile v5 — Contact and early booking (session 5)", () =
     await expect(page.getByTestId("gate-email")).toHaveValue(email);
     await expect(page.getByTestId("ql-next")).toBeEnabled({ timeout: 30_000 });
     await page.getByTestId("ql-next").tap();
+    await passOtpIfShown(page); // Tom, 5 Nov 2026: the texted code before the range
     // 3 · the gate carries the pill; "book a time first" and the sheet's door are the same door
     const gate = page.getByTestId("wzm-gate");
     await expect(gate).toBeVisible({ timeout: 90_000 });
@@ -199,6 +201,7 @@ test.describe("Wizard mobile v5 — Contact and early booking (session 5)", () =
     await page.getByTestId("gate-email").fill(`pg.contact.${run}@example.com`);
     await expect(page.getByTestId("ql-next")).toBeEnabled({ timeout: 30_000 });
     await page.getByTestId("ql-next").tap();
+    await passOtpIfShown(page); // Tom, 5 Nov 2026: the texted code before the range
     const gate = page.getByTestId("wzm-gate");
     await expect(gate).toBeVisible({ timeout: 90_000 });
     await gate.getByTestId("wzm-contact").tap();

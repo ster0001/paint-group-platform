@@ -4,7 +4,7 @@ role: commercial
 title: A price for an office, warehouse, shop or building — online where we can, a quick visit where we can't
 summary: Pick the kind of space; offices, warehouses, retail, aged care, clinics and schools get a guide range that an estimator confirms; strata, shop fronts, hospitals and any outside work get a short brief and a booked visit instead.
 sources: app/wizard/CommercialScreens.tsx, app/wizard/PictureCard.tsx, app/wizard/pictures/SegmentBuilding.tsx, app/wizard/pictures/AreaPlan.tsx, app/wizard/pictures/WarehousePicture.tsx, lib/wizard/segments.ts, app/api/wizard/brief-book/route.ts
-verified_at_commit: 4ef1a0aa72
+verified_at_commit: 58a44da407
 ---
 
 ## What this is for

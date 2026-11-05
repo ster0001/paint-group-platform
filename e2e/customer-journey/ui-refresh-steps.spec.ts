@@ -34,13 +34,33 @@ async function expectRail(page: Page, expected: (gate: boolean) => string[], end
   await expect(page.getByTestId("wz-rail-end")).toHaveText(end);
 }
 
+/** Desktop one-press: from the Place step's first screen to the surfaces screen (house · 3 bed · single · the whole interior). */
+async function toSurfaces(page: Page) {
+  await page.getByTestId("ql-kind-house").click();
+  await expect(page.locator("[data-mobile-screen='beds']")).toBeVisible({ timeout: 10_000 });
+  await page.getByTestId("ql-bedrooms-3").click();
+  await expect(page.locator("[data-mobile-screen='storeys']")).toBeVisible({ timeout: 10_000 });
+  await page.getByTestId("ql-storeys-single").click();
+  await expect(page.locator("[data-mobile-screen='job']")).toBeVisible({ timeout: 10_000 });
+  await page.getByTestId("ql-scope-whole").click();
+  await expect(page.locator("[data-mobile-screen='surfaces']")).toBeVisible({ timeout: 10_000 });
+}
+
 const home = (jobType: QuickLook["jobType"]) => (gate: boolean) => stepsFor(jobType, "house", "areas", "range", "whole", gate);
 
+/**
+ * Desktop one-press (addendum, 5 Nov 2026; `NEXT_PUBLIC_WIZARD_DESKTOP_ONEPRESS=1`): on a laptop the quick look
+ * is the phone's one-question router inside the two-column shell, so a single-choice card advances itself and the
+ * grouped Place / Job / Condition screens are not there. `onMobileShell` reads which shell the app drew; the
+ * helpers below branch on it, and a test of the grouped screens keeps its original body for the flag-off build.
+ */
 async function toPlace(page: Page, jobType?: "exterior" | "both") {
   await openQuickLook(page);
   await fillQuickAddress(page);
+  const router = await onMobileShell(page);
   if (jobType) await page.getByTestId(`ql-jobtype-${jobType}`).click();
-  await quickNext(page);
+  // on the router a job-type card advances itself; the default (Inside) still needs the step finished
+  if (!jobType || !router) await quickNext(page);
   if (jobType === "both") {
     await expect(page.locator("[data-quick-step='both']")).toBeVisible({ timeout: 20_000 });
     await page.getByTestId("ql-both-self").click();
@@ -50,8 +70,9 @@ async function toPlace(page: Page, jobType?: "exterior" | "both") {
 
 async function toSegment(page: Page) {
   await toPlace(page);
+  const router = await onMobileShell(page);
   await page.getByTestId("ql-kind-commercial").click();
-  await quickNext(page);
+  if (!router) await quickNext(page); // the router advances itself to the Space step (which keeps its grouped page)
   await expect(page.locator("[data-quick-step='segment']")).toBeVisible({ timeout: 20_000 });
 }
 
@@ -114,9 +135,17 @@ test.describe("UI refresh S1 · the shell's layout contract", () => {
       expect(pane.width).toBeLessThanOrEqual(640);
       const side = (await page.getByTestId("ql-side").boundingBox())!;
       expect(side.x, "the picture column sits to the right of the questions").toBeGreaterThan(pane.x + pane.width);
-      const next = (await page.getByTestId("ql-next").boundingBox())!;
-      expect(next.width, "Continue is a pill inside the column").toBeLessThan(pane.width);
-      await expect(page.locator(".wz-nav--col")).toHaveCSS("position", "static");
+      if (await onMobileShell(page)) {
+        // desktop one-press: the first screen with a Continue is the surfaces — the bar sits in the column, the button a pill
+        await toSurfaces(page);
+        const next = (await page.getByTestId("ql-next").boundingBox())!;
+        expect(next.width, "Continue is a pill inside the column").toBeLessThan(pane.width);
+        await expect(page.getByTestId("wzm-foot")).toHaveCSS("position", "static");
+      } else {
+        const next = (await page.getByTestId("ql-next").boundingBox())!;
+        expect(next.width, "Continue is a pill inside the column").toBeLessThan(pane.width);
+        await expect(page.locator(".wz-nav--col")).toHaveCSS("position", "static");
+      }
       // No dots, no floating "Step x of y", no dashed talk box on the customer's path.
       await expect(page.locator(".wz-dots")).toHaveCount(0);
       await expect(page.locator(".wz-steps")).toHaveCount(0);
@@ -175,6 +204,13 @@ test.describe("UI refresh S1 · the shell's layout contract", () => {
     // Untick every room, then press Continue: it stays, and says why.
     const rooms = page.getByTestId("ql-rooms").locator("[aria-pressed='true']");
     while (await rooms.count()) await rooms.first().click();
+    if (await onMobileShell(page)) {
+      // desktop one-press: the bar greys and the line under it names the missing answer
+      await expect(page.getByTestId("ql-next")).toBeDisabled();
+      await expect(page.getByTestId("ql-why")).toContainText(/room/i);
+      await expect(page.locator("[data-quick-step='rooms']")).toBeVisible();
+      return;
+    }
     await page.getByTestId("ql-next").click();
     await expect(page.locator("[data-quick-step='rooms']")).toBeVisible();
     await expect(page.getByTestId("ql-error").or(page.getByTestId("ql-rooms-none")).first()).toContainText(/room/i);
@@ -184,6 +220,24 @@ test.describe("UI refresh S1 · the shell's layout contract", () => {
 test.describe("UI refresh S2 · the live picture and Your job so far (home, inside)", () => {
   test("Job step: ticking and unticking each surface paints it in and out of the room", async ({ page }) => {
     await toPlace(page);
+    if (await onMobileShell(page)) {
+      // desktop one-press: the surfaces screen's chips sweep the rail picture (the phone's room) in and out
+      await toSurfaces(page);
+      await expect(page.getByTestId("ql-picture")).toHaveAttribute("data-picture", "live");
+      const order = await page.getByTestId("ql-surfaces").locator("[data-testid^='ql-surface-']")
+        .evaluateAll((els) => els.map((e) => (e as HTMLElement).dataset.testid!.replace("ql-surface-", "")));
+      expect(order).toEqual(["walls", "ceilings", "skirting", "doors", "windows"]);
+      const live = page.getByTestId("pic-live");
+      for (const s of order) {
+        await expect(live.locator(`[data-surf='${s}']`)).toHaveAttribute("data-on", "true");
+        await page.getByTestId(`ql-surface-${s}`).click();
+        await expect(live.locator(`[data-surf='${s}']`), `${s} is wiped out`).toHaveAttribute("data-on", "false");
+        await expect(page.getByTestId("ql-picture-note")).toHaveText("4 surfaces ticked");
+        await page.getByTestId(`ql-surface-${s}`).click();
+        await expect(live.locator(`[data-surf='${s}']`)).toHaveAttribute("data-on", "true");
+      }
+      return;
+    }
     await quickNext(page);
     await expect(page.locator("[data-quick-step='job']")).toBeVisible({ timeout: 20_000 });
     await expect(page.getByTestId("ql-picture")).toHaveAttribute("data-picture", "room");
@@ -239,9 +293,20 @@ test.describe("UI refresh S2 · the live picture and Your job so far (home, insi
     const art = page.getByTestId("ql-picture").locator(".wz-pic-art");
     const a = (await art.boundingBox())!;
     expect(Math.round((a.width / a.height) * 100) / 100).toBeCloseTo(4 / 3, 1);
-    await expect(page.getByTestId("pic-house")).toHaveAttribute("aria-hidden", "true");
-    await page.getByTestId("ql-storeys-double").click();
-    await expect(page.getByTestId("pic-house")).toHaveAttribute("data-storeys", "double");
+    if (await onMobileShell(page)) {
+      // desktop one-press: the phone's picture in the card — the storeys screen is two taps on
+      await expect(page.getByTestId("pic-live")).toHaveAttribute("aria-hidden", "true");
+      await page.getByTestId("ql-kind-house").click();
+      await expect(page.locator("[data-mobile-screen='beds']")).toBeVisible({ timeout: 10_000 });
+      await page.getByTestId("ql-bedrooms-3").click();
+      await expect(page.locator("[data-mobile-screen='storeys']")).toBeVisible({ timeout: 10_000 });
+      await page.getByTestId("ql-storeys-double").click();
+      await expect(page.getByTestId("pic-live")).toHaveAttribute("data-two", "true");
+    } else {
+      await expect(page.getByTestId("pic-house")).toHaveAttribute("aria-hidden", "true");
+      await page.getByTestId("ql-storeys-double").click();
+      await expect(page.getByTestId("pic-house")).toHaveAttribute("data-storeys", "double");
+    }
     const b = (await art.boundingBox())!;
     expect(b.height).toBeCloseTo(a.height, 0);
   });
@@ -525,13 +590,14 @@ test.describe("UI refresh S5 · home outside", () => {
   async function toPaint(page: Page) {
     await openQuickLook(page);
     await fillQuickAddress(page);
+    const router = await onMobileShell(page);
     await page.getByTestId("ql-jobtype-exterior").click();
-    await quickNext(page);
+    if (!router) await quickNext(page); // the router's card advances itself
     await quickNext(page);
     await expect(page.locator("[data-quick-step='home']")).toBeVisible({ timeout: 20_000 });
     await page.getByTestId("ql-ext-type-wb").click();
     await page.getByTestId("ql-ext-size-md").click();
-    await quickNext(page);
+    if (!router) await quickNext(page); // the size advances itself to Painting on the router
     await expect(page.locator("[data-quick-step='paint']")).toBeVisible({ timeout: 20_000 });
   }
 
@@ -539,6 +605,9 @@ test.describe("UI refresh S5 · home outside", () => {
     test.setTimeout(300_000);
     await page.setViewportSize({ width: 1440, height: 900 });
     await toPaint(page);
+    // Desktop one-press, addendum session 2: the exterior path on a laptop (the four Painting screens, the per-side
+    // screens) is verified there — this body drives the grouped Painting and Each-side screens.
+    test.skip(await onMobileShell(page), "desktop one-press: the laptop's exterior screens are addendum session 2");
     const pic = page.getByTestId("ql-picture").getByTestId("pic-outside");
     await expect(pic).toBeVisible();
     // Nothing pre-ticked: the walls and frames are grey.
