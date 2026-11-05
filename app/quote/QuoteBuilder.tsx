@@ -63,6 +63,7 @@ import { reportIfError, errorMessage } from "@/lib/monitoring/report";
 import RevisionPanel, { type ExistingRevisionVariation, type RevisionRequest } from "./RevisionPanel";
 import InvoiceSheet, { type SheetLine } from "@/app/i/[token]/InvoiceSheet";
 import "@/app/i/[token]/invoice.css";
+import "./invoice-preview-print.css";
 import { saveWorkingScopeAction } from "./revisionActions";
 import { diffRevision, type RevisionState } from "@/lib/revision/diff";
 import { revertChange } from "@/lib/revision/revert";
@@ -612,6 +613,16 @@ export default function QuoteBuilder({
   );
   const customerView = viewMode === "customer";
   const workOrderView = viewMode === "workorder";
+  // Revision mode, INVOICE tab: print the previewed sheet alone. The body
+  // attribute switches invoice-preview-print.css on for the print and is
+  // taken off again when the dialog closes (afterprint), with a fallback.
+  const downloadPreviewPdf = () => {
+    document.body.setAttribute("data-print-invoice", "1");
+    const done = () => document.body.removeAttribute("data-print-invoice");
+    window.addEventListener("afterprint", done, { once: true });
+    window.setTimeout(done, 60_000);
+    window.print();
+  };
   // Work order editable fields — persisted to the work_orders row once it exists
   // (created on acceptance); before that the Work order tab is a live preview.
   const [woContractorId, setWoContractorId] = useState<string | null>(workOrder?.contractor_id ?? null);
@@ -2392,13 +2403,26 @@ export default function QuoteBuilder({
               </button>
             )}
             {revision && (
-              <button
-                onClick={() => setViewMode("builder")}
-                className="rounded-md bg-amber-500 px-3 py-1.5 text-xs font-medium text-black hover:bg-amber-400"
-                data-testid="back-to-revision"
-              >
-                Back to the builder
-              </button>
+              <span className="flex items-center gap-2">
+                {/* Tom, 5 Nov: the previewed invoice as a PDF. The browser's print
+                    of this page is the PDF — invoice-preview-print.css leaves only
+                    the sheet on the paper, the same rules /i/[token] prints with. */}
+                <button
+                  onClick={downloadPreviewPdf}
+                  className="rounded-md border border-amber-400 px-3 py-1.5 text-xs font-medium text-amber-900 hover:bg-amber-100"
+                  data-testid="download-invoice-pdf"
+                  title="Save the sheet below as a PDF (your browser's print dialog, choose Save as PDF)"
+                >
+                  ⤓ Download as PDF
+                </button>
+                <button
+                  onClick={() => setViewMode("builder")}
+                  className="rounded-md bg-amber-500 px-3 py-1.5 text-xs font-medium text-black hover:bg-amber-400"
+                  data-testid="back-to-revision"
+                >
+                  Back to the builder
+                </button>
+              </span>
             )}
           </div>
           {revision ? (() => {
@@ -2451,7 +2475,7 @@ export default function QuoteBuilder({
                     }}
                     bank={{ accountName: company.bankName, bank: company.bank, bsb: company.bsb, acc: company.acc }}
                     extraNote={
-                      <div className="status-note" data-testid="live-preview-note">
+                      <div className="status-note no-print" data-testid="live-preview-note">
                         Live from the working scope — every edit updates these figures.
                         {signedCount > 0 ? ` ${signedCount} signed change${signedCount === 1 ? "" : "s"} built in.` : ""}
                         {unsigned > 0 ? ` ${unsigned} change${unsigned === 1 ? "" : "s"} shown here still need${unsigned === 1 ? "s" : ""} the customer's signature before reaching their invoice.` : ""}
