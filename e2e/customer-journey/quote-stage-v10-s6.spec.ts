@@ -150,7 +150,7 @@ test.describe("quote stage v10 — session 6: outside and trims on a phone", () 
     await page.getByTestId("q-next").tap();
     await expect(stage).not.toHaveAttribute("data-quote-card", `side-attn:${firstKey}`, { timeout: 30_000 });
     await passUntil(page, (id) => id === "done");
-    await expect(page.getByTestId("gate-label")).toHaveText("Quote Tester, your quote range");
+    await expect(page.getByTestId("gate-label")).toHaveText("Quote, your quote range"); // greeted by first name
     await expect(page.getByTestId("gate-range")).toHaveText(MONEY_RANGE);
     await expect(page.getByTestId("q-done-doc").locator("[data-testid^='q-line-'][data-state='todo']")).toHaveCount(0);
     expect(await stage.innerText()).not.toMatch(/exact|±|within \d+%/i);
