@@ -56,7 +56,10 @@ test.describe("quote stage v10 — session 1: the cards on a phone", () => {
   const card = (page: Page, id: string) => expect(page.getByTestId("quote-stage")).toHaveAttribute("data-quote-card", id, { timeout: 15_000 });
   const cardId = (page: Page) => page.getByTestId("quote-stage").getAttribute("data-quote-card");
   /** Pass one card the quickest honest way: typical size, Next, No robe, nothing to fix, every room, Next. */
+  /** A card that posts on its way out is busy for a moment: read the card only once the stage has settled. */
+  const settle = (page: Page) => expect(page.getByTestId("quote-stage")).toHaveAttribute("data-busy", "0", { timeout: 60_000 });
   const passCard = async (page: Page) => {
+    await settle(page);
     const id = (await cardId(page))!;
     if (id.startsWith("measure:")) await page.getByTestId("q-size-typical").tap();
     else if (id.startsWith("robe:")) await page.getByTestId("q-robe-none").tap();
@@ -339,6 +342,7 @@ test.describe("quote stage v10 — session 1: the cards on a phone", () => {
     await page.getByTestId("q-measure-w").fill("3.6");
     await page.getByTestId("q-measure-l").fill("3.1");
     await page.getByTestId("q-size-ok").tap();
+    await expect(stage).not.toHaveAttribute("data-quote-card", `measure:${typicalArea}`, { timeout: 30_000 });
     await passUntil(page, (id) => id === "done");
     await expect(page.getByTestId("q-done-doc").getByTestId(`q-line-${typicalArea}`)).toHaveAttribute("data-state", "measured");
     expect(await page.getByTestId("wzm-bar").evaluate((el) => parseFloat((el as HTMLElement).style.width))).toBe(100);

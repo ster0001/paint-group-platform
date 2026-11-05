@@ -17,7 +17,10 @@ const SHOTS = process.env.QUOTE_SHOTS_DIR ?? "";
 const shot = async (page: Page, name: string) => { if (SHOTS) { await page.waitForTimeout(600); await page.screenshot({ path: `${SHOTS}/${name}.png`, animations: "disabled" }); } };
 const db = serviceClient();
 const cardId = (page: Page) => page.getByTestId("quote-stage").getAttribute("data-quote-card");
+/** A card that posts on its way out is busy for a moment: read the card only once the stage has settled, or the tap lands on a button that detaches mid-action. */
+const settle = (page: Page) => expect(page.getByTestId("quote-stage")).toHaveAttribute("data-busy", "0", { timeout: 60_000 });
 const passCard = async (page: Page, touch = true) => {
+  await settle(page);
   const id = (await cardId(page))!;
   const press = async (loc: ReturnType<Page["getByTestId"]>) => (touch ? loc.tap() : loc.click());
   if (id.startsWith("g:")) await press(page.locator(".wzq-card .wzm-opts .wzm-opt").first()); // a single choice advances itself
@@ -139,10 +142,13 @@ test.describe("quote stage v10 — session 6: outside and trims on a phone", () 
     await page.getByTestId("q-side-prep-flaking").tap();
     await page.getByTestId("q-prep-add").tap();
     await expect.poll(() => cardId(page), { timeout: 30_000 }).not.toBe(`side-attn:${firstKey}`);
+    await settle(page);
     await page.getByTestId("wzm-back").tap();
     await expect(stage).toHaveAttribute("data-quote-card", `side-attn:${firstKey}`);
     await expect(page.getByTestId("q-side-noted")).toContainText("Flaking");
+    await settle(page);
     await page.getByTestId("q-next").tap();
+    await expect(stage).not.toHaveAttribute("data-quote-card", `side-attn:${firstKey}`, { timeout: 30_000 });
     await passUntil(page, (id) => id === "done");
     await expect(page.getByTestId("gate-label")).toHaveText("Quote Tester, your quote range");
     await expect(page.getByTestId("gate-range")).toHaveText(MONEY_RANGE);
