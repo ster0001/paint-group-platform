@@ -5,7 +5,7 @@ import { serviceClient } from "../fixtures/woLoop";
 import { readFileSync } from "node:fs";
 import { MONEY_RANGE, driveMobileQuickLook, driveNoPlanWizard, openQuickLook, fillQuickAddress } from "./drive";
 /** D-Q5: `lib/wizard/spotPhoto.ts SPOT_PHOTO_MAX_BYTES` (not imported — that module loads the browser client). */
-const SPOT_PHOTO_MAX_BYTES = 5 * 1024 * 1024;
+const SPOT_PHOTO_MAX_BYTES = 25 * 1024 * 1024; // Tom, 5 Nov: any phone-sized photo — the adapter's own limit
 
 /**
  * QUOTE STAGE v10 — session 1, the skeleton (`docs/briefs/claude-code-brief-quote-stage-v10.md`
@@ -206,7 +206,7 @@ test.describe("quote stage v10 — session 1: the cards on a phone", () => {
     // B1 (S3): the room photo control, with the D-Q5 size limit enforced before anything is sent
     await expect(page.getByTestId("q-room-photo-label")).toContainText("Take or attach a photo of the room");
     await page.getByTestId("q-room-photo").setInputFiles({ name: "huge.png", mimeType: "image/png", buffer: Buffer.alloc(SPOT_PHOTO_MAX_BYTES + 1) });
-    await expect(page.getByTestId("q-photo-error")).toContainText("over 5 MB");
+    await expect(page.getByTestId("q-photo-error")).toContainText("over 25 MB");
     await page.getByTestId("q-size-ok").tap();
     await card(page, `surfaces:${firstArea}`);
     // B2 — what we're painting in here: the tiles as chips; doors + → 2; the door scope and the window key

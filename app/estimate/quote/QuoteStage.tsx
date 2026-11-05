@@ -165,9 +165,13 @@ export default function QuoteStage({ brand, estimateId, initial, jobKind, initia
   /** One whitelisted action to the scope page's own route; the server's payload comes back and is the truth. */
   const post = async (body: Record<string, unknown>): Promise<Payload | null> => {
     setBusy(true); setError(null);
+    // a request that never answers (a dropped connection) must not leave the card on "Saving…" for good: 45 s, then the
+    // connection message and the button back (the C1 proof of 5 Nov sat on a hung ext_walk for five minutes)
+    const ctl = new AbortController();
+    const timer = setTimeout(() => ctl.abort(), 45_000);
     try {
       const res = await fetch(`/api/estimates/${estimateId}/wizard-edit`, {
-        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...body, view: "customer" }),
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...body, view: "customer" }), signal: ctl.signal,
       });
       const j = (await res.json().catch(() => ({}))) as Payload;
       if (!res.ok) { setError(j.error ?? "That didn't save — try again."); return null; }
@@ -183,7 +187,7 @@ export default function QuoteStage({ brand, estimateId, initial, jobKind, initia
     } catch {
       setError("That didn't save — check your connection and try again.");
       return null;
-    } finally { setBusy(false); }
+    } finally { clearTimeout(timer); setBusy(false); }
   };
   // Independent check (S7, defect 2): the route reads and rewrites ONE builder_state row with no lock, so two taps in
   // flight would race (last writer wins). Every post waits for the one before it — the same serialisation the scope
