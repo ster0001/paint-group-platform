@@ -907,7 +907,8 @@ function ExtrasScreen({ offer, state, busy, act, onNext }: { offer: JobExtra[]; 
       </div>
       <label className="wzq-field wzq-field--text wzq-field--area">
         <span>Something else?</span>
-        <textarea value={note} placeholder="In your own words." maxLength={400} rows={3} data-testid="q-extra-note" onChange={(e) => setNote(e.target.value)} onBlur={() => void flushNote()} />
+        {/* no flush on blur: the blur fires on the Next tap's pointer-down, the save disables Next, and the tap is lost (C1 proof, 5 Nov) — Next flushes the note itself */}
+        <textarea value={note} placeholder="In your own words." maxLength={400} rows={3} data-testid="q-extra-note" onChange={(e) => setNote(e.target.value)} />
       </label>
       <div className="wzm-foot" data-testid="wzm-foot">
         <button type="button" className="wzm-cta" disabled={busy} onClick={async () => { await flushNote(); onNext(); }} data-testid="q-next">{busy ? "Saving…" : "Next"}</button>
