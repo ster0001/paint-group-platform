@@ -204,7 +204,7 @@ test.describe("quote stage v10 — session 1: the cards on a phone", () => {
     await expect(page.getByTestId("q-measure")).toHaveAttribute("data-measured", "1");
     await expect(page.getByTestId("q-measure-w")).toHaveAttribute("placeholder", "4");
     // B1 (S3): the room photo control, with the D-Q5 size limit enforced before anything is sent
-    await expect(page.getByTestId("q-room-photo-label")).toContainText("Add a photo of the room");
+    await expect(page.getByTestId("q-room-photo-label")).toContainText("Take or attach a photo of the room");
     await page.getByTestId("q-room-photo").setInputFiles({ name: "huge.png", mimeType: "image/png", buffer: Buffer.alloc(SPOT_PHOTO_MAX_BYTES + 1) });
     await expect(page.getByTestId("q-photo-error")).toContainText("over 5 MB");
     await page.getByTestId("q-size-ok").tap();

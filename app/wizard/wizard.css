@@ -2924,3 +2924,10 @@
 .wz .wzq .wzm-main.has-bar .wzq-save, .wz .wzq .wzm-main .wzq-save { margin-top: 18px; }
 @media (min-width: 900px) { .wz .wzq > .wzq-save { grid-column: 2; margin: 0 40px 10px; } .wz .wzq-sticky.on { position: static; box-shadow: none; } }
 
+/* ── 5 Nov: on the desktop the frozen group dissolves into the grid (its children were the grid's direct children before). ── */
+@media (min-width: 900px) {
+  .wz .wzq > .wzq-sticky { display: contents; }
+  .wz .wzq .wzq-sticky > .wzm-bar { grid-column: 1 / -1; margin: 18px 40px 0; }
+  .wz .wzq .wzq-sticky > .wzq-tiles, .wz .wzq .wzq-sticky > .wzq-panel, .wz .wzq .wzq-sticky > .wzq-band { display: none; }
+}
+
