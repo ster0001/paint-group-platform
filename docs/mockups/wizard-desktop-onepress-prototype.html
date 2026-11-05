@@ -1,0 +1,170 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Paint Home — estimator, desktop one-press</title>
+<style>
+:root{--ink:#1c232c;--grey:#5c6672;--mute:#98a2ad;--line:#e6eaee;--bg:#f7f8f9;--teal:#2fd3df;--teal-ink:#0e7f8a;--teal-soft:#e4f8fa;--green:#5f9a73;--mono:ui-monospace,"Martian Mono",Menlo,monospace;--r:16px}
+*{box-sizing:border-box}
+body{margin:0;background:#eef1f4;color:var(--ink);font-family:-apple-system,"Inter",system-ui,Segoe UI,Roboto,sans-serif;-webkit-font-smoothing:antialiased;font-size:16px}
+button{font:inherit;color:inherit}
+.top{position:sticky;top:0;z-index:20;background:#fff;border-bottom:1px solid var(--line);height:64px;display:flex;align-items:center;padding:0 32px;gap:24px}
+.logo{font-weight:800;letter-spacing:.06em;font-size:13px}.logo span{color:var(--teal-ink)}
+.steps{flex:1;display:flex;justify-content:center;gap:22px;font-size:13px;color:var(--mute)}
+.steps span{display:inline-flex;align-items:center;gap:7px}.steps i{display:inline-flex;width:20px;height:20px;border-radius:50%;border:1px solid var(--line);align-items:center;justify-content:center;font-style:normal;font-size:11px}
+.steps .now{color:var(--ink);font-weight:600}.steps .now i{background:var(--ink);color:#fff;border-color:var(--ink)}.steps .done i{background:var(--green);border-color:var(--green);color:#fff}
+.pill{border:1px solid var(--line);border-radius:999px;padding:8px 14px;font-weight:600;font-size:13px;background:#fff}
+.pb{height:3px;background:var(--line)}.pb i{display:block;height:3px;width:0;background:var(--teal);transition:width .35s}
+.wrap{max-width:1200px;margin:0 auto;padding:40px 32px 60px;display:grid;grid-template-columns:1fr 400px;gap:48px;align-items:start}
+.left{max-width:600px}
+.stage{font-size:12px;color:var(--teal-ink);font-weight:600}
+h1{font-size:34px;line-height:1.1;letter-spacing:-.015em;margin:10px 0 8px;font-weight:700}
+.sub{color:var(--grey);font-size:16px;margin:0 0 24px;line-height:1.45}
+.opts{display:grid;gap:12px;grid-template-columns:1fr 1fr}.opts.one{grid-template-columns:1fr}.opts.three{grid-template-columns:1fr 1fr 1fr}
+.opt{display:flex;align-items:center;gap:14px;border:1.5px solid var(--line);background:#fff;border-radius:var(--r);padding:18px 18px;text-align:left;width:100%;min-height:72px;cursor:pointer;transition:border-color .12s,background .12s,transform .08s;position:relative}
+.opt:hover{border-color:#b9c4cc}.opt:active{transform:scale(.985)}.opt.sel{border-color:var(--teal-ink);background:var(--teal-soft)}
+.opt .ic{width:30px;height:30px;flex:0 0 auto;color:var(--teal-ink)}
+.opt .t{font-weight:600;font-size:17px;line-height:1.2}.opt .d{font-size:13px;color:var(--grey);margin-top:3px}
+.opt .key{position:absolute;right:12px;top:12px;font:600 11px var(--mono);color:var(--mute);border:1px solid var(--line);border-radius:5px;padding:1px 6px;background:#fff}
+.nums{display:grid;grid-template-columns:repeat(5,1fr);gap:10px}.nums .opt{justify-content:center;padding:0;height:72px;font-weight:600;font-size:20px}
+.chips{display:flex;flex-wrap:wrap;gap:10px}
+.chip{border:1.5px solid var(--line);background:#fff;border-radius:999px;padding:13px 18px;font-weight:600;font-size:16px;display:flex;align-items:center;gap:8px;cursor:pointer}
+.chip.sel{border-color:var(--teal-ink);background:var(--teal-soft)}.chip.sel:before{content:"";width:8px;height:8px;border-radius:50%;background:var(--teal-ink)}
+.chip.add{border-style:dashed;color:var(--grey);font-weight:500}
+.swatch{width:44px;height:44px;border-radius:10px;flex:0 0 auto;border:1px solid var(--line)}
+.addr{display:inline-flex;align-items:center;gap:8px;background:#fff;border:1px solid var(--line);border-radius:999px;padding:8px 8px 8px 14px;font-size:14px;margin-bottom:20px}.addr a{font-size:12px;color:var(--teal-ink);font-weight:600;background:var(--teal-soft);padding:5px 10px;border-radius:999px}
+.field{display:block;background:#fff;border:1.5px solid var(--line);border-radius:14px;padding:10px 16px 12px;margin-bottom:10px;max-width:460px}.field span{display:block;font-size:12px;color:var(--mute)}.field input{border:0;outline:0;width:100%;font:inherit;font-size:17px;padding:4px 0;background:transparent}.field:focus-within{border-color:var(--teal-ink)}
+.foot{margin-top:26px;display:flex;align-items:center;gap:18px;visibility:hidden}.foot.on{visibility:visible}
+.cta{border:0;border-radius:999px;background:var(--ink);color:#fff;font-weight:700;font-size:16px;padding:16px 32px;cursor:pointer}.cta.teal{background:var(--teal);color:var(--ink)}.cta[disabled]{opacity:.35}
+.keys{font-size:12px;color:var(--mute);margin-top:22px}.keys b{display:inline-block;border:1px solid var(--line);border-radius:5px;padding:1px 6px;font:600 11px var(--mono);color:var(--grey);background:#fff;margin-right:4px}
+.rail{position:sticky;top:88px;display:grid;gap:14px}
+.card{background:#fff;border:1px solid var(--line);border-radius:16px;padding:18px}
+.card h3{margin:0 0 10px;font-size:14px;color:var(--teal-ink)}
+.pic{width:100%;aspect-ratio:5/3;border-radius:12px;overflow:hidden;background:#eef2f5}.pic svg{width:100%;height:100%;display:block}
+.cap{font-size:13px;color:var(--grey);margin-top:10px}
+.so{font-size:13px}.so div{display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--line);color:var(--grey)}.so div b{color:var(--ink);font-weight:500}.so div:last-child{border:0}.so a{color:var(--teal-ink);font-weight:600;cursor:pointer}
+.sarah{display:flex;align-items:center;gap:12px;font-size:13px;color:var(--grey)}.sarah b{display:block;color:var(--ink)}.av{width:36px;height:36px;border-radius:50%;background:var(--teal);display:inline-flex;align-items:center;justify-content:center;font-weight:700;font-size:12px}
+.pic .base{fill:#e4e8ec;stroke:#cfd5db;stroke-width:1}.pic .trimbase{fill:#dfe3e7;stroke:#c9cfd5;stroke-width:1}.pic .roller{opacity:0;transition:opacity .15s}.pic .roller.on{opacity:1}
+/* gate */
+.gate .price{font:700 52px/1 var(--mono);letter-spacing:-.03em;margin:8px 0 10px}.gate .fine{font-size:13px;color:var(--mute);line-height:1.5;margin:0 0 26px;max-width:560px}
+.gate .ask{font-size:26px;margin:0 0 8px}.gate .asksub{color:var(--grey);font-size:16px;margin:0 0 18px;max-width:560px;line-height:1.5}
+.alt{font-size:14px;color:var(--grey);margin:14px 0 0}.alt a{color:var(--teal-ink);font-weight:600;text-decoration:underline;cursor:pointer}
+.tiles{display:grid;grid-template-columns:1fr;gap:8px}.tile{display:grid;grid-template-columns:auto 1fr;gap:12px;align-items:center;border:1px solid var(--line);border-radius:12px;padding:12px 14px;font-size:12px;color:var(--grey)}.tile b{display:block;color:var(--ink);font-size:13px}.tile .k{width:22px;height:22px;border-radius:50%;border:1.5px solid var(--line);display:inline-flex;align-items:center;justify-content:center;font-size:11px;font-weight:700}
+.tile.done .k{background:var(--green);border-color:var(--green);color:#fff}.tile.now{border-color:var(--teal-ink)}.tile.now .k{background:var(--teal-soft);border-color:var(--teal-ink);color:var(--teal-ink)}
+.note{background:#8a4bd1;color:#fff;font-size:12px;padding:8px 32px}
+</style>
+</head>
+<body>
+<div class="note">Prototype — desktop wizard in the current two-column format, with one-press questions. Try the keys: 1–5 to choose, Enter to continue, ← to go back.</div>
+<div class="top"><div class="logo">PAINT <span>HOME</span></div><div class="steps" id="steps"></div><span class="pill" style="margin-right:8px">Contact</span><span class="pill">Save &amp; book</span></div>
+<div class="pb"><i id="pb"></i></div>
+<div class="wrap">
+  <div class="left"><div id="main"></div><div class="foot" id="foot"><button class="cta" id="next">Continue</button><span id="hint" style="font-size:13px;color:var(--mute)"></span></div><div class="keys" id="keys"></div></div>
+  <aside class="rail">
+    <div class="card"><h3 id="pic-h">Your place</h3><div class="pic" id="pic"></div><div class="cap" id="pic-cap">Updates as you answer.</div></div>
+    <div class="card"><h3>Your job so far</h3><div class="so" id="so"></div></div>
+    <div class="card sarah"><span class="av">SR</span><div><b>Sarah Reid, your estimator</b>Looks after Northcote. Ask her anything.</div></div>
+  </aside>
+</div>
+<script>
+const $=id=>document.getElementById(id);
+const A={};let i=0;
+const STEPS=[['Address',['what']],['Place',['property','beds','storeys']],['Job',['job','surfaces','colours']],['Rooms',['rooms']],['Condition',['condition','living']],['Details',['details']]];
+const ORDER=['what','property','beds','storeys','job','surfaces','rooms','colours','condition','living','details','gate'];
+const IN_SURF=[['walls','Walls'],['ceilings','Ceilings'],['skirtings','Skirtings'],['doors','Doors'],['windows','Window frames']];
+const OUT_SURF=[['walls','Walls'],['eaves','Eaves & fascia'],['gutters','Gutters & downpipes'],['windows','Window frames'],['doors','Doors'],['verandah','Verandah']];
+const surfList=()=>A.what==='Outside'?OUT_SURF:IN_SURF;
+function skip(id){if(id==='storeys'&&A.property==='Unit or apartment')return true;if(A.what==='Outside'&&(id==='job'||id==='rooms'))return true;return false;}
+const opt=(k,v,t,d,n,extra='')=>`<button class="opt ${A[k]===v?'sel':''}" data-k="${k}" data-v="${v}">${extra}<div><div class="t">${t}</div>${d?`<div class="d">${d}</div>`:''}</div><span class="key">${n}</span></button>`;
+const ICON={in:'<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 10l9-7 9 7v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1z"/><path d="M9 21v-6h6v6"/></svg>',out:'<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M2 20h20M4 20V9l8-6 8 6v11"/><path d="M9 20v-5h6v5"/></svg>',house:'<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 11l9-8 9 8v9H3z"/></svg>',th:'<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M2 20V9l5-4 5 4v11M12 20V9l5-4 5 4v11"/></svg>',unit:'<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="5" y="3" width="14" height="18" rx="1"/><path d="M9 7h2M13 7h2M9 11h2M13 11h2M9 15h2M13 15h2"/></svg>'};
+const SC={
+ what:()=>`<div class="addr">15 Westgarth St, Northcote <a>Change</a></div><div class="stage">Address</div><h1>What are we painting?</h1><p class="sub">Your range in under a minute.</p><div class="opts">${opt('what','Inside','Inside','Rooms, walls, ceilings, trims',1,ICON.in)}${opt('what','Outside','Outside','Walls, eaves, trims, doors',2,ICON.out)}</div>`,
+ property:()=>`<div class="stage">The place</div><h1>What kind of place is it?</h1><p class="sub">Near enough is fine.</p><div class="opts three">${opt('property','House','House','',1,ICON.house)}${opt('property','Townhouse','Townhouse','',2,ICON.th)}${opt('property','Unit or apartment','Unit or apartment','',3,ICON.unit)}</div>`,
+ beds:()=>`<div class="stage">The place</div><h1>How many bedrooms?</h1><p class="sub">This builds your room list for you.</p><div class="nums">${['1','2','3','4','5+'].map((v,n)=>`<button class="opt ${A.beds===v?'sel':''}" data-k="beds" data-v="${v}">${v}<span class="key">${n+1}</span></button>`).join('')}</div>`,
+ storeys:()=>`<div class="stage">The place</div><h1>One storey or two?</h1><p class="sub">${A.what==='Outside'?'Two means more wall and some height work.':'Two adds the stairwell and upper hall.'}</p><div class="opts">${opt('storeys','Single storey','One','',1)}${opt('storeys','Two storeys','Two','',2)}</div>`,
+ job:()=>`<div class="stage">The job</div><h1>What's the job?</h1><p class="sub">Coats and preparation come from this.</p><div class="opts one">${opt('job','Whole interior','The whole interior','Walls, ceilings, skirtings, doors, frames',1)}${opt('job','Some rooms','Some rooms','You pick which, next',2)}${opt('job','Doors, windows and trims','Doors, windows and trims','No walls or ceilings',3)}</div>`,
+ surfaces:()=>{ensureSurf();return `<div class="stage">The job</div><h1>What's being painted?</h1><p class="sub">Tick a surface and watch it paint in.</p><div class="chips">${surfList().map(([k,l])=>`<button class="chip ${A.surf[k]?'sel':''}" data-s="${k}">${l}</button>`).join('')}</div>`;},
+ rooms:()=>{ensureRooms();const all=[...new Set([...A.rooms,'Living room','Kitchen / Meals','Bathroom','Laundry','Hall & Entry','Study','Ensuite','Garage'])];return `<div class="stage">The rooms</div><h1>${A.job==='Some rooms'?'Which rooms?':"We're painting these rooms"}</h1><p class="sub">We've guessed from the bedrooms. Untick any, add any.</p><div class="chips">${all.map(r=>`<button class="chip ${A.rooms.includes(r)?'sel':''}" data-r="${r}">${r}</button>`).join('')}<button class="chip add" id="addroom">+ Another room</button></div>`;},
+ colours:()=>`<div class="stage">The job</div><h1>Colours?</h1><p class="sub">Still deciding is fine.</p><div class="opts one">${opt('colours','New colours','New colours','A change — we allow for an undercoat',1,'<div class="swatch" style="background:linear-gradient(135deg,#dfe8e3,#b9d0c2)"></div>')}${opt('colours','Same colours','Same colours','A fresh coat of what\'s there',2,'<div class="swatch" style="background:#f3f3f1"></div>')}${opt('colours','Still deciding','Still deciding','We\'ll allow for new colours',3,'<div class="swatch" style="background:linear-gradient(90deg,#f5e1dc 50%,#e4f8fa 50%)"></div>')}</div>`,
+ condition:()=>`<div class="stage">Condition</div><h1>${A.what==='Outside'?'How is the outside looking?':'How are the walls looking?'}</h1><p class="sub">Honest is best — it sets the prep.</p><div class="opts one">${opt('condition','Good','Good, just tired','Light sand and go',1)}${opt('condition','Some wear','Some wear','Scuffs, nail holes, the odd crack',2)}${opt('condition','Needs work','Needs work','Flaking, cracked plaster, water marks',3)}</div>`,
+ living:()=>`<div class="stage">Condition</div><h1>Anyone living there while we paint?</h1><p class="sub">We work room by room and pack down each day.</p><div class="opts">${opt('living','Empty',"No, it'll be empty",'',1)}${opt('living','Living there',"Yes, we'll be there",'',2)}</div>`,
+ details:()=>`<div class="stage">Details</div><h1>Where shall we send your range?</h1><p class="sub">It shows on the next screen. We text you the link so you can come back to it.</p><label class="field"><span>Name</span><input id="f-name" placeholder="First name is fine" value="${A.name||''}"></label><label class="field"><span>Mobile</span><input id="f-mobile" placeholder="04" inputmode="tel" value="${A.mobile||''}"></label><label class="field"><span>Email</span><input id="f-email" placeholder="For your quote"></label>`,
+ gate:()=>{const {lo,hi}=price();return `<div class="gate"><div class="stage">Your range</div><div class="price">${f(lo)} – ${f(hi)}</div><p class="sub" style="margin-bottom:10px">${basis()}. If that's about right, this is about right.</p><p class="fine">Based on what you've told us — anything different on the day changes the price. Sarah confirms it with you before anything is fixed. Includes GST.</p><h2 class="ask">Want the detailed number?</h2><p class="asksub">About ten minutes, room by room, with your measurements. Then Sarah visits to run through the finer details and confirm it.</p><button class="cta teal" style="padding:18px 40px;font-size:17px">Get my detailed price</button><p class="alt">Or <a>book a time with Sarah</a> first</p></div>`;}
+};
+function ensureSurf(){if(A.surf)return;A.surf={};if(A.what==='Outside')OUT_SURF.forEach(([k])=>A.surf[k]=k!=='verandah');else if(A.job==='Doors, windows and trims')IN_SURF.forEach(([k])=>A.surf[k]=['skirtings','doors','windows'].includes(k));else IN_SURF.forEach(([k])=>A.surf[k]=true);}
+function ensureRooms(){if(A.rooms)return;const beds=A.beds==='5+'?5:+A.beds||3;A.rooms=[];for(let b=1;b<=beds;b++)A.rooms.push('Bed '+b);A.rooms.push('Living room','Kitchen / Meals','Bathroom','Laundry','Hall & Entry');if(A.storeys==='Two storeys')A.rooms.push('Stairwell','Upstairs hall');if(A.job==='Some rooms')A.rooms=A.rooms.slice(0,2);}
+function price(){const beds=A.beds==='5+'?5:+A.beds||3;let base=1500+beds*950+(A.rooms?A.rooms.length*420:beds*700);const n=A.surf?Object.values(A.surf).filter(Boolean).length:5;base*=0.6+0.08*n;if(A.job==='Doors, windows and trims')base*=.7;if(A.job==='Some rooms')base*=.7;if(A.colours!=='Same colours')base*=1.12;if(A.condition==='Some wear')base*=1.08;if(A.condition==='Needs work')base*=1.22;if(A.storeys==='Two storeys')base*=1.15;if(A.what==='Outside')base*=1.3;return{lo:Math.round(base*.86/10)*10,hi:Math.round(base*1.18/10)*10};}
+const f=n=>'$'+n.toLocaleString('en-AU');
+function basis(){return [A.beds&&A.beds+'-bedroom',(A.property||'house').toLowerCase(),A.storeys&&A.storeys.toLowerCase(),A.what==='Outside'?'the outside':(A.job||'').toLowerCase(),A.colours&&A.colours.toLowerCase(),A.condition&&A.condition.toLowerCase()].filter(Boolean).join(' · ');}
+
+const PAINT={walls:()=>A.colours==='Same colours'?'#f1efe9':A.colours==='Still deciding'?'#dcecef':'#cfe3d6',ceilings:()=>'#fafaf8',skirtings:()=>'#ffffff',doors:()=>'#ffffff',windows:()=>'#ffffff',eaves:()=>'#ffffff',gutters:()=>'#f4f4f2',verandah:()=>'#ffffff'};
+function surf(p,k,shapes,trim){
+  const fill=PAINT[k](), b=trim?'trimbase':'base';
+  return `<g data-surf="${k}"><g class="${b}">${shapes}</g>
+  <clipPath id="cp-${p}-${k}"><rect class="cprect" x="0" y="0" width="${A.surf&&A.surf[k]?200:0}" height="120"/></clipPath>
+  <g clip-path="url(#cp-${p}-${k})" fill="${fill}" stroke="#c4cad0" stroke-width="1">${shapes}</g>
+  <g class="roller"><rect x="-6" y="-3" width="12" height="6" rx="2" fill="#0e7f8a"/><rect x="5" y="-1" width="7" height="2" fill="#6b7580"/></g></g>`;
+}
+function roomSVG(p){
+  const walls=`<polygon points="0,0 50,30 50,90 0,120"/><rect x="50" y="30" width="100" height="60"/><polygon points="200,0 150,30 150,90 200,120"/>`;
+  const ceil=`<polygon points="0,0 200,0 150,30 50,30"/>`;
+  const skirt=`<rect x="50" y="86" width="100" height="4"/><polygon points="0,120 50,90 50,86 0,114"/><polygon points="200,120 150,90 150,86 200,114"/>`;
+  const door=`<rect x="60" y="48" width="18" height="42" rx="1"/>`;
+  const win=`<rect x="104" y="42" width="34" height="26" rx="1"/><rect x="108" y="46" width="12" height="18" fill="#dbeaf0" stroke="none"/><rect x="122" y="46" width="12" height="18" fill="#dbeaf0" stroke="none"/>`;
+  const wear=A.condition==='Needs work'?`<g stroke="#b9bfc5" stroke-width=".8" fill="none"><path d="M70,40 l4,6 -2,5 3,6"/><path d="M130,70 l5,-4 3,5"/><path d="M20,60 l4,8"/></g>`:A.condition==='Some wear'?`<g fill="#c3c9cf"><circle cx="90" cy="60" r="1"/><circle cx="140" cy="50" r="1"/><circle cx="30" cy="70" r="1"/></g>`:'';
+  return `<svg class="pic" viewBox="0 0 200 120" xmlns="http://www.w3.org/2000/svg"><rect width="200" height="120" fill="#eef2f5"/>
+  <polygon points="0,120 50,90 150,90 200,120" fill="#d9c9b2"/>
+  ${surf(p,'ceilings',ceil)}${surf(p,'walls',walls)}${wear}${surf(p,'skirtings',skirt,true)}${surf(p,'doors',door,true)}${surf(p,'windows',win,true)}
+  <g><rect x="150" y="84" width="10" height="8" rx="1" fill="#2fd3df"/><rect x="151" y="82" width="8" height="2" fill="#0e7f8a"/></g></svg>`;
+}
+function houseSVG(p){
+  const two=A.storeys==='Two storeys', unit=A.property==='Unit or apartment', th=A.property==='Townhouse';
+  const top=unit?20:(two?30:60);
+  const walls=unit?`<rect x="30" y="20" width="140" height="90"/>`:`<rect x="40" y="${top}" width="120" height="${110-top}"/>`;
+  const roof=unit?`<rect x="26" y="16" width="148" height="5" fill="#5b6672"/>`:`<polygon points="34,${top} 100,${top-28} 166,${top}" fill="#5b6672"/>${th?`<line x1="100" y1="${top}" x2="100" y2="110" stroke="#c9cfd5"/>`:''}`;
+  const eaves=unit?`<rect x="26" y="21" width="148" height="3"/>`:`<rect x="34" y="${top-1}" width="132" height="4"/>`;
+  const gut=unit?`<rect x="30" y="24" width="3" height="86"/><rect x="167" y="24" width="3" height="86"/>`:`<rect x="41" y="${top+3}" width="3" height="${107-top}"/><rect x="156" y="${top+3}" width="3" height="${107-top}"/>`;
+  let wins='';
+  const row=y=>`<rect x="56" y="${y}" width="22" height="16"/><rect x="122" y="${y}" width="22" height="16"/>`;
+  if(unit){wins=row(30)+row(56)+row(82);}
+  else{wins=row(top+14);if(two)wins+=row(top+50);}
+  const door=unit?`<rect x="92" y="86" width="16" height="24"/>`:th?`<rect x="84" y="86" width="12" height="24"/><rect x="104" y="86" width="12" height="24"/>`:`<rect x="92" y="84" width="16" height="26"/>`;
+  const ver=(!unit&&!th)?`<rect x="70" y="80" width="60" height="3"/><rect x="72" y="83" width="3" height="27"/><rect x="125" y="83" width="3" height="27"/>`:'';
+  const balc=unit?`<rect x="52" y="48" width="30" height="2" fill="#aab2ba"/><rect x="118" y="48" width="30" height="2" fill="#aab2ba"/>`:'';
+  return `<svg class="pic" viewBox="0 0 200 120" xmlns="http://www.w3.org/2000/svg"><rect width="200" height="120" fill="#eef2f5"/><rect y="110" width="200" height="10" fill="#cfdccf"/>
+  ${surf(p,'walls',walls)}${roof}${balc}${surf(p,'eaves',eaves,true)}${surf(p,'gutters',gut,true)}${surf(p,'windows',wins,true)}${surf(p,'doors',door,true)}${ver?surf(p,'verandah',ver,true):''}
+  <circle cx="18" cy="104" r="9" fill="#9fbfa8"/><circle cx="184" cy="106" r="7" fill="#9fbfa8"/></svg>`;
+}
+function picHTML(p){return A.what==='Outside'?houseSVG(p):roomSVG(p);}
+
+function updatePics(){const tmp=A.surf;if(!A.surf)A.surf={};$('pic').innerHTML=picHTML('r');if(!tmp)A.surf=null;$('pic-h').textContent=A.what==='Outside'?'Your house':'Your place';
+  const n=A.surf?Object.values(A.surf).filter(Boolean).length+' surfaces ticked':'Updates as you answer.';$('pic-cap').textContent=n;
+  const rows=[['Address','15 Westgarth St, Northcote',null],['Painting',A.what,'what'],['Place',[A.property,A.beds&&A.beds+' bed',A.storeys].filter(Boolean).join(' · '),'property'],['Job',[A.job,A.surf&&Object.values(A.surf).filter(Boolean).length+' surfaces'].filter(Boolean).join(' · '),'job'],['Rooms',A.rooms&&A.rooms.length+' rooms','rooms'],['Colours',A.colours,'colours'],['Condition',[A.condition,A.living==='Empty'?'empty':A.living==='Living there'?'living there':null].filter(Boolean).join(' · '),'condition']].filter(r=>r[1]);
+  $('so').innerHTML=rows.map(([k,v,id])=>`<div><span>${k}<br><b>${v}</b></span>${id?`<a data-go="${id}">Change</a>`:''}</div>`).join('');$('so').querySelectorAll('[data-go]').forEach(a=>a.onclick=()=>{i=ORDER.indexOf(a.dataset.go);render();});}
+function render(){const id=ORDER[i];$('main').innerHTML=SC[id]();
+  const gi=ORDER.indexOf('gate');$('pb').style.width=(id==='gate'?55:Math.round(i/gi*55))+'%';
+  $('steps').innerHTML=STEPS.map(([n,ids],k)=>{const idx=ids.map(x=>ORDER.indexOf(x));const cur=idx.includes(i);const done=i>Math.max(...idx);return `<span class="${cur?'now':done?'done':''}"><i>${done?'✓':k+1}</i>${n}</span>`;}).join('')+`<span class="${id==='gate'?'now':''}" style="margin-left:6px;color:var(--teal-ink);font-weight:600">Your range</span>`;
+  const needs=id==='surfaces'||id==='rooms'||id==='details';$('foot').classList.toggle('on',needs);$('next').disabled=false;$('hint').textContent='';
+  if(id==='details'){$('next').textContent='Show my range';$('hint').textContent='Appears instantly';validate();['f-name','f-mobile','f-email'].forEach(x=>$(x).addEventListener('input',validate));setTimeout(()=>$('f-name').focus(),50);}else $('next').textContent='Continue';
+  $('keys').innerHTML=id==='gate'?'':needs?`<b>Enter</b> continue · <b>←</b> back`:`<b>1</b><b>2</b><b>3</b> choose · <b>←</b> back`;
+  bind(id);updatePics();window.scrollTo(0,0);}
+function bind(id){
+  document.querySelectorAll('.opt[data-k]').forEach(b=>b.onclick=()=>{const k=b.dataset.k,v=b.dataset.v;A[k]=v;if(k==='what'){A.surf=null;A.rooms=null;}if(k==='job'){A.surf=null;}if(k==='beds'||k==='storeys')A.rooms=null;b.parentElement.querySelectorAll('.opt').forEach(x=>x.classList.remove('sel'));b.classList.add('sel');updatePics();setTimeout(advance,260);});
+  document.querySelectorAll('.chip[data-s]').forEach(c=>c.onclick=()=>{const k=c.dataset.s;A.surf[k]=!A.surf[k];c.classList.toggle('sel',A.surf[k]);paint(k,A.surf[k],true);$('pic-cap').textContent=Object.values(A.surf).filter(Boolean).length+' surfaces ticked';updateSo();});
+  document.querySelectorAll('.chip[data-r]').forEach(c=>c.onclick=()=>{const r=c.dataset.r;A.rooms=A.rooms.includes(r)?A.rooms.filter(x=>x!==r):[...A.rooms,r];render();});
+  const ar=$('addroom');if(ar)ar.onclick=()=>{const r=prompt('Room name');if(r){A.rooms.push(r);render();}};
+}
+function updateSo(){updatePicsSoOnly();}
+function updatePicsSoOnly(){const keep=$('pic').innerHTML;updatePics();$('pic').innerHTML=keep;}
+function validate(){const m=$('f-mobile').value.replace(/\s/g,'');$('next').disabled=!($('f-name').value.trim()&&m.length>=10);}
+function advance(){let n=i+1;while(n<ORDER.length-1&&skip(ORDER[n]))n++;i=Math.min(n,ORDER.length-1);render();}
+function back(){let n=i-1;while(n>0&&skip(ORDER[n]))n--;i=Math.max(0,n);render();}
+$('next').onclick=()=>{if(ORDER[i]==='details'){A.name=$('f-name').value.trim();A.mobile=$('f-mobile').value.trim();}advance();};
+document.addEventListener('keydown',e=>{const tag=document.activeElement.tagName;if(e.key==='Enter'&&tag!=='TEXTAREA'){if($('foot').classList.contains('on')&&!$('next').disabled){e.preventDefault();$('next').click();}return;}if(e.key==='ArrowLeft'&&tag!=='INPUT'){back();return;}if(/^[1-5]$/.test(e.key)&&tag!=='INPUT'){const b=[...document.querySelectorAll('#main .opt')][+e.key-1];if(b)b.click();}});
+const anims=new WeakMap();
+function paint(k,on,animate){document.querySelectorAll(`[data-surf="${k}"]`).forEach(g=>{const r=g.querySelector('.cprect'),roller=g.querySelector('.roller');const from=+r.getAttribute('width'),to=on?200:0;if(!animate){r.setAttribute('width',to);return;}let y=60;try{const b=g.querySelector('.base,.trimbase').getBBox();y=b.y+b.height/2;}catch(e){}const t0=performance.now(),dur=520;roller.classList.add('on');if(anims.has(g))cancelAnimationFrame(anims.get(g));const step=now=>{const t=Math.min(1,(now-t0)/dur),e=1-Math.pow(1-t,3),w=from+(to-from)*e;r.setAttribute('width',w);roller.setAttribute('transform',`translate(${w},${y})`);if(t<1)anims.set(g,requestAnimationFrame(step));else roller.classList.remove('on');};anims.set(g,requestAnimationFrame(step));});}
+render();
+</script>
+</body>
+</html>

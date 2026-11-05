@@ -24,6 +24,8 @@ import WarehousePicture from "./pictures/WarehousePicture";
 import SegmentBuilding from "./pictures/SegmentBuilding";
 import { commercialSurfaceKeys, isWarehouse, type CommercialAnswers, type Segment } from "@/lib/wizard/segments";
 import { WH_HEIGHTS } from "@/lib/wizard/warehouse";
+import MobilePicture from "./pictures/MobilePicture";
+import type { MobilePictureState } from "@/lib/wizard/mobilePicture";
 
 /**
  * The picture card (UI refresh S2, brief §7.2; components doc §4) — the live
@@ -69,8 +71,14 @@ const CONDITION: Record<string, [string, string]> = {
   needs_work: ["Needs work.", "Flaking, cracked plaster, water marks or damage."],
 };
 
-export default function PictureCard({ step, quick, outside, suburb, rooms, planPreviewUrl, planPending, segmentName, com = null, exteriorTypicals = [], onExtPart, sideAt = "front", onSide }: {
+export default function PictureCard({ step, quick, outside, suburb, rooms, planPreviewUrl, planPending, segmentName, com = null, exteriorTypicals = [], onExtPart, sideAt = "front", onSide, live = null }: {
   step: QuickLookStep;
+  /**
+   * Desktop one-press (addendum, 5 Nov 2026): the phone's picture — the room or the house drawn from one
+   * `MobilePictureState` with its roller sweep and its property / storeys / colours / condition variants — in
+   * this card instead of the step's picture; `count` is the surfaces ticked (null before the surfaces screen).
+   */
+  live?: { state: MobilePictureState; count: number | null } | null;
   /** Exterior wizard v2 (S3): a tap on a part of the drawn house ticks it. */
   onExtPart?: (part: ExteriorPart) => void;
   /** Exterior wizard v2 (S4): the side the Each-side step is on, and the compass's jump. */
@@ -96,8 +104,9 @@ export default function PictureCard({ step, quick, outside, suburb, rooms, planP
   const seg = com?.segment ?? null;
   const ans = com?.answers ?? null;
   const wh = !!seg && isWarehouse(seg);
-  const which: "house" | "room" | "plan" | "outside" | "top" | "areas" | "warehouse" | "comroom" | "home" =
-    step === "home" || ((step === "paint" || step === "about" || (outsideJob && step === "sides")) && outside.v2) ? "home"
+  const which: "house" | "room" | "plan" | "outside" | "top" | "areas" | "warehouse" | "comroom" | "home" | "live" =
+    live ? "live"
+    : step === "home" || ((step === "paint" || step === "about" || (outsideJob && step === "sides")) && outside.v2) ? "home"
     : seg && ans && (step === "com_warehouse" || (step === "com_job" && wh)) ? "warehouse"
       : seg && ans && step === "com_areas" ? "areas"
         : seg && ans && step === "com_job" ? "comroom"
@@ -172,7 +181,11 @@ export default function PictureCard({ step, quick, outside, suburb, rooms, planP
   let title = "Your place";
   let tag = suburb ?? "";
   let note: React.ReactNode = null;
-  if (which === "room") {
+  if (which === "live" && live) {
+    // the prototype's card: "Your place" / "Your house", "N surfaces ticked" once there is something ticked
+    title = live.state.kind === "house" ? "Your house" : "Your place";
+    note = live.count == null ? "Updates as you answer." : `${live.count} surface${live.count === 1 ? "" : "s"} ticked`;
+  } else if (which === "room") {
     title = step === "condition" ? "A room today" : step === "gate" ? "Ready to price" : "A room, once we’ve painted";
     tag = step === "condition" ? "" : `${painted.filter((s) => s !== "cornices").length} surfaces`;
     note = step === "condition"
@@ -284,7 +297,8 @@ export default function PictureCard({ step, quick, outside, suburb, rooms, planP
           </span>
         )}
       </div>
-      <div className={`wz-pic-art ${which === "plan" && planPreviewUrl ? "real" : ""}`}>
+      <div className={`wz-pic-art ${which === "plan" && planPreviewUrl ? "real" : ""} ${which === "live" ? "live" : ""}`}>
+        {which === "live" && live && <MobilePicture state={live.state} testId="pic-live" />}
         {/* Tom, 10 Oct: on a commercial job the building follows the space picked. */}
         {which === "house" && (quick.propertyKind === "commercial" && step !== "start" && step !== "place"
           ? <SegmentBuilding segment={com?.segmentKey ?? com?.segment?.key ?? null} jobType={quick.jobType} />

@@ -40,3 +40,16 @@ export function exteriorV2On(): boolean {
 export function quoteStageV10On(): boolean {
   return process.env.NEXT_PUBLIC_QUOTE_STAGE_V10 !== "0";
 }
+
+/**
+ * Desktop one-press (`docs/briefs/claude-code-brief-wizard-desktop-onepress-addendum.md`,
+ * Tom 5 Nov 2026): on a laptop the quick look keeps its two-column shell but
+ * mounts the phone's one-question router inside it — the same screens, copy
+ * and skip rules, single choices advancing themselves, a keyboard layer.
+ * OFF until `NEXT_PUBLIC_WIZARD_DESKTOP_ONEPRESS=1` (ON on the test project;
+ * Tom flips production in Vercel), the exterior-v2 precedent at its
+ * introduction. Read at call time so a test can stub it.
+ */
+export function wizardDesktopOnePressOn(): boolean {
+  return process.env.NEXT_PUBLIC_WIZARD_DESKTOP_ONEPRESS === "1";
+}

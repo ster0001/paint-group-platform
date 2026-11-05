@@ -463,7 +463,12 @@ export async function driveMobileQuickLook(page: Page, opts: DriveOptions): Prom
   return true;
 }
 
-/** The phone's shell (wizard mobile v5): is the quick look showing as one question per screen? */
+/**
+ * The one-question router (wizard mobile v5): is the quick look showing one question per screen? The phone's
+ * shell, and — desktop one-press (addendum, 5 Nov 2026; `NEXT_PUBLIC_WIZARD_DESKTOP_ONEPRESS=1`) — the laptop's
+ * two-column shell with the same router inside it (`data-shell` says which). Read from the DOM, never the
+ * viewport, so every helper drives whatever the app drew.
+ */
 export async function onMobileShell(page: Page): Promise<boolean> {
   return (await page.getByTestId("wzm").count()) > 0;
 }
@@ -488,7 +493,7 @@ export async function mobileQuickNext(page: Page) {
       await expect(bar).toBeEnabled({ timeout: 30_000 });
       await bar.click();
     } else {
-      await page.locator("[data-mobile-screen] [aria-pressed='true']").first().click();
+      await page.locator("[data-mobile-screen] .wzm-screen [aria-pressed='true']").first().click();
     }
     const err = page.getByTestId("ql-error");
     await page.waitForTimeout(350); // the ~250ms auto-advance

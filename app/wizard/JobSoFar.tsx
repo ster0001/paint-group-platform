@@ -18,7 +18,9 @@ import { SIZE_OPTIONS } from "./ExteriorHome";
 const KIND: Record<QuickLook["propertyKind"], string> = { house: "House", townhouse: "Townhouse", unit_apartment: "Unit or apartment", commercial: "Commercial" };
 const PART: Record<QuickLook["jobType"], string> = { interior: "inside", exterior: "outside", both: "inside and outside" };
 
-export default function JobSoFar({ steps, at, quick, outside, address, roomCount, segmentName, areaCount, briefCount, onGo }: {
+export default function JobSoFar({ steps, at, quick, outside, address, roomCount, segmentName, areaCount, briefCount, onGo, includeCurrent = false }: {
+  /** Desktop one-press (addendum §1.5): the current step's row too, once one of its questions is answered — the list follows every answer. */
+  includeCurrent?: boolean;
   steps: readonly QuickLookStep[];
   at: QuickLookStep;
   quick: QuickLook;
@@ -31,7 +33,7 @@ export default function JobSoFar({ steps, at, quick, outside, address, roomCount
   onGo: (step: QuickLookStep) => void;
 }) {
   const rail = railFor(steps, at);
-  const done = steps.slice(0, Math.max(0, steps.indexOf(at)));
+  const done = steps.slice(0, Math.max(0, steps.indexOf(at) + (includeCurrent ? 1 : 0)));
   const say = (s: QuickLookStep): [string, string] | null => {
     switch (s) {
       case "start": return [address || "Your address", `Address · ${PART[quick.jobType]}`];

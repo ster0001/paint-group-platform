@@ -49,8 +49,10 @@ const OPEN_BY_KEY: Record<string, string[]> = { openings: ["doors", "windows"], 
 
 export default function Reveal({
   payload, quick, estimateId, onTighten, onBook, phone, prefillEmail, commercial = null, outside = null, speakWithUs = false, onSpeak, onMessage, contactKnown = false,
-  firstName = null, trust = null, walkChecked = false, onEditor, brand = "paintgroup", paintHome = null,
+  firstName = null, trust = null, walkChecked = false, onEditor, brand = "paintgroup", paintHome = null, onePress = false,
 }: {
+  /** Desktop one-press (addendum §1.6, quote-stage R1): the doors ask "Want the detailed number?" and the first reads "Get my detailed price". */
+  onePress?: boolean;
   /** Paint Home brief §5: the shopfront, and the server's phone-close verdict — `call` draws "Confirm my price. Book a call"; `visit` draws the hand-off. */
   brand?: WizardBrand;
   paintHome?: { tier: "call" | "visit"; capCents: number } | null;
@@ -256,7 +258,7 @@ export default function Reveal({
           </div>
         ) : (
         <div className="wz-rv-doors">
-          <h2 className="wz-doors-head">Where would you like to go from here?</h2>
+          <h2 className="wz-doors-head">{onePress ? "Want the detailed number?" : "Where would you like to go from here?"}</h2>
           <div className="wz-doors">
             {/* Paint Home brief §5: phone-close — one short call confirms the price; no site visit is offered. */}
             {brand === "painthome" && paintHome?.tier === "call" && onSpeak && (
@@ -270,7 +272,7 @@ export default function Reveal({
               />
             ) : (
               <Door
-                testId="door-tighten" icon="◫" title="Tighten my price" onClick={tighten}
+                testId="door-tighten" icon="◫" title={onePress ? "Get my detailed price" : "Tighten my price"} onClick={tighten}
                 body={exteriorOnly && outside?.v2
                   ? "Side by side, a few minutes — confirm each side's size and the paintwork, and the range closes to within a few percent."
                   : `Get a more accurate quote now. A few minutes, ${how}.`}
