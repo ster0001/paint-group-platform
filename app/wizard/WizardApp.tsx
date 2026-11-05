@@ -53,7 +53,7 @@ import { otpSend, otpVerify } from "@/lib/wizard/otpClient";
 import { maskMobile, normaliseMobile } from "@/lib/wizard/otpFormat";
 import MobileGate from "./MobileGate";
 import MobileWalk from "./MobileWalk";
-import { quoteStageV10On } from "@/lib/wizard/ui-flags";
+import { quoteStageV10On, wizardDesktopOnePressOn } from "@/lib/wizard/ui-flags";
 import MobileContact from "./MobileContact";
 import { starterRoomNames } from "@/lib/wizard/some-rooms";
 import SaveAndBookSheet from "./SaveAndBookSheet";
@@ -166,6 +166,8 @@ const subscribeMobile = (cb: () => void) => {
 const mobileSnapshot = () => typeof window !== "undefined" && Boolean(window.matchMedia?.(MOBILE_QUERY).matches);
 const notMobile = () => false;
 const snapshotFalse = () => false;
+/** The quick-look steps `mobileScreensFor` renders as they are (no screens of its own) — on a laptop they keep the grouped page. */
+const UNSPLIT_STEPS = new Set<QuickLookStep>(["both", "segment", "com_areas", "com_warehouse", "com_job", "com_brief", "com_book", "outside"]);
 
 /** Rotating lines on the processing screen — something worth reading while
  * the AI measures and prices (Tom, 31 Aug: make the wait interactive). */
@@ -1509,11 +1511,18 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
   // Wizard mobile v5 §8: one `wizard_step_viewed` per step per session (the route dedupes), with the breakpoint it was seen on.
   // The phone's shell (MobileQuickLook) writes one per SCREEN instead — the place step is three of them there.
   const mobileShell = useSyncExternalStore(subscribeMobile, mobileSnapshot, notMobile);
+  /**
+   * Desktop one-press (addendum, Tom 5 Nov 2026; `wizardDesktopOnePress`): on a laptop the quick look's split
+   * steps render the phone's one-question router inside the two-column shell. A step the router does not split
+   * (the "both" doors, the commercial screens, the old outside screen) stays on the grouped page, as it is.
+   */
+  const desktopOnePress = wizardDesktopOnePressOn() && !mobileShell && isCustomer && entry === "questions" && quickActive && !UNSPLIT_STEPS.has(quickStep);
   useEffect(() => {
     if (!isCustomer || !quickActive) return;
-    if (breakpointNow() === "mobile" && entry === "questions") return;
+    // the one-question router writes one per SCREEN instead (the phone's shell, and the laptop's one-press)
+    if ((breakpointNow() === "mobile" && entry === "questions") || desktopOnePress) return;
     sendWizardEvent("wizard_step_viewed", { step: quickStep, breakpoint: breakpointNow() });
-  }, [isCustomer, quickActive, quickStep, entry]);
+  }, [isCustomer, quickActive, quickStep, entry, desktopOnePress]);
   useEffect(() => {
     if (screen !== "reveal") return;
     const t = setTimeout(() => { void import("./ExteriorWalk"); }, 800);
@@ -2089,6 +2098,7 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
           payload={reveal.payload}
           quick={quick}
           outside={outside}
+          onePress={wizardDesktopOnePressOn()}
           commercial={reveal.payload.commercial && commercialSeg && commercialAnswers
             ? { segment: commercialSeg, answers: commercialAnswers, photos: reveal.payload.commercial.photos }
             : null}
@@ -2443,7 +2453,63 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
           {/* §3's quick look replaces the interior question pages for a
               customer. The pages themselves are untouched and still serve
               staff, the describe route and the upload route. */}
-          {quickActive ? (
+          {quickActive && desktopOnePress ? (
+            // Desktop one-press: the router keeps which screen of the step is showing, so it lives OUTSIDE the
+            // per-step keyed wrapper (a remount on every step would lose "last screen" on the way back).
+            <div className="wz-step wz-step--onepress">
+              <input
+                ref={quickPhotoRef} type="file" hidden multiple accept="image/*" data-testid="com-photo-input"
+                onChange={(e) => { addQuickPhotos([...(e.target.files ?? [])]); e.target.value = ""; }}
+              />
+              <MobileQuickLook
+                brand={brand}
+                logo={<Wordmark logoUrl={logoUrl} brand={brand} />}
+                steps={quickSteps}
+                step={quickStep}
+                quick={quick}
+                onQuick={setQuick}
+                outside={outside}
+                onOutside={setOutside}
+                exteriorTypicals={exteriorTypicals}
+                address={{
+                  text: state.address?.formatted ?? quickAddress,
+                  known: Boolean(state.address) || Boolean(state.customer?.suburb.trim() && state.customer.postcode.trim()),
+                  field: addressFieldNode,
+                }}
+                contact={hasGate ? state.contact : null}
+                onContact={(c) => set({ contact: c })}
+                roomNames={state.planRooms != null && state.planRooms.length > 0 ? state.planRooms.map((r) => r.name) : starterRoomNames(quick)}
+                addedRooms={state.addedRooms}
+                onAddRoom={(r) => set({ addedRooms: [...state.addedRooms, r] })}
+                onRemoveAdded={(i) => set({ addedRooms: state.addedRooms.filter((_, k) => k !== i) })}
+                error={error}
+                busy={uploading || booking}
+                canContinue={!nav.disabled}
+                whyNot={nav.note}
+                onNext={quickNext}
+                onBack={quickBack}
+                canBack={page > 1}
+                onContactOpen={(screenId) => { flushDraft(lastScreen); sendWizardEvent("contact_opened", { step: screenId }); setContactOpen(screenId); }}
+                renderStep={() => renderQuickLook("mobile")}
+                resumed={resumed}
+                onStartAgain={startAgain}
+                otp={hasGate ? otp : null}
+                otpOn={hasGate ? { ...otpOn, onBegin: otpBegin } : null}
+                desktop={{
+                  suburb: state.address?.suburb || state.customer?.suburb || null,
+                  estimatorName,
+                  phone: companyPhone,
+                  // Paint Home brief §5: the mid-flow door asks for a call, never a site visit (as the grouped page's talk card).
+                  onBook: () => { flushDraft(lastScreen); sendWizardEvent("contact_opened", { step: quickStep }); setTalk({ mode: brand === "painthome" ? "call" : "visit" }); },
+                  onMessage: () => { flushDraft(lastScreen); sendWizardEvent("contact_opened", { step: quickStep }); setTalk({ mode: "message" }); },
+                  onGo: quickGo,
+                  planRooms: state.planRooms,
+                  planPreviewUrl: state.planPreviewUrl,
+                  planPending: state.planRunIds.length > 0 && state.planRooms == null,
+                }}
+              />
+            </div>
+          ) : quickActive ? (
             <div className={landingStepKey === quickStepKey ? "wz-step wz-landing" : "wz-step"} key={quickStepKey}>
               {/* C12: the open-space photo rides the condition-photo upload —
                   it goes up with the submit and the estimator reviews it. */}

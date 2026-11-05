@@ -347,7 +347,7 @@
       "path": "docs/help/estimator/commercial.md",
       "walkthrough": null,
       "media": [],
-      "verified_at_commit": "4ef1a0aa72",
+      "verified_at_commit": "58a44da407",
       "sources": [
         "app/wizard/CommercialScreens.tsx",
         "app/wizard/PictureCard.tsx",
@@ -366,7 +366,7 @@
       "path": "docs/help/estimator/customer.md",
       "walkthrough": null,
       "media": [],
-      "verified_at_commit": "bb273c9122",
+      "verified_at_commit": "58a44da407",
       "sources": [
         "app/(marketing)/_components/AddressField.tsx",
         "app/estimate/page.tsx",
@@ -393,7 +393,7 @@
       "path": "docs/help/estimator/staff.md",
       "walkthrough": null,
       "media": [],
-      "verified_at_commit": "bb273c9122",
+      "verified_at_commit": "58a44da407",
       "sources": [
         "app/(app)/estimates/WaitingTable.tsx",
         "app/quote/EstimateHeader.tsx",
@@ -417,7 +417,7 @@
       "path": "docs/help/estimator/trade.md",
       "walkthrough": null,
       "media": [],
-      "verified_at_commit": "4ef1a0aa72",
+      "verified_at_commit": "58a44da407",
       "sources": [
         "app/account/(portal)/TradePortfolioHome.tsx",
         "app/account/(portal)/quote/new/page.tsx",

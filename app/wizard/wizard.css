@@ -2948,3 +2948,42 @@
 .wz .wz-otp-links .wz-linkish { margin-top: 0; }
 .wz .wz-otp-links .wz-linkish:disabled { color: var(--muted); text-decoration: none; cursor: default; }
 .wz .wz-otp .wz-err { margin-top: 2px; }
+
+/* ── Desktop one-press (addendum, Tom 5 Nov 2026): the phone's router inside the laptop's two columns ──
+   The cards, chips and fields are the phone's (`.wzm-*`, above); only what differs on a laptop is here — the
+   bar sits in the column, the Continue is a pill, each card carries a key number, a grey key hint sits under
+   the options, and a text Back replaces the chevron. Nothing here applies under 768px (the phone has no .wzm--desk). */
+.wz .wzm--desk { min-height: 0; display: grid; }
+.wz .wzm--desk .wzm-screen { animation: wzmin .28s ease both; }
+.wz .wzm--desk h1 { font-size: clamp(30px, 3vw, 40px); line-height: 1.08; letter-spacing: -.02em; margin: 8px 0 8px; }
+.wz .wzm--desk .wzm-sub { font-size: 16.5px; margin-bottom: 26px; }
+.wz .wzm--desk .wzm-opts { gap: 12px; grid-template-columns: 1fr 1fr; }
+.wz .wzm--desk .wzm-opts.two { grid-template-columns: 1fr 1fr; }
+.wz .wzm--desk .wzm-opts.two .wzm-opt { flex-direction: row; align-items: center; }
+.wz .wzm--desk [data-testid='ql-scope'], .wz .wzm--desk [data-testid='ql-colours'], .wz .wzm--desk [data-testid='ql-condition'] { grid-template-columns: 1fr; }
+.wz .wzm--desk [data-testid='ql-kind'] { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.wz .wzm--desk .wzm-opt { position: relative; min-height: 72px; padding: 18px 44px 18px 18px; }
+.wz .wzm--desk .wzm-opt:hover { border-color: var(--line-strong); }
+.wz .wzm--desk .wzm-opt .t { font-size: 17px; }
+.wz .wzm--desk .wzm-nums .wzm-opt { height: 72px; padding: 0; font-size: 20px; }
+.wz .wzm--desk .wzm-key { position: absolute; right: 12px; top: 12px; font: 600 11px var(--mono, ui-monospace, Menlo, monospace); color: var(--muted); border: 1px solid var(--line); border-radius: 5px; padding: 1px 6px; background: var(--panel); line-height: 1.4; }
+.wz .wzm--desk .wzm-opt.on .wzm-key { border-color: var(--cyan); color: var(--cyan); }
+.wz .wzm--desk .wzm-chip { padding: 13px 18px; font-size: 16px; }
+.wz .wzm--desk .wzm-field { max-width: 460px; }
+.wz .wzm--desk .wzm-foot { position: static; display: flex; align-items: center; gap: 18px; margin-top: 26px; padding: 0; background: none; z-index: auto; flex-wrap: wrap; }
+.wz .wzm--desk .wzm-cta { width: auto; padding: 16px 32px; font-size: 16px; order: 2; }
+.wz .wzm--desk .wzm-foot .wzm-why { order: 1; flex: 1 0 100%; }
+.wz .wzm--desk .wzm-hint { order: 3; margin: 0; text-align: left; font-size: 13px; }
+.wz .wzm--desk .wzm-keys { font-size: 12px; color: var(--muted); margin: 22px 0 0; }
+.wz .wzm--desk .wzm-keys b { display: inline-block; border: 1px solid var(--line); border-radius: 5px; padding: 1px 6px; font: 600 11px var(--mono, ui-monospace, Menlo, monospace); color: var(--muted); background: var(--panel); margin-right: 4px; }
+.wz .wzm--desk .wzm-back--desk { width: auto; height: auto; margin: 0 0 10px; padding: 4px 0; font-size: 14px; font-weight: 600; color: var(--muted); border-radius: 6px; }
+.wz .wzm--desk .wzm-back--desk span { font-size: 18px; line-height: 1; margin-right: 2px; }
+.wz .wzm--desk .wzm-back--desk:hover { color: var(--heading); }
+.wz .wzm--desk .wz-resume { margin-bottom: 14px; }
+.wz .wzm--desk .wzm-addr { display: inline-flex; max-width: 100%; }
+.wz .wzm--desk .wzm-addrfield { max-width: 560px; }
+.wz .wzm--desk .wzm-stage { font-size: 14.5px; font-weight: 600; color: var(--cyan); margin: 0 0 10px; }
+/* the phone's picture in the laptop's card: the drawing's own background behind the letterbox */
+.wz .wz-pic-art.live { background: #eef2f5; }
+.wz .wz-pic-art.live > svg { padding: 6px 0; }
+@media (prefers-reduced-motion: reduce) { .wz .wzm--desk .wzm-screen { animation: none; } }

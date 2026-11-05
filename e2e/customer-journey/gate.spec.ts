@@ -86,7 +86,7 @@ test.describe("S6 — the gate", () => {
     expect(ids.indexOf("door-message")).toBeGreaterThan(ids.indexOf("door-book"));
     if (ids.includes("door-speak")) expect(ids.indexOf("door-speak")).toBe(1);
     await expect(page.getByTestId("door-tighten")).toHaveAttribute("data-hero", "1");
-    await expect(page.getByTestId("door-tighten")).toContainText("Tighten my price");
+    await expect(page.getByTestId("door-tighten")).toContainText(/Tighten my price|Get my detailed price/); // desktop one-press (5 Nov 2026): "Get my detailed price"
     await expect(page.getByTestId("door-tighten")).toContainText("Get a more accurate quote now");
     expect(await page.locator("body").innerText()).not.toContain("Request a quote");
 

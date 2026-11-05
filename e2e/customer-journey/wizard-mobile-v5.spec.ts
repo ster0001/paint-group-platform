@@ -155,7 +155,7 @@ test.describe("Wizard mobile v5 — the phone's screens (session 2)", () => {
     await expect(heading(page)).toHaveText(HEADINGS.details);
     await expect(page.getByTestId("ql-next")).toHaveText("Show my range");
     await expect(page.getByTestId("ql-next")).toBeDisabled();
-    await expect(page.getByTestId("wzm-hint")).toHaveText("Appears instantly");
+    await expect(page.getByTestId("wzm-hint")).toHaveText("We text you a code first"); // Tom, 5 Nov 2026: the texted code
     // §2.1: index 10 of 11 question screens → 50%; the gate is at 55
     await expect(page.getByTestId("wzm-bar")).toHaveAttribute("style", /width:\s*50%/);
     await shot(page, 11, "details");

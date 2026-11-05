@@ -1,10 +1,10 @@
 "use client";
 
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
-import { CONDITION_BANDS, OCCUPIED, type QuickLook, type QuickLookStep, type ScopePreset } from "@/lib/wizard/quick-look";
+import { CONDITION_BANDS, OCCUPIED, roomTypeForName, type QuickLook, type QuickLookStep, type ScopePreset } from "@/lib/wizard/quick-look";
 import {
   COLOUR_CHOICES, EXTRA_ROOMS, JOB_CHOICES, MOBILE_SCREEN_KEY, applyColourChoice, applyJobChoice, colourChoiceOf, detailsReady,
-  mobileProgress, mobileScreensFor, paintScreenParts, roomChips, roomsTicked, surfaceChips, toggleListedRoom, toggleSurface, AROUND_EXTRAS,
+  mobileProgress, mobileScreensFor, paintScreenParts, roomChips, roomsTicked, surfaceChips, surfacesTicked, toggleListedRoom, toggleSurface, AROUND_EXTRAS,
   extraSizeRows, extraSizesWithDefaults, sideOfScreen, MOBILE_SIDE_SHORT, type MobileScreen, type PaintScreenId,
 } from "@/lib/wizard/mobileScreens";
 import { EXT_ACCESS, EXT_COLOURS, EXT_WINDOW_TYPES, toggleAccess } from "@/lib/wizard/exterior-quick-look";
@@ -22,8 +22,11 @@ import { elevationCaption, outsideSheetChips, pictureStateFor, ribbonFor } from 
 import MobileStrip, { type StripChip } from "./MobileStrip";
 import OtpCode, { type OtpHandlers, type OtpUi } from "./OtpCode";
 import { brandFor } from "@/lib/marketing/brand";
-import { sendWizardEvent } from "@/lib/wizard/wizardEvents";
+import { breakpointNow, sendWizardEvent } from "@/lib/wizard/wizardEvents";
 import { AddRoomInline } from "./QuickLook";
+import PictureCard from "./PictureCard";
+import JobSoFar from "./JobSoFar";
+import TalkCard from "./TalkCard";
 import { TypeThumb } from "./pictures/Elevation";
 import { SIZE_OPTIONS, houseOfShape } from "./ExteriorHome";
 import { reseedSides } from "@/lib/wizard/exterior-model";
@@ -54,11 +57,39 @@ import type { ExteriorPart, ExteriorV2 } from "@/lib/wizard/state";
  * reload lands on the same screen. A step this file does not split is
  * rendered as it is (`renderStep`, the desktop's QuickLook in `shell="mobile"`
  * mode) with the bar underneath.
+ *
+ * Desktop one-press (addendum, Tom 5 Nov 2026; `wizardDesktopOnePress`): with
+ * `desktop` set the SAME router renders inside the laptop's two-column shell
+ * — the question in the left column (no phone header, bar or strip; the
+ * header pills are WizardApp's), the right rail with the picture card (the
+ * phone's picture, with its roller), "Your job so far" and the estimator.
+ * The differences are a prop, never a second copy: the auto-advance is
+ * 260ms (D-D1), each card carries a small key number (D-D2) and a grey key
+ * hint sits under the options; 1–9 pick, Enter is Continue when it is
+ * enabled, ← is Back, nothing fires while typing in a field, and the name is
+ * focused when the details open. A step WizardApp does not split (the "both"
+ * doors, the commercial screens, the old outside screen) stays on the
+ * grouped page shell, so `renderStep` is never reached here on a laptop.
  */
+export type DesktopRail = {
+  suburb: string | null;
+  estimatorName: string | null;
+  phone: string | null;
+  onBook: () => void;
+  onMessage: () => void;
+  /** "Change" on a row of Your job so far — WizardApp's `quickGo`. */
+  onGo: (step: QuickLookStep) => void;
+  planRooms: Array<{ name: string; roomType: string }> | null;
+  planPreviewUrl: string | null;
+  planPending: boolean;
+};
+
 export default function MobileQuickLook({
   brand, logo, steps, step, quick, onQuick, outside, onOutside, exteriorTypicals = [], address, contact, onContact, roomNames, addedRooms, onAddRoom, onRemoveAdded,
-  error, busy, canContinue, whyNot, onNext, onBack, canBack, onContactOpen, renderStep, resumed, onStartAgain, otp, otpOn,
+  error, busy, canContinue, whyNot, onNext, onBack, canBack, onContactOpen, renderStep, resumed, onStartAgain, otp, otpOn, desktop = null,
 }: {
+  /** Desktop one-press: the laptop's rail (set) or the phone's own chrome (null). */
+  desktop?: DesktopRail | null;
   /** Tom, 5 Nov 2026: the gate's texted code — the state and the four handlers WizardApp owns (null = no gate, or staff). */
   otp: OtpUi | null;
   otpOn: (OtpHandlers & { onBegin: () => Promise<"sent" | "verified" | "failed"> }) | null;
@@ -148,10 +179,11 @@ export default function MobileQuickLook({
   useEffect(() => {
     window.scrollTo({ top: 0 });
     try { window.localStorage.setItem(MOBILE_SCREEN_KEY, current.id); } catch { /* private mode: the resume lands on the step's first screen */ }
-    sendWizardEvent("wizard_step_viewed", { step: current.id, breakpoint: "mobile" });
+    sendWizardEvent("wizard_step_viewed", { step: current.id, breakpoint: breakpointNow() });
   }, [current.id]);
 
-  // R7 / D10: a single choice advances itself ~250ms after the tap.
+  // R7 / D10: a single choice advances itself ~250ms after the tap (260ms on a laptop — D-D1).
+  const advanceMs = desktop ? 260 : 250;
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => () => { if (timer.current) clearTimeout(timer.current); }, []);
   const go = () => {
@@ -167,13 +199,13 @@ export default function MobileQuickLook({
   const pick = (patch: Partial<QuickLook>) => {
     onQuick(patch);
     if (timer.current) clearTimeout(timer.current);
-    timer.current = setTimeout(() => goRef.current(), 250);
+    timer.current = setTimeout(() => goRef.current(), advanceMs);
   };
   // Exterior on mobile v5 (S1): an outside answer (the exterior brief's `v2`, or the colour) that advances itself, like `pick`.
   const pickOutside = (patch: Partial<ExteriorQuickLook>) => {
     onOutside(patch);
     if (timer.current) clearTimeout(timer.current);
-    timer.current = setTimeout(() => goRef.current(), 250);
+    timer.current = setTimeout(() => goRef.current(), advanceMs);
   };
   const back = () => {
     if (timer.current) clearTimeout(timer.current);
@@ -258,28 +290,60 @@ export default function MobileQuickLook({
   const showBar = current.advance === "bar";
   const pct = mobileProgress(index, screens.length);
 
-  return (
-    <div className="wzm" data-testid="wzm" data-mobile-screen={current.id}>
-      <header className="wzm-head" data-testid="wzm-head">
-        <button type="button" className="wzm-back" aria-label="Back" disabled={first && !canBack} onClick={back} data-testid="wzm-back">‹</button>
-        <span className="wzm-logo">{logo}</span>
-        <button type="button" className="wzm-contact" onClick={() => onContactOpen(current.id)} data-testid="wzm-contact">Contact</button>
-      </header>
-      <div className="wzm-bar" role="progressbar" aria-label="Progress" aria-valuemin={0} aria-valuemax={100} aria-valuenow={pct}>
-        <i style={{ width: `${pct}%` }} data-testid="wzm-bar" />
-      </div>
-      {/* §3 — the live strip: the thumbnail, the ribbon, and the sheet behind it. */}
-      <MobileStrip state={picture} ribbon={ribbon} chips={sheetChips} onToggle={toggleSheetChip} elevation={elevation} />
+  // ── Desktop one-press: the keyboard layer, the key numbers, the focus and the rail (a laptop only) ──
+  const rootRef = useRef<HTMLDivElement | null>(null);
+  const backRef = useRef(back);
+  useEffect(() => { backRef.current = back; });
+  const autoNow = current.advance === "auto";
+  useEffect(() => {
+    if (!desktop) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.defaultPrevented || e.metaKey || e.ctrlKey || e.altKey) return;
+      const el = document.activeElement as HTMLElement | null;
+      const tag = el?.tagName ?? "";
+      const inField = tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || Boolean(el?.isContentEditable);
+      if (e.key === "Enter") {
+        // a focused button or link handles its own Enter; a textarea keeps its newline
+        if (tag === "TEXTAREA" || tag === "BUTTON" || tag === "A") return;
+        const btn = rootRef.current?.querySelector<HTMLButtonElement>("[data-testid='ql-next']");
+        if (btn && !btn.disabled) { e.preventDefault(); btn.click(); }
+        return;
+      }
+      if (inField) return; // typing in a field never picks or goes back
+      if (e.key === "ArrowLeft") { e.preventDefault(); backRef.current(); return; }
+      if (/^[1-9]$/.test(e.key) && autoNow) {
+        const opts = rootRef.current?.querySelectorAll<HTMLButtonElement>(".wzm-screen .wzm-opt");
+        const b = opts?.[Number(e.key) - 1];
+        if (b && !b.disabled) { e.preventDefault(); b.click(); }
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [desktop, autoNow]);
+  // the name is focused when the details open (brief §1.3)
+  useEffect(() => {
+    if (!desktop || current.id !== "details") return;
+    const t = setTimeout(() => rootRef.current?.querySelector<HTMLInputElement>("[data-testid='gate-name']")?.focus(), 60);
+    return () => clearTimeout(t);
+  }, [desktop, current.id]);
+  // how many cards this screen offers, for the hint ("1 2 3 choose")
+  const [optCount, setOptCount] = useState(0);
+  useLayoutEffect(() => {
+    if (!desktop) return;
+    setOptCount(rootRef.current?.querySelectorAll(".wzm-screen .wzm-opt").length ?? 0);
+  }, [desktop, current.id, step]);
+  /** D-D2: the small key number top-right of a card — a laptop only, always shown. */
+  const key = (n: number): ReactNode => (desktop && n <= 9 ? <kbd className="wzm-key" aria-hidden="true">{n}</kbd> : null);
+  // the rail: the phone's picture (its roller, its variants) in the laptop's picture card, except on the exterior steps
+  // (the drawn house is the card's own) and the rooms screen (the floor plan stays — a room left out goes dashed)
+  const live = desktop && !EXTERIOR_STEPS.has(step) && current.id !== "rooms" ? { state: picture, count: surfacesReached ? surfacesTicked(quick) : null } : null;
+  const planList = desktop ? [
+    ...roomNames.map((name) => ({ name, roomType: desktop.planRooms?.find((r) => r.name === name)?.roomType ?? roomTypeForName(name), state: (!quick.rooms || quick.rooms.includes(name) ? "on" : "off") as "on" | "off" })),
+    ...addedRooms.map((r) => ({ name: r.name, roomType: r.roomType, state: "on" as const })),
+  ] : [];
 
-      <main className={`wzm-main ${showBar ? "has-bar" : ""}`}>
-        {resumed && (
-          <div className="wz-resume" data-testid="wz-resume">
-            <span>Welcome back — {resumed}. Everything you answered is still here.</span>
-            <button type="button" className="wz-linkish" onClick={onStartAgain} data-testid="wz-start-again">Start again</button>
-          </div>
-        )}
-        {/* `data-quick-step` names the step for the specs: on a screen of our own it is here; a step rendered as it is carries its own pane. */}
-        <section className="wzm-screen" key={current.id} data-quick-step={current.heading != null ? step : undefined}>
+  const screenSection = (
+        <section className="wzm-screen" key={current.id} data-quick-step={!desktop && current.heading != null ? step : undefined}>
           {current.stage && <p className="wzm-stage" data-testid="wzm-stage">{current.stage}</p>}
           {current.heading && <h1 data-testid="wzm-h1">{current.id === "code" && otp ? `Enter the code we texted to ${otp.masked}` : current.heading}</h1>}
           {current.sub && <p className="wzm-sub" data-testid="wzm-sub">{current.sub}</p>}
@@ -295,11 +359,12 @@ export default function MobileQuickLook({
                 <div className="wzm-addrfield" data-testid="wzm-addr-field">{address.field}</div>
               )}
               <div className="wzm-opts two" data-testid="ql-jobtype">
-                {jobTypesFor(brand).map((o) => (
+                {jobTypesFor(brand).map((o, i) => (
                   <button key={o.value} type="button" className={`wzm-opt ${quick.jobType === o.value ? "on" : ""}`} aria-pressed={quick.jobType === o.value}
                     data-testid={`ql-jobtype-${o.value}`} onClick={() => pick({ jobType: o.value })}>
                     <JobIcon kind={o.value} />
                     <span><span className="t">{o.label}</span><span className="d">{JOB_LINE[o.value]}</span></span>
+                    {key(i + 1)}
                   </button>
                 ))}
               </div>
@@ -308,11 +373,12 @@ export default function MobileQuickLook({
 
           {current.id === "property" && (
             <div className="wzm-opts" data-testid="ql-kind">
-              {propertyKindsFor(brand).map((o) => (
+              {propertyKindsFor(brand).map((o, i) => (
                 <button key={o.value} type="button" className={`wzm-opt ${quick.propertyKind === o.value ? "on" : ""}`} aria-pressed={quick.propertyKind === o.value}
                   data-testid={`ql-kind-${o.value}`} onClick={() => pick({ propertyKind: o.value })}>
                   <KindIcon kind={o.value} />
                   <span><span className="t">{o.label}</span>{o.hint && <span className="d">{o.hint}</span>}</span>
+                  {key(i + 1)}
                 </button>
               ))}
             </div>
@@ -322,18 +388,19 @@ export default function MobileQuickLook({
             <div className="wzm-nums" data-testid="ql-bedrooms">
               {[1, 2, 3, 4, 5].map((n) => (
                 <button key={n} type="button" className={`wzm-opt ${quick.bedrooms === n ? "on" : ""}`} aria-pressed={quick.bedrooms === n}
-                  data-testid={`ql-bedrooms-${n}`} onClick={() => pick({ bedrooms: n })}>{n === 5 ? "5+" : n}</button>
+                  data-testid={`ql-bedrooms-${n}`} onClick={() => pick({ bedrooms: n })}>{n === 5 ? "5+" : n}{key(n)}</button>
               ))}
             </div>
           )}
 
           {current.id === "storeys" && (
             <div className="wzm-opts two" data-testid="ql-storeys">
-              {([["single", "One"], ["double", "Two"]] as const).map(([value, label]) => (
+              {([["single", "One"], ["double", "Two"]] as const).map(([value, label], i) => (
                 <button key={value} type="button" className={`wzm-opt ${quick.storeys === value ? "on" : ""}`} aria-pressed={quick.storeys === value}
                   data-testid={`ql-storeys-${value}`} onClick={() => pick({ storeys: value })}>
                   <StoreyIcon two={value === "double"} />
                   <span className="t">{label}</span>
+                  {key(i + 1)}
                 </button>
               ))}
             </div>
@@ -341,11 +408,12 @@ export default function MobileQuickLook({
 
           {current.id === "job" && (
             <div className="wzm-opts" data-testid="ql-scope">
-              {JOB_CHOICES.map((o) => (
+              {JOB_CHOICES.map((o, i) => (
                 <button key={o.value} type="button" className={`wzm-opt ${quick.scope === o.value ? "on" : ""}`} aria-pressed={quick.scope === o.value}
                   // the same job again keeps the surfaces and rooms as ticked; a different one pre-ticks afresh (§2.6)
                   data-testid={`ql-scope-${o.value}`} onClick={() => pick(o.value === quick.scope ? {} : applyJobChoice(o.value as ScopePreset, roomNames))}>
                   <span><span className="t">{o.label}</span><span className="d">{o.hint}</span></span>
+                  {key(i + 1)}
                 </button>
               ))}
             </div>
@@ -381,11 +449,12 @@ export default function MobileQuickLook({
 
           {current.id === "colours" && (
             <div className="wzm-opts" data-testid="ql-colours">
-              {COLOUR_CHOICES.map((o) => (
+              {COLOUR_CHOICES.map((o, i) => (
                 <button key={o.value} type="button" className={`wzm-opt ${colourChoiceOf(quick) === o.value ? "on" : ""}`} aria-pressed={colourChoiceOf(quick) === o.value}
                   data-testid={`ql-colours-${o.value}`} onClick={() => pick(applyColourChoice(quick, o.value))}>
                   <span className={`wzm-sw wzm-sw--${o.value}`} aria-hidden="true" />
                   <span><span className="t">{o.label}</span><span className="d">{o.hint}</span></span>
+                  {key(i + 1)}
                 </button>
               ))}
             </div>
@@ -393,11 +462,12 @@ export default function MobileQuickLook({
 
           {current.id === "condition" && (
             <div className="wzm-opts" data-testid="ql-condition">
-              {CONDITION_BANDS.map((o) => (
+              {CONDITION_BANDS.map((o, i) => (
                 <button key={o.value} type="button" className={`wzm-opt ${quick.condition === o.value ? "on" : ""}`} aria-pressed={quick.condition === o.value}
                   data-testid={`ql-condition-${o.value}`} onClick={() => pick({ condition: o.value })}>
                   <span className={`wzm-sw wzm-sw--${o.value}`} aria-hidden="true" />
                   <span><span className="t">{CONDITION_WORDS[o.value].t}</span><span className="d">{CONDITION_WORDS[o.value].d}</span></span>
+                  {key(i + 1)}
                 </button>
               ))}
             </div>
@@ -405,10 +475,11 @@ export default function MobileQuickLook({
 
           {current.id === "living" && (
             <div className="wzm-opts two" data-testid="ql-occupied">
-              {OCCUPIED.map((o) => (
+              {OCCUPIED.map((o, i) => (
                 <button key={o.value} type="button" className={`wzm-opt ${quick.occupied === o.value ? "on" : ""}`} aria-pressed={quick.occupied === o.value}
                   data-testid={`ql-occupied-${o.value}`} onClick={() => pick({ occupied: o.value })}>
                   <span className="t">{o.label}</span>
+                  {key(i + 1)}
                 </button>
               ))}
             </div>
@@ -419,7 +490,7 @@ export default function MobileQuickLook({
               the submit see exactly what they always did. */}
           {current.id === "shape" && (
             <div className="wzm-opts two wzm-shapes" data-testid="ql-ext-type">
-              {EXTERIOR_SHAPE_KEYS.map((k) => {
+              {EXTERIOR_SHAPE_KEYS.map((k, i) => {
                 const on = outside.v2?.propertyType === k;
                 return (
                   <button key={k} type="button" className={`wzm-opt ${on ? "on" : ""}`} aria-pressed={on} data-testid={`ql-ext-type-${k}`}
@@ -427,40 +498,41 @@ export default function MobileQuickLook({
                     onClick={() => pickOutside({ v2: on && outside.v2 ? outside.v2 : houseOfShape(k, outside.v2, exteriorTypicals) })}>
                     <TypeThumb shape={k} rows={exteriorTypicals} />
                     <span className="t">{typicalFor(k, exteriorTypicals).name}</span>
+                    {key(i + 1)}
                   </button>
                 );
               })}
             </div>
           )}
-          {current.id === "size" && outside.v2 && <SizeChoices v2={outside.v2} rows={exteriorTypicals} onPick={(v2) => pickOutside({ v2 })} />}
-          {current.id === "row" && outside.v2 && <RowChoices v2={outside.v2} rows={exteriorTypicals} onPick={(v2) => pickOutside({ v2 })} />}
+          {current.id === "size" && outside.v2 && <SizeChoices v2={outside.v2} rows={exteriorTypicals} onPick={(v2) => pickOutside({ v2 })} keyOf={key} />}
+          {current.id === "row" && outside.v2 && <RowChoices v2={outside.v2} rows={exteriorTypicals} onPick={(v2) => pickOutside({ v2 })} keyOf={key} />}
 
           {/* Exterior on mobile v5, session 3 (plan §2 screens 6a–6n, 7, 8): About it, one card a screen, only for the ticked parts;
               the answers are the brief's `v2.wall` / `gableFill` / `windowType` / `garageCars` / `postKind` / `extraSizes` and the
               outside quick look's `colour` and `access`, as the desktop card writes them. */}
           {current.id === "a-walls" && outside.v2 && (
-            <Options name="ext-mat" value={outside.v2.wall.down} onPick={(m) => pickOutside({ v2: { ...outside.v2!, wall: { ...outside.v2!.wall, down: m } } })}
+            <Options keyOf={key} name="ext-mat" value={outside.v2.wall.down} onPick={(m) => pickOutside({ v2: { ...outside.v2!, wall: { ...outside.v2!.wall, down: m } } })}
               options={WALL_MATERIALS.map((m) => ({ value: m, label: WALL_MATERIAL_LABEL[m], hint: m === "vertical_timber" ? "Usually stained, not painted" : null }))} />
           )}
           {current.id === "a-wallsUp" && outside.v2 && (
-            <Options name="ext-mat-up" value={outside.v2.wall.up ?? "same"} onPick={(m) => pickOutside({ v2: { ...outside.v2!, wall: { ...outside.v2!.wall, up: m === "same" ? null : m } } })}
+            <Options keyOf={key} name="ext-mat-up" value={outside.v2.wall.up ?? "same"} onPick={(m) => pickOutside({ v2: { ...outside.v2!, wall: { ...outside.v2!.wall, up: m === "same" ? null : m } } })}
               options={[{ value: "same" as const, label: "Same as downstairs", hint: null }, ...WALL_MATERIALS.map((m) => ({ value: m as WallMaterial | "same", label: WALL_MATERIAL_LABEL[m], hint: null }))]} />
           )}
           {current.id === "a-brick" && outside.v2 && (
-            <Options two name="ext-brick" value={outside.v2.wall.brickPainted} onPick={(v) => pickOutside({ v2: { ...outside.v2!, wall: { ...outside.v2!.wall, brickPainted: v } } })}
+            <Options keyOf={key} two name="ext-brick" value={outside.v2.wall.brickPainted} onPick={(v) => pickOutside({ v2: { ...outside.v2!, wall: { ...outside.v2!.wall, brickPainted: v } } })}
               options={[{ value: "yes" as const, label: "Yes, painted", hint: null }, { value: "no" as const, label: "No, bare brick", hint: null }]} />
           )}
           {current.id === "a-timber" && outside.v2 && (
-            <Options two name="ext-timber" value={outside.v2.wall.timberPainted ?? "no"} onPick={(v) => pickOutside({ v2: { ...outside.v2!, wall: { ...outside.v2!.wall, timberPainted: v } } })}
+            <Options keyOf={key} two name="ext-timber" value={outside.v2.wall.timberPainted ?? "no"} onPick={(v) => pickOutside({ v2: { ...outside.v2!, wall: { ...outside.v2!.wall, timberPainted: v } } })}
               options={[{ value: "no" as const, label: "Stained", hint: null }, { value: "yes" as const, label: "Painted", hint: null }]} />
           )}
           {current.id === "a-gable" && outside.v2 && (
-            <Options name="ext-gable" value={outside.v2.gableFill} onPick={(f) => pickOutside({ v2: { ...outside.v2!, gableFill: f } })}
+            <Options keyOf={key} name="ext-gable" value={outside.v2.gableFill} onPick={(f) => pickOutside({ v2: { ...outside.v2!, gableFill: f } })}
               options={GABLE_FILL.map((o) => ({ value: o.value, label: o.label, hint: o.hint ?? null }))} />
           )}
           {current.id === "a-win" && outside.v2 && (
             <div className="wzm-opts two wzm-wins" data-testid="ql-ext-win">
-              {EXT_WINDOW_TYPES.map((o) => {
+              {EXT_WINDOW_TYPES.map((o, i) => {
                 const on = outside.v2!.windowType === o.value;
                 const drawing = o.value === "casement" || o.value === "sash" || o.value === "colonial" || o.value === "winder" ? WINDOW_DRAWINGS[o.value] : null;
                 return (
@@ -468,22 +540,23 @@ export default function MobileQuickLook({
                     onClick={() => pickOutside({ v2: { ...outside.v2!, windowType: o.value } })}>
                     {drawing && <span className="wzm-win" aria-hidden="true">{drawing}</span>}
                     <span><span className="t">{o.label}</span>{o.hint && <span className="d">{o.hint}</span>}</span>
+                    {key(i + 1)}
                   </button>
                 );
               })}
             </div>
           )}
           {current.id === "a-garage" && outside.v2 && (
-            <Options two name="ext-garage" value={outside.v2.garageCars == null ? null : (String(outside.v2.garageCars) as "1" | "2")} onPick={(v) => pickOutside({ v2: { ...outside.v2!, garageCars: v === "2" ? 2 : 1 } })}
+            <Options keyOf={key} two name="ext-garage" value={outside.v2.garageCars == null ? null : (String(outside.v2.garageCars) as "1" | "2")} onPick={(v) => pickOutside({ v2: { ...outside.v2!, garageCars: v === "2" ? 2 : 1 } })}
               options={[{ value: "1" as const, label: "Single", hint: null }, { value: "2" as const, label: "Double", hint: null }]} />
           )}
           {current.id === "a-posts" && outside.v2 && (
-            <Options name="ext-posts" value={outside.v2.postKind} onPick={(k) => pickOutside({ v2: { ...outside.v2!, postKind: k } })}
+            <Options keyOf={key} name="ext-posts" value={outside.v2.postKind} onPick={(k) => pickOutside({ v2: { ...outside.v2!, postKind: k } })}
               options={POST_KIND.map((o) => ({ value: o.value, label: o.label, hint: o.value === "lace" ? "Lacework priced by your estimator" : null }))} />
           )}
           {current.id === "a-extras" && outside.v2 && <ExtraSizes v2={outside.v2} onChange={(v2) => onOutside({ v2 })} />}
           {current.id === "a-colours" && (
-            <Options name="ql-ext-colour" value={outside.colour} onPick={(colour) => pickOutside({ colour })}
+            <Options keyOf={key} name="ql-ext-colour" value={outside.colour} onPick={(colour) => pickOutside({ colour })}
               options={EXT_COLOURS.map((o) => ({ value: o.value, label: o.label, hint: o.hint ?? null }))} />
           )}
           {current.id === "a-access" && (
@@ -559,11 +632,13 @@ export default function MobileQuickLook({
 
           {current.heading != null && error && <div className="wz-err" data-testid="ql-error">{error}</div>}
         </section>
-      </main>
+  );
 
-      {showBar && (
+  const foot = showBar && (
         <div className="wzm-foot" data-testid="wzm-foot">
           {whyNot && (!canContinue || busy) && <p className="wzm-why" data-testid="ql-why" role="status">{whyNot}</p>}
+          {/* Desktop one-press: Continue is never silently unavailable (UI refresh S1) — the missing answer is named */}
+          {desktop && current.id === "rooms" && ticked === 0 && <p className="wzm-why" data-testid="ql-why" role="status">Tick at least one room, or add one.</p>}
           <button key={error ?? "ok"} type="button" className={`wzm-cta ${error ? "wz-shake" : ""}`} disabled={!ready || !canContinue || busy || Boolean(otp?.busy)} data-testid="ql-next"
             onClick={() => {
               rememberedAtMount.current = null; pendingRef.current = "first";
@@ -580,7 +655,69 @@ export default function MobileQuickLook({
           </button>
           {current.id === "details" && <p className="wzm-hint" data-testid="wzm-hint">We text you a code first</p>}
         </div>
-      )}
+  );
+
+  if (desktop) {
+    // The laptop: the question in the left column, the rail on the right — WizardApp draws the header pills over it.
+    return (
+      <div className="wz-stage wzm wzm--desk" data-testid="wzm" data-shell="desktop" data-mobile-screen={current.id} ref={rootRef}>
+        <div className="wz-wrap wz-quick wz-pane" data-quick-step={step}>
+          {resumed && (
+            <div className="wz-resume" data-testid="wz-resume">
+              <span>Welcome back — {resumed}. Everything you answered is still here.</span>
+              <button type="button" className="wz-linkish" onClick={onStartAgain} data-testid="wz-start-again">Start again</button>
+            </div>
+          )}
+          {!(first && !canBack) && (
+            <button type="button" className="wzm-back wzm-back--desk" onClick={back} data-testid="wzm-back"><span aria-hidden="true">‹</span> Back</button>
+          )}
+          {screenSection}
+          {foot}
+          {current.id !== "code" && (
+            <p className="wzm-keys" data-testid="wzm-keys">
+              {autoNow
+                ? <>{Array.from({ length: Math.min(9, optCount) }, (_, i) => <b key={i}>{i + 1}</b>)} choose · <b>←</b> back</>
+                : <><b>Enter</b> {current.id === "details" ? "show my range" : "continue"} · <b>←</b> back</>}
+            </p>
+          )}
+        </div>
+        <aside className="wz-side" data-testid="ql-side" aria-label="Your job">
+          <PictureCard step={step} quick={quick} outside={outside} suburb={desktop.suburb} rooms={planList} planPreviewUrl={desktop.planPreviewUrl} planPending={desktop.planPending}
+            exteriorTypicals={exteriorTypicals} segmentName={null} live={live}
+            onExtPart={outside.v2 ? (part) => togglePaintPart(part) : undefined} sideAt={sideAt ?? "front"} />
+          <JobSoFar steps={steps} at={step} quick={quick} outside={outside} address={address.text} roomCount={ticked} segmentName={null} areaCount={0} briefCount={0}
+            onGo={desktop.onGo} includeCurrent={sub > 0} />
+          <TalkCard estimatorName={desktop.estimatorName} phone={desktop.phone} onBook={desktop.onBook} onMessage={desktop.onMessage} brand={brand} />
+        </aside>
+      </div>
+    );
+  }
+
+  return (
+    <div className="wzm" data-testid="wzm" data-shell="phone" data-mobile-screen={current.id} ref={rootRef}>
+      <header className="wzm-head" data-testid="wzm-head">
+        <button type="button" className="wzm-back" aria-label="Back" disabled={first && !canBack} onClick={back} data-testid="wzm-back">‹</button>
+        <span className="wzm-logo">{logo}</span>
+        <button type="button" className="wzm-contact" onClick={() => onContactOpen(current.id)} data-testid="wzm-contact">Contact</button>
+      </header>
+      <div className="wzm-bar" role="progressbar" aria-label="Progress" aria-valuemin={0} aria-valuemax={100} aria-valuenow={pct}>
+        <i style={{ width: `${pct}%` }} data-testid="wzm-bar" />
+      </div>
+      {/* §3 — the live strip: the thumbnail, the ribbon, and the sheet behind it. */}
+      <MobileStrip state={picture} ribbon={ribbon} chips={sheetChips} onToggle={toggleSheetChip} elevation={elevation} />
+
+      <main className={`wzm-main ${showBar ? "has-bar" : ""}`}>
+        {resumed && (
+          <div className="wz-resume" data-testid="wz-resume">
+            <span>Welcome back — {resumed}. Everything you answered is still here.</span>
+            <button type="button" className="wz-linkish" onClick={onStartAgain} data-testid="wz-start-again">Start again</button>
+          </div>
+        )}
+        {/* `data-quick-step` names the step for the specs: on a screen of our own it is here; a step rendered as it is carries its own pane. */}
+        {screenSection}
+      </main>
+
+      {foot}
     </div>
   );
 }
@@ -613,15 +750,16 @@ function StoreyIcon({ two }: { two: boolean }) {
 }
 
 /** Exterior on mobile v5 (S1), screen 3: the five size pills with the m² / bedroom hint (ExteriorHome's words). */
-function SizeChoices({ v2, rows, onPick }: { v2: ExteriorV2; rows: ReadonlyArray<ExteriorTypicalRow>; onPick: (v2: ExteriorV2) => void }) {
+function SizeChoices({ v2, rows, onPick, keyOf = () => null }: { v2: ExteriorV2; rows: ReadonlyArray<ExteriorTypicalRow>; onPick: (v2: ExteriorV2) => void; keyOf?: (n: number) => ReactNode }) {
   return (
     <div className="wzm-opts" data-testid="ql-ext-size">
-      {SIZE_OPTIONS.map((o) => {
+      {SIZE_OPTIONS.map((o, i) => {
         const on = v2.sizeBand === o.value;
         return (
           <button key={o.value} type="button" className={`wzm-opt ${on ? "on" : ""}`} aria-pressed={on} data-testid={`ql-ext-size-${o.value}`}
             onClick={() => { const next = { ...v2, sizeBand: o.value }; onPick({ ...next, sides: reseedSides(next, rows) }); }}>
             <span><span className="t">{o.label}</span><span className="d">{o.hint}</span></span>
+            {keyOf(i + 1)}
           </button>
         );
       })}
@@ -630,36 +768,42 @@ function SizeChoices({ v2, rows, onPick }: { v2: ExteriorV2; rows: ReadonlyArray
 }
 
 /** Exterior on mobile v5 (S1), screen 4: where it is in the row — only for a shape that usually shares a wall (ExteriorHome's options). */
-function RowChoices({ v2, rows, onPick }: { v2: ExteriorV2; rows: ReadonlyArray<ExteriorTypicalRow>; onPick: (v2: ExteriorV2) => void }) {
+function RowChoices({ v2, rows, onPick, keyOf = () => null }: { v2: ExteriorV2; rows: ReadonlyArray<ExteriorTypicalRow>; onPick: (v2: ExteriorV2) => void; keyOf?: (n: number) => ReactNode }) {
   const t = typicalFor(v2.propertyType, rows);
   const one = t.sharedSides.length === 1;
   const pick = (rowPosition: NonNullable<ExteriorV2["rowPosition"]>) => { const next = { ...v2, rowPosition }; onPick({ ...next, sides: reseedSides(next, rows) }); };
-  const opt = (value: NonNullable<ExteriorV2["rowPosition"]>, label: string, hint: string | null) => (
-    <button key={value} type="button" className={`wzm-opt ${v2.rowPosition === value ? "on" : ""}`} aria-pressed={v2.rowPosition === value} data-testid={`ql-ext-row-${value}`} onClick={() => pick(value)}>
-      <span><span className="t">{label}</span>{hint && <span className="d">{hint}</span>}</span>
-    </button>
-  );
+  const rows_: Array<[NonNullable<ExteriorV2["rowPosition"]>, string, string | null]> = [
+    ["mid", one ? `Shares the ${t.sharedSides[0]} wall` : "In the middle of the row", one ? null : "Shares both sides"],
+    ...(t.sharedSides.includes("left") ? [["left", "End of the row — left side open", null] as [NonNullable<ExteriorV2["rowPosition"]>, string, string | null]] : []),
+    ...(t.sharedSides.includes("right") ? [["right", "End of the row — right side open", null] as [NonNullable<ExteriorV2["rowPosition"]>, string, string | null]] : []),
+    ["both", "Stands alone", "All four sides"],
+  ];
   return (
     <div className="wzm-opts" data-testid="ql-ext-row">
-      {opt("mid", one ? `Shares the ${t.sharedSides[0]} wall` : "In the middle of the row", one ? null : "Shares both sides")}
-      {t.sharedSides.includes("left") && opt("left", "End of the row — left side open", null)}
-      {t.sharedSides.includes("right") && opt("right", "End of the row — right side open", null)}
-      {opt("both", "Stands alone", "All four sides")}
+      {rows_.map(([value, label, hint], i) => (
+        <button key={value} type="button" className={`wzm-opt ${v2.rowPosition === value ? "on" : ""}`} aria-pressed={v2.rowPosition === value} data-testid={`ql-ext-row-${value}`} onClick={() => pick(value)}>
+          <span><span className="t">{label}</span>{hint && <span className="d">{hint}</span>}</span>
+          {keyOf(i + 1)}
+        </button>
+      ))}
     </div>
   );
 }
 
 /** Exterior on mobile v5 (S3): a single-choice About it screen — the brief's options as the phone's option tiles, advancing itself. */
-function Options<T extends string>({ name, options, value, onPick, two = false }: {
+function Options<T extends string>({ name, options, value, onPick, two = false, keyOf = () => null }: {
   name: string; options: ReadonlyArray<{ value: T; label: string; hint: string | null }>; value: T | null; onPick: (v: T) => void; two?: boolean;
+  /** Desktop one-press: the key number for the nth card (a laptop only). */
+  keyOf?: (n: number) => ReactNode;
 }) {
   return (
     <div className={`wzm-opts ${two ? "two" : ""}`} data-testid={name}>
-      {options.map((o) => {
+      {options.map((o, i) => {
         const on = value === o.value;
         return (
           <button key={o.value} type="button" className={`wzm-opt ${on ? "on" : ""}`} aria-pressed={on} data-testid={`${name}-${o.value}`} onClick={() => onPick(o.value)}>
             <span><span className="t">{o.label}</span>{o.hint && <span className="d">{o.hint}</span>}</span>
+            {keyOf(i + 1)}
           </button>
         );
       })}
