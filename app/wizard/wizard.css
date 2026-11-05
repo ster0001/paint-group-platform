@@ -2931,3 +2931,7 @@
   .wz .wzq .wzq-sticky > .wzq-tiles, .wz .wzq .wzq-sticky > .wzq-panel, .wz .wzq .wzq-sticky > .wzq-band { display: none; }
 }
 
+/* ── 5 Nov: a chip that holds a counter is a span, not a button (buttons cannot nest) — same look, keyboard-reachable. ── */
+.wz .wzq span.wzm-chip { cursor: pointer; user-select: none; }
+.wz .wzq span.wzm-chip[aria-disabled="true"] { opacity: .6; cursor: default; }
+

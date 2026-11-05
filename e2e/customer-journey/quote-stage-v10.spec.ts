@@ -5,7 +5,7 @@ import { serviceClient } from "../fixtures/woLoop";
 import { readFileSync } from "node:fs";
 import { MONEY_RANGE, driveMobileQuickLook, driveNoPlanWizard, openQuickLook, fillQuickAddress } from "./drive";
 /** D-Q5: `lib/wizard/spotPhoto.ts SPOT_PHOTO_MAX_BYTES` (not imported — that module loads the browser client). */
-const SPOT_PHOTO_MAX_BYTES = 5 * 1024 * 1024;
+const SPOT_PHOTO_MAX_BYTES = 25 * 1024 * 1024; // Tom, 5 Nov: any phone-sized photo — the adapter's own limit
 
 /**
  * QUOTE STAGE v10 — session 1, the skeleton (`docs/briefs/claude-code-brief-quote-stage-v10.md`
@@ -56,7 +56,10 @@ test.describe("quote stage v10 — session 1: the cards on a phone", () => {
   const card = (page: Page, id: string) => expect(page.getByTestId("quote-stage")).toHaveAttribute("data-quote-card", id, { timeout: 15_000 });
   const cardId = (page: Page) => page.getByTestId("quote-stage").getAttribute("data-quote-card");
   /** Pass one card the quickest honest way: typical size, Next, No robe, nothing to fix, every room, Next. */
+  /** A card that posts on its way out is busy for a moment: read the card only once the stage has settled. */
+  const settle = (page: Page) => expect(page.getByTestId("quote-stage")).toHaveAttribute("data-busy", "0", { timeout: 60_000 });
   const passCard = async (page: Page) => {
+    await settle(page);
     const id = (await cardId(page))!;
     if (id.startsWith("measure:")) await page.getByTestId("q-size-typical").tap();
     else if (id.startsWith("robe:")) await page.getByTestId("q-robe-none").tap();
@@ -206,7 +209,7 @@ test.describe("quote stage v10 — session 1: the cards on a phone", () => {
     // B1 (S3): the room photo control, with the D-Q5 size limit enforced before anything is sent
     await expect(page.getByTestId("q-room-photo-label")).toContainText("Take or attach a photo of the room");
     await page.getByTestId("q-room-photo").setInputFiles({ name: "huge.png", mimeType: "image/png", buffer: Buffer.alloc(SPOT_PHOTO_MAX_BYTES + 1) });
-    await expect(page.getByTestId("q-photo-error")).toContainText("over 5 MB");
+    await expect(page.getByTestId("q-photo-error")).toContainText("over 25 MB");
     await page.getByTestId("q-size-ok").tap();
     await card(page, `surfaces:${firstArea}`);
     // B2 — what we're painting in here: the tiles as chips; doors + → 2; the door scope and the window key
@@ -222,7 +225,7 @@ test.describe("quote stage v10 — session 1: the cards on a phone", () => {
     expect(picDoors).toBeGreaterThan(0);
     await expect(pic.locator("[data-kind='door']")).toHaveCount(picDoors);
     await shot(page, "phone-04-surfaces");
-    const chips = page.getByTestId("q-surfaces").locator("button.wzm-chip");
+    const chips = page.getByTestId("q-surfaces").locator(".wzm-chip");
     expect(await chips.count()).toBeGreaterThan(3);
     await expect(page.getByTestId("q-surf-walls")).toHaveAttribute("aria-pressed", "true");
     await expect(page.getByTestId("q-walls-share-100")).toHaveClass(/sel/);
@@ -306,7 +309,7 @@ test.describe("quote stage v10 — session 1: the cards on a phone", () => {
     await card(page, "extras");
     // E2 — anything we haven't listed? a priced extra (where the rate card offers one), help with colours, a note
     await expect(page.getByTestId("wzm-h1")).toHaveText("Anything we haven’t listed?");
-    const extra = page.getByTestId("q-extras").locator("button[data-testid^='q-extra-']:not([data-testid='q-extra-colour'])").first();
+    const extra = page.getByTestId("q-extras").locator("[data-testid^='q-extra-']:not([data-testid='q-extra-colour'])").first();
     if (await extra.count()) {
       await expect(extra).toContainText(/\$\d/);
       await extra.tap();
@@ -339,6 +342,7 @@ test.describe("quote stage v10 — session 1: the cards on a phone", () => {
     await page.getByTestId("q-measure-w").fill("3.6");
     await page.getByTestId("q-measure-l").fill("3.1");
     await page.getByTestId("q-size-ok").tap();
+    await expect(stage).not.toHaveAttribute("data-quote-card", `measure:${typicalArea}`, { timeout: 30_000 });
     await passUntil(page, (id) => id === "done");
     await expect(page.getByTestId("q-done-doc").getByTestId(`q-line-${typicalArea}`)).toHaveAttribute("data-state", "measured");
     expect(await page.getByTestId("wzm-bar").evaluate((el) => parseFloat((el as HTMLElement).style.width))).toBe(100);

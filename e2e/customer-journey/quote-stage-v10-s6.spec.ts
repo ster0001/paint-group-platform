@@ -17,16 +17,20 @@ const SHOTS = process.env.QUOTE_SHOTS_DIR ?? "";
 const shot = async (page: Page, name: string) => { if (SHOTS) { await page.waitForTimeout(600); await page.screenshot({ path: `${SHOTS}/${name}.png`, animations: "disabled" }); } };
 const db = serviceClient();
 const cardId = (page: Page) => page.getByTestId("quote-stage").getAttribute("data-quote-card");
-const passCard = async (page: Page) => {
+/** A card that posts on its way out is busy for a moment: read the card only once the stage has settled, or the tap lands on a button that detaches mid-action. */
+const settle = (page: Page) => expect(page.getByTestId("quote-stage")).toHaveAttribute("data-busy", "0", { timeout: 60_000 });
+const passCard = async (page: Page, touch = true) => {
+  await settle(page);
   const id = (await cardId(page))!;
-  if (id.startsWith("g:")) await page.locator(".wzq-card .wzm-opts .wzm-opt").first().click(); // a single choice advances itself
-  else if (id.startsWith("measure:") || id.startsWith("side-size:")) await page.getByTestId("q-size-typical").click();
-  else if (id.startsWith("robe:")) await page.getByTestId("q-robe-none").click();
-  else await page.getByTestId("q-next").click();
+  const press = async (loc: ReturnType<Page["getByTestId"]>) => (touch ? loc.tap() : loc.click());
+  if (id.startsWith("g:")) await press(page.locator(".wzq-card .wzm-opts .wzm-opt").first()); // a single choice advances itself
+  else if (id.startsWith("measure:") || id.startsWith("side-size:")) await press(page.getByTestId("q-size-typical"));
+  else if (id.startsWith("robe:")) await press(page.getByTestId("q-robe-none"));
+  else await press(page.getByTestId("q-next"));
   await expect.poll(() => cardId(page), { timeout: 30_000 }).not.toBe(id);
 };
-const passUntil = async (page: Page, stop: (id: string) => boolean) => {
-  for (let i = 0; i < 60; i++) { const id = (await cardId(page))!; if (stop(id)) return; await passCard(page); }
+const passUntil = async (page: Page, stop: (id: string) => boolean, touch = true) => {
+  for (let i = 0; i < 60; i++) { const id = (await cardId(page))!; if (stop(id)) return; await passCard(page, touch); }
   throw new Error("never reached the card");
 };
 const toGate = async (page: Page, run: string) => {
@@ -34,7 +38,7 @@ const toGate = async (page: Page, run: string) => {
   const details = page.locator("[data-mobile-screen='details']");
   for (let i = 0; i < 5 && !(await details.isVisible()); i++) {
     const next = page.getByTestId("ql-next");
-    if (await next.isVisible()) await next.click();
+    if (await next.isVisible()) await next.tap();
     await page.waitForTimeout(600);
   }
   await expect(details).toBeVisible({ timeout: 30_000 });
@@ -82,11 +86,11 @@ test.describe("quote stage v10 — session 6: outside and trims on a phone", () 
       const n0 = Number(await page.getByTestId("ext-side-win-n").innerText());
       const strip = page.getByTestId("wzm-thumb").locator("svg.wz-elev");
       await expect(strip).toHaveAttribute("data-windows", String(n0));
-      await sideWin.getByRole("button", { name: /More/ }).click();
+      await sideWin.getByRole("button", { name: /More/ }).tap();
       await expect(page.getByTestId("ext-side-win-n")).toHaveText(String(n0 + 1));
       await expect(strip).toHaveAttribute("data-windows", String(n0 + 1));
     }
-    await page.getByTestId("ql-next").click();
+    await page.getByTestId("ql-next").tap();
     await toGate(page, run);
     const stage = page.getByTestId("quote-stage");
     await expect(stage).toHaveAttribute("data-job-kind", "exterior");
@@ -99,51 +103,54 @@ test.describe("quote stage v10 — session 6: outside and trims on a phone", () 
     const firstKey = (await cardId(page))!.split(":")[1];
     await page.getByTestId("q-side-w").fill("12");
     await page.getByTestId("q-side-h").fill("3");
-    await page.getByTestId("q-size-ok").click();
+    await page.getByTestId("q-size-ok").tap();
     await expect(stage).toHaveAttribute("data-quote-card", `side-on:${firstKey}`, { timeout: 30_000 });
     // the quote line is a side: across × high, measured
-    await page.getByTestId("q-tile-quote").click();
+    await page.getByTestId("q-tile-quote").tap();
     const measured = page.locator("[data-testid^='q-line-'][data-state='measured']").first();
     await expect(measured).toContainText("12 × 3 m");
     await expect(measured.locator(".amt")).toHaveText(MONEY_RANGE);
-    await page.getByTestId("q-tile-quote").click();
+    await page.getByTestId("q-tile-quote").tap();
     // C2 — on this side: windows and doors are the drawn house's counts — + on windows redraws the side with one more
     await expect(page.getByTestId("wzm-h1")).toHaveText("On this side");
     await shot(page, "phone-outside-02-on-this-side");
     // the windows stepper is there only when windows are a ticked part (the quick-look drive ticks walls + fascias) — add them here, then count
     await expect(page.getByTestId("q-side-parts")).toBeVisible();
     if (!(await page.getByTestId("q-side-win").count())) {
-      await page.getByTestId("q-side-add-open").click();
-      await page.getByTestId("q-side-addpart-windows").click();
+      await page.getByTestId("q-side-add-open").tap();
+      await page.getByTestId("q-side-addpart-windows").tap();
       await expect(page.getByTestId("q-side-win")).toBeVisible({ timeout: 30_000 });
     }
     const win0 = Number(await page.getByTestId("q-side-win-n").innerText());
     const elev = page.getByTestId("q-tile-room").locator("svg.wz-elev");
     await expect(elev).toHaveAttribute("data-windows", String(win0));
-    await page.getByTestId("q-side-win").getByRole("button", { name: "More" }).click();
+    await page.getByTestId("q-side-win").getByRole("button", { name: "More" }).tap();
     await expect(page.getByTestId("q-side-win-n")).toHaveText(String(win0 + 1));
     await expect(elev).toHaveAttribute("data-windows", String(win0 + 1));
     await expect.poll(async () => page.getByTestId("quote-stage").getAttribute("data-busy"), { timeout: 30_000 }).not.toBe("1");
     // and a part can be unticked on this side
-    await page.getByTestId("q-side-part-fascias").click();
+    await page.getByTestId("q-side-part-fascias").tap();
     await expect(page.getByTestId("q-side-part-fascias")).toHaveAttribute("aria-pressed", "false", { timeout: 30_000 });
     // the condition chips sit low on the card: scroll them to the middle first, or the sticky bar sits over them
     await page.getByTestId("q-side-cond-weathered").evaluate((el) => el.scrollIntoView({ block: "center" }));
-    await page.getByTestId("q-side-cond-weathered").click();
+    await page.getByTestId("q-side-cond-weathered").tap();
     await expect(page.getByTestId("q-side-cond-weathered")).toHaveAttribute("aria-pressed", "true");
-    await page.getByTestId("q-next").click();
+    await page.getByTestId("q-next").tap();
     await expect(stage).toHaveAttribute("data-quote-card", `side-attn:${firstKey}`, { timeout: 30_000 });
     // C3 — anything needing attention: flaking → the side's note
     await expect(page.getByTestId("q-next")).toHaveText("Nothing to fix — next side");
-    await page.getByTestId("q-side-prep-flaking").click();
-    await page.getByTestId("q-prep-add").click();
+    await page.getByTestId("q-side-prep-flaking").tap();
+    await page.getByTestId("q-prep-add").tap();
     await expect.poll(() => cardId(page), { timeout: 30_000 }).not.toBe(`side-attn:${firstKey}`);
-    await page.getByTestId("wzm-back").click();
+    await settle(page);
+    await page.getByTestId("wzm-back").tap();
     await expect(stage).toHaveAttribute("data-quote-card", `side-attn:${firstKey}`);
     await expect(page.getByTestId("q-side-noted")).toContainText("Flaking");
-    await page.getByTestId("q-next").click();
+    await settle(page);
+    await page.getByTestId("q-next").tap();
+    await expect(stage).not.toHaveAttribute("data-quote-card", `side-attn:${firstKey}`, { timeout: 30_000 });
     await passUntil(page, (id) => id === "done");
-    await expect(page.getByTestId("gate-label")).toHaveText("Quote Tester, your quote range");
+    await expect(page.getByTestId("gate-label")).toHaveText("Quote, your quote range"); // greeted by first name
     await expect(page.getByTestId("gate-range")).toHaveText(MONEY_RANGE);
     await expect(page.getByTestId("q-done-doc").locator("[data-testid^='q-line-'][data-state='todo']")).toHaveCount(0);
     expect(await stage.innerText()).not.toMatch(/exact|±|within \d+%/i);
@@ -160,15 +167,15 @@ test.describe("quote stage v10 — session 6: outside and trims on a phone", () 
     await expect(stage).toHaveAttribute("data-job-kind", "trims");
     // D's own first card (S7): "Same white, or a new colour?" — then the doors
     await expect(stage).toHaveAttribute("data-quote-card", "g:trimColour", { timeout: 15_000 });
-    await page.getByTestId("q-opt-trimColour-same").click();
+    await page.getByTestId("q-opt-trimColour-same").tap();
     await expect(stage).toHaveAttribute("data-quote-card", "g:doors", { timeout: 15_000 });
-    await page.getByTestId("q-opt-doors-panel").click();
-    await passUntil(page, (id) => !id.startsWith("g:"));
+    await page.getByTestId("q-opt-doors-panel").tap();
+    await passUntil(page, (id) => !id.startsWith("g:"), true);
     // D: straight to the room's lines with their counters — no size card
     await expect(stage).toHaveAttribute("data-quote-card", /^surfaces:/);
     await expect(page.getByTestId("q-count-doors")).toBeVisible();
     await shot(page, "phone-trims-01-room");
-    await page.getByTestId("q-next").click();
+    await page.getByTestId("q-next").tap();
     await expect(stage).toHaveAttribute("data-quote-card", /^surfaces:/, { timeout: 30_000 });
     await passUntil(page, (id) => id === "rooms");
     await passUntil(page, (id) => id === "done");

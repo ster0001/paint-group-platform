@@ -165,9 +165,13 @@ export default function QuoteStage({ brand, estimateId, initial, jobKind, initia
   /** One whitelisted action to the scope page's own route; the server's payload comes back and is the truth. */
   const post = async (body: Record<string, unknown>): Promise<Payload | null> => {
     setBusy(true); setError(null);
+    // a request that never answers (a dropped connection) must not leave the card on "Saving…" for good: 45 s, then the
+    // connection message and the button back (the C1 proof of 5 Nov sat on a hung ext_walk for five minutes)
+    const ctl = new AbortController();
+    const timer = setTimeout(() => ctl.abort(), 45_000);
     try {
       const res = await fetch(`/api/estimates/${estimateId}/wizard-edit`, {
-        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...body, view: "customer" }),
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...body, view: "customer" }), signal: ctl.signal,
       });
       const j = (await res.json().catch(() => ({}))) as Payload;
       if (!res.ok) { setError(j.error ?? "That didn't save — try again."); return null; }
@@ -183,7 +187,7 @@ export default function QuoteStage({ brand, estimateId, initial, jobKind, initia
     } catch {
       setError("That didn't save — check your connection and try again.");
       return null;
-    } finally { setBusy(false); }
+    } finally { clearTimeout(timer); setBusy(false); }
   };
   // Independent check (S7, defect 2): the route reads and rewrites ONE builder_state row with no lock, so two taps in
   // flight would race (last writer wins). Every post waits for the one before it — the same serialisation the scope
@@ -202,6 +206,8 @@ export default function QuoteStage({ brand, estimateId, initial, jobKind, initia
   /** F: a typical or open line on the done screen jumps back to that room's size card; E1's new room opens on its size card. */
   const jumpTo = (id: string) => { const k = cards.findIndex((c) => c.id === id); if (k >= 0) setIndex(k); };
   const answered = (card: string, line: number | null) => sendWizardEvent("quote_card_answered", { card, line, measured: false });
+  // a card that posts on its way out (a side's attention card) must leave ONCE — a second Next while it is leaving is ignored
+  const leaving = useRef(false);
   const walk = (next: ExteriorV2) => { setV2State(next); return act({ action: "ext_walk", v2: next }); };
   const back = () => { if (timer.current) clearTimeout(timer.current); if (index > 0) setIndex(index - 1); else router.back(); };
   // §2 desktop — the keyboard flow: 1–4 pick an option, Enter = next, ← = back (never while typing in a field).
@@ -382,10 +388,14 @@ export default function QuoteStage({ brand, estimateId, initial, jobKind, initia
           )}
           {current.kind === "side-attn" && (
             <SideAttentionScreen key={current.id} card={current} busy={busy} act={act} estimateId={estimateId} v2={v2State} onNext={async () => {
-              answered("side-attn", current.areaId);
-              if (v2State) await walk(checkSide(v2State, current.sideKey));
-              await act({ action: "confirm_side", side: current.sideKey });
-              advance();
+              if (leaving.current) return;
+              leaving.current = true;
+              try {
+                answered("side-attn", current.areaId);
+                if (v2State) await walk(checkSide(v2State, current.sideKey));
+                await act({ action: "confirm_side", side: current.sideKey });
+                advance();
+              } finally { leaving.current = false; }
             }} />
           )}
 
@@ -640,11 +650,18 @@ function SurfacesScreen({ card, busy, act, catalogue, onNext }: { card: Surfaces
   const toggle = (t: CustomerTile) => t.surfaceId != null && t.on
     ? act({ action: "room_remove_line", areaId: room.areaId, surfaceId: t.surfaceId })
     : act({ action: "toggle_surface", areaId: room.areaId, key: String(t.key), on: !t.on });
-  const chip = (t: CustomerTile, extra?: ReactNode) => (
-    <button key={String(t.key)} type="button" className={`wzm-chip ${t.on ? "on" : ""}`} aria-pressed={t.on} disabled={busy} data-testid={`q-surf-${String(t.key).replace(/[^a-z0-9]+/gi, "-")}`} onClick={() => void toggle(t)}>
-      {t.label}{t.on && extra}
-    </button>
-  );
+  // a chip that carries a counter or a segment is a <span role="button">: a <button> cannot contain buttons (the console's hydration error, 5 Nov)
+  const chip = (t: CustomerTile, extra?: ReactNode) => {
+    const cls = `wzm-chip ${t.on ? "on" : ""}`; const tid = `q-surf-${String(t.key).replace(/[^a-z0-9]+/gi, "-")}`;
+    if (extra && t.on) return (
+      <span key={String(t.key)} role="button" tabIndex={busy ? -1 : 0} className={cls} aria-pressed={t.on} aria-disabled={busy} data-testid={tid} onClick={() => { if (!busy) void toggle(t); }} onKeyDown={(e) => { if (e.key === "Enter" && !busy) void toggle(t); }}>
+        {t.label}{extra}
+      </span>
+    );
+    return (
+      <button key={String(t.key)} type="button" className={cls} aria-pressed={t.on} disabled={busy} data-testid={tid} onClick={() => void toggle(t)}>{t.label}</button>
+    );
+  };
   const seg = (opts: Array<[string, string]>, value: string, pick: (v: string) => void, testId: string) => (
     <span className="seg" data-testid={testId}>
       {opts.map(([v, label]) => <span key={v} role="button" tabIndex={0} className={value === v ? "sel" : ""} data-testid={`${testId}-${v}`} onClick={(e) => { e.stopPropagation(); pick(v); }} onKeyDown={(e) => { if (e.key === "Enter") { e.stopPropagation(); pick(v); } }}>{label}</span>)}
@@ -667,11 +684,11 @@ function SurfacesScreen({ card, busy, act, catalogue, onNext }: { card: Surfaces
         {windows && windows.on && room.windows.length === 0 && chip(windows, <Counter value={windows.count ?? 1} min={1} max={12} testId="q-count-windows" disabled={busy} onChange={(n) => void act({ action: "set_count", areaId: room.areaId, key: "windows", count: n })} />)}
         {windows && (windows.on && room.windows.length === 0 ? null : windows.on && room.windows.length > 0
           ? room.windows.map((w) => (
-            <button key={w.id} type="button" className="wzm-chip on" aria-pressed data-testid={`q-win-${w.id}`} disabled={busy} onClick={() => void act({ action: "room_remove_line", areaId: room.areaId, surfaceId: w.id })}>
+            <span key={w.id} role="button" tabIndex={busy ? -1 : 0} className="wzm-chip on" aria-pressed aria-disabled={busy} data-testid={`q-win-${w.id}`} onClick={() => { if (!busy) void act({ action: "room_remove_line", areaId: room.areaId, surfaceId: w.id }); }} onKeyDown={(e) => { if (e.key === "Enter" && !busy) void act({ action: "room_remove_line", areaId: room.areaId, surfaceId: w.id }); }}>
               {w.label}
               <Counter value={w.count} min={1} max={20} testId={`q-count-win-${w.id}`} disabled={busy} onChange={(n) => void act({ action: "room_line_count", areaId: room.areaId, surfaceId: w.id, count: n })} />
               {seg([["S", "S"], ["M", "M"], ["L", "L"]], w.sizeBand, (v) => void act({ action: "room_win_size", areaId: room.areaId, surfaceId: w.id, size: v }), `q-win-size-${w.id}`)}
-            </button>
+            </span>
           ))
           : chip(windows))}
         <button type="button" className="wzm-chip add" data-testid="q-add-surface" onClick={() => setAdding((a) => !a)} aria-expanded={adding}>+ Add a surface</button>
@@ -893,17 +910,24 @@ function ExtrasScreen({ offer, state, busy, act, onNext }: { offer: JobExtra[]; 
         {offer.map((e) => {
           const isOn = on.has(e.code);
           return (
-            <button key={e.code} type="button" className={`wzm-chip ${isOn ? "on" : ""}`} aria-pressed={isOn} disabled={busy} data-testid={`q-extra-${slug(e.code)}`} onClick={() => void act({ action: "toggle_job_extra", code: e.code, on: !isOn })}>
-              {e.label} · ${e.priceDollars.toLocaleString("en-AU")}
-              {isOn && <Counter value={state.counts[e.code] ?? 1} min={1} max={20} testId={`q-extra-count-${slug(e.code)}`} disabled={busy} onChange={(n) => void act({ action: "toggle_job_extra", code: e.code, on: true, count: n })} />}
-            </button>
+            isOn ? (
+              <span key={e.code} role="button" tabIndex={busy ? -1 : 0} className="wzm-chip on" aria-pressed aria-disabled={busy} data-testid={`q-extra-${slug(e.code)}`} onClick={() => { if (!busy) void act({ action: "toggle_job_extra", code: e.code, on: false }); }} onKeyDown={(ev) => { if (ev.key === "Enter" && !busy) void act({ action: "toggle_job_extra", code: e.code, on: false }); }}>
+                {e.label} · ${e.priceDollars.toLocaleString("en-AU")}
+                <Counter value={state.counts[e.code] ?? 1} min={1} max={20} testId={`q-extra-count-${slug(e.code)}`} disabled={busy} onChange={(n) => void act({ action: "toggle_job_extra", code: e.code, on: true, count: n })} />
+              </span>
+            ) : (
+              <button key={e.code} type="button" className="wzm-chip" aria-pressed={false} disabled={busy} data-testid={`q-extra-${slug(e.code)}`} onClick={() => void act({ action: "toggle_job_extra", code: e.code, on: true })}>
+                {e.label} · ${e.priceDollars.toLocaleString("en-AU")}
+              </button>
+            )
           );
         })}
         <button type="button" className={`wzm-chip ${state.colourHelp ? "on" : ""}`} aria-pressed={state.colourHelp} disabled={busy} data-testid="q-extra-colour" onClick={() => void act({ action: "set_colour_help", want: !state.colourHelp })}>Help me choose colours</button>
       </div>
       <label className="wzq-field wzq-field--text wzq-field--area">
         <span>Something else?</span>
-        <textarea value={note} placeholder="In your own words." maxLength={400} rows={3} data-testid="q-extra-note" onChange={(e) => setNote(e.target.value)} onBlur={() => void flushNote()} />
+        {/* no flush on blur: the blur fires on the Next tap's pointer-down, the save disables Next, and the tap is lost (C1 proof, 5 Nov) — Next flushes the note itself */}
+        <textarea value={note} placeholder="In your own words." maxLength={400} rows={3} data-testid="q-extra-note" onChange={(e) => setNote(e.target.value)} />
       </label>
       <div className="wzm-foot" data-testid="wzm-foot">
         <button type="button" className="wzm-cta" disabled={busy} onClick={async () => { await flushNote(); onNext(); }} data-testid="q-next">{busy ? "Saving…" : "Next"}</button>
