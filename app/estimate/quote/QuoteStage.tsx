@@ -206,6 +206,8 @@ export default function QuoteStage({ brand, estimateId, initial, jobKind, initia
   /** F: a typical or open line on the done screen jumps back to that room's size card; E1's new room opens on its size card. */
   const jumpTo = (id: string) => { const k = cards.findIndex((c) => c.id === id); if (k >= 0) setIndex(k); };
   const answered = (card: string, line: number | null) => sendWizardEvent("quote_card_answered", { card, line, measured: false });
+  // a card that posts on its way out (a side's attention card) must leave ONCE — a second Next while it is leaving is ignored
+  const leaving = useRef(false);
   const walk = (next: ExteriorV2) => { setV2State(next); return act({ action: "ext_walk", v2: next }); };
   const back = () => { if (timer.current) clearTimeout(timer.current); if (index > 0) setIndex(index - 1); else router.back(); };
   // §2 desktop — the keyboard flow: 1–4 pick an option, Enter = next, ← = back (never while typing in a field).
@@ -386,10 +388,14 @@ export default function QuoteStage({ brand, estimateId, initial, jobKind, initia
           )}
           {current.kind === "side-attn" && (
             <SideAttentionScreen key={current.id} card={current} busy={busy} act={act} estimateId={estimateId} v2={v2State} onNext={async () => {
-              answered("side-attn", current.areaId);
-              if (v2State) await walk(checkSide(v2State, current.sideKey));
-              await act({ action: "confirm_side", side: current.sideKey });
-              advance();
+              if (leaving.current) return;
+              leaving.current = true;
+              try {
+                answered("side-attn", current.areaId);
+                if (v2State) await walk(checkSide(v2State, current.sideKey));
+                await act({ action: "confirm_side", side: current.sideKey });
+                advance();
+              } finally { leaving.current = false; }
             }} />
           )}
 
