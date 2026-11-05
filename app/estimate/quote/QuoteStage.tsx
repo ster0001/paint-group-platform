@@ -21,7 +21,9 @@ import type { SidesView } from "@/lib/wizard/sides";
 import type { ExteriorV2 } from "@/lib/wizard/state";
 import type { ExteriorTypicalRow } from "@/lib/wizard/exterior-typicals";
 import Elevation from "@/app/wizard/pictures/Elevation";
-import { checkSide, setSideCond, setSideCounts, setSideSize } from "@/lib/wizard/exterior-model";
+import { PART_LABEL, checkSide, partsOnSide, postCount, setSideCond, setSideCounts, setSideSize, sideAddableParts, sideListParts, toggleSidePart } from "@/lib/wizard/exterior-model";
+import { typicalFor } from "@/lib/wizard/exterior-typicals";
+import SaveAndBookSheet from "@/app/wizard/SaveAndBookSheet";
 import { quoteDocument, quoteSummary, type PreparedFor, type QuoteDocument, type QuoteLine } from "@/lib/quote/quote";
 import { useRollerSweep } from "@/app/wizard/pictures/rollerSweep";
 import MobilePicture from "@/app/wizard/pictures/MobilePicture";
@@ -106,6 +108,7 @@ export default function QuoteStage({ brand, estimateId, initial, jobKind, initia
   // the room sheet is open FOR a card: moving to another card closes it without an effect
   const [roomOpenFor, setRoomOpenFor] = useState<string | null>(null);
   const [planOpen, setPlanOpen] = useState(false);
+  const [saveOpen, setSaveOpen] = useState(false); // Tom, 5 Nov: "Save estimate — you can come back to it at any time"
   const [payload, setPayload] = useState<Payload>(initial);
   const [scopeRooms, setScopeRooms] = useState<CustomerScopeRoom[]>(initialScopeRooms);
   const [loop, setLoop] = useState<RoomLoopView[]>(initialLoop);
@@ -253,6 +256,8 @@ export default function QuoteStage({ brand, estimateId, initial, jobKind, initia
         <span className="wzm-logo"><Wordmark logoUrl={logoUrl} brand={brand} /></span>
         <button type="button" className="wzm-contact" onClick={() => { sendWizardEvent("contact_opened", { step: current.id.slice(0, 40) }); setContactOpen(true); }} data-testid="wzm-contact">Contact</button>
       </header>
+      {/* Tom, 5 Nov 2026: the quote, the house and the moving price are FROZEN at the top while the card scrolls; the logo scrolls away */}
+      <div className={`wzq-sticky ${current.kind === "done" ? "" : "on"}`} data-testid="q-sticky">
       <div className="wzm-bar" role="progressbar" aria-label="Progress" aria-valuemin={0} aria-valuemax={100} aria-valuenow={pct}><i style={{ width: `${pct}%` }} data-testid="wzm-bar" /></div>
 
       {/* §2 — the tiles row (the quote tile; the room and plan tiles are sessions 4 and 5), the inline quote panel, the price band */}
@@ -284,6 +289,7 @@ export default function QuoteStage({ brand, estimateId, initial, jobKind, initia
           <PriceBand lo={payload.rangeLoCents} hi={payload.rangeHiCents} settled={settled} />
         </>
       )}
+      </div>
 
       {/* §2 desktop (R8) — the left rail: the current line's drawing; shown at ≥ 900px by CSS, the tiles row and band hide there */}
       <aside className="wzq-rail wzq-rail--left" data-testid="q-rail-left" aria-hidden={!currentRoom}>
@@ -372,10 +378,10 @@ export default function QuoteStage({ brand, estimateId, initial, jobKind, initia
             }} />
           )}
           {current.kind === "side-on" && v2State && (
-            <SideOnScreen key={current.id} card={current} busy={busy} act={act} v2={v2State} walk={walk} onNext={() => { answered("side-on", current.areaId); advance(); }} />
+            <SideOnScreen key={current.id} card={current} busy={busy} act={act} v2={v2State} rows={typicalRows} walk={walk} onNext={() => { answered("side-on", current.areaId); advance(); }} />
           )}
           {current.kind === "side-attn" && (
-            <SideAttentionScreen key={current.id} card={current} busy={busy} act={act} estimateId={estimateId} onNext={async () => {
+            <SideAttentionScreen key={current.id} card={current} busy={busy} act={act} estimateId={estimateId} v2={v2State} onNext={async () => {
               answered("side-attn", current.areaId);
               if (v2State) await walk(checkSide(v2State, current.sideKey));
               await act({ action: "confirm_side", side: current.sideKey });
@@ -385,18 +391,18 @@ export default function QuoteStage({ brand, estimateId, initial, jobKind, initia
 
           {current.kind === "done" && (
             <section data-testid="q-done">
-              <p className="wzm-gate-label" data-testid="gate-label">{firstName ? `${firstName}, your detailed price` : "Your detailed price"}</p>
+              <p className="wzm-gate-label" data-testid="gate-label">{firstName ? `${firstName}, your quote range` : "Your quote range"}</p>
               <p className="wzm-gate-price" data-testid="gate-range">{fmt(payload.rangeLoCents)} – {fmt(payload.rangeHiCents)}</p>
               <p className="wzm-gate-fine" data-testid="gate-fine">
                 {typicalRoomNames(rooms).length > 0 ? `${typicalRoomNames(rooms).join(", ")} ${typicalRoomNames(rooms).length === 1 ? "is" : "are"} at the typical size — tap it below to measure it. ` : "Every room measured. "}
                 {prepRooms > 0 ? `Repairs in ${prepRooms} ${prepRooms === 1 ? "room are" : "rooms are"} allowed for and confirmed on the day. ` : "Repairs are allowed for and confirmed on the day. "}
-                {who} confirms it with you before anything is fixed. Includes GST.
+                Price is subject to change based on the information provided. {who} confirms it with you before anything is fixed. Includes GST.
               </p>
               {/* F: the quote in full; a typical or open line jumps back to that room's size card */}
               <div className="wzq-done-doc" data-testid="q-done-doc"><QuoteDoc doc={doc} brand={brand} currentAreaId={null} onLineTap={(areaId) => jumpTo(`measure:${areaId}`)} /></div>
               <ol className="wzm-tiles" data-testid="gate-tiles" data-at={2}>
                 <li className="wzm-tile done" data-state="done"><span className="k" aria-hidden="true">✓</span><b>Your range</b>Done</li>
-                <li className="wzm-tile done" data-state="done"><span className="k" aria-hidden="true">✓</span><b>Your detailed price</b>Just now</li>
+                <li className="wzm-tile done" data-state="done"><span className="k" aria-hidden="true">✓</span><b>Your quote range</b>Just now</li>
                 <li className="wzm-tile now" data-state="now"><span className="k" aria-hidden="true">3</span><b>{who} confirms</b>In person, 40 min</li>
               </ol>
             </section>
@@ -411,6 +417,9 @@ export default function QuoteStage({ brand, estimateId, initial, jobKind, initia
           <button type="button" className="wzm-cta wzm-cta--teal" onClick={book} data-testid="q-book">Book {who} to confirm it<small>In person · about 40 minutes</small></button>
         </div>
       )}
+      {/* Tom, 5 Nov 2026: save and come back any time — the same sheet the quick look's header pill opens */}
+      <p className="wzq-save" data-testid="q-save-row"><button type="button" className="wzm-linkish" onClick={() => setSaveOpen(true)} data-testid="q-save">Save estimate</button> — you can come back to it at any time.</p>
+      <SaveAndBookSheet open={saveOpen} onClose={() => setSaveOpen(false)} phone={companyPhone} screen="quote" estimateId={estimateId} prefill={{ email: preparedFor.email ?? "", phone: preparedFor.mobile ?? "", name: preparedFor.name ?? "" }} />
       {/* §2 desktop — the key hints (shown at ≥ 900px by CSS) */}
       <p className="wzq-keys" data-testid="q-keys" aria-hidden="true">
         {current.kind === "general" || current.kind === "robe" ? <><b>1</b><b>2</b><b>3</b> choose · </> : current.kind === "measure" || current.kind === "side-size" ? <><b>Tab</b> next field · <b>Enter</b> that&rsquo;s the size · </> : <><b>Enter</b> next · </>}<b>←</b> back
@@ -483,7 +492,7 @@ function MeasureScreen({ card, busy, estimateId, onSize }: { card: MeasureCard; 
       {!typed && <p className="wzm-note" data-testid="q-typical-note">{card.measured ? "Your numbers — type over them to change them." : "The grey numbers are typical for this room — type yours over them."}</p>}
       {/* B1: an optional photo of the room (D-Q5: three per room, 5 MB each, the one upload path) */}
       <div className="wzq-photo">
-        <PhotoDrop testId="q-room-photo" title="Add a photo of the room" hint="Optional. Helps us check it before the visit." ready={photo.ready} disabled={photo.busy || photo.full} onFiles={photo.add} />
+        <PhotoDrop testId="q-room-photo" title="Take or attach a photo of the room" hint="Optional. Helps us check it before the visit." ready={photo.ready} disabled={photo.busy || photo.full} onFiles={photo.add} />
         {photo.error && <p className="wz-err" data-testid="q-photo-error">{photo.error}</p>}
       </div>
       <div className="wzm-foot" data-testid="wzm-foot">
@@ -594,7 +603,7 @@ function useRoomPhotos(estimateId: string, areaId: number, roomName: string, kin
   const add = async (files: File[]) => {
     const f = files[0];
     if (!f || full) return;
-    if (f.size > SPOT_PHOTO_MAX_BYTES) { setError("That photo is over 5 MB — try a smaller one."); return; }
+    if (f.size > SPOT_PHOTO_MAX_BYTES) { setError("That photo is over 25 MB — try a smaller one."); return; }
     setBusy(true); setError(null);
     try {
       const r = await uploadSpotPhoto(f, { estimateId, label: roomName, analyse });
@@ -784,7 +793,7 @@ function AttentionScreen({ card, busy, act, estimateId, onNext }: { card: Attent
             {SPOT_EXTENTS.map((x) => <button key={x} type="button" className={`wzm-opt ${extent === x ? "on" : ""}`} aria-pressed={extent === x} data-testid={`q-prep-extent-${x}`} onClick={() => setExtent(x)}><span><span className="t">{EXTENT_LABEL[x]}</span></span></button>)}
           </div>
           <div className="wzq-photo">
-            <PhotoDrop testId="q-prep-photo" title="Take a photo of the spot" hint="With a photo we price the repair; without one, a person does." ready={photo.ready ? `${photo.ready} — we'll price the repair from it` : null} disabled={photo.busy || photo.full} onFiles={photo.add} />
+            <PhotoDrop testId="q-prep-photo" title="Take or attach a photo of the spot" hint="With a photo we price the repair; without one, a person does." ready={photo.ready ? `${photo.ready} — we'll price the repair from it` : null} disabled={photo.busy || photo.full} onFiles={photo.add} />
             {photo.error && <p className="wz-err" data-testid="q-photo-error">{photo.error}</p>}
           </div>
         </>
@@ -939,8 +948,20 @@ function SideSizeScreen({ card, busy, v2, walk, onDone }: { card: SideSizeCard; 
 }
 
 /** §3 C2 — "On this side": the side's counted lines (windows, doors…) with − / +, a window group's S / M / L, and how the paint is on this side. */
-function SideOnScreen({ card, busy, act, v2, walk, onNext }: { card: SideOnCard; busy: boolean; act: Act; v2: ExteriorV2; walk: (next: ExteriorV2) => Promise<Payload | null>; onNext: () => void }) {
+const COND_HINT: Record<"good" | "weathered" | "peeling", string> = {
+  good: "Sound surfaces, maybe a few marks — a light sand and it's ready for paint.",
+  weathered: "Typical for a house not painted in 6–7 years — faded or chalky in places, a few cracked or peeling spots.",
+  peeling: "Lifting or flaking with bare timber showing — scraped back and properly prepared before any paint goes on.",
+};
+
+function SideOnScreen({ card, busy, act, v2, rows, walk, onNext }: { card: SideOnCard; busy: boolean; act: Act; v2: ExteriorV2; rows: ReadonlyArray<ExteriorTypicalRow>; walk: (next: ExteriorV2) => Promise<Payload | null>; onNext: () => void }) {
   const sd = v2.sides[card.sideKey];
+  const t = typicalFor(v2.propertyType, rows);
+  const on = new Set(partsOnSide(v2, card.sideKey, t));
+  const listed = sideListParts(v2, card.sideKey, t);
+  const addable = sideAddableParts(v2, card.sideKey, t);
+  const [adding, setAdding] = useState(false);
+  const posts = sd?.posts ?? postCount(sd?.w ?? 0);
   // windows and doors are the drawn house's own counts (the walk-around's steppers); everything else priced per item on
   // this side keeps the tree's counter. The server derives the whole-house condition and the peeling sides from the model.
   const tiles = (card.side.sideTiles ?? []).filter((t) => !t.window && !/door/i.test(t.label));
@@ -960,10 +981,26 @@ function SideOnScreen({ card, busy, act, v2, walk, onNext }: { card: SideOnCard;
     <>
       <h1 data-testid="wzm-h1">On this side</h1>
       <p className="wzm-sub" data-testid="wzm-sub">Count them up — the house&rsquo;s parts you ticked, on the {card.name.toLowerCase()}.</p>
+      {/* Tom, 5 Nov 2026: what is on this side — untick a part, or add one that was never ticked (shutters, a handrail, fascias…) */}
+      <div className="wzm-chips" data-testid="q-side-parts">
+        {listed.map((p) => (
+          <button key={p} type="button" className={`wzm-chip ${on.has(p) ? "on" : ""}`} aria-pressed={on.has(p)} disabled={busy} data-testid={`q-side-part-${p}`} onClick={() => void walk(toggleSidePart(v2, card.sideKey, p, t))}>{PART_LABEL[p]}</button>
+        ))}
+        <button type="button" className="wzm-chip add" data-testid="q-side-add-open" aria-expanded={adding} onClick={() => setAdding((a) => !a)}>{adding ? "Done adding" : "+ Add something"}</button>
+      </div>
+      {adding && (
+        <div className="wzm-chips wzm-addchips" data-testid="q-side-add">
+          {addable.map((p) => (
+            <button key={p} type="button" className="wzm-chip" disabled={busy} data-testid={`q-side-addpart-${p}`} onClick={() => { void walk(toggleSidePart(v2, card.sideKey, p, t)); setAdding(false); }}>{PART_LABEL[p]}</button>
+          ))}
+          {addable.length === 0 && <span className="wzm-note">Everything is already on this side.</span>}
+        </div>
+      )}
       {sd && (
         <div className="wzm-steps" data-testid="q-side-counts">
-          {stepper("q-side-win", "Windows", sd.windows, (n) => void walk(setSideCounts(v2, card.sideKey, { windows: n })), 60)}
-          {stepper("q-side-door", "Doors", sd.doors, (n) => void walk(setSideCounts(v2, card.sideKey, { doors: n })), 20)}
+          {on.has("windows") && stepper("q-side-win", "Windows", sd.windows, (n) => void walk(setSideCounts(v2, card.sideKey, { windows: n })), 60)}
+          {on.has("doors") && stepper("q-side-door", "Doors", sd.doors, (n) => void walk(setSideCounts(v2, card.sideKey, { doors: n })), 20)}
+          {on.has("posts") && stepper("q-side-posts", "Posts / columns", posts, (n) => void walk(setSideCounts(v2, card.sideKey, { posts: n })), 40)}
         </div>
       )}
       <div className="wzm-chips wzq-surf" data-testid="q-side-lines">
@@ -981,9 +1018,9 @@ function SideOnScreen({ card, busy, act, v2, walk, onNext }: { card: SideOnCard;
         {tiles.length === 0 && !sd && <p className="wzm-note">Nothing counted on this side yet — the walls are priced by its size.</p>}
       </div>
       <p className="wzq-grp">How&rsquo;s the paint on this side?</p>
-      <div className="wzm-opts wzq-three" data-testid="q-side-cond">
+      <div className="wzm-opts wzq-cond" data-testid="q-side-cond">
         {([["good", "Good, just tired"], ["weathered", "Weathered"], ["peeling", "Peeling or flaking"]] as const).map(([k, label]) => (
-          <button key={k} type="button" className={`wzm-opt ${cond === k ? "on" : ""}`} aria-pressed={cond === k} disabled={busy} data-testid={`q-side-cond-${k}`} onClick={() => pickCond(k)}><span><span className="t">{label}</span></span></button>
+          <button key={k} type="button" className={`wzm-opt ${cond === k ? "on" : ""}`} aria-pressed={cond === k} disabled={busy} data-testid={`q-side-cond-${k}`} onClick={() => pickCond(k)}><span><span className="t">{label}</span><span className="d">{COND_HINT[k]}</span></span></button>
         ))}
       </div>
       <div className="wzm-foot" data-testid="wzm-foot">
@@ -994,8 +1031,11 @@ function SideOnScreen({ card, busy, act, v2, walk, onNext }: { card: SideOnCard;
 }
 
 /** §3 C3 — anything needing attention on this side: the outside tags, a photo; written as the side's note (`side_note`), which rides to the estimator. */
-function SideAttentionScreen({ card, busy, act, estimateId, onNext }: { card: SideAttentionCard; busy: boolean; act: Act; estimateId: string; onNext: () => void }) {
-  const tags = tagsFor("exterior").filter((t) => t.key !== OTHER_TAG_KEY);
+function SideAttentionScreen({ card, busy, act, estimateId, v2, onNext }: { card: SideAttentionCard; busy: boolean; act: Act; estimateId: string; v2: ExteriorV2 | null; onNext: () => void }) {
+  // Tom, 5 Nov 2026: "Cracked render" only where render (or stucco) is a wall material — the house's or this side's own
+  const rendered = (m: string | null | undefined) => m === "render" || m === "stucco";
+  const hasRender = !v2 ? true : rendered(v2.wall.down) || rendered(v2.wall.up) || rendered(v2.sides[card.sideKey]?.material) || rendered(v2.sides[card.sideKey]?.materialUp);
+  const tags = tagsFor("exterior").filter((t) => t.key !== OTHER_TAG_KEY && (hasRender || t.key !== "render"));
   const [picked, setPicked] = useState<string[]>([]);
   const [note, setNote] = useState("");
   const photo = useRoomPhotos(estimateId, card.areaId, card.name, "prep", false);
@@ -1021,7 +1061,7 @@ function SideAttentionScreen({ card, busy, act, estimateId, onNext }: { card: Si
       </label>
       {(picked.length > 0 || note.trim()) && (
         <div className="wzq-photo">
-          <PhotoDrop testId="q-side-photo" title="Take a photo of it" hint="Helps us price the prep straight away." ready={photo.ready} disabled={photo.busy || photo.full} onFiles={photo.add} />
+          <PhotoDrop testId="q-side-photo" title="Take or attach a photo of it" hint="Helps us price the prep straight away." ready={photo.ready} disabled={photo.busy || photo.full} onFiles={photo.add} />
           {photo.error && <p className="wz-err" data-testid="q-photo-error">{photo.error}</p>}
         </div>
       )}

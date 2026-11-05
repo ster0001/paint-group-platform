@@ -14,7 +14,7 @@ import type { ExteriorV2 } from "@/lib/wizard/state";
 import "../../wizard/wizard.css";
 
 /**
- * /estimate/quote?id=… — QUOTE STAGE v10: "Get my detailed price"
+ * /estimate/quote?id=… — QUOTE STAGE v10: "Get my quote range"
  * (`docs/briefs/claude-code-brief-quote-stage-v10.md`). One card per question
  * on the v5 shell, writing the same `wizard-edit` actions the scope page
  * writes (R0). The same guards as `/estimate/scope`: a customer opens only
@@ -24,7 +24,7 @@ import "../../wizard/wizard.css";
  */
 export const dynamic = "force-dynamic";
 export async function generateMetadata() {
-  return { title: await wizardTitle("Your detailed price"), robots: { index: false, follow: false } };
+  return { title: await wizardTitle("Your quote range"), robots: { index: false, follow: false } };
 }
 
 async function Holding({ line }: { line: string }) {
@@ -46,7 +46,7 @@ export default async function QuoteStagePage({ searchParams }: { searchParams: P
   const actor = await getWizardActor(supabase);
   if (actor.kind === "none") return <Holding line="Open your estimate from the link we sent you." />;
   const db = actor.kind === "customer" ? createServiceClient() : supabase;
-  if (!db) return <Holding line="Your detailed price isn't available just now — please try again shortly." />;
+  if (!db) return <Holding line="Your quote range isn't available just now — please try again shortly." />;
 
   const { data: estimate, error } = await db
     .from("estimates")

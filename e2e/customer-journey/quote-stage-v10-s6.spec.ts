@@ -39,7 +39,7 @@ const toGate = async (page: Page, run: string) => {
   const bounced = page.locator(".wz-err");
   await expect(gate.or(bounced)).toBeVisible({ timeout: 90_000 });
   if (await bounced.count()) throw new Error(`submit failed: ${await bounced.first().innerText()}`);
-  await expect(page.getByTestId("gate-bar-exact")).toHaveText("Get my detailed price");
+  await expect(page.getByTestId("gate-bar-exact")).toHaveText("Get my quote range");
   await page.getByTestId("gate-bar-exact").click();
   await expect(page).toHaveURL(/\/estimate\/quote\?id=/, { timeout: 30_000 });
   await expect(page.getByTestId("quote-stage")).toBeVisible({ timeout: 30_000 });
@@ -123,7 +123,7 @@ test.describe("quote stage v10 — session 6: outside and trims on a phone", () 
     await expect(page.getByTestId("q-side-noted")).toContainText("Flaking");
     await page.getByTestId("q-next").click();
     await passUntil(page, (id) => id === "done");
-    await expect(page.getByTestId("gate-label")).toHaveText("Quote Tester, your detailed price");
+    await expect(page.getByTestId("gate-label")).toHaveText("Quote Tester, your quote range");
     await expect(page.getByTestId("gate-range")).toHaveText(MONEY_RANGE);
     await expect(page.getByTestId("q-done-doc").locator("[data-testid^='q-line-'][data-state='todo']")).toHaveCount(0);
     expect(await stage.innerText()).not.toMatch(/exact|±|within \d+%/i);

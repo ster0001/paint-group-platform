@@ -31,7 +31,7 @@ export function exteriorV2On(): boolean {
 
 /**
  * Quote stage v10 (`docs/briefs/claude-code-brief-quote-stage-v10.md`): "Get
- * my detailed price" — one card per question on the v5 shell, replacing the
+ * my quote range" — one card per question on the v5 shell, replacing the
  * room-by-room scope page. ON by default since 4 Nov 2026 (Tom: "make it
  * on by default") — `NEXT_PUBLIC_QUOTE_STAGE_V10=0` is the kill switch, the
  * exterior-v2 precedent; the old scope page stays behind it for one release.

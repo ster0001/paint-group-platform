@@ -1948,7 +1948,7 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
             onExact={() => {
               void recordRangeOption(reveal.estimateId, "tighten");
               // Exterior on mobile v5 (S6; plan §2 screen 12): on a phone an outside job's exact price is the walk-around, side by side —
-              // until the quote stage (v10 S6, §3 C): behind the flag the outside's detailed price is the stage's side cards.
+              // until the quote stage (v10 S6, §3 C): behind the flag the outside's quote range is the stage's side cards.
               if (quick.jobType === "exterior" && outside.v2 && !quoteStageV10On()) {
                 const first = paintedSides(outside.v2)[0];
                 if (first) setWalkAt(first);
@@ -1956,13 +1956,15 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
                 window.scrollTo({ top: 0 });
                 return;
               }
-              // Quote stage v10 (brief R1 / D-Q2): behind the flag, "Get my detailed price" is the card stage, not the scope page.
+              // Quote stage v10 (brief R1 / D-Q2): behind the flag, "Get my quote range" is the card stage, not the scope page.
               const dest = quoteStageV10On() ? `/estimate/quote?id=${reveal.estimateId}` : `/estimate/scope?id=${reveal.estimateId}`;
               const go = () => { clearResume(); markScopeFromGate(); router.push(dest); };
               if (!contactKnown) { setTalk({ mode: "details", then: go }); return; }
               go();
             }}
             detailed={quoteStageV10On()}
+            // Tom, 5 Nov 2026: back from the range to the questions (the answers stay; a changed answer re-prices on Continue)
+            onBack={() => { setReveal(null); setQuickDone(false); window.scrollTo({ top: 0 }); }}
             // Session 5: "book a time first" is the booking page (brief §4 / §5.2 — the zone's days), both shopfronts.
             onVisit={() => { void recordRangeOption(reveal.estimateId, "visit"); clearResume(); router.push(`/estimate/visit?id=${reveal.estimateId}`); }}
             onBook={() => { void recordRangeOption(reveal.estimateId, "visit"); clearResume(); router.push(`/estimate/visit?id=${reveal.estimateId}`); }}
@@ -2292,8 +2294,6 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
             }}
             contact={hasGate ? state.contact : null}
             onContact={(c) => set({ contact: c })}
-            marketing={state.marketingOptIn}
-            onMarketing={(v) => set({ marketingOptIn: v })}
             roomNames={state.planRooms != null && state.planRooms.length > 0 ? state.planRooms.map((r) => r.name) : starterRoomNames(quick)}
             addedRooms={state.addedRooms}
             onAddRoom={(r) => set({ addedRooms: [...state.addedRooms, r] })}

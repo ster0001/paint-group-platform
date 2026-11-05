@@ -1,5 +1,6 @@
 import { browserClient } from "@/lib/supabase/lazyClient";
 import type { SuggestedSpot } from "@/lib/wizard/photo-defects";
+import { MAX_UPLOAD_BYTES } from "@/lib/extract/normalise";
 
 /**
  * The customer's photo of a room or a spot — ONE upload path (quote stage
@@ -9,7 +10,8 @@ import type { SuggestedSpot } from "@/lib/wizard/photo-defects";
  * that left 92 rows unreachable), and read it when asked so the customer
  * confirms a suggestion rather than types one.
  */
-export const SPOT_PHOTO_MAX_BYTES = 5 * 1024 * 1024;
+/** Tom, 5 Nov 2026: any phone camera photo — the adapter's own limit (25 MB), not the 5 MB D-Q5 first set (a 12 MP photo is 4–8 MB, HEIC included). */
+export const SPOT_PHOTO_MAX_BYTES = MAX_UPLOAD_BYTES;
 /** D-Q5: three per room. A UI limit over the adapter, not the adapter's. */
 export const SPOT_PHOTOS_PER_ROOM = 3;
 

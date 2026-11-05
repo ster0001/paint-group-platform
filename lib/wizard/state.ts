@@ -115,6 +115,8 @@ export const exteriorV2SideSchema = z.object({
   confirmed: z.boolean().default(false),
   windows: z.number().int().min(0).max(60),
   doors: z.number().int().min(0).max(20),
+  /** Tom, 5 Nov 2026: the posts / columns on this side, counted by the customer; null = the model's count from the width. */
+  posts: z.number().int().min(0).max(40).nullable().default(null),
   cond: z.enum(["good", "weathered", "peeling"]).nullable().default(null),
   /** The tighten step's size answer: looks right / adjusted / not sure. */
   size: z.enum(["yes", "adj", "ns"]).nullable().default(null),

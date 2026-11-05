@@ -113,7 +113,7 @@ export function defaultSides(v2: Pick<ExteriorV2, "propertyType" | "sizeBand" | 
       paint: !shared.has(k), shared: shared.has(k),
       w, h: t.wallHM, adjusted: false,
       off: [], add: [], material: null, materialUp: null,
-      confirmed: false,
+      confirmed: false, posts: null,
       windows: defaultWindowCount(k, w, t.storeys), doors: defaultDoorCount(k),
       cond: null, size: null, checked: false,
     };
@@ -344,11 +344,11 @@ export function sideMaterial(v2: ExteriorV2, side: ExteriorSideKey, t: ExteriorT
 // Tighten (brief §7.6, S5): the walk-around after the range.
 // ---------------------------------------------------------------------------
 
-export function setSideCounts(v2: ExteriorV2, side: ExteriorSideKey, counts: { windows?: number; doors?: number }): ExteriorV2 {
+export function setSideCounts(v2: ExteriorV2, side: ExteriorSideKey, counts: { windows?: number; doors?: number; posts?: number | null }): ExteriorV2 {
   const s = v2.sides[side];
   if (!s) return v2;
   const clamp = (n: number, max: number) => Math.max(0, Math.min(max, Math.round(n)));
-  return { ...v2, sides: { ...v2.sides, [side]: { ...s, windows: counts.windows == null ? s.windows : clamp(counts.windows, 60), doors: counts.doors == null ? s.doors : clamp(counts.doors, 20), checked: false } } };
+  return { ...v2, sides: { ...v2.sides, [side]: { ...s, windows: counts.windows == null ? s.windows : clamp(counts.windows, 60), doors: counts.doors == null ? s.doors : clamp(counts.doors, 20), ...(counts.posts !== undefined ? { posts: counts.posts == null ? null : clamp(counts.posts, 40) } : {}), checked: false } } };
 }
 
 /** The size answer: Looks right / Adjust it (with the numbers) / Not sure (keeps the typical, stays assumed — ⚑ 13). */
@@ -597,7 +597,7 @@ export function exteriorV2Nodes(
 
     // The verandah family (⚑ 8).
     if (parts.has("posts")) {
-      const n = postCount(w);
+      const n = s.posts ?? postCount(w); // the customer's own count on this side, else the width's (⚑ 8)
       const kind = v2.postKind ?? (t.verandah === "columns" ? "columns" : "posts");
       surfaces.push(line(nextId, kind === "columns" ? "Columns" : "Posts", { count: n, clientLabel: kind === "lace" ? "Iron posts" : kind === "columns" ? "Columns" : "Posts" }));
       if (kind === "lace" && !deferred.some((d) => d.kind === "exterior_lacework")) deferred.push({ room: "Exterior", areaId: null, what: "iron lacework", count: 1, kind: "exterior_lacework",

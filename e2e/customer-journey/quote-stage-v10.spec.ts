@@ -12,7 +12,7 @@ const SPOT_PHOTO_MAX_BYTES = 5 * 1024 * 1024;
  * as an ANONYMOUS customer at 390 × 780 with touch, on the Paint Group host.
  *
  * Behind `NEXT_PUBLIC_QUOTE_STAGE_V10=1`: the phone gate's door reads "Get my
- * detailed price" and opens `/estimate/quote`; the whole-house cards come one
+ * quote range" and opens `/estimate/quote`; the whole-house cards come one
  * question at a time with the door and window drawings, single choices
  * advancing themselves; then one measure card per room — typed numbers over
  * greyed typicals, "That's the size" or "Not sure — use the typical"; then
@@ -94,8 +94,8 @@ test.describe("quote stage v10 — session 1: the cards on a phone", () => {
     await expect(gate.or(bounced)).toBeVisible({ timeout: 90_000 });
     if (await bounced.count()) throw new Error(`submit failed: ${await bounced.first().innerText()}`);
     // R1 / D-Q2: the door's words
-    await expect(page.getByTestId("gate-exact")).toContainText("Get my detailed price");
-    await expect(page.getByTestId("gate-bar-exact")).toHaveText("Get my detailed price");
+    await expect(page.getByTestId("gate-exact")).toContainText("Get my quote range");
+    await expect(page.getByTestId("gate-bar-exact")).toHaveText("Get my quote range");
     await shot(page, "phone-00-gate");
     await expect(gate).not.toContainText(/exact/i);
     await page.getByTestId("gate-bar-exact").tap();
@@ -316,12 +316,12 @@ test.describe("quote stage v10 — session 1: the cards on a phone", () => {
     await page.getByTestId("q-next").tap();
     await card(page, "done");
     // F — the done screen: a range, never one number; the typical rooms named; no "exact" / "±"; the one door
-    await expect(page.getByTestId("gate-label")).toHaveText("Quote, your detailed price");
+    await expect(page.getByTestId("gate-label")).toHaveText("Quote, your quote range");
     await shot(page, "phone-07-done");
     await expect(page.getByTestId("gate-range")).toHaveText(MONEY_RANGE);
     await expect(page.getByTestId("gate-fine")).toContainText(/at the typical size/);
     await expect(page.getByTestId("gate-fine")).toContainText(/Repairs in 1 room are allowed for and confirmed on the day/);
-    await expect(page.getByTestId("gate-tiles").locator("li").nth(1)).toContainText("Your detailed price");
+    await expect(page.getByTestId("gate-tiles").locator("li").nth(1)).toContainText("Your quote range");
     // §5 (S2) — the quote in full on the done screen: every line settled → "Quote", "Your price", still a range
     const doneDoc = page.getByTestId("q-done-doc").getByTestId("q-doc");
     await expect(doneDoc).toHaveAttribute("data-title", "Quote");

@@ -226,7 +226,7 @@ describe("exterior on mobile v5 — the Each side step on a phone", () => {
   const quick = q({ jobType: "exterior" });
   const steps = stepsFor("exterior", "house", "areas", "range", "whole", true);
   const side = (paint: boolean, shared = false, confirmed = false): ExteriorV2Side =>
-    ({ paint, shared, w: 10, h: 2.7, adjusted: false, off: [], add: [], material: null, materialUp: null, confirmed, checked: false, windows: 2, doors: 1, cond: null, size: null } as ExteriorV2Side);
+    ({ paint, shared, w: 10, h: 2.7, adjusted: false, off: [], add: [], material: null, materialUp: null, confirmed, checked: false, windows: 2, doors: 1, posts: null, cond: null, size: null } as ExteriorV2Side);
   const house = (sides: ExteriorV2["sides"]): ExteriorV2 => ({
     propertyType: "th", sizeBand: "md", rowPosition: "mid", wall: { down: null, up: null, brickPainted: null, timberPainted: null }, gableFill: null, windowType: "unsure",
     garageCars: null, postKind: null, parts: ["walls"], extras: [], extraSizes: {}, extraWallMaterial: null, sides,

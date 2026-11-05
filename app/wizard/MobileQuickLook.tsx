@@ -14,7 +14,7 @@ import { WINDOW_DRAWINGS } from "@/app/estimate/scope/StyleTiles";
 import { jobTypesFor, propertyKindsFor, type WizardBrand } from "@/lib/wizard/brand";
 import type { ExteriorQuickLook } from "@/lib/wizard/exterior-quick-look";
 import {
-  EXTRA_LABEL, PART_LABEL, confirmSide, exteriorV2Answered, paintedSides, partsOnSide, setSideCounts, setSideMaterial, setSidePaint, sideAddableParts, sideListParts, sideMaterial,
+  EXTRA_LABEL, PART_LABEL, confirmSide, exteriorV2Answered, paintedSides, partsOnSide, postCount, setSideCounts, setSideMaterial, setSidePaint, sideAddableParts, sideListParts, sideMaterial,
   toggleExtra, togglePart, toggleSidePart,
 } from "@/lib/wizard/exterior-model";
 import type { InteriorExcludable } from "@/lib/wizard/quick-look";
@@ -55,7 +55,7 @@ import type { ExteriorPart, ExteriorV2 } from "@/lib/wizard/state";
  * mode) with the bar underneath.
  */
 export default function MobileQuickLook({
-  brand, logo, steps, step, quick, onQuick, outside, onOutside, exteriorTypicals = [], address, contact, onContact, marketing, onMarketing, roomNames, addedRooms, onAddRoom, onRemoveAdded,
+  brand, logo, steps, step, quick, onQuick, outside, onOutside, exteriorTypicals = [], address, contact, onContact, roomNames, addedRooms, onAddRoom, onRemoveAdded,
   error, busy, canContinue, whyNot, onNext, onBack, canBack, onContactOpen, renderStep, resumed, onStartAgain,
 }: {
   /** S3: the outside answers, for the house in the strip; the sheet's chips tick the exterior brief's parts through it. */
@@ -75,8 +75,6 @@ export default function MobileQuickLook({
   /** The details screen (the quick look's gate); null when the session asks for details on the range instead (R6/R7). */
   contact: { name: string; email: string; phone: string } | null;
   onContact: (c: { name: string; email: string; phone: string }) => void;
-  marketing: boolean;
-  onMarketing: (v: boolean) => void;
   /** §2.3: the generated rooms (the plan's, or the starter list's names) and the ones added by hand. */
   roomNames: readonly string[];
   addedRooms: ReadonlyArray<{ name: string; roomType: string }>;
@@ -540,9 +538,8 @@ export default function MobileQuickLook({
                 <input type="tel" inputMode="tel" value={contact.phone} placeholder="04" autoComplete="tel" data-testid="gate-mobile" onChange={(e) => onContact({ ...contact, phone: e.target.value })} /></label>
               <label className="wzm-field"><span>Email</span>
                 <input type="email" inputMode="email" value={contact.email} placeholder="For your quote" autoComplete="email" data-testid="gate-email" onChange={(e) => onContact({ ...contact, email: e.target.value })} /></label>
-              <label className="wzm-optin" data-testid="gate-marketing">
-                <input type="checkbox" checked={marketing} onChange={(e) => onMarketing(e.target.checked)} /> Occasional offers from {brandFor(brand === "painthome" ? "painthome" : "home").name}
-              </label>
+              {/* Tom, 5 Nov 2026: no marketing tick — the details are for the price and the follow-up, said plainly */}
+              <p className="wzm-note wzm-consent" data-testid="gate-consent">By entering these details you agree to receive pricing for your property from {brandFor(brand === "painthome" ? "painthome" : "home").name}, and we may contact you to discuss your quote.</p>
             </>
           )}
 
@@ -719,14 +716,14 @@ function SideScreen({ v2, side, t, onChange, onToggle, addOpen, onAddOpen }: {
             </div>
           )}
           {/* Tom, 2 Nov 2026: the windows and doors are counted HERE, before the gate — the drawn house follows each tap (the thumbnail and the sheet). */}
-          {sd && (on.has("windows") || on.has("doors")) && (
+          {sd && (on.has("windows") || on.has("doors") || on.has("posts")) && (
             <div className="wzm-steps" data-testid="ext-side-counts">
-              {([["windows", "Windows", sd.windows, 60], ["doors", "Doors", sd.doors, 20]] as const).filter(([k]) => on.has(k)).map(([k, label, value, max]) => (
-                <div className="wzm-step" key={k} data-testid={`ext-side-${k === "windows" ? "win" : "door"}`}>
+              {([["windows", "win", "Windows", sd.windows, 60], ["doors", "door", "Doors", sd.doors, 20], ["posts", "posts", "Posts / columns", sd.posts ?? postCount(sd.w), 40]] as const).filter(([k]) => on.has(k)).map(([k, id, label, value, max]) => (
+                <div className="wzm-step" key={k} data-testid={`ext-side-${id}`}>
                   <div className="l">{label}<small>on this side</small></div>
                   <div className="stp">
                     <button type="button" aria-label={`Fewer ${label.toLowerCase()}`} disabled={value <= 0} onClick={() => onChange(setSideCounts(v2, side, { [k]: value - 1 }))}>−</button>
-                    <b data-testid={`ext-side-${k === "windows" ? "win" : "door"}-n`}>{value}</b>
+                    <b data-testid={`ext-side-${id}-n`}>{value}</b>
                     <button type="button" aria-label={`More ${label.toLowerCase()}`} disabled={value >= max} onClick={() => onChange(setSideCounts(v2, side, { [k]: value + 1 }))}>+</button>
                   </div>
                 </div>

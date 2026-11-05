@@ -7,7 +7,7 @@ import type { SideKey, SidesView, SideView } from "@/lib/wizard/sides";
  * QUOTE STAGE v10 — the cards, as data (brief §3; prototype
  * `design/reference/wizard-quote-stage-v10-prototype.html`).
  *
- * "Get my detailed price" is one question per card: the whole-house
+ * "Get my quote range" is one question per card: the whole-house
  * questions first (A), then the rooms one at a time (B, four cards each —
  * the size, what we're painting in here, robes and cupboards, anything
  * needing attention), then the last checks (E — every room? anything we
@@ -263,14 +263,14 @@ export function houseCounts(rooms: QuoteRoom[]): { doors: number; windows: numbe
 
 /** Every card in the brief's order: A, then B ×4 per room, then E, then F — or, outside, C ×3 per side, then F. */
 export function quoteCards(i: QuoteInput): QuoteCard[] {
-  if (i.jobKind === "exterior") return [...sideCards(i), { kind: "done", id: "done", stage: "Your detailed price" }];
+  if (i.jobKind === "exterior") return [...sideCards(i), { kind: "done", id: "done", stage: "Your quote range" }];
   const { doors, windows } = houseCounts(i.rooms);
   return [
     ...generalCards(i),
     ...roomCards(i),
     { kind: "rooms", id: "rooms", stage: "Last checks", rooms: i.rooms, doors, windows },
     { kind: "extras", id: "extras", stage: "Last checks" },
-    { kind: "done", id: "done", stage: "Your detailed price" },
+    { kind: "done", id: "done", stage: "Your quote range" },
   ];
 }
 
