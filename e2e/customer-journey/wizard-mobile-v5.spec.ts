@@ -3,7 +3,7 @@ import { randomBytes } from "node:crypto";
 import { mkdirSync } from "node:fs";
 import { test } from "../helpers";
 import { serviceClient } from "../fixtures/woLoop";
-import { MONEY_RANGE } from "./drive";
+import { MONEY_RANGE, passOtpIfShown } from "./drive";
 
 /**
  * Wizard mobile v5 — session 2 (brief §2, acceptance §9 items 1–3), as an
@@ -205,6 +205,7 @@ test.describe("Wizard mobile v5 — the phone's screens (session 2)", () => {
     await page.getByTestId("gate-mobile").fill(`04${String(Date.now()).slice(-8)}`);
     await expect(page.getByTestId("ql-next")).toBeEnabled({ timeout: 30_000 });
     await page.getByTestId("ql-next").tap();
+    await passOtpIfShown(page); // Tom, 5 Nov 2026: the texted code before the range
     // S4: on a phone the range is the mobile gate
     const gate = page.getByTestId("wzm-gate");
     const bounced = page.locator(".wz-err");

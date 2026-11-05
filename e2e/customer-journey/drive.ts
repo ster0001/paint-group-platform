@@ -1,4 +1,6 @@
 import { expect, type Page } from "@playwright/test";
+import type { SupabaseClient } from "@supabase/supabase-js";
+import { serviceClient } from "../fixtures/woLoop";
 
 /** A money range like "$5,120 – $5,560". */
 export const MONEY_RANGE = /\$[\d,]+\s*–\s*\$[\d,]+/;
@@ -283,9 +285,53 @@ export async function quickNext(page: Page) {
   // broken flow and is a race.
   const next = page.getByTestId("ql-next");
   await expect(next).toBeEnabled({ timeout: 30_000 });
+  const onGate = (await page.locator("[data-quick-step='gate']").count()) > 0;
   await next.click();
   const err = page.getByTestId("ql-error");
   if (await err.count()) throw new Error(`quick look gate: ${await err.first().innerText()}`);
+  // Tom, 5 Nov 2026: Show my guide price texts a code first — enter it (read back from the recorded text)
+  if (onGate) await passOtpIfShown(page);
+}
+
+/**
+ * The gate's one-time code (Tom, 5 Nov 2026). The test stack has no Twilio, so
+ * the text is recorded in `messages` with its body and never sent: the code is
+ * read back from there for the mobile the code screen names (`data-mobile` on
+ * the input). Polls — the row is written before the send route answers, but
+ * the screen can paint first.
+ */
+export async function textedCodeFor(sb: SupabaseClient, mobile: string): Promise<{ code: string; body: string }> {
+  const digits = mobile.replace(/\D/g, "");
+  const e164 = digits.startsWith("61") ? `+${digits}` : `+61${digits.replace(/^0/, "")}`;
+  for (let i = 0; i < 30; i++) {
+    const { data, error } = await sb.from("messages").select("body, created_at").eq("to_address", e164).ilike("body", "%code is%").order("created_at", { ascending: false }).limit(1);
+    if (error) throw new Error(`messages read failed: ${error.message}`);
+    const body = (data?.[0]?.body as string | undefined) ?? "";
+    const m = /\b(\d{6})\b/.exec(body);
+    if (m) return { code: m[1], body };
+    await new Promise((r) => setTimeout(r, 500));
+  }
+  throw new Error(`no code text recorded for ${e164}`);
+}
+
+/**
+ * After Show my range / Show my guide price: the code screen, when it comes,
+ * is answered with the texted code; six digits verify by themselves and the
+ * submit follows. Returns false when the range (or an error) came instead —
+ * staff, a signed-in customer, or a mobile already verified on this draft.
+ */
+export async function passOtpIfShown(page: Page): Promise<boolean> {
+  const input = page.getByTestId("gate-otp-input");
+  const done = page.getByTestId("wzm-gate").or(page.getByTestId("reveal")).or(page.locator(".wz-err")).or(page.getByTestId("ql-error"));
+  await expect(input.or(done).first()).toBeVisible({ timeout: 90_000 });
+  if (!(await input.count())) return false;
+  const sb = serviceClient();
+  if (!sb) throw new Error("the texted code needs SUPABASE_SERVICE_ROLE_KEY to be read back");
+  const mobile = await input.getAttribute("data-mobile");
+  if (!mobile) throw new Error("the code screen names no mobile");
+  const { code } = await textedCodeFor(sb, mobile);
+  await input.fill(code);
+  return true;
 }
 
 /** The desktop quick look (≥ 768px): the address, then one screen per step, Continue between them. */
@@ -435,6 +481,8 @@ export async function mobileQuickNext(page: Page) {
   const stepBefore = await stepOf();
   for (let i = 0; i < 6; i++) {
     const screen = await shell.getAttribute("data-mobile-screen");
+    // Tom, 5 Nov 2026: the code screen is answered with the texted code, which submits by itself
+    if (screen === "code") { await passOtpIfShown(page); return; }
     const bar = page.getByTestId("ql-next");
     if (await bar.count()) {
       await expect(bar).toBeEnabled({ timeout: 30_000 });

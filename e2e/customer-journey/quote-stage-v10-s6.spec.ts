@@ -2,7 +2,7 @@ import { expect, type Page } from "@playwright/test";
 import { randomBytes } from "node:crypto";
 import { test } from "../helpers";
 import { serviceClient } from "../fixtures/woLoop";
-import { MONEY_RANGE, answerOutsideQuick, driveMobileQuickLook, driveNoPlanWizard, openQuickLook, fillQuickAddress } from "./drive";
+import { MONEY_RANGE, answerOutsideQuick, driveMobileQuickLook, driveNoPlanWizard, openQuickLook, fillQuickAddress, passOtpIfShown } from "./drive";
 
 /**
  * QUOTE STAGE v10 — session 6 (`docs/briefs/claude-code-brief-quote-stage-v10.md`
@@ -47,6 +47,7 @@ const toGate = async (page: Page, run: string) => {
   await page.getByTestId("gate-email").fill(`q10s6.${run}.${Date.now()}@example.com`);
   await expect(page.getByTestId("ql-next")).toBeEnabled({ timeout: 30_000 });
   await page.getByTestId("ql-next").click();
+  await passOtpIfShown(page); // Tom, 5 Nov 2026: the texted code before the range
   const gate = page.getByTestId("wzm-gate");
   const bounced = page.locator(".wz-err");
   await expect(gate.or(bounced)).toBeVisible({ timeout: 90_000 });

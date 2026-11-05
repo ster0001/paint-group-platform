@@ -20,6 +20,7 @@ import {
 import type { InteriorExcludable } from "@/lib/wizard/quick-look";
 import { elevationCaption, outsideSheetChips, pictureStateFor, ribbonFor } from "@/lib/wizard/mobilePicture";
 import MobileStrip, { type StripChip } from "./MobileStrip";
+import OtpCode, { type OtpHandlers, type OtpUi } from "./OtpCode";
 import { brandFor } from "@/lib/marketing/brand";
 import { sendWizardEvent } from "@/lib/wizard/wizardEvents";
 import { AddRoomInline } from "./QuickLook";
@@ -56,8 +57,11 @@ import type { ExteriorPart, ExteriorV2 } from "@/lib/wizard/state";
  */
 export default function MobileQuickLook({
   brand, logo, steps, step, quick, onQuick, outside, onOutside, exteriorTypicals = [], address, contact, onContact, roomNames, addedRooms, onAddRoom, onRemoveAdded,
-  error, busy, canContinue, whyNot, onNext, onBack, canBack, onContactOpen, renderStep, resumed, onStartAgain,
+  error, busy, canContinue, whyNot, onNext, onBack, canBack, onContactOpen, renderStep, resumed, onStartAgain, otp, otpOn,
 }: {
+  /** Tom, 5 Nov 2026: the gate's texted code — the state and the four handlers WizardApp owns (null = no gate, or staff). */
+  otp: OtpUi | null;
+  otpOn: (OtpHandlers & { onBegin: () => Promise<"sent" | "verified" | "failed"> }) | null;
   /** S3: the outside answers, for the house in the strip; the sheet's chips tick the exterior brief's parts through it. */
   outside: ExteriorQuickLook;
   /** Exterior on mobile v5 (S1): the typicals the drawn house and the shape cards read (`exterior_typicals`). */
@@ -128,6 +132,8 @@ export default function MobileQuickLook({
     // No move of our own (a mount, a resume): the remembered screen, if it is one of this step's.
     let stored: string | null = rememberedAtMount.current ?? null;
     if (stored == null) { try { stored = window.localStorage.getItem(MOBILE_SCREEN_KEY); } catch { stored = null; } }
+    // a reload on the code screen lands on the details: Continue asks the server again (a verified mobile goes straight on)
+    if (stored === "code") stored = "details";
     const at = stored ? stepScreens.findIndex((s) => s.id === stored) : -1;
     if (at >= 0) rememberedAtMount.current = null;
     setSub(at >= 0 ? at : 0);
@@ -172,6 +178,7 @@ export default function MobileQuickLook({
   const back = () => {
     if (timer.current) clearTimeout(timer.current);
     rememberedAtMount.current = null;
+    if (current.id === "code") otpOn?.onChange();
     if (sub > 0) { setSub(sub - 1); return; }
     if (!canBack) return;
     pendingRef.current = "last";
@@ -181,6 +188,7 @@ export default function MobileQuickLook({
   const [changingAddress, setChangingAddress] = useState(false);
   const ticked = roomsTicked(quick, roomNames, addedRooms);
   const ready = current.id === "details" ? Boolean(contact && detailsReady(contact))
+    : current.id === "code" ? Boolean(otp && otp.code.length === 6)
     : current.id === "rooms" ? ticked > 0
     // S2 (plan §2 5d): Continue needs at least one part or extra overall by the last Painting screen (the step's own rule)
     : current.id === "p-around" ? Boolean(outside.v2 && exteriorV2Answered(outside.v2))
@@ -189,7 +197,7 @@ export default function MobileQuickLook({
   // last side reads "Looks right" (or Continue when it is not painting). Looking at a side checks it (the effect below).
   const sideAt = sideOfScreen(current.id);
   const sidePainted = sideAt != null && Boolean(outside.v2?.sides[sideAt]?.paint);
-  const barLabel = current.id === "details" ? "Show my range" : step === "com_book" ? "Book it"
+  const barLabel = current.id === "details" || current.id === "code" ? "Show my range" : step === "com_book" ? "Book it"
     : sideAt ? (sidePainted ? "Looks right — next side" : last ? "Continue" : "Next side")
     : "Continue";
   useEffect(() => {
@@ -273,7 +281,7 @@ export default function MobileQuickLook({
         {/* `data-quick-step` names the step for the specs: on a screen of our own it is here; a step rendered as it is carries its own pane. */}
         <section className="wzm-screen" key={current.id} data-quick-step={current.heading != null ? step : undefined}>
           {current.stage && <p className="wzm-stage" data-testid="wzm-stage">{current.stage}</p>}
-          {current.heading && <h1 data-testid="wzm-h1">{current.heading}</h1>}
+          {current.heading && <h1 data-testid="wzm-h1">{current.id === "code" && otp ? `Enter the code we texted to ${otp.masked}` : current.heading}</h1>}
           {current.sub && <p className="wzm-sub" data-testid="wzm-sub">{current.sub}</p>}
 
           {current.id === "what" && (
@@ -543,6 +551,10 @@ export default function MobileQuickLook({
             </>
           )}
 
+          {current.id === "code" && otp && otpOn && (
+            <OtpCode otp={otp} on={otpOn} />
+          )}
+
           {current.heading == null && <div className="wzm-generic">{renderStep()}</div>}
 
           {current.heading != null && error && <div className="wz-err" data-testid="ql-error">{error}</div>}
@@ -552,11 +564,21 @@ export default function MobileQuickLook({
       {showBar && (
         <div className="wzm-foot" data-testid="wzm-foot">
           {whyNot && (!canContinue || busy) && <p className="wzm-why" data-testid="ql-why" role="status">{whyNot}</p>}
-          <button key={error ?? "ok"} type="button" className={`wzm-cta ${error ? "wz-shake" : ""}`} disabled={!ready || !canContinue || busy} data-testid="ql-next"
-            onClick={() => { rememberedAtMount.current = null; pendingRef.current = "first"; if (!last) { setSub(sub + 1); return; } onNext(); }}>
-            {busy ? (step === "com_book" ? "Booking…" : "Working it out…") : barLabel}
+          <button key={error ?? "ok"} type="button" className={`wzm-cta ${error ? "wz-shake" : ""}`} disabled={!ready || !canContinue || busy || Boolean(otp?.busy)} data-testid="ql-next"
+            onClick={() => {
+              rememberedAtMount.current = null; pendingRef.current = "first";
+              // Tom, 5 Nov 2026: Continue on the details texts the code (or learns the mobile is already verified and goes on)
+              if (current.id === "details" && otpOn) {
+                void otpOn.onBegin().then((r) => { if (r === "sent") setSub(sub + 1); else if (r === "verified") onNext(); });
+                return;
+              }
+              if (current.id === "code" && otp && otpOn) { otpOn.onVerify(otp.code); return; }
+              if (!last) { setSub(sub + 1); return; }
+              onNext();
+            }}>
+            {busy || otp?.busy ? (step === "com_book" ? "Booking…" : current.id === "details" ? "Sending the code…" : "Working it out…") : barLabel}
           </button>
-          {current.id === "details" && <p className="wzm-hint" data-testid="wzm-hint">Appears instantly</p>}
+          {current.id === "details" && <p className="wzm-hint" data-testid="wzm-hint">We text you a code first</p>}
         </div>
       )}
     </div>

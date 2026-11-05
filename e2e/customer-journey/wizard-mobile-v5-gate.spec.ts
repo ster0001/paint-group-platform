@@ -5,7 +5,7 @@ import { test } from "../helpers";
 /** Quote stage v10 (S7 switch-over): with the flag on, the gate's door reads "detailed" and opens /estimate/quote. */
 const V10 = process.env.NEXT_PUBLIC_QUOTE_STAGE_V10 !== "0";
 import { serviceClient } from "../fixtures/woLoop";
-import { MONEY_RANGE } from "./drive";
+import { MONEY_RANGE, passOtpIfShown } from "./drive";
 
 /**
  * Wizard mobile v5 — session 4 (brief §4, acceptance §9 items 7, 10, 11),
@@ -84,6 +84,7 @@ test.describe("Wizard mobile v5 — the gate on a phone (session 4)", () => {
     await page.getByTestId("gate-email").fill(`ph.gate.${run}.${Date.now()}@example.com`);
     await expect(page.getByTestId("ql-next")).toBeEnabled({ timeout: 30_000 });
     await page.getByTestId("ql-next").tap();
+    await passOtpIfShown(page); // Tom, 5 Nov 2026: the texted code before the range
     const gate = page.getByTestId("wzm-gate");
     const bounced = page.locator(".wz-err");
     await expect(gate.or(bounced)).toBeVisible({ timeout: 90_000 });

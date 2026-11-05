@@ -1,5 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
-import { lookAtEverySide, passDetailsSheetIfShown, passGateIfShown, quickNext, MONEY_RANGE } from "./drive";
+import { lookAtEverySide, passDetailsSheetIfShown, passGateIfShown, quickNext, MONEY_RANGE, passOtpIfShown } from "./drive";
 import { toSides } from "./exterior-v2-drive";
 
 /**
@@ -167,6 +167,7 @@ test.describe("on a phone: Tighten is the walk-around, one screen per side (exte
     await page.getByTestId("gate-email").fill(`s6.${run}@example.com`);
     await expect(page.getByTestId("ql-next")).toBeEnabled({ timeout: 30_000 });
     await page.getByTestId("ql-next").tap();
+    await passOtpIfShown(page); // Tom, 5 Nov 2026: the texted code before the range
     const gate = page.getByTestId("wzm-gate");
     const bounced = page.locator(".wz-err");
     await expect(gate.or(bounced)).toBeVisible({ timeout: 90_000 });

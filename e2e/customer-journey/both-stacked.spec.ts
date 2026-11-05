@@ -1,5 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
-import { MONEY_RANGE, driveNoPlanWizard } from "./drive";
+import { MONEY_RANGE, driveNoPlanWizard, passOtpIfShown } from "./drive";
 
 /**
  * Batch 4 — "Both" jobs get the STACKED editor (Tom's ruling on the parity
@@ -122,6 +122,7 @@ test.describe("on a phone: a both job is inside then outside, one gate (exterior
     await page.getByTestId("gate-email").fill(`s7b.${run}@example.com`);
     await expect(page.getByTestId("ql-next")).toBeEnabled({ timeout: 30_000 });
     await page.getByTestId("ql-next").tap();
+    await passOtpIfShown(page); // Tom, 5 Nov 2026: the texted code before the range
     const gate = page.getByTestId("wzm-gate");
     const bounced = page.locator(".wz-err");
     await expect(gate.or(bounced)).toBeVisible({ timeout: 90_000 });

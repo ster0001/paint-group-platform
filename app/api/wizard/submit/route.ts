@@ -12,6 +12,7 @@ import { createHash } from "node:crypto";
 import { createClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import { getWizardActor } from "@/lib/supabase/guards";
+import { mobileVerified, normaliseMobile } from "@/lib/wizard/otp";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { buildDraft, type DraftArea, type DraftResult } from "@/lib/extract/draft";
 import { EXTERIOR_ALLOWANCES_KEY, exteriorAllowancesFrom } from "@/lib/wizard/exterior-allowances";
@@ -144,6 +145,19 @@ export async function POST(request: Request) {
     const gateDone = Boolean(state.contact.name.trim().length >= 2 && /.+@.+\..+/.test(state.contact.email.trim()) && state.contact.phone.replace(/\D/g, "").length >= 10);
     if (gateVersion === "details_first" && !gateDone && !actor.verifiedEmail) {
       return NextResponse.json({ error: "Enter your details to see your guide price.", code: "gate_required" }, { status: 409 });
+    }
+    /**
+     * Tom, 5 Nov 2026: the price is shown only after the mobile is proven. The
+     * code is sent and checked by /api/wizard/otp/* (migration 20270308); this
+     * is the one place that refuses a submit without it. Staff and signed-in
+     * portal customers never meet the gate, so never meet the code.
+     */
+    if (gateVersion === "details_first" && !actor.verifiedEmail) {
+      const digits = normaliseMobile(state.contact.phone);
+      const verified = digits ? await mobileVerified(db, actor.user.id, digits) : false;
+      if (!verified) {
+        return NextResponse.json({ error: "Enter the code we texted to your mobile to see your price.", code: "otp_required" }, { status: 409 });
+      }
     }
     // A walk faster than the 2.5-second autosave debounce reaches the range
     // with no session row at all (the e2e drive does; a quick human can). The

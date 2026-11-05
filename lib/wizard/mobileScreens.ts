@@ -26,7 +26,7 @@ import { VERANDAH_PARTS, anyBrick, anyVerticalTimber } from "./exterior-model";
  */
 export const MOBILE_SCREEN_IDS = ["what", "property", "beds", "storeys", "job", "surfaces", "rooms", "colours", "condition", "living", "shape", "size", "row", "p-house", "p-win", "p-ver", "p-around",
   "a-walls", "a-wallsUp", "a-brick", "a-timber", "a-gable", "a-win", "a-garage", "a-posts", "a-extras", "a-colours", "a-access",
-  "s-front", "s-right", "s-back", "s-left", "details"] as const;
+  "s-front", "s-right", "s-back", "s-left", "details", "code"] as const;
 export type MobileScreenId = (typeof MOBILE_SCREEN_IDS)[number];
 
 export type MobileScreen = {
@@ -61,6 +61,8 @@ const WORDS: Record<WordedScreenId, { heading: string; sub: string }> = {
   size: { heading: "About how big is it?", sub: "Roughly — the house size, not the block." },
   row: { heading: "Where is it in the row?", sub: "Shared walls aren't painted." },
   details: { heading: "Where shall we send your range?", sub: "It shows on the next screen. We text you the link so you can come back to it." },
+  // Tom, 5 Nov 2026: the code screen. The shell writes the masked mobile into the heading ("Enter the code we texted to 0412 ••• 678").
+  code: { heading: "Enter the code we texted", sub: "Six digits. It can take a few seconds to arrive." },
 };
 
 const screen = (id: WordedScreenId, step: QuickLookStep, advance: MobileScreen["advance"], heading = WORDS[id].heading): MobileScreen =>
@@ -164,6 +166,10 @@ export function mobileScreensFor(
       }
       case "gate":
         out.push(screen("details", step, "bar"));
+        // Tom, 5 Nov 2026: the texted code, before the range. A mobile already verified for this draft skips it (the
+        // shell asks the server on Continue), and staff never meet the gate — the screen is in the list either way so
+        // the bar and the back chevron behave as on every other screen.
+        out.push(screen("code", step, "bar"));
         break;
       default:
         out.push({ id: step, step, advance: step === "both" ? "auto" : "bar", heading: null, sub: null });
