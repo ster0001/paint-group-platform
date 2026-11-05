@@ -1149,20 +1149,29 @@ export default function ScopeEditor({ estimateId, initial, initialRooms, initial
                         The blur is checked on the row, so tabbing between length, width and ceiling does not save half a size. */}
                     <div className="sd-mrow sd-mrow--inline" data-testid={`size-form-${room.areaId}`}
                       onBlur={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node | null) && sizeDirty(room.areaId, loop)) saveSize(room, loop); }}>
-                      <input placeholder="length m" inputMode="decimal" aria-label="Length in metres" value={sizeDraft(room.areaId, loop).L} data-testid={`size-length-${room.areaId}`}
-                        onChange={(e) => setSizeDrafts((d) => ({ ...d, [room.areaId]: { ...sizeDraft(room.areaId, loop), L: e.target.value } }))}
-                        onKeyDown={(e) => { if (e.key === "Enter") saveSize(room, loop); }} />
+                      {/* Tom, 6 Nov 2026: on a phone the three boxes are one full-width line with a caption each
+                          (the loose × / m / · between them are hidden there); on a laptop the captions are hidden
+                          and the row reads as before — length m × width m · ceiling 2.4 m. */}
+                      <label className="sd-mcell"><span className="sd-ml">Length</span>
+                        <input placeholder="length m" inputMode="decimal" aria-label="Length in metres" value={sizeDraft(room.areaId, loop).L} data-testid={`size-length-${room.areaId}`}
+                          onChange={(e) => setSizeDrafts((d) => ({ ...d, [room.areaId]: { ...sizeDraft(room.areaId, loop), L: e.target.value } }))}
+                          onKeyDown={(e) => { if (e.key === "Enter") saveSize(room, loop); }} />
+                      </label>
                       <span>×</span>
-                      <input placeholder="width m" inputMode="decimal" aria-label="Width in metres" value={sizeDraft(room.areaId, loop).W} data-testid={`size-width-${room.areaId}`}
-                        onChange={(e) => setSizeDrafts((d) => ({ ...d, [room.areaId]: { ...sizeDraft(room.areaId, loop), W: e.target.value } }))}
-                        onKeyDown={(e) => { if (e.key === "Enter") saveSize(room, loop); }} />
+                      <label className="sd-mcell"><span className="sd-ml">Width</span>
+                        <input placeholder="width m" inputMode="decimal" aria-label="Width in metres" value={sizeDraft(room.areaId, loop).W} data-testid={`size-width-${room.areaId}`}
+                          onChange={(e) => setSizeDrafts((d) => ({ ...d, [room.areaId]: { ...sizeDraft(room.areaId, loop), W: e.target.value } }))}
+                          onKeyDown={(e) => { if (e.key === "Enter") saveSize(room, loop); }} />
+                      </label>
                       <span>m</span>
                       {/* Tom, 7 Oct 2026 (item 8): this room's own ceiling — optional; blank keeps the job's height. */}
-                      <span>·</span>
-                      <input placeholder={`ceiling ${loop.heightM} m`} inputMode="decimal" value={sizeDraft(room.areaId, loop).H} data-testid={`size-height-${room.areaId}`}
-                        aria-label="Ceiling height in metres, this room only"
-                        onChange={(e) => setSizeDrafts((d) => ({ ...d, [room.areaId]: { ...sizeDraft(room.areaId, loop), H: e.target.value } }))}
-                        onKeyDown={(e) => { if (e.key === "Enter") saveSize(room, loop); }} />
+                      <span>· ceiling</span>
+                      <label className="sd-mcell"><span className="sd-ml">Ceiling</span>
+                        <input placeholder={`${loop.heightM} m`} inputMode="decimal" value={sizeDraft(room.areaId, loop).H} data-testid={`size-height-${room.areaId}`}
+                          aria-label="Ceiling height in metres, this room only"
+                          onChange={(e) => setSizeDrafts((d) => ({ ...d, [room.areaId]: { ...sizeDraft(room.areaId, loop), H: e.target.value } }))}
+                          onKeyDown={(e) => { if (e.key === "Enter") saveSize(room, loop); }} />
+                      </label>
                     </div>
                     <div className="sc-chips">
                       {sizeDirty(room.areaId, loop) ? (
