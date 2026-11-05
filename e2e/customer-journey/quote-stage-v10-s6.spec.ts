@@ -2,7 +2,7 @@ import { expect, type Page } from "@playwright/test";
 import { randomBytes } from "node:crypto";
 import { test } from "../helpers";
 import { serviceClient } from "../fixtures/woLoop";
-import { MONEY_RANGE, answerOutsideQuick, driveMobileQuickLook, openQuickLook, fillQuickAddress, quickNext } from "./drive";
+import { MONEY_RANGE, answerOutsideQuick, driveMobileQuickLook, driveNoPlanWizard, openQuickLook, fillQuickAddress } from "./drive";
 
 /**
  * QUOTE STAGE v10 — session 6 (`docs/briefs/claude-code-brief-quote-stage-v10.md`
@@ -19,7 +19,8 @@ const db = serviceClient();
 const cardId = (page: Page) => page.getByTestId("quote-stage").getAttribute("data-quote-card");
 const passCard = async (page: Page) => {
   const id = (await cardId(page))!;
-  if (id.startsWith("measure:") || id.startsWith("side-size:")) await page.getByTestId("q-size-typical").click();
+  if (id.startsWith("g:")) await page.locator(".wzq-card .wzm-opts .wzm-opt").first().click(); // a single choice advances itself
+  else if (id.startsWith("measure:") || id.startsWith("side-size:")) await page.getByTestId("q-size-typical").click();
   else if (id.startsWith("robe:")) await page.getByTestId("q-robe-none").click();
   else await page.getByTestId("q-next").click();
   await expect.poll(() => cardId(page), { timeout: 30_000 }).not.toBe(id);
@@ -29,7 +30,14 @@ const passUntil = async (page: Page, stop: (id: string) => boolean) => {
   throw new Error("never reached the card");
 };
 const toGate = async (page: Page, run: string) => {
-  await expect(page.locator("[data-mobile-screen='details']")).toBeVisible({ timeout: 30_000 });
+  // the phone's Each side step takes one "Looks right — next side" per painted side before the details screen
+  const details = page.locator("[data-mobile-screen='details']");
+  for (let i = 0; i < 5 && !(await details.isVisible()); i++) {
+    const next = page.getByTestId("ql-next");
+    if (await next.isVisible()) await next.click();
+    await page.waitForTimeout(600);
+  }
+  await expect(details).toBeVisible({ timeout: 30_000 });
   await page.getByTestId("gate-name").fill("Quote Tester");
   await page.getByTestId("gate-mobile").fill(`04${String(Date.now()).slice(-8)}`);
   await page.getByTestId("gate-email").fill(`q10s6.${run}.${Date.now()}@example.com`);
@@ -109,6 +117,8 @@ test.describe("quote stage v10 — session 6: outside and trims on a phone", () 
     await expect(page.getByTestId("q-side-win-n")).toHaveText(String(win0 + 1));
     await expect(elev).toHaveAttribute("data-windows", String(win0 + 1));
     await expect.poll(async () => page.getByTestId("quote-stage").getAttribute("data-busy"), { timeout: 30_000 }).not.toBe("1");
+    // the condition chips sit low on the card: scroll them to the middle first, or the sticky bar sits over them
+    await page.getByTestId("q-side-cond-weathered").evaluate((el) => el.scrollIntoView({ block: "center" }));
     await page.getByTestId("q-side-cond-weathered").click();
     await expect(page.getByTestId("q-side-cond-weathered")).toHaveAttribute("aria-pressed", "true");
     await page.getByTestId("q-next").click();
@@ -138,6 +148,9 @@ test.describe("quote stage v10 — session 6: outside and trims on a phone", () 
     await toGate(page, run);
     const stage = page.getByTestId("quote-stage");
     await expect(stage).toHaveAttribute("data-job-kind", "trims");
+    // D's own first card (S7): "Same white, or a new colour?" — then the doors
+    await expect(stage).toHaveAttribute("data-quote-card", "g:trimColour", { timeout: 15_000 });
+    await page.getByTestId("q-opt-trimColour-same").click();
     await expect(stage).toHaveAttribute("data-quote-card", "g:doors", { timeout: 15_000 });
     await page.getByTestId("q-opt-doors-panel").click();
     await passUntil(page, (id) => !id.startsWith("g:"));
@@ -163,20 +176,8 @@ test.describe("quote stage v10 — session 6: the desktop format and the keyboar
 
   test("three columns at 1280: drawing left, the card centre, price + collapsed quote right; 1–4, Enter and ← drive it", async ({ page }) => {
     test.setTimeout(300_000);
-    await openQuickLook(page);
-    await fillQuickAddress(page, { suburb });
-    await quickNext(page);
-    await expect(page.locator("[data-quick-step='place']")).toBeVisible({ timeout: 30_000 });
-    await quickNext(page);
-    await expect(page.locator("[data-quick-step='job']")).toBeVisible({ timeout: 30_000 });
-    await page.getByTestId("ql-scope-whole").click();
-    await page.getByTestId("ql-excl-none").click();
-    await quickNext(page);
-    await expect(page.locator("[data-quick-step='rooms']")).toBeVisible({ timeout: 30_000 });
-    await quickNext(page);
-    await expect(page.locator("[data-quick-step='condition']")).toBeVisible({ timeout: 30_000 });
-    await quickNext(page);
-    await expect(page.getByTestId("reveal-range")).toContainText(MONEY_RANGE, { timeout: 240_000 });
+    // the desktop quick look to its range (the shared drive fills the gate's details on the way), then the desktop door (still the old editor this release)
+    await driveNoPlanWizard(page, { suburb, stopAtReveal: true, contactName: "Desk Tester", email: `q10d.${run}@example.com` });
     await page.getByTestId("door-tighten").click();
     await expect(page).toHaveURL(/\/estimate\/scope\?id=/, { timeout: 60_000 });
     const id = new URL(page.url()).searchParams.get("id")!;
@@ -218,7 +219,8 @@ test.describe("quote stage v10 — session 6: the desktop format and the keyboar
     await expect(page.getByTestId("q-measure-w")).toBeFocused();
     await expect(page.getByTestId("q-rail-room").locator("svg")).toHaveCount(1);
     await shot(page, "desktop-02-measure");
-    await expect(page.getByTestId("q-rail-room-name")).toHaveText(await page.getByTestId("q-stage").innerText().then((t) => t.split(" · ")[0]));
+    const stageRoom = (await page.getByTestId("q-stage").innerText()).split(" · ")[0]; // the stage line is upper-cased by CSS
+    expect((await page.getByTestId("q-rail-room-name").innerText()).toLowerCase()).toBe(stageRoom.toLowerCase());
     await page.keyboard.type("4");
     await page.keyboard.press("Enter");
     await expect(stage).toHaveAttribute("data-quote-card", /^surfaces:/, { timeout: 30_000 });
