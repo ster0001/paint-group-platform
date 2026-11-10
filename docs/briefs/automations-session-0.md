@@ -125,7 +125,7 @@ Campaigns is a second system: event or audience entry, 7 triggers, step sequence
 
 | # | Decision | Proposal |
 |---|---|---|
-| A‑A | Engine | **Extend registry + dispatcher + claims. No `automations` table, no scheduled runs.** Sweeps derive what is due, so exit-on-stage-change comes free |
+| A‑A | Engine | ✅ **RULED 11 Nov (Tom): extend registry + dispatcher + claims. No `automations` table, no scheduled runs.** Sweeps derive what is due, so exit-on-stage-change comes free |
 | A‑B | What is genuinely new | Per-brand wording table; send stats read from `messages`; a thin run log only if "next due" needs one |
 | A‑C | Screen | One screen. Move or link the existing one so Campaigns › Automations shows the funnel keys, Settings keeps the rest. Tom chooses |
 | A‑D | Default off | Add default-off to the registry first, tested, before any key |
