@@ -114,6 +114,7 @@ test.describe("line items with hours reach the work order", () => {
     const deckArea = page.locator(".area", { has: page.locator(".area-title", { hasText: DECK }) });
     await expect(deckArea).toBeVisible();
     await expect(deckArea).toContainText("Apply oxalic acid and thoroughly clean deck");
+    await expect(deckArea).not.toContainText(/0 coats/i);
     await expect(page.locator(".area-title", { hasText: FEE })).toHaveCount(0);
     await page.screenshot({ path: test.info().outputPath("job-sheet.png"), fullPage: true });
   });
