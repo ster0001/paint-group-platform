@@ -159,3 +159,5 @@ The brief's `lib/crm/workQueue.ts` with `value × age` is a **second evaluator**
 | E‑R | Master plan version | **Supply v3, or confirm v2 plus the briefs is the full set** |
 
 Session 1 as written (brand column, `wizard_sessions`, dotted events) would fail or duplicate. Once these are ruled, it shrinks to: catalogue additions, `wizard_draft_id`, step/gate/resume events, `estimate_revised` writer, view-count fix.
+
+**Ruled 11 Nov 2026 (Tom): every proposal in the table above was accepted as written.** The brief carries the ruling block.
