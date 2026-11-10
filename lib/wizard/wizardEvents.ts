@@ -26,6 +26,7 @@ const step = z.string().regex(/^[a-z][a-z0-9_-]{0,39}$/);
 /** The events a customer's browser may write, and what each must carry. */
 export const WIZARD_EVENT_SCHEMAS = {
   wizard_step_viewed: z.object({ step, breakpoint }),
+  wizard_step_completed: z.object({ step, breakpoint }),
   surface_toggled: z.object({ surface: z.string().regex(/^[a-z][a-z0-9_]{0,39}$/), on: z.boolean() }),
   gate_viewed: z.object({ range_low: money, range_high: money, bigger_job: z.boolean(), breakpoint }),
   gate_cta_clicked: z.object({ cta: z.enum(["exact", "visit", "call", "message", "save"]), breakpoint }),
@@ -46,6 +47,7 @@ export type WizardEventPayload<T extends WizardEventType> = z.input<(typeof WIZA
 /** The request body `/api/wizard/event` accepts: one catalogued type and its payload. Spelled out so each arm keeps its payload type. */
 export const wizardEventBodySchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("wizard_step_viewed"), payload: WIZARD_EVENT_SCHEMAS.wizard_step_viewed }),
+  z.object({ type: z.literal("wizard_step_completed"), payload: WIZARD_EVENT_SCHEMAS.wizard_step_completed }),
   z.object({ type: z.literal("surface_toggled"), payload: WIZARD_EVENT_SCHEMAS.surface_toggled }),
   z.object({ type: z.literal("gate_viewed"), payload: WIZARD_EVENT_SCHEMAS.gate_viewed }),
   z.object({ type: z.literal("gate_cta_clicked"), payload: WIZARD_EVENT_SCHEMAS.gate_cta_clicked }),
@@ -59,6 +61,20 @@ export const wizardEventBodySchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("quote_book_clicked"), payload: WIZARD_EVENT_SCHEMAS.quote_book_clicked }),
 ]);
 export type WizardEventBody = z.infer<typeof wizardEventBodySchema>;
+
+/**
+ * Estimates tab session 1: the step a move COMPLETED, or null. A step is
+ * completed when the customer leaves it forward — further along `order` —
+ * so Back, a re-render on the same step, or a jump to a step not in the
+ * list completes nothing. Both wizard shells call this with their own order
+ * (the phone's screens, the laptop's quick-look steps).
+ */
+export function stepCompletedBy(prev: string | null, next: string, order: readonly string[]): string | null {
+  if (!prev || prev === next) return null;
+  const from = order.indexOf(prev);
+  const to = order.indexOf(next);
+  return from >= 0 && to > from ? prev : null;
+}
 
 /** Which breakpoint the browser is on right now (desktop when there is no window — a server render never sends). */
 export function breakpointNow(width: number | null = typeof window === "undefined" ? null : window.innerWidth): Breakpoint {

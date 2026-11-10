@@ -1,0 +1,429 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Estimates & Automations — mockup</title>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Martian+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --paper:#F6F7F8;--card:#FFFFFF;--line:#E3E7EA;--ink:#0A0B0D;--muted:#6B747C;--soft:#F0F2F4;
+  --cyan:#3BD8E9;--paint:#2FB9CB;--oncyan:#03272D;--amber:#E0A83C;--emerald:#2FA46B;--clay:#B3574A;--violet:#6E5BD6;
+  --ph:#1A2A44;--phc:#24C3D8;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{background:#DADFE3;font-family:Geist,system-ui,sans-serif;color:var(--ink);-webkit-font-smoothing:antialiased}
+.phone{max-width:430px;margin:0 auto;min-height:100vh;background:var(--paper);display:flex;flex-direction:column;position:relative}
+.mono{font-family:"Martian Mono",monospace;font-size:11px;letter-spacing:-.02em}
+.top{padding:14px 16px 8px;background:var(--card);border-bottom:1px solid var(--line);position:sticky;top:0;z-index:5}
+.top h1{font-size:20px;font-weight:700;letter-spacing:-.02em}
+.top .sub{font-size:12px;color:var(--muted);margin-top:2px}
+.views{display:flex;gap:6px;overflow-x:auto;padding:10px 16px 0;scrollbar-width:none}
+.views::-webkit-scrollbar{display:none}
+.views button{flex:0 0 auto;border:1px solid var(--line);background:var(--card);padding:7px 12px;border-radius:999px;font:inherit;font-size:13px;font-weight:500;color:var(--muted)}
+.views button.on{background:var(--ink);color:#fff;border-color:var(--ink)}
+.views button .n{font-family:"Martian Mono",monospace;font-size:10px;margin-left:5px;opacity:.75}
+.screen{display:none;padding:12px 16px 90px}
+.screen.on{display:block}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px 14px;margin-bottom:10px}
+.row{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.h2{font-size:13px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin:14px 0 8px}
+.brand{display:inline-flex;align-items:center;gap:5px;font-family:"Martian Mono",monospace;font-size:9.5px;padding:3px 7px;border-radius:6px;font-weight:600}
+.brand.pg{background:var(--ink);color:var(--cyan)}
+.brand.ph{background:var(--ph);color:var(--phc)}
+.pill{font-family:"Martian Mono",monospace;font-size:10px;padding:3px 8px;border-radius:999px;background:var(--soft);color:var(--muted)}
+.pill.amber{background:#FBF1DC;color:#8A5E0E}.pill.cyan{background:#DDF8FB;color:#0E5A64}.pill.clay{background:#F6E3DF;color:#7A2E24}.pill.em{background:#E0F3E8;color:#1E6B45}.pill.vi{background:#E9E5FA;color:#3F2F9E}
+.money{font-family:"Martian Mono",monospace;font-size:13px;font-weight:600}
+.small{font-size:12px;color:var(--muted)}
+.name{font-weight:600;font-size:15px;letter-spacing:-.01em}
+.addr{font-size:13px;color:var(--muted)}
+/* pipeline */
+.lanes{display:flex;gap:10px;overflow-x:auto;padding-bottom:6px;scroll-snap-type:x mandatory;margin:0 -16px;padding-left:16px;padding-right:16px}
+.lane{flex:0 0 82%;scroll-snap-align:start}
+.lane h3{font-size:14px;font-weight:600;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center}
+.lane h3 .cnt{font-family:"Martian Mono",monospace;font-size:11px;color:var(--muted)}
+.lane h3 .tot{font-family:"Martian Mono",monospace;font-size:11px;color:var(--muted)}
+.lcard{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:11px 12px;margin-bottom:8px;border-left:3px solid var(--line)}
+.lcard.hot{border-left-color:var(--clay)}.lcard.warm{border-left-color:var(--amber)}.lcard.cool{border-left-color:var(--cyan)}
+.lcard .meta{display:flex;gap:6px;flex-wrap:wrap;margin-top:7px}
+.auto{font-size:11.5px;color:var(--muted);margin-top:7px;display:flex;justify-content:space-between}
+.auto b{color:var(--ink);font-weight:500}
+/* search */
+.search{display:flex;gap:8px;margin-bottom:10px}
+.search input{flex:1;border:1px solid var(--line);border-radius:10px;padding:10px 12px;font:inherit;font-size:14px;background:var(--card)}
+.search button{border:1px solid var(--line);background:var(--card);border-radius:10px;padding:0 12px;font:inherit;font-size:13px}
+.filters{display:flex;gap:6px;overflow-x:auto;margin-bottom:10px;scrollbar-width:none}
+.filters span{flex:0 0 auto;font-size:12px;padding:5px 10px;border-radius:999px;border:1px solid var(--line);background:var(--card);color:var(--muted)}
+.filters span.on{background:var(--soft);color:var(--ink);border-color:#C9D0D6}
+.est{display:flex;justify-content:space-between;align-items:center;padding:11px 0;border-bottom:1px solid var(--line)}
+.est:last-child{border-bottom:0}
+.dot{width:7px;height:7px;border-radius:50%;display:inline-block;margin-right:6px}
+/* funnel */
+.steps{margin-top:6px}
+.step{display:grid;grid-template-columns:120px 1fr 44px;align-items:center;gap:8px;padding:6px 0}
+.step .lab{font-size:12px}
+.bar{height:16px;background:var(--soft);border-radius:4px;overflow:hidden;position:relative}
+.bar i{display:block;height:100%;background:var(--paint)}
+.bar i.lo{background:var(--amber)}
+.step .pct{font-family:"Martian Mono",monospace;font-size:11px;text-align:right}
+.step .pct.bad{color:var(--clay)}
+.bands{margin-top:6px}
+.band{display:grid;grid-template-columns:70px 1fr 54px;align-items:center;gap:8px;padding:5px 0}
+.band .bar{height:18px}
+.band .bar i.seen{background:#CFE9EE;position:absolute;left:0;top:0}
+.band .bar i.act{background:var(--paint);position:absolute;left:0;top:0}
+.band .pct{font-family:"Martian Mono",monospace;font-size:11px;text-align:right}
+.legend{display:flex;gap:12px;font-size:11px;color:var(--muted);margin-top:6px}
+.legend i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:4px;vertical-align:-1px}
+.kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:10px}
+.kpi{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:10px}
+.kpi .v{font-family:"Martian Mono",monospace;font-size:18px;font-weight:600}
+.kpi .l{font-size:11px;color:var(--muted);margin-top:2px}
+/* work queue */
+.wq{border-left:3px solid var(--clay)}
+.wq.amb{border-left-color:var(--amber)}
+.wq .act{margin-top:9px;display:flex;gap:8px}
+.btn{border:0;border-radius:9px;padding:8px 12px;font:inherit;font-size:13px;font-weight:600;background:var(--ink);color:#fff}
+.btn.ghost{background:var(--soft);color:var(--ink)}
+.btn.cy{background:var(--cyan);color:var(--oncyan)}
+/* automations */
+.aut{display:flex;align-items:center;gap:10px;padding:11px 0;border-bottom:1px solid var(--line)}
+.aut:last-child{border-bottom:0}
+.aut .k{font-family:"Martian Mono",monospace;font-size:10px;color:var(--muted);width:30px;flex:0 0 30px}
+.aut .t{flex:1}
+.aut .t b{font-size:14px;font-weight:600;display:block}
+.aut .t span{font-size:11.5px;color:var(--muted)}
+.ch{font-family:"Martian Mono",monospace;font-size:9.5px;padding:2px 6px;border-radius:5px;background:var(--soft);color:var(--muted);margin-left:6px}
+.sw{width:44px;height:26px;border-radius:999px;background:#C9D0D6;position:relative;flex:0 0 44px;transition:.15s}
+.sw::after{content:"";position:absolute;top:3px;left:3px;width:20px;height:20px;border-radius:50%;background:#fff;transition:.15s;box-shadow:0 1px 2px rgba(0,0,0,.2)}
+.sw.on{background:var(--emerald)}.sw.on::after{left:21px}
+.stat{font-family:"Martian Mono",monospace;font-size:10px;color:var(--muted)}
+/* builder sheet */
+.sheet{position:fixed;inset:0;background:rgba(10,11,13,.45);display:none;z-index:20;align-items:flex-end}
+.sheet.on{display:flex}
+.sheetin{background:var(--paper);width:100%;max-width:430px;margin:0 auto;border-radius:18px 18px 0 0;max-height:92vh;overflow:auto;padding:14px 16px 24px}
+.grab{width:40px;height:4px;border-radius:2px;background:#C9D0D6;margin:0 auto 12px}
+.tabs{display:flex;background:var(--soft);border-radius:10px;padding:3px;margin:10px 0}
+.tabs span{flex:1;text-align:center;padding:7px;border-radius:8px;font-size:13px;font-weight:500;color:var(--muted)}
+.tabs span.on{background:var(--card);color:var(--ink);box-shadow:0 1px 2px rgba(0,0,0,.08)}
+.field{margin-bottom:10px}
+.field label{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;display:block;margin-bottom:5px}
+.field .val{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:9px 11px;font-size:13.5px}
+textarea.val{width:100%;min-height:150px;font:inherit;font-size:14px;line-height:1.45;resize:vertical}
+.vars{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}
+.vars span{font-family:"Martian Mono",monospace;font-size:10px;padding:3px 7px;border-radius:6px;background:#DDF8FB;color:#0E5A64}
+/* chat preview */
+.chat{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px}
+.chat .hdr{display:flex;align-items:center;gap:8px;margin-bottom:10px}
+.ava{width:30px;height:30px;border-radius:50%;background:linear-gradient(135deg,#2FB9CB,#6E5BD6);color:#fff;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700}
+.bub{background:var(--soft);border-radius:12px 12px 12px 4px;padding:10px 12px;font-size:14px;line-height:1.45;max-width:92%}
+.bub.me{background:#DDF8FB;border-radius:12px 12px 4px 12px;margin-left:auto}
+.bub .ts{display:block;font-size:10.5px;color:var(--muted);margin-top:5px;font-family:"Martian Mono",monospace}
+.sys{text-align:center;font-size:11px;color:var(--muted);margin:8px 0;font-family:"Martian Mono",monospace}
+/* detail */
+.logo{font-weight:800;letter-spacing:-.03em;font-size:16px}
+.logo.pg{color:var(--ink)}.logo.pg b{color:var(--paint)}
+.logo.ph{color:var(--ph)}.logo.ph b{color:var(--phc)}
+.timeline{display:flex;gap:4px;margin:10px 0}
+.timeline span{flex:1;height:6px;border-radius:3px;background:var(--line)}
+.timeline span.d{background:var(--paint)}.timeline span.c{background:var(--amber)}
+.tl{font-size:11px;color:var(--muted);display:flex;justify-content:space-between}
+.alert{background:#FFF8EC;border:1px solid #F1DDB0;border-radius:12px;padding:10px 12px;font-size:13px;margin-bottom:10px}
+.alert b{display:block;font-size:12px;color:#8A5E0E;font-family:"Martian Mono",monospace;margin-bottom:3px}
+.note{font-size:12px;color:var(--muted);background:var(--soft);border-radius:10px;padding:9px 11px;margin:10px 0}
+.fab{position:fixed;bottom:14px;left:50%;transform:translateX(-50%);width:calc(100% - 32px);max-width:398px;display:flex;gap:8px;z-index:6}
+.fab .btn{flex:1;padding:13px;border-radius:12px;font-size:14px}
+</style>
+</head>
+<body>
+<div class="phone">
+  <div class="top">
+    <div class="row">
+      <div><h1>Estimates</h1><div class="sub">Thu 5 Nov · 14 need a human today</div></div>
+      <span class="brand pg">PAINT GROUP ▾</span>
+    </div>
+    <div class="views" id="views">
+      <button class="on" data-v="all">All estimates</button>
+      <button data-v="pipe">Pipeline<span class="n">38</span></button>
+      <button data-v="online">Online now<span class="n">6</span></button>
+      <button data-v="wq">Work queue<span class="n">14</span></button>
+      <button data-v="funnel">Funnel</button>
+      <button data-v="auto">Campaigns › Automations</button>
+      <button data-v="detail">↳ Estimate</button>
+    </div>
+  </div>
+
+  <!-- PIPELINE -->
+  <section class="screen" id="v-pipe">
+    <div class="note">Stage is worked out from events — no dragging. Colour on the left = temperature (set by you). Swipe for the next stage →</div>
+    <div class="lanes">
+      <div class="lane">
+        <h3>Range seen, no action <span class="cnt">9 · <span class="tot">$71k</span></span></h3>
+        <div class="lcard hot">
+          <div class="row"><span class="name">Priya Nair</span><span class="brand ph">PAINT HOME</span></div>
+          <div class="addr">14 Ruskin St, Elwood · Interior · 4 rooms</div>
+          <div class="meta"><span class="money">$6,400–$7,900</span><span class="pill amber">2 days here</span><span class="pill">viewed 2×</span><span class="pill em">came back Tue</span></div>
+          <div class="auto"><span>Sent <b>L2 range-nudge</b> · read</span><span>Next <b>L3</b> tomorrow</span></div>
+        </div>
+        <div class="lcard warm">
+          <div class="row"><span class="name">Mark &amp; Jo Russo</span><span class="brand pg">PAINT GROUP</span></div>
+          <div class="addr">8 Clarke St, Northcote · Exterior · weatherboard</div>
+          <div class="meta"><span class="money">$14,200–$17,800</span><span class="pill">6 h here</span></div>
+          <div class="auto"><span>Sent <b>L1 reminder</b> · SMS</span><span>Next <b>L2</b> 8:00am</span></div>
+        </div>
+        <div class="lcard cool">
+          <div class="row"><span class="name">D. Whitlam</span><span class="brand ph">PAINT HOME</span></div>
+          <div class="addr">3/22 Grey St, St Kilda · Interior · 2 rooms</div>
+          <div class="meta"><span class="money">$2,900–$3,600</span><span class="pill">40 min</span></div>
+          <div class="auto"><span>No sends yet</span><span>Next <b>L1</b> in 1 h 20</span></div>
+        </div>
+      </div>
+      <div class="lane">
+        <h3>Tightened, no action <span class="cnt">4 · <span class="tot">$33k</span></span></h3>
+        <div class="lcard hot">
+          <div class="row"><span class="name">Helen Marsh</span><span class="brand pg">PAINT GROUP</span></div>
+          <div class="addr">61 Separation St, Fairfield · Interior · 6 rooms</div>
+          <div class="meta"><span class="money">$9,100–$10,300</span><span class="pill clay">Did the measuring</span><span class="pill">viewed 5×</span><span class="pill em">came back ×2</span></div>
+          <div class="auto"><span>Sent <b>L7 close</b> · SMS</span><span>Task <b>L8 call</b> today</span></div>
+        </div>
+      </div>
+      <div class="lane">
+        <h3>Visit booked <span class="cnt">5</span></h3>
+        <div class="lcard cool">
+          <div class="row"><span class="name">Sam O'Keefe</span><span class="brand pg">PAINT GROUP</span></div>
+          <div class="addr">17 Wilson Rd, Doncaster · Exterior</div>
+          <div class="meta"><span class="money">$18,500–$23,000</span><span class="pill cyan">Fri 09:30 · Zone 2</span></div>
+          <div class="auto"><span><b>L11</b> reminder tomorrow 9:30</span><span>Sarah</span></div>
+        </div>
+      </div>
+      <div class="lane">
+        <h3>Estimate viewed <span class="cnt">11 · <span class="tot">$96k</span></span></h3>
+        <div class="lcard warm">
+          <div class="row"><span class="name">Tran family</span><span class="brand pg">PAINT GROUP</span></div>
+          <div class="addr">4 Ebden St, Preston · Interior · $8,640 inc. GST</div>
+          <div class="meta"><span class="pill amber">Viewed 3×</span><span class="pill">5 days</span><span class="pill">Expires 28 Dec</span></div>
+          <div class="auto"><span>Sent <b>E5</b> · chat, read</span><span>Task <b>E6 call</b> Sun</span></div>
+        </div>
+        <div class="lcard cool">
+          <div class="row"><span class="name">Burke Property Mgmt</span><span class="brand pg">PAINT GROUP</span></div>
+          <div class="addr">2 units, Reservoir · Trade</div>
+          <div class="meta"><span class="money">$5,280</span><span class="pill vi">Trade · chat only</span></div>
+          <div class="auto"><span>Sent <b>E4</b></span><span>Next <b>E5</b> Mon</span></div>
+        </div>
+      </div>
+      <div class="lane">
+        <h3>Question asked <span class="cnt">2</span></h3>
+        <div class="lcard hot">
+          <div class="row"><span class="name">R. Castellano</span><span class="brand ph">PAINT HOME</span></div>
+          <div class="addr">90 Mitchell St, Brunswick · "Can the ceilings be left?"</div>
+          <div class="meta"><span class="pill clay">Waiting 1 h 40</span></div>
+          <div class="auto"><span><b>E8</b> alert sent · chat + email</span><span>Reply →</span></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ALL ESTIMATES (existing list, kept) -->
+  <section class="screen on" id="v-all">
+    <div class="search"><input placeholder="Search name, address, number…"><button>Filters</button></div>
+    <div class="filters"><span class="on">All</span><span>Draft</span><span>Sent</span><span>Viewed</span><span>Accepted</span><span>Declined</span><span>Expired</span><span>Paint Home</span><span>Paint Group</span></div>
+    <div class="card" style="padding:4px 14px">
+      <div class="est"><div><div class="name"><i class="dot" style="background:var(--emerald)"></i>#3188 Tran family</div><div class="addr">4 Ebden St, Preston · sent 31 Oct · Sarah · <b>viewed 3×</b></div></div><div style="text-align:right"><div class="money">$8,640</div><span class="pill amber">viewed</span></div></div>
+      <div class="est"><div><div class="name"><i class="dot" style="background:var(--emerald)"></i>#3187 Helen Marsh</div><div class="addr">61 Separation St, Fairfield · wizard · 2 Nov · <b>viewed 5×</b> <span class="pill em" style="padding:1px 6px">came back ×2</span></div></div><div style="text-align:right"><div class="money">$9,100–10,300</div><span class="pill cyan">tightened</span></div></div>
+      <div class="est"><div><div class="name"><i class="dot" style="background:var(--ph)"></i>#3186 Priya Nair</div><div class="addr">14 Ruskin St, Elwood · wizard · 3 Nov · <b>viewed 2×</b> <span class="pill em" style="padding:1px 6px">came back</span></div></div><div style="text-align:right"><div class="money">$6,400–7,900</div><span class="pill">range</span></div></div>
+      <div class="est"><div><div class="name"><i class="dot" style="background:var(--emerald)"></i>#3185 Burke Property Mgmt</div><div class="addr">Reservoir · trade · 30 Oct · <b>viewed 1×</b></div></div><div style="text-align:right"><div class="money">$5,280</div><span class="pill amber">viewed</span></div></div>
+      <div class="est"><div><div class="name"><i class="dot" style="background:var(--emerald)"></i>#3184 L. Okafor</div><div class="addr">Thornbury · sent 28 Oct · <b>viewed 4×</b></div></div><div style="text-align:right"><div class="money">$12,960</div><span class="pill em">accepted</span></div></div>
+      <div class="est"><div><div class="name"><i class="dot" style="background:var(--clay)"></i>#3183 J. Petrou</div><div class="addr">Coburg · sent 20 Oct · <b>viewed 1×</b></div></div><div style="text-align:right"><div class="money">$4,120</div><span class="pill clay">declined · price</span></div></div>
+    </div>
+    <div class="note">Today's list page — same search, same status pills, same behaviour. Light UI additions only: brand filter, view count on every row, and a green "came back" tag when someone dropped out and later logged back in.</div>
+  </section>
+
+  <!-- ONLINE NOW & DROPPED -->
+  <section class="screen" id="v-online">
+    <div class="h2">Online now</div>
+    <div class="card"><div class="row"><div><div class="name">Someone in Hawthorn</div><div class="addr">Interior · on <b>Ceiling heights</b> · 4 min on step</div></div><span class="pill cyan">live</span></div></div>
+    <div class="card"><div class="row"><div><div class="name">Someone in Mentone</div><div class="addr">Exterior · on <b>Wall materials</b> · back ×2</div></div><span class="pill cyan">live</span></div></div>
+    <div class="h2">Needs help · 1</div>
+    <div class="card" style="border-left:3px solid var(--clay)"><div class="row"><div><div class="name">Grace Lim</div><div class="addr">Bentleigh · Contact tapped on <b>Rooms</b> · "not sure how to count open plan"</div></div><span class="pill clay">22 min</span></div></div>
+    <div class="h2">Came back after dropping out · 3</div>
+    <div class="card" style="border-left:3px solid var(--emerald)"><div class="row"><div><div class="name">Helen Marsh</div><div class="addr">Fairfield · dropped Sun on <b>Room 2 size</b> · back Mon 19:10 via L5 SMS link · finished tightening</div></div><span class="pill em">×2</span></div></div>
+    <div class="card" style="border-left:3px solid var(--emerald)"><div class="row"><div><div class="name">Priya Nair <span class="brand ph">PH</span></div><div class="addr">Elwood · dropped Mon on <b>Range</b> · back Tue 08:52 from L2 chat · still on Range</div></div><span class="pill em">×1</span></div></div>
+    <div class="h2">Priced, no request · 9</div>
+    <div class="card"><div class="row"><div><div class="name">Priya Nair <span class="brand ph">PH</span></div><div class="addr">Elwood · saw $6,400–$7,900 · left on Range</div></div><span class="pill">2 d</span></div></div>
+    <div class="card"><div class="row"><div><div class="name">Mark &amp; Jo Russo</div><div class="addr">Northcote · saw $14,200–$17,800 · left on Range</div></div><span class="pill">6 h</span></div></div>
+    <div class="h2">Dropped (no details) · 14 today</div>
+    <div class="card"><div class="row"><div><div class="name">Carlton</div><div class="addr">Interior · stopped on <b>Photos</b> · 45 min idle</div></div><span class="pill">anon</span></div></div>
+    <div class="card"><div class="row"><div><div class="name">Pascoe Vale</div><div class="addr">Exterior · stopped on <b>Property type</b> · 11 s on step</div></div><span class="pill">anon</span></div></div>
+    <div class="note">Anonymous rows show suburb and last step only. They can't be messaged — they feed the Funnel view and the ad audiences.</div>
+  </section>
+
+  <!-- WORK QUEUE -->
+  <section class="screen" id="v-wq">
+    <div class="alert"><b>OUT OF HOURS · 21:14</b>New call-back and help requests are texting Robyn and Tom until 8:00am. 2 sent tonight.</div>
+    <div class="card wq">
+      <div class="row"><span class="name">Reply to R. Castellano</span><span class="pill clay">1 h 40 waiting</span></div>
+      <div class="addr">Question on #3190 · "Can the ceilings be left?" · <span class="brand ph">PH</span></div>
+      <div class="act"><button class="btn cy">Open thread</button><button class="btn ghost">Snooze</button></div>
+    </div>
+    <div class="card wq">
+      <div class="row"><span class="name">Call Helen Marsh</span><span class="pill clay">L8 · due today</span></div>
+      <div class="addr">Tightened Fairfield to $9,100–$10,300 · phone-closable: no (over threshold)</div>
+      <div class="act"><button class="btn">Call 0412 ···</button><button class="btn ghost">Log outcome</button></div>
+    </div>
+    <div class="card wq amb">
+      <div class="row"><span class="name">Estimate overdue — Doncaster</span><span class="pill amber">E1 · visited 2 days ago</span></div>
+      <div class="addr">Sarah visited Tue 09:30 · no estimate sent</div>
+      <div class="act"><button class="btn">Open builder</button></div>
+    </div>
+    <div class="card wq amb">
+      <div class="row"><span class="name">Visit request — Pakenham</span><span class="pill amber">pre-arranged · reply by Fri</span></div>
+      <div class="addr">K. Dunn · exterior · $21,000–$26,500</div>
+      <div class="act"><button class="btn">Offer a time</button><button class="btn ghost">Decline</button></div>
+    </div>
+    <div class="card wq amb">
+      <div class="row"><span class="name">Call Tran family</span><span class="pill amber">E6 · Sunday</span></div>
+      <div class="addr">#3188 viewed 3×, no reply 7 days · $8,640</div>
+      <div class="act"><button class="btn ghost">Reschedule</button></div>
+    </div>
+  </section>
+
+  <!-- FUNNEL -->
+  <section class="screen" id="v-funnel">
+    <div class="filters"><span class="on">Last 30 days</span><span>Both brands</span><span>Mobile</span><span>Interior</span><span>Meta ads</span></div>
+    <div class="kpis">
+      <div class="kpi"><div class="v">312</div><div class="l">Started</div></div>
+      <div class="kpi"><div class="v">38%</div><div class="l">Gave details</div></div>
+      <div class="kpi"><div class="v">11</div><div class="l">Accepted</div></div>
+    </div>
+    <div class="card">
+      <div class="row"><b style="font-size:14px">Where they stop</b><span class="small">views → next step</span></div>
+      <div class="steps">
+        <div class="step"><span class="lab">Address</span><div class="bar"><i style="width:100%"></i></div><span class="pct">312</span></div>
+        <div class="step"><span class="lab">What we're painting</span><div class="bar"><i style="width:88%"></i></div><span class="pct">88%</span></div>
+        <div class="step"><span class="lab">Rooms</span><div class="bar"><i style="width:81%"></i></div><span class="pct">92%</span></div>
+        <div class="step"><span class="lab">Ceiling heights</span><div class="bar"><i class="lo" style="width:58%"></i></div><span class="pct bad">72%</span></div>
+        <div class="step"><span class="lab">Colours</span><div class="bar"><i style="width:55%"></i></div><span class="pct">95%</span></div>
+        <div class="step"><span class="lab">Photos</span><div class="bar"><i class="lo" style="width:41%"></i></div><span class="pct bad">75%</span></div>
+        <div class="step"><span class="lab">Gate (details)</span><div class="bar"><i style="width:38%"></i></div><span class="pct">93%</span></div>
+        <div class="step"><span class="lab">Range → action</span><div class="bar"><i class="lo" style="width:19%"></i></div><span class="pct bad">50%</span></div>
+        <div class="step"><span class="lab">Tighten finished</span><div class="bar"><i style="width:9%"></i></div><span class="pct">47%</span></div>
+      </div>
+      <div class="small" style="margin-top:8px">Amber = the three worst steps. Tap a step for median time, back-taps and device split.</div>
+    </div>
+    <div class="card">
+      <div class="row"><b style="font-size:14px">Drop-out by price band</b><span class="small">range shown vs took action</span></div>
+      <div class="bands">
+        <div class="band"><span class="small">$2–4k</span><div class="bar"><i class="seen" style="width:60%"></i><i class="act" style="width:42%"></i></div><span class="pct">70%</span></div>
+        <div class="band"><span class="small">$4–6k</span><div class="bar"><i class="seen" style="width:100%"></i><i class="act" style="width:58%"></i></div><span class="pct">58%</span></div>
+        <div class="band"><span class="small">$6–9k</span><div class="bar"><i class="seen" style="width:85%"></i><i class="act" style="width:41%"></i></div><span class="pct">48%</span></div>
+        <div class="band"><span class="small">$9–12k</span><div class="bar"><i class="seen" style="width:55%"></i><i class="act" style="width:20%"></i></div><span class="pct bad" style="color:var(--clay)">36%</span></div>
+        <div class="band"><span class="small">$12–18k</span><div class="bar"><i class="seen" style="width:40%"></i><i class="act" style="width:17%"></i></div><span class="pct">42%</span></div>
+        <div class="band"><span class="small">$18k+</span><div class="bar"><i class="seen" style="width:22%"></i><i class="act" style="width:11%"></i></div><span class="pct">50%</span></div>
+      </div>
+      <div class="legend"><span><i style="background:#CFE9EE"></i>Saw their range</span><span><i style="background:var(--paint)"></i>Took an action</span></div>
+      <div class="small" style="margin-top:8px">The $9–12k band loses the most — worth a look at wording on the range screen for that size of job. Export CSV ↓</div>
+    </div>
+  </section>
+
+  <!-- AUTOMATIONS -->
+  <section class="screen" id="v-auto">
+    <div class="note">Lives in <b>CRM › Campaigns › Automations</b> — same message builder and sending as one-off campaigns; this chip is a shortcut. Each one has its own switch. Tap a row to open it. Nothing queues for approval.</div>
+    <div class="h2">Lead stage</div>
+    <div class="card" style="padding:2px 14px">
+      <div class="aut" onclick="openSheet()"><span class="k">L1</span><div class="t"><b>Range reminder<span class="ch">SMS</span></b><span>Range seen, no action · +2 h · <span class="stat">sent 41 · 12 came back</span></span></div><div class="sw on"></div></div>
+      <div class="aut" onclick="openSheet()"><span class="k">L2</span><div class="t"><b>Range nudge<span class="ch">CHAT</span></b><span>+1 day · <span class="stat">sent 29 · 9 replied · 3 booked</span></span></div><div class="sw on"></div></div>
+      <div class="aut" onclick="openSheet()"><span class="k">L3</span><div class="t"><b>Personal check-in<span class="ch">CHAT</span></b><span>+3 days · <span class="stat">off</span></span></div><div class="sw"></div></div>
+      <div class="aut" onclick="openSheet()"><span class="k">L4</span><div class="t"><b>Last note with a real job<span class="ch">CHAT</span></b><span>+10 days · <span class="stat">off</span></span></div><div class="sw"></div></div>
+      <div class="aut" onclick="openSheet()"><span class="k">L5</span><div class="t"><b>Resume tightening<span class="ch">SMS</span></b><span>Tighten abandoned · +1 h · <span class="stat">sent 8 · 5 resumed</span></span></div><div class="sw on"></div></div>
+      <div class="aut" onclick="openSheet()"><span class="k">L6</span><div class="t"><b>Measuring help<span class="ch">CHAT</span></b><span>+1 day · <span class="stat">off</span></span></div><div class="sw"></div></div>
+      <div class="aut" onclick="openSheet()"><span class="k">L7</span><div class="t"><b>Closer range ready<span class="ch">SMS</span></b><span>Tightened, no action · +4 h · <span class="stat">sent 4 · 2 booked</span></span></div><div class="sw on"></div></div>
+      <div class="aut" onclick="openSheet()"><span class="k">L8</span><div class="t"><b>Estimator calls<span class="ch">TASK</span></b><span>+1 day · goes to Work queue</span></div><div class="sw on"></div></div>
+      <div class="aut" onclick="openSheet()"><span class="k">L9</span><div class="t"><b>Needs-help alert<span class="ch">STAFF</span></b><span>Immediate · hours: chat + email · after hours: SMS Robyn &amp; Tom + email</span></div><div class="sw on"></div></div>
+      <div class="aut" onclick="openSheet()"><span class="k">L11</span><div class="t"><b>Visit reminders<span class="ch">SMS</span></b><span>−1 day, −2 h · <span class="stat">sent 10</span></span></div><div class="sw on"></div></div>
+      <div class="aut" onclick="openSheet()"><span class="k">L13</span><div class="t"><b>Call-request alert<span class="ch">STAFF</span></b><span>Immediate · same routing as L9</span></div><div class="sw on"></div></div>
+    </div>
+    <div class="h2">Estimate stage</div>
+    <div class="card" style="padding:2px 14px">
+      <div class="aut" onclick="openSheet()"><span class="k">E1</span><div class="t"><b>Estimate overdue after visit<span class="ch">STAFF</span></b><span>+2 days</span></div><div class="sw on"></div></div>
+      <div class="aut" onclick="openSheet()"><span class="k">E2</span><div class="t"><b>Quote not opened<span class="ch">SMS</span></b><span>+2 days</span></div><div class="sw on"></div></div>
+      <div class="aut" onclick="openSheet()"><span class="k">E4</span><div class="t"><b>Any questions?<span class="ch">CHAT</span></b><span>Viewed, no reply · +2 days · <span class="stat">sent 18 · 7 replied</span></span></div><div class="sw on"></div></div>
+      <div class="aut" onclick="openSheet()"><span class="k">E5</span><div class="t"><b>Start date &amp; warranty<span class="ch">CHAT</span></b><span>+5 days</span></div><div class="sw"></div></div>
+      <div class="aut" onclick="openSheet()"><span class="k">E7</span><div class="t"><b>Price held until expiry<span class="ch">CHAT</span></b><span>+14 days · no incentive</span></div><div class="sw"></div></div>
+      <div class="aut" onclick="openSheet()"><span class="k">E9</span><div class="t"><b>Expiry warning<span class="ch">SMS+CHAT</span></b><span>7 days before expiry</span></div><div class="sw on"></div></div>
+      <div class="aut" onclick="openSheet()"><span class="k">E11</span><div class="t"><b>Why not? (one tap)<span class="ch">CHAT</span></b><span>Declined, no reason</span></div><div class="sw"></div></div>
+    </div>
+    <div class="h2">Won &amp; after the job</div>
+    <div class="card" style="padding:2px 14px">
+      <div class="aut" onclick="openSheet()"><span class="k">W1</span><div class="t"><b>Welcome &amp; deposit<span class="ch">CHAT+SMS</span></b><span>On acceptance</span></div><div class="sw on"></div></div>
+      <div class="aut" onclick="openSheet()"><span class="k">W2</span><div class="t"><b>Deposit due<span class="ch">SMS+CHAT</span></b><span>3 days before start, if unpaid · one of each</span></div><div class="sw on"></div></div>
+      <div class="aut" onclick="openSheet()"><span class="k">R1</span><div class="t"><b>Review request<span class="ch">SMS</span></b><span>Sign-off +1 day</span></div><div class="sw on"></div></div>
+      <div class="aut" onclick="openSheet()"><span class="k">R3</span><div class="t"><b>One-year check-in<span class="ch">CHAT</span></b><span>+12 months</span></div><div class="sw"></div></div>
+    </div>
+    <div class="note">Global: SMS quiet hours 8pm–8am (every day). A sequence stops the moment the customer moves stage.</div>
+  </section>
+
+  <!-- ESTIMATE DETAIL -->
+  <section class="screen" id="v-detail">
+    <div class="card">
+      <div class="row"><span class="logo ph">PAINT<b>HOME</b></span><span class="pill">#3186 · wizard</span></div>
+      <div style="margin-top:8px"><div class="name">Priya Nair</div><div class="addr">14 Ruskin St, Elwood · Interior · 4 rooms · <span class="money">$6,400–$7,900</span> inc. GST</div></div>
+      <div class="timeline"><span class="d"></span><span class="d"></span><span class="d"></span><span class="c"></span><span></span><span></span><span></span></div>
+      <div class="tl"><span>Started</span><span>Details</span><span>Range</span><span><b>No action · 2 d</b></span><span>Visit</span><span>Sent</span><span>Won</span></div>
+      <div class="small" style="margin-top:6px">Lead source: Meta · Paint Home video 2 · mobile · 6 min 40 in wizard · <b>viewed 2×</b> · came back ×1</div>
+    </div>
+    <div class="h2">Conversation</div>
+    <div class="chat">
+      <div class="hdr"><div class="ava">SR</div><div><b style="font-size:13px">Sarah Reid</b><div class="small">Paint Home · sarah@painthome.com.au</div></div></div>
+      <div class="sys">Mon 3 Nov · 19:42 · L1 SMS sent</div>
+      <div class="bub">Hi Priya, Sarah here from Paint Home. Your range for 14 Ruskin St came out at $6,400–$7,900.<br><br>From here you can tighten the price with a few room details, book a visit, or just reply to this message with any questions. The range moves most with ceiling height, how much prep is needed and whether the house is occupied — so if any of that wasn't quite right, let me know and I'll adjust it.<span class="ts">Tue 4 Nov · 08:00 · L2 · emailed as notification · read 08:52</span></div>
+      <div class="bub me">Hi Sarah, the ceilings are high — about 3.2m I think. Does that change much?<span class="ts">Tue 4 Nov · 12:10 · reply by email → thread</span></div>
+      <div class="sys">E8 alert → Sarah (chat + email) · replied 12:34</div>
+      <div class="bub">It does a bit — higher walls mean more paint and some ladder work. I've updated it: $6,900–$8,400. Want me to pop round and firm it up? Thursday afternoon I'm in your area.<span class="ts">Tue 4 Nov · 12:34 · Sarah (manual)</span></div>
+      <div class="sys">Next: L3 due Thu 08:00 — will not send if Priya replies</div>
+    </div>
+    <div class="h2">Activity · everything on this estimate, newest first</div>
+    <div class="card" style="padding:4px 14px">
+      <div class="est"><div class="small"><b>Tue 12:34</b> · Sarah replied in thread (manual) · range updated to $6,900–$8,400</div></div>
+      <div class="est"><div class="small"><b>Tue 12:10</b> · Priya replied by email → thread · E8 alert to Sarah (chat + email, working hours)</div></div>
+      <div class="est"><div class="small"><b>Tue 08:52</b> · <span class="pill em" style="padding:1px 6px">came back</span> opened L2 link · viewed range (2nd view) · left after 1:10</div></div>
+      <div class="est"><div class="small"><b>Tue 08:00</b> · L2 range-nudge sent · chat + email notification (Paint Home) · opened 08:52</div></div>
+      <div class="est"><div class="small"><b>Mon 19:42</b> · L1 range-reminder SMS sent (PaintHome) · delivered</div></div>
+      <div class="est"><div class="small"><b>Mon 17:40</b> · idle 30 min on Range → stage "Range seen, no action"</div></div>
+      <div class="est"><div class="small"><b>Mon 17:08</b> · range shown $6,400–$7,900 (1st view) · gate submitted: name, mobile, email, consent ✓</div></div>
+      <div class="est"><div class="small"><b>Mon 17:01</b> · wizard started · Meta › Paint Home video 2 · iPhone</div></div>
+    </div>
+    <div class="h2">Wizard path</div>
+    <div class="card small">Address 0:12 → Painting 0:40 → Rooms 0:21 → Storeys 0:08 → Occupied 0:11 → Ceiling heights <b>1:48</b> (back ×1) → Colours 0:30 → Condition 0:25 → Photos 0:58 → Gate 0:44 → Range <b>left after 1:10</b></div>
+    <div class="fab"><button class="btn cy">Reply</button><button class="btn">Book visit</button><button class="btn ghost">Build estimate</button></div>
+  </section>
+</div>
+
+<!-- BUILDER SHEET -->
+<div class="sheet" id="sheet" onclick="if(event.target===this)closeSheet()">
+  <div class="sheetin">
+    <div class="grab"></div>
+    <div class="row"><div><span class="k mono" style="color:var(--muted)">L2</span><div class="name">Range nudge</div></div><div class="sw on"></div></div>
+    <div class="field" style="margin-top:12px"><label>Trigger</label><div class="val">Stage <b>Range seen, no action</b> for <b>1 day</b></div></div>
+    <div class="field"><label>Stops if</label><div class="val">Customer tightens, books, calls, messages or declines</div></div>
+    <div class="field"><label>Channel</label><div class="tabs"><span class="on">Chat</span><span>SMS</span><span>Both</span></div><div class="small">Chat = posted to their thread + emailed as a notification from the estimator. No marketing template.</div></div>
+    <div class="field"><label>Wording</label><div class="tabs"><span class="on">Paint Group</span><span>Paint Home</span></div>
+      <textarea class="val">Hi {first_name}, {estimator} here from {brand}. Your range for {address} came out at {range}.
+
+From here you can tighten the price with a few room details, book a visit, or just reply to this message with any questions. The range moves most with ceiling height, how much prep is needed and whether the house is occupied — so if any of that wasn't quite right, let me know and I'll adjust it.</textarea>
+      <div class="vars"><span>{first_name}</span><span>{address}</span><span>{range}</span><span>{link}</span><span>{estimator}</span><span>{brand}</span><span>{visit_link}</span></div>
+    </div>
+    <div class="field"><label>Sends from</label><div class="val">Paint Group → <b>Sarah Reid</b> · sarah@paintgroup.com.au · SMS "PaintGroup"<br>Paint Home → <b>Sarah Reid</b> · sarah@painthome.com.au · SMS "PaintHome"</div></div>
+    <div class="field"><label>Last 30 days</label><div class="kpis" style="margin:0"><div class="kpi"><div class="v">29</div><div class="l">Sent</div></div><div class="kpi"><div class="v">9</div><div class="l">Replied</div></div><div class="kpi"><div class="v">3</div><div class="l">Booked</div></div></div></div>
+    <div class="row" style="margin-top:6px"><button class="btn ghost" onclick="closeSheet()">Close</button><button class="btn cy">Preview as Priya</button><button class="btn">Save</button></div>
+  </div>
+</div>
+
+<script>
+const btns=[...document.querySelectorAll('#views button')];
+btns.forEach(b=>b.onclick=()=>{btns.forEach(x=>x.classList.remove('on'));b.classList.add('on');document.querySelectorAll('.screen').forEach(s=>s.classList.remove('on'));document.getElementById('v-'+b.dataset.v).classList.add('on');window.scrollTo(0,0)});
+document.querySelectorAll('.sw').forEach(s=>s.addEventListener('click',e=>{e.stopPropagation();s.classList.toggle('on')}));
+function openSheet(){document.getElementById('sheet').classList.add('on')}
+function closeSheet(){document.getElementById('sheet').classList.remove('on')}
+</script>
+</body>
+</html>

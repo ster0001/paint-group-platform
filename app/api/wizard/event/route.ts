@@ -27,6 +27,7 @@ const done = () => new NextResponse(null, { status: 204 });
 function keyFor(sessionId: string, e: WizardEventBody, nowIso: string): string {
   switch (e.type) {
     case "wizard_step_viewed": return `wiz-step:${sessionId}:${e.payload.step}`;
+    case "wizard_step_completed": return `wiz-stepdone:${sessionId}:${e.payload.step}`;
     case "surface_toggled": return `wiz-surface:${sessionId}:${e.payload.surface}:${e.payload.on ? "on" : "off"}:${nowIso.slice(0, 16)}`;
     case "gate_viewed": return `wiz-gate:${sessionId}`;
     case "gate_cta_clicked": return `wiz-cta:${sessionId}:${e.payload.cta}`;
@@ -67,6 +68,7 @@ export async function POST(request: Request) {
       estimateId: (draft.estimate_id as string | null) ?? null,
       payload: { ...e.payload, sessionId: draft.id as string },
       dedupeKey: keyFor(draft.id as string, e, nowIso),
+      wizardDraftId: draft.id as string,
     });
   } catch (err) {
     reportError(err, { where: "wizard.event", bestEffort: true });

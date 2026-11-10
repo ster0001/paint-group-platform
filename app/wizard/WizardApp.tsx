@@ -73,7 +73,7 @@ import { RESUME_KEY, RESTART_KEY, decodeResume, encodeResume, restartedSince, re
 import Wordmark from "./Wordmark";
 import { allowedForBrand, type WizardBrand } from "@/lib/wizard/brand";
 import { brandFor } from "@/lib/marketing/brand";
-import { breakpointNow, markScopeFromGate, sendWizardEvent } from "@/lib/wizard/wizardEvents";
+import { breakpointNow, markScopeFromGate, sendWizardEvent, stepCompletedBy } from "@/lib/wizard/wizardEvents";
 import ChatWidget from "./ChatWidget";
 import WizardHeader from "./WizardHeader";
 import { UI_FLAGS } from "@/lib/wizard/ui-flags";
@@ -595,6 +595,13 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
   // again. A rebook or a member's prefilled walk is never overridden, and a
   // homepage hand-off for a DIFFERENT address starts fresh (lib/wizard/resume).
   const [resumed, setResumed] = useState<string | null>(null);
+  /**
+   * Estimates tab session 1: this page load resumed an open draft, so the next
+   * save tells the server (`returning`) and `wizard_drafts.visits` goes up —
+   * which writes `wizard_session_resumed`. Nothing sent it before, so every
+   * draft read visits = 1. Cleared once a save is confirmed: one count per load.
+   */
+  const returningRef = useRef(false);
   /** Set by the restore below, read once by the landing-step logic (quickStepKey). */
   const resumeLandingRef = useRef(false);
   const clearResume = () => { try { localStorage.removeItem(RESUME_KEY); } catch { /* storage may be unavailable */ } };
@@ -658,6 +665,7 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
       resumeLandingRef.current = true;
       setPage(oldPages ? 1 : r.page);
       setResumed(resumeLine(r.page, r.state.jobType, screenTag));
+      returningRef.current = true;
     }, 0);
     return () => clearTimeout(t);
     // Mount only: a later change to these props is a new walk, not a resume.
@@ -1180,10 +1188,11 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
   const queueDraftSave = useCallback(function send(body: string) {
     if (inFlightRef.current) { queuedRef.current = body; return; }
     inFlightRef.current = true;
+    const returning = returningRef.current;
     void fetch("/api/wizard/draft", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body,
+      body: returning ? JSON.stringify({ ...(JSON.parse(body) as Record<string, unknown>), returning: true }) : body,
       keepalive: true,
     }).then(async (res) => {
       // C3: 409 is the ONE non-200 this route answers, and it is not an error
@@ -1198,6 +1207,7 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
       if (typeof j?.version === "number") {
         draftVersionRef.current = j.version;
         setConfirmedVersion(j.version);
+        if (returning) returningRef.current = false;
       }
     }).catch(() => {}).finally(() => {
       inFlightRef.current = false;
@@ -1512,6 +1522,8 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
   // Wizard mobile v5 §8: one `wizard_step_viewed` per step per session (the route dedupes), with the breakpoint it was seen on.
   // The phone's shell (MobileQuickLook) writes one per SCREEN instead — the place step is three of them there.
   const mobileShell = useSyncExternalStore(subscribeMobile, mobileSnapshot, notMobile);
+  /** The step the last step-viewed event was for — what a forward move completed. */
+  const prevQuickStepRef = useRef<string | null>(null);
   /**
    * Desktop one-press (addendum, Tom 5 Nov 2026; `wizardDesktopOnePress`): on a laptop the quick look's split
    * steps render the phone's one-question router inside the two-column shell. A step the router does not split
@@ -1523,6 +1535,10 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
     // the one-question router writes one per SCREEN instead (the phone's shell, and the laptop's one-press)
     if ((breakpointNow() === "mobile" && entry === "questions") || desktopOnePress) return;
     sendWizardEvent("wizard_step_viewed", { step: quickStep, breakpoint: breakpointNow() });
+    const done = stepCompletedBy(prevQuickStepRef.current, quickStep, quickSteps);
+    if (done) sendWizardEvent("wizard_step_completed", { step: done, breakpoint: breakpointNow() });
+    prevQuickStepRef.current = quickStep;
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- quickSteps is the order the step moved along; the step is the trigger
   }, [isCustomer, quickActive, quickStep, entry, desktopOnePress]);
   useEffect(() => {
     if (screen !== "reveal") return;
