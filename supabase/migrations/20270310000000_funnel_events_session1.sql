@@ -1,5 +1,5 @@
 -- =============================================================================
--- 20270309 · Estimates tab & funnel, session 1 — the wizard session on the log
+-- 20270310 · Estimates tab & funnel, session 1 — the wizard session on the log
 -- =============================================================================
 -- Brief: docs/briefs/claude-code-brief-estimates-tab-funnel.md, rulings
 -- E-A (underscore names, reuse what exists) and E-B (events can point at a
@@ -150,4 +150,4 @@ select
   (select count(*) from pg_trigger where tgname = 't_wizard_drafts_crm_funnel' and not tgisinternal) as funnel_trigger, 1 as _expect_funnel_trigger,
   (select position('wizard_draft_id' in prosrc) > 0 from pg_proc where proname = 'crm_events_no_update') as guard_knows, true as _expect_guard_knows;
 
-insert into public._prod_migrations(name) values ('20270309000000_funnel_events_session1.sql') on conflict (name) do nothing;
+insert into public._prod_migrations(name) values ('20270310000000_funnel_events_session1.sql') on conflict (name) do nothing;
