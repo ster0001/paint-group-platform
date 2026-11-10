@@ -61,6 +61,8 @@ Session 0 writes the real table of this and the brief is amended before session 
 
 ---
 
+> **RULED 11 Nov 2026 (Tom, A‑A): extend the existing engine.** §3.1–§3.3 and the scheduler in §5 are **superseded**. The keys in this brief become entries in `lib/automations/registry.ts`, sent through `sendAutomation` (`lib/automations/dispatch.ts`), made idempotent by `automation_claims` (keyed with the step), switched and worded at the existing automations screen. There is no `automations`, `automation_messages` or `automation_runs` table and no scheduled-run row: a sweep **derives** what is due from stage + age at send time, so "stops if the stage changes" needs no cancel step. Genuinely new (A‑B): per-brand wording (one table, `key × brand × channel`), send stats read from `messages.meta.automation`, and a thin run log only if the screen's "next due" needs one. Default-off on the registry (A‑D) and STOP honoured by `sendAutomation` (A‑E) land **before** the first new key. Task-type keys (L8, E3-task, E6) are new kinds in `lib/crm/work-queue.ts`. Event names use underscores (`message_sent`, `staff_alerted`, `message_replied`). Rulings A‑B…A‑N are still proposals.
+
 ## 3. Data
 
 ### 3.1 `automations`
@@ -119,7 +121,7 @@ Golden tests: brand mapping (every brand × channel), quiet-hour deferral bounda
 |---|---|---|
 | 0 | **Read-only diagnostic of Campaigns**: builder, adapters, senders, send log, thread/notification path, existing sends that overlap keys here. Table in §2 filled in. | `docs/briefs/automations-session-0.md` committed; brief amended |
 | 1 | Settings (brands, hours, holidays, quiet hours, alert recipients); `sendChat` / `sendSms` / `sendStaffAlert` with golden tests; inbound reply → thread. | A manual chat from the estimate page arrives as a Paint Home email from Sarah, reply lands back in the thread |
-| 2 | Tables `automations / automation_messages / automation_runs`; seed all keys **off** with Appendix A copy per brand; `evaluateAutomations` + cron sweep; idempotency + exit tests. | Walking skeleton: L1 switched on in test → a seeded range-no-action lead gets one SMS at +2 h, cancelled if they book first |
+| 2 | *(Superseded by A‑A: registry entries shipped off via the default-off flag, per-brand wording table, a stage-sourced sweep over `sendAutomation` + `automation_claims`. Original text:)* Tables `automations / automation_messages / automation_runs`; seed all keys **off** with Appendix A copy per brand; `evaluateAutomations` + cron sweep; idempotency + exit tests. | Walking skeleton: L1 switched on in test → a seeded range-no-action lead gets one SMS at +2 h, cancelled if they book first |
 | 3 | Automations sub-tab + builder sheet + preview-as; stats. | Tom edits L2 wording on his phone and previews it as a real customer |
 | 4 | Wire every key: stage triggers, date offsets (W2 −3 days, E9 −7 days, R3/R4), task-type keys into the work queue, trade cadence, consent gate; migrate overlapping existing sends (review request, visit reminders, deposit chase) under their keys. | One e2e per group runs a seeded customer through the sequence with time travel |
 | 5 | Attribution: opens, replies, `converted_event` (booking/acceptance within 7 days of a send); Funnel "came back by automation_key" lit; Estimates cards show last/next. | Numbers reconcile with `automation_runs` |
