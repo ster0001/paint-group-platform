@@ -1,7 +1,7 @@
 import { expect } from "@playwright/test";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { serviceClient } from "../fixtures/woLoop";
-import { driveNoPlanWizard, openQuickLook, passOtpIfShown, quickNext } from "./drive";
+import { driveNoPlanWizard, onMobileShell, openQuickLook, passOtpIfShown, quickNext } from "./drive";
 import { userIdFor, test } from "../helpers";
 import { loginStaff, RUN, staffEmail } from "./visitHelpers";
 
@@ -61,19 +61,33 @@ test.describe("S6 — the gate", () => {
     await driveNoPlanWizard(page, { stopAtGate: true, suburb: `Gatedf${RUN}` });
     const gate = page.locator("[data-quick-step='gate']");
     await expect(gate).toBeVisible();
-    await expect(gate.getByText("Last question")).toBeVisible();
-    await expect(gate.getByRole("heading", { name: "Where shall we send your estimate?" })).toBeVisible();
-    await expect(gate.getByText("Enter your details to see your guide price. We will save your estimate so you can come back to it.")).toBeVisible();
-    await expect(gate.getByTestId("gate-consent")).toContainText(/agree to receive pricing/);
-    const go = gate.getByRole("button", { name: "Show my guide price" });
-    await expect(go).toBeVisible();
-    // Nothing without the details.
-    await go.click();
-    await expect(page.locator(".wz-err")).toContainText("Please fill in your name, email and mobile number.");
-    await page.getByTestId("gate-name").fill("Gate Tester");
-    await page.getByTestId("gate-email").fill(email);
-    await page.getByTestId("gate-mobile").fill("0400 123 456");
-    await go.click();
+    if (await onMobileShell(page)) {
+      // Desktop one-press (5 Nov 2026): the laptop's gate is the router's details screen — the phone's words, the
+      // button disabled until the three details are in (so there is no "please fill in" bounce to assert).
+      await expect(gate.getByRole("heading", { name: "Where shall we send your range?" })).toBeVisible();
+      await expect(gate.getByTestId("gate-consent")).toContainText(/agree to receive pricing/);
+      const go = gate.getByRole("button", { name: "Show my range" });
+      await expect(go).toBeDisabled();
+      await page.getByTestId("gate-name").fill("Gate Tester");
+      await page.getByTestId("gate-email").fill(email);
+      await page.getByTestId("gate-mobile").fill("0400 123 456");
+      await expect(go).toBeEnabled();
+      await go.click();
+    } else {
+      await expect(gate.getByText("Last question")).toBeVisible();
+      await expect(gate.getByRole("heading", { name: "Where shall we send your estimate?" })).toBeVisible();
+      await expect(gate.getByText("Enter your details to see your guide price. We will save your estimate so you can come back to it.")).toBeVisible();
+      await expect(gate.getByTestId("gate-consent")).toContainText(/agree to receive pricing/);
+      const go = gate.getByRole("button", { name: "Show my guide price" });
+      await expect(go).toBeVisible();
+      // Nothing without the details.
+      await go.click();
+      await expect(page.locator(".wz-err")).toContainText("Please fill in your name, email and mobile number.");
+      await page.getByTestId("gate-name").fill("Gate Tester");
+      await page.getByTestId("gate-email").fill(email);
+      await page.getByTestId("gate-mobile").fill("0400 123 456");
+      await go.click();
+    }
     await passOtpIfShown(page); // Tom, 5 Nov 2026: the texted code before the range
     await expect(page.getByTestId("reveal")).toBeVisible({ timeout: 90_000 });
 
@@ -115,7 +129,7 @@ test.describe("S6 — the gate", () => {
     await page.getByTestId("gate-email").fill(email);
     await page.getByTestId("gate-mobile").fill("0400 222 333");
     const submitReq = page.waitForRequest((r) => r.url().includes("/api/wizard/submit") && r.method() === "POST");
-    await page.locator("[data-quick-step='gate']").getByRole("button", { name: "Show my guide price" }).click();
+    await page.locator("[data-quick-step='gate']").getByRole("button", { name: /Show my (guide price|range)/ }).click(); // the router's "Show my range" on the laptop (desktop one-press)
     await passOtpIfShown(page); // the code first; the submit the browser makes follows the right code
     const posted = (await submitReq).postDataJSON() as { state: Record<string, unknown> & { contact: { name: string; email: string; phone: string } } };
     await expect(page.getByTestId("reveal")).toBeVisible({ timeout: 90_000 }); // estimate 1 for this email

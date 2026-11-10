@@ -156,8 +156,8 @@ test.describe("Wizard mobile v5 — the phone's screens (session 2)", () => {
     await expect(page.getByTestId("ql-next")).toHaveText("Show my range");
     await expect(page.getByTestId("ql-next")).toBeDisabled();
     await expect(page.getByTestId("wzm-hint")).toHaveText("We text you a code first"); // Tom, 5 Nov 2026: the texted code
-    // §2.1: index 10 of 11 question screens → 50%; the gate is at 55
-    await expect(page.getByTestId("wzm-bar")).toHaveAttribute("style", /width:\s*50%/);
+    // §2.1: index 10 of the question screens → 55% × 10/12 = 46% since the texted code added a twelfth (Tom, 5 Nov 2026); the gate is at 55
+    await expect(page.getByTestId("wzm-bar")).toHaveAttribute("style", /width:\s*46%/);
     await shot(page, 11, "details");
 
     // Back retraces every screen, and the answers are still there

@@ -184,12 +184,14 @@ test.describe("Desktop one-press — the laptop takes the phone's screens (adden
     await openLaptop(page);
     // the key numbers sit on each card; the grey hint under them
     const opts = page.locator("[data-testid='wzm'] .wzm-screen .wzm-opt");
-    await expect(opts).toHaveCount(2);
+    await expect(opts).toHaveCount(3); // Inside, Outside, Both
     await expect(opts.nth(0).locator(".wzm-key")).toHaveText("1");
     await expect(opts.nth(1).locator(".wzm-key")).toHaveText("2");
+    await expect(opts.nth(2).locator(".wzm-key")).toHaveText("3");
     await expect(page.getByTestId("wzm-keys")).toContainText("choose");
     await expect(page.getByTestId("wzm-keys")).toContainText("back");
-    // the address fields are fields: a digit typed there is typed, not a pick
+    // the address fields are fields: a digit typed there is typed, not a pick (Change opens them under the hero's chip)
+    if (await page.getByTestId("wzm-addr-change").count()) await page.getByTestId("wzm-addr-change").click();
     await page.getByPlaceholder("Postcode").focus();
     await page.keyboard.press("1");
     await at(page, "what");

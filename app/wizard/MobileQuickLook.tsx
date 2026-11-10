@@ -661,7 +661,7 @@ export default function MobileQuickLook({
     // The laptop: the question in the left column, the rail on the right — WizardApp draws the header pills over it.
     return (
       <div className="wz-stage wzm wzm--desk" data-testid="wzm" data-shell="desktop" data-mobile-screen={current.id} ref={rootRef}>
-        <div className="wz-wrap wz-quick wz-pane" data-quick-step={step}>
+        <div className="wz-wrap wz-quick wz-pane" data-quick-step={current.heading != null ? step : undefined}>
           {resumed && (
             <div className="wz-resume" data-testid="wz-resume">
               <span>Welcome back — {resumed}. Everything you answered is still here.</span>

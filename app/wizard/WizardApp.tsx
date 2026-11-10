@@ -166,8 +166,9 @@ const subscribeMobile = (cb: () => void) => {
 const mobileSnapshot = () => typeof window !== "undefined" && Boolean(window.matchMedia?.(MOBILE_QUERY).matches);
 const notMobile = () => false;
 const snapshotFalse = () => false;
-/** The quick-look steps `mobileScreensFor` renders as they are (no screens of its own) — on a laptop they keep the grouped page. */
-const UNSPLIT_STEPS = new Set<QuickLookStep>(["both", "segment", "com_areas", "com_warehouse", "com_job", "com_brief", "com_book", "outside"]);
+/** The quick-look steps `mobileScreensFor` renders as they are (no screens of its own) — on a laptop they keep the grouped page.
+ *  Not "both": its doors are a screen the router draws itself (auto, like a card), so the laptop gets them one-press too. */
+const UNSPLIT_STEPS = new Set<QuickLookStep>(["segment", "com_areas", "com_warehouse", "com_job", "com_brief", "com_book", "outside"]);
 
 /** Rotating lines on the processing screen — something worth reading while
  * the AI measures and prices (Tom, 31 Aug: make the wait interactive). */
