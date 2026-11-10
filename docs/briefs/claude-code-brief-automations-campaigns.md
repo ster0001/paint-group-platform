@@ -164,3 +164,4 @@ Golden tests: brand mapping (every brand × channel), quiet-hour deferral bounda
 ## 10. Status
 - 5 Nov 2026 — brief written; blocked on Estimates brief sessions 1–2 and this brief's session 0.
 - 6 Nov 2026 — session 0 done: `docs/briefs/automations-session-0.md`. Existing engine found; brief to be amended after rulings A-A to A-N.
+- 11 Nov 2026 — **A‑A ruled by Tom: extend the existing engine.** §3 and §5 marked superseded; session 2 rewritten. A‑B…A‑N open.
