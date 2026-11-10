@@ -378,10 +378,14 @@ export default function WorkOrderDoc({ doc, edit, stage, booking, ticks, photos 
                           <span className="surf-count" data-testid={`surf-count-${s.key}`}>× {s.count}</span>
                         )}
                       </div>
-                      <div className="surf-meta">
-                        {measureLabel(s) && <span data-testid={`surf-measure-${s.key}`}>{measureLabel(s)} · </span>}
-                        {s.coats} {s.coats === 1 ? "coat" : "coats"}
-                      </div>
+                      {/* No "0 coats" on unpainted work — a line item or the
+                          Preparation set-up (11 Nov 2026). */}
+                      {(s.coats > 0 || measureLabel(s)) && (
+                        <div className="surf-meta">
+                          {measureLabel(s) && <span data-testid={`surf-measure-${s.key}`}>{measureLabel(s)}{s.coats > 0 ? " · " : ""}</span>}
+                          {s.coats > 0 && <>{s.coats} {s.coats === 1 ? "coat" : "coats"}</>}
+                        </div>
+                      )}
                       {/* The paint this substrate gets — product · sheen · colour,
                           with its swatch — on every sheet (Tom, 21 Oct 2026: the
                           office could see it, the painter could not). Nothing on
