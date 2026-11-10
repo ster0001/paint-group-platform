@@ -141,3 +141,20 @@ describe("logCrmEvent", () => {
     await expect(logCrmEvent(db, { type: "note_added", payload: {} })).rejects.toThrow();
   });
 });
+
+describe("the wizard session on the log (Estimates tab session 1, ruling E-B)", () => {
+  it("sends p_wizard_draft_id only when the event has one, so every other caller's call is unchanged", () => {
+    const withDraft = buildEvent({ type: "wizard_step_completed", payload: { step: "beds", breakpoint: "mobile" }, wizardDraftId: "d-1" });
+    expect(withDraft.p_wizard_draft_id).toBe("d-1");
+    const without = buildEvent({ type: "note_added", payload: { body: "hi" } });
+    expect("p_wizard_draft_id" in without).toBe(false);
+  });
+  it("catalogues the three funnel events the wizard was missing, with underscore names the database accepts", () => {
+    for (const t of ["wizard_step_completed", "wizard_gate_submitted", "wizard_session_resumed"] as const) {
+      expect(CRM_EVENT_SCHEMAS[t]).toBeDefined();
+      expect(t).toMatch(TYPE_NAME_SHAPE);
+    }
+    expect(CRM_EVENT_SCHEMAS.wizard_session_resumed.safeParse({ visit: 1 }).success).toBe(false);
+    expect(CRM_EVENT_SCHEMAS.wizard_session_resumed.safeParse({ visit: 2 }).success).toBe(true);
+  });
+});

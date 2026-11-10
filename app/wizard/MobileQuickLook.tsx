@@ -22,7 +22,7 @@ import { elevationCaption, outsideSheetChips, pictureStateFor, ribbonFor } from 
 import MobileStrip, { type StripChip } from "./MobileStrip";
 import OtpCode, { type OtpHandlers, type OtpUi } from "./OtpCode";
 import { brandFor } from "@/lib/marketing/brand";
-import { breakpointNow, sendWizardEvent } from "@/lib/wizard/wizardEvents";
+import { breakpointNow, sendWizardEvent, stepCompletedBy } from "@/lib/wizard/wizardEvents";
 import { AddRoomInline } from "./QuickLook";
 import PictureCard from "./PictureCard";
 import JobSoFar from "./JobSoFar";
@@ -176,10 +176,16 @@ export default function MobileQuickLook({
   const last = sub >= stepScreens.length - 1;
 
   // Every screen: top of the page, the screen remembered, the event written (§8).
+  // Leaving a screen forward also completes it (Estimates tab session 1).
+  const prevScreenRef = useRef<string | null>(null);
   useEffect(() => {
     window.scrollTo({ top: 0 });
     try { window.localStorage.setItem(MOBILE_SCREEN_KEY, current.id); } catch { /* private mode: the resume lands on the step's first screen */ }
     sendWizardEvent("wizard_step_viewed", { step: current.id, breakpoint: breakpointNow() });
+    const done = stepCompletedBy(prevScreenRef.current, current.id, screens.map((s) => s.id));
+    if (done) sendWizardEvent("wizard_step_completed", { step: done, breakpoint: breakpointNow() });
+    prevScreenRef.current = current.id;
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- screens is the order the screen moved along; the screen is the trigger
   }, [current.id]);
 
   // R7 / D10: a single choice advances itself ~250ms after the tap (260ms on a laptop — D-D1).

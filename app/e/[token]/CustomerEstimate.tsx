@@ -15,6 +15,27 @@ import "../customer.css";
 import { clientId } from "@/app/components/clientId";
 import { isVideoUrl } from "@/lib/media/video";
 
+/**
+ * One view per VISIT, not per mount (Estimates tab session 1). A refresh, or
+ * React mounting the page twice, used to mint a fresh session id and so a new
+ * `estimate_views` row — the customer looked once and the list said "Viewed 3×".
+ * The id now lives in sessionStorage for the tab: same tab, same view; a new
+ * tab or a later visit is a new one. No storage (private mode) falls back to
+ * an id per mount, as before.
+ */
+function viewSessionFor(token: string): string {
+  const key = `pg-estimate-view:${token}`;
+  try {
+    const kept = window.sessionStorage.getItem(key);
+    if (kept && /^[0-9a-f-]{36}$/.test(kept)) return kept;
+    const fresh = clientId();
+    window.sessionStorage.setItem(key, fresh);
+    return fresh;
+  } catch {
+    return clientId();
+  }
+}
+
 // The public token page keeps this row shape; the builder passes a live snapshot
 // with preview=true (no token, no writes).
 export type EstimateRow = {
@@ -163,7 +184,7 @@ export default function CustomerEstimate({
   useEffect(() => {
     if (!interactive) return;
     const supabase = createClient();
-    const session = clientId();
+    const session = viewSessionFor(token);
     const ua = typeof navigator !== "undefined" ? navigator.userAgent : "";
     let ms = 0;
     // NB: the supabase query builder is lazy — it only fires when awaited, so

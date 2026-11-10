@@ -93,6 +93,11 @@ const RENDER: Record<CrmEventType, { label: string; kind: TimelineRow["kind"]; d
   // ---- the wizard on a phone (mobile v5, brief §8) ------------------------
   wizard_step_viewed: { label: "Saw a wizard step", kind: "customer",
     detail: (p) => join(str(p.step), str(p.breakpoint) && `on ${str(p.breakpoint)}`) },
+  wizard_step_completed: { label: "Finished a wizard step", kind: "customer",
+    detail: (p) => join(str(p.step), str(p.breakpoint) && `on ${str(p.breakpoint)}`) },
+  wizard_gate_submitted: { label: "Gave their details in the wizard", kind: "customer" },
+  wizard_session_resumed: { label: "Came back to the wizard", kind: "customer",
+    detail: (p) => (typeof p.visit === "number" ? `visit ${p.visit}` : "") },
   surface_toggled: { label: "Ticked a surface in the wizard", kind: "customer",
     detail: (p) => join(str(p.surface), p.on === false ? "off" : "on") },
   gate_viewed: { label: "Saw their range", kind: "customer",

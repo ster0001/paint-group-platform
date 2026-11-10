@@ -112,6 +112,13 @@ export const CRM_EVENT_SCHEMAS = {
   // these. `breakpoint` is the brief's one split: mobile is < 768px.
   wizard_step_viewed: z.object({ step: z.string().max(40), breakpoint: z.enum(["mobile", "desktop"]), sessionId: z.string().uuid().optional() }),
   surface_toggled: z.object({ surface: z.string().max(40), on: z.boolean(), sessionId: z.string().uuid().optional() }),
+  // Estimates tab & funnel, session 1 (ruling E-A): the three the Funnel was missing.
+  /** Left a step FORWARD — Next, or a self-advancing tap. Back is not a completion. */
+  wizard_step_completed: z.object({ step: z.string().max(40), breakpoint: z.enum(["mobile", "desktop"]), sessionId: z.string().uuid().optional() }),
+  /** The contact details went in (`wizard_drafts.gate_completed_at` stamped). Written by the draft's own trigger, so every path counts. */
+  wizard_gate_submitted: z.object({ sessionId: z.string().uuid().optional() }),
+  /** Came back to an open draft (`wizard_drafts.visits` went up). `visit` is the visit this is: 2 for the first return. */
+  wizard_session_resumed: z.object({ visit: z.number().int().min(2), sessionId: z.string().uuid().optional() }),
   gate_viewed: z.object({ range_low: money, range_high: money, bigger_job: z.boolean(), breakpoint: z.enum(["mobile", "desktop"]), sessionId: z.string().uuid().optional() }),
   gate_cta_clicked: z.object({ cta: z.enum(["exact", "visit", "call", "message", "save"]), breakpoint: z.enum(["mobile", "desktop"]), sessionId: z.string().uuid().optional() }),
   contact_opened: z.object({ step: z.string().max(40), sessionId: z.string().uuid().optional() }),
@@ -216,6 +223,8 @@ export type CrmEventInput = {
   occurredAt?: Date | string | null;
   payload?: unknown;
   dedupeKey?: string | null;
+  /** The wizard session (`wizard_drafts.id`) the event belongs to — ruling E-B. Sent only when set, so every other caller's call is unchanged. */
+  wizardDraftId?: string | null;
 };
 
 export type BuiltEvent = {
@@ -229,6 +238,7 @@ export type BuiltEvent = {
   p_invoice_id: string | null;
   p_property_id: string | null;
   p_dedupe_key: string | null;
+  p_wizard_draft_id?: string;
 };
 
 /**
@@ -259,6 +269,7 @@ export function buildEvent(input: CrmEventInput): BuiltEvent {
     p_invoice_id: input.invoiceId ?? null,
     p_property_id: input.propertyId ?? null,
     p_dedupe_key: input.dedupeKey ?? null,
+    ...(input.wizardDraftId ? { p_wizard_draft_id: input.wizardDraftId } : {}),
   };
 }
 

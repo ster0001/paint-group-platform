@@ -17,6 +17,7 @@ import { postStaffChatReply } from "@/lib/estimates/chatReply";
 import { emailLogoUrl } from "@/lib/messaging/logo";
 import { companyForBrand, fromForBrand, messageBrandOf, publicOriginFor } from "@/lib/messaging/brand";
 import { contactSearchOr } from "@/lib/contacts/match";
+import { dedupeKey, logCrmEvent } from "@/lib/crm/events";
 
 const replyInput = z.object({
   estimateId: z.string().uuid(),
@@ -81,6 +82,7 @@ export async function sendEstimateAction(raw: unknown): Promise<SendResult> {
 
   const s = String(data ?? "");
   if (s.startsWith("ok:")) {
+    if (v.expectedStatus !== "draft") await logRevision(supabase, v.estimateId);
     const delivery = await deliver(supabase, v);
     revalidatePath("/estimates");
     return { ok: true, state: s.slice(3), delivery };
@@ -105,6 +107,32 @@ export async function sendEstimateAction(raw: unknown): Promise<SendResult> {
     lead_source_required: LEAD_SOURCE_REQUIRED,
   };
   return { ok: false, kind: "error", message: wording[reason] ?? `Couldn't send that (${reason}).` };
+}
+
+/**
+ * Estimates tab session 1: a re-send is a REVISED estimate. `estimate_revised`
+ * was catalogued and read by the stage (`lib/crm/stage.ts`) but nothing wrote
+ * it, so a re-quoted customer looked like one who had only ever had the first.
+ * The revision number is the count of earlier sends (`send_estimate` writes one
+ * `sent` estimate event each time), so the dedupe key makes a retry a no-op.
+ * Best-effort: the send has already happened, and logging never undoes it.
+ */
+async function logRevision(supabase: Awaited<ReturnType<typeof createClient>>, estimateId: string): Promise<void> {
+  const [{ data: est, error: estErr }, { count, error: countErr }] = await Promise.all([
+    supabase.from("estimates").select("account_id, total_cents").eq("id", estimateId).maybeSingle(),
+    supabase.from("estimate_events").select("id", { count: "exact", head: true }).eq("estimate_id", estimateId).eq("type", "sent"),
+  ]);
+  if (estErr || countErr) { reportError(estErr ?? countErr, { where: "quote.send.revision", bestEffort: true }); return; }
+  const revision = (count ?? 0) - 1;
+  if (!est || revision < 1) return;
+  await logCrmEvent(supabase, {
+    type: "estimate_revised",
+    source: "staff",
+    accountId: (est.account_id as string | null) ?? null,
+    estimateId,
+    payload: { revision, totalCents: Math.max(0, Number(est.total_cents ?? 0)) },
+    dedupeKey: dedupeKey("estimate_revised", estimateId, revision),
+  });
 }
 
 type SendInput = ReturnType<typeof sendEstimateInput.parse>;

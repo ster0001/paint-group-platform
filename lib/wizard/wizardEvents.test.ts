@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { buildEvent, CRM_EVENT_SCHEMAS } from "@/lib/crm/events";
-import { breakpointNow, MOBILE_MAX_WIDTH, WIZARD_EVENT_SCHEMAS, WIZARD_EVENT_TYPES, wizardEventBodySchema, type WizardEventType } from "./wizardEvents";
+import { breakpointNow, MOBILE_MAX_WIDTH, stepCompletedBy, WIZARD_EVENT_SCHEMAS, WIZARD_EVENT_TYPES, wizardEventBodySchema, type WizardEventType } from "./wizardEvents";
 
 /** Wizard mobile v5, brief §8 — the events, their shapes, and the one breakpoint rule. */
 describe("the wizard's events (mobile v5 §8)", () => {
@@ -9,6 +9,7 @@ describe("the wizard's events (mobile v5 §8)", () => {
     const session = "11111111-1111-4111-8111-111111111111";
     const samples: Record<WizardEventType, Record<string, unknown>> = {
       wizard_step_viewed: { step: "rooms", breakpoint: "mobile" },
+      wizard_step_completed: { step: "rooms", breakpoint: "mobile" },
       surface_toggled: { surface: "walls", on: true },
       gate_viewed: { range_low: 704_000, range_high: 986_000, bigger_job: false, breakpoint: "mobile" },
       gate_cta_clicked: { cta: "exact", breakpoint: "desktop" },
@@ -52,5 +53,26 @@ describe("the wizard's events (mobile v5 §8)", () => {
     expect(breakpointNow(768)).toBe("desktop");
     expect(breakpointNow(1470)).toBe("desktop");
     expect(breakpointNow(null)).toBe("desktop");
+  });
+});
+
+describe("stepCompletedBy — a step is completed when it is left forward (Estimates tab session 1)", () => {
+  const order = ["what", "property", "beds", "storeys"] as const;
+  it("forward one step completes the step left", () => {
+    expect(stepCompletedBy("what", "property", order)).toBe("what");
+  });
+  it("a jump forward completes the step left, not the ones skipped", () => {
+    expect(stepCompletedBy("property", "storeys", order)).toBe("property");
+  });
+  it("Back, staying put, the first screen and an unknown step complete nothing", () => {
+    expect(stepCompletedBy("beds", "property", order)).toBeNull();
+    expect(stepCompletedBy("beds", "beds", order)).toBeNull();
+    expect(stepCompletedBy(null, "what", order)).toBeNull();
+    expect(stepCompletedBy("gone", "beds", order)).toBeNull();
+    expect(stepCompletedBy("beds", "gone", order)).toBeNull();
+  });
+  it("the route accepts the event with the same payload as a step view", () => {
+    expect(wizardEventBodySchema.safeParse({ type: "wizard_step_completed", payload: { step: "beds", breakpoint: "mobile" } }).success).toBe(true);
+    expect(wizardEventBodySchema.safeParse({ type: "wizard_step_completed", payload: { step: "Beds!", breakpoint: "mobile" } }).success).toBe(false);
   });
 });
