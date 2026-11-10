@@ -52,6 +52,28 @@ From the master plan, the ones this brief touches:
 
 ---
 
+> **RULED 11 Nov 2026 (Tom), session 0 rulings E‑A…E‑R. These override §3–§6 where they differ.**
+> - **E‑A** Event names keep underscores (the `crm_events` CHECK rejects dots). Reuse the existing types in `lib/crm/events.ts`; add only the missing ones (`wizard_step_completed`, `wizard_gate_submitted`, `wizard_session_resumed`, form-wizard `wizard_started`), and give `estimate_revised` a writer.
+> - **E‑B** `crm_events` gains nullable `wizard_draft_id` (FK + index). Anonymous wizard events are written with no account instead of being dropped.
+> - **E‑C** `wizard_sessions` = **`wizard_drafts`**. Missing fields are added there. No `estimates.wizard_session_id` (`wizard_drafts.estimate_id` is the link).
+> - **E‑D** `estimates.brand` already exists as `paintgroup|painthome`. No migration, no backfill.
+> - **E‑E** Temperature (`hot|warm|cold`) and snooze stay on `accounts`, via `crm_set_temperature` / `crm_snooze`.
+> - **E‑F** Expiry is `valid_until`. `sent_by` is `sent_by_user_id`.
+> - **E‑G** Estimate stage is a new pure module `lib/crm/estimateStage.ts`, using the account vocabulary in `lib/crm/stage.ts` where meanings match. `stageFor` stays the account stage.
+> - **E‑H** Work-queue items are new kinds in `lib/crm/work-queue.ts`, ranked by its existing ranking. No `workQueue.ts`, no `value × age`.
+> - **E‑I** The six chips sit above the list; **All estimates** keeps today's nine tabs inside it.
+> - **E‑J** Pipeline, Online now and Work queue share the existing card, bucket and queue code.
+> - **E‑K** Estimate detail additions go on `/quote?id=`; no `/estimates/[id]`.
+> - **E‑L** Activity moves to `crm_events` (R16), after a comparison on real estimates shows nothing currently displayed is lost.
+> - **E‑M** Funnel extends `lib/reporting/metrics/funnel.ts` (the home card's module); no `lib/reports/`.
+> - **E‑N** Pipeline and Funnel are hidden from PCs through the `staff_access` screen map. This is a screen gate, not a database wall; real roles are a separate piece of work.
+> - **E‑O** Every PR opens with its failing anonymous-customer spec (CLAUDE.md testing law), not only session 7.
+> - **E‑P** Help is `docs/help/estimates-tab/<role>.md`.
+> - **E‑Q** The regression spec tests the sort that exists: fixed newest-first.
+> - **E‑R** v2 of the master plan plus the two briefs is the full set; R11–R16 are as the briefs quote them.
+>
+> **Session 1 becomes:** catalogue additions; `crm_events.wizard_draft_id`; anonymous events kept; step-completed / gate-submitted / resumed events from both wizard vocabularies (with a step-key map); `estimate_revised` writer; view-count fix (one view per visit, not per mount; `view_count` derived from `estimate_views`, never a separate counter). **Session 2:** `lib/crm/estimateStage.ts` + golden tests, new work-queue kinds, funnel extension.
+
 ## 3. Data
 
 ### 3.1 `crm_events` — new event types (append-only; existing shape from the CRM brief)
@@ -205,3 +227,4 @@ _(updated at the end of every session)_
 
 - 5 Nov 2026 — brief written; awaiting session 0.
 - 6 Nov 2026 — session 0 done: `docs/briefs/estimates-tab-session-0.md`. Session 1 waits on rulings E-A to E-R; master supplied is v2, not v3.
+- 11 Nov 2026 — all session 0 rulings E‑A…E‑R ruled by Tom as proposed (block above §3). Session 1 rescoped.

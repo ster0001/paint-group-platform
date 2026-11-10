@@ -141,3 +141,5 @@ Campaigns is a second system: event or audience entry, 7 triggers, step sequence
 | A‑N | Quiet hours | 20:00–08:00 replaces current values for SMS; email and chat exempt. Check this suits the existing keys, since the change affects all |
 
 **Suggested order:** Estimates sessions 1–2 (events, stage), then STOP fix + default-off + hours in one place, then lead page + replies, then keys. Wizard-lead automations cannot go on until A‑F and A‑G are done.
+
+**Ruled 11 Nov 2026 (Tom): every proposal in the table above was accepted as written.** The brief carries the ruling block.

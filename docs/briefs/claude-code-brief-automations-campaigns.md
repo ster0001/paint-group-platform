@@ -61,7 +61,17 @@ Session 0 writes the real table of this and the brief is amended before session 
 
 ---
 
-> **RULED 11 Nov 2026 (Tom, A‑A): extend the existing engine.** §3.1–§3.3 and the scheduler in §5 are **superseded**. The keys in this brief become entries in `lib/automations/registry.ts`, sent through `sendAutomation` (`lib/automations/dispatch.ts`), made idempotent by `automation_claims` (keyed with the step), switched and worded at the existing automations screen. There is no `automations`, `automation_messages` or `automation_runs` table and no scheduled-run row: a sweep **derives** what is due from stage + age at send time, so "stops if the stage changes" needs no cancel step. Genuinely new (A‑B): per-brand wording (one table, `key × brand × channel`), send stats read from `messages.meta.automation`, and a thin run log only if the screen's "next due" needs one. Default-off on the registry (A‑D) and STOP honoured by `sendAutomation` (A‑E) land **before** the first new key. Task-type keys (L8, E3-task, E6) are new kinds in `lib/crm/work-queue.ts`. Event names use underscores (`message_sent`, `staff_alerted`, `message_replied`). Rulings A‑B…A‑N are still proposals.
+> **RULED 11 Nov 2026 (Tom, A‑A): extend the existing engine.** §3.1–§3.3 and the scheduler in §5 are **superseded**. The keys in this brief become entries in `lib/automations/registry.ts`, sent through `sendAutomation` (`lib/automations/dispatch.ts`), made idempotent by `automation_claims` (keyed with the step), switched and worded at the existing automations screen. There is no `automations`, `automation_messages` or `automation_runs` table and no scheduled-run row: a sweep **derives** what is due from stage + age at send time, so "stops if the stage changes" needs no cancel step. Genuinely new (A‑B): per-brand wording (one table, `key × brand × channel`), send stats read from `messages.meta.automation`, and a thin run log only if the screen's "next due" needs one. Default-off on the registry (A‑D) and STOP honoured by `sendAutomation` (A‑E) land **before** the first new key. Task-type keys (L8, E3-task, E6) are new kinds in `lib/crm/work-queue.ts`. Event names use underscores (`message_sent`, `staff_alerted`, `message_replied`).
+>
+> **RULED 11 Nov 2026 (Tom), A‑B…A‑N as proposed:**
+> - **A‑C** One screen. Campaigns › Automations shows the funnel keys; Settings → Automations keeps the rest and links across. No fifth top-level CRM tab.
+> - **A‑D** Default-off flag on the registry, tested, before any new key. **A‑E** STOP (`marketing_unsubscribed_at`, `permit_sms = declined`) honoured by `sendAutomation` for non-service keys — **its own PR, first**.
+> - **A‑F** Leads get a token page: their range (as a **snapshot**, per the customers-see-snapshots rule) and the chat. **A‑G** Inbound email and SMS replies are routed into `estimate_messages`. L2, L3, L4, L6 and L10's customer chat wait for both.
+> - **A‑H** Senders per estimator and per brand. Needs the Paint Home domain verified in Resend (Tom) and a check that `TWILIO_FROM` is a number that can take replies before L11 goes on.
+> - **A‑I** R1 (chat is the customer email) covers the new keys only; invoices, sign-in links and PDFs keep email.
+> - **A‑J** `consent_marketing` = `accounts.permit_email` / `permit_sms`. **A‑K** Review request (R1 key) is new work; wording and review link confirmed with Tom when it is built. **A‑L** Referral (R2) out of scope until referral tables exist. **A‑M** No campaign studio brief; the code is the record.
+> - **A‑N** Quiet hours become 20:00–08:00 every day, **SMS only**, for every automation; email and chat send any time.
+> - **Order:** Estimates sessions 1–2 → STOP fix PR → default-off + hours in one place + quiet hours → lead page + replies → keys.
 
 ## 3. Data
 
@@ -165,3 +175,4 @@ Golden tests: brand mapping (every brand × channel), quiet-hour deferral bounda
 - 5 Nov 2026 — brief written; blocked on Estimates brief sessions 1–2 and this brief's session 0.
 - 6 Nov 2026 — session 0 done: `docs/briefs/automations-session-0.md`. Existing engine found; brief to be amended after rulings A-A to A-N.
 - 11 Nov 2026 — **A‑A ruled by Tom: extend the existing engine.** §3 and §5 marked superseded; session 2 rewritten. A‑B…A‑N open.
+- 11 Nov 2026 — A‑B…A‑N ruled by Tom as proposed (block above §3).
