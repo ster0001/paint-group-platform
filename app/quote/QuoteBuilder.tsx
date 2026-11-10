@@ -36,6 +36,7 @@ import CustomerEstimate from "@/app/e/[token]/CustomerEstimate";
 import { renderProgressPreviewAction, type ProgressPreviewRender } from "./progressPreviewAction";
 import ProgressPhone from "@/app/e/[token]/ProgressPhone";
 import { DEFAULT_PROOF, ESTIMATE_DOCS_BUCKET, PREPARATION_DESCRIPTION, PREPARATION_ID, PREPARATION_TITLE, estimateDocUrl, type CustomerSnapshot, type SnapshotArea, type SnapshotLine, type SnapshotPaint, type SnapshotSurface } from "@/lib/customer/snapshot";
+import { lineSurfaceKey, lineWorkOrderArea } from "@/lib/workorder/lineArea";
 import { type InclusionTemplate } from "@/lib/estimate/inclusionTemplates";
 import WorkOrderDoc, { type WOEdit } from "@/app/w/WorkOrderDoc";
 import ColourPicker from "@/app/components/ColourPicker";
@@ -1852,6 +1853,13 @@ export default function QuoteBuilder({
       finishCode: null,
       finishOverridden: false,
     }] : [];
+    // A line item's crew time rides the work order the same way, one area per
+    // line, after the rooms (5 Milton St, 10 Nov 2026 — see lineArea.ts).
+    const lineAreas = blocks.flatMap((b) => {
+      if (b.kind !== "line" || b.isOption) return [];
+      const a = lineWorkOrderArea(b, lineCalc(b).hours, woHours[lineSurfaceKey(b.id)]);
+      return a ? [a] : [];
+    });
     return {
       version: 1,
       woRef: workOrder?.wo_ref ?? `WO-${(shareToken ?? "PREVIEW0").slice(0, 8).toUpperCase()}`,
@@ -1875,7 +1883,7 @@ export default function QuoteBuilder({
         : null,
       contractorName: contractors.find((c) => c.id === woContractorId)?.name ?? "",
       contractorPaymentCents: totals.contractorOffer,
-      materials, areas: [...prepArea, ...areasDoc],
+      materials, areas: [...prepArea, ...areasDoc, ...lineAreas],
       exclusions: exclusions.map((t) => t.trim()).filter(Boolean),
       inclusions: inclusions.map((t) => t.trim()).filter(Boolean),
       company: { name: company.name, phone: company.phone, logoUrl: company.logoUrl },
@@ -1885,8 +1893,9 @@ export default function QuoteBuilder({
 
   /**
    * One contractor-safe fragment per option the customer can tick — the
-   * optional areas, the optional line items (hours and pay only; a line has
-   * no surfaces) and each room's optional substrates. Saved as
+   * optional areas, the optional line items (pay, and since 10 Nov 2026 the
+   * line's own area when it has hours — lineArea.ts) and each room's optional
+   * substrates. Saved as
    * `builder_state.woOptions`; the database merges the ticked ones into the
    * work order at acceptance (`wo_apply_selected_options`, migration
    * 20270149) and when staff add one later (`estimate_add_option`).
@@ -1903,7 +1912,8 @@ export default function QuoteBuilder({
           orderLitres,
           statusFor: (key, product) => lookupColourEntry(woColours, key, product)?.status ?? "tbc",
         });
-        out[String(b.id)] = { id: String(b.id), title: b.name || "Line item", areas: [], materials: lineMaterials, contractorPaymentCents: payFor([{ ...b, isOption: false }]), conditionHours: 0 };
+        const lineArea = lineWorkOrderArea(b, lineCalc(b).hours, woHours[lineSurfaceKey(b.id)]);
+        out[String(b.id)] = { id: String(b.id), title: b.name || "Line item", areas: lineArea ? [lineArea] : [], materials: lineMaterials, contractorPaymentCents: payFor([{ ...b, isOption: false }]), conditionHours: 0 };
         continue;
       }
       if (b.isOption) {
