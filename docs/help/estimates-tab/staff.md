@@ -2,7 +2,7 @@
 feature: estimates-tab
 role: staff
 title: Find an estimate and see where it stands
-summary: The Estimates page opens on All estimates; above it, Pipeline lays open estimates out by stage, Online now shows who is in the wizard, and Work queue lists what is waiting on you.
+summary: The Estimates page opens on All estimates; above it, Pipeline lays open estimates out by stage, Online now shows who is in the wizard, Work queue lists what is waiting on you, and Funnel shows where people stop.
 ---
 
 ## What this is for
@@ -22,7 +22,12 @@ Nothing. The page opens on **All estimates**.
 - **Pipeline** — every open estimate and every priced wizard session, in a lane for the stage it has reached: Range seen, no action → Needs help → Tightening → Tightened, no action → Visit requested → Visit booked → Call requested → Visit / call done → Estimate sent → Estimate viewed → Question asked → Revised. Each lane shows how many and what they are worth. Cards move on their own as things happen; there is nothing to drag. On a phone, swipe across the lanes.
 - **Online now** — Online now (in the wizard in the last five minutes), Needs help, Came back after dropping out (today), Priced, no request, and Dropped today (anonymous people who left without giving details, shown by suburb).
 - **Work queue** — everything waiting on someone about an estimate: confirmations, quotes to chase, a visit done with no estimate sent. Out of office hours a yellow line says call-backs and help requests wait until the office opens.
-- **Funnel** — says "the next build" for now, with a link to the home dashboard.
+- **Funnel** — how people move through the online quote, for a period (this week, month, quarter or year). Narrow it by brand, phone or desktop, job type and lead source.
+  - Three numbers at the top: started the wizard, gave their details, accepted. They are the same numbers as the home dashboard's Where estimates go.
+  - **Where they stop** — each wizard step: how many saw it, how many went on, and the typical time it took. The three steps where most people stop are amber. Tap a step to see phone against desktop.
+  - **Drop-out by price band** — people grouped by the price range they were first shown, and how many then did something (asked for a visit, a call, the exact price, sent a message). The band that drops most is shaded clay. Change the bands in Settings → Dashboard → Funnel price bands.
+  - **Came back** — people who left and came back, against those who did not, and what each went on to do.
+  - Each chart has **Export CSV**, which downloads what the screen shows, filters included.
 - **Campaigns › Automations** — opens CRM › Campaigns until the Automations section is built.
 
 ## Pipeline cards
@@ -37,12 +42,15 @@ Nothing. The page opens on **All estimates**.
 - **about $6,400** — the wizard's estimate of value; a plain **$6,400** is the estimate's price.
 - **Paint Home** (dark slate and cyan) / **Paint Group** (grey) — which website the enquiry came through.
 - **Last sent — · Next due —** — automated messages, once the automations are built.
+- **Back-taps** and **which link brought someone back** — not recorded yet; the Funnel says so where they would go.
 
 ## Who sees which view
 Pipeline and Funnel can be switched off for a login: Settings → Company → Staff logins, untick **Estimates › Pipeline** or **Estimates › Funnel**. That person no longer sees the chip, and the link takes them to All estimates.
 
 ## If something goes wrong
 - **No "Viewed" tag on an estimate** — the customer has not opened the link yet, or the estimate has not been sent.
+- **The Funnel says some of it could not be read** — its numbers may be short; reload the page.
+- **The Funnel says it is for owner, admin and sales logins** — your login does not have one of those dashboard roles (Settings → Staff logins).
 - **A view says it could not be loaded** — reload the page. If it keeps happening, tell Tom; the message on the page is what he needs.
 
 ## Related

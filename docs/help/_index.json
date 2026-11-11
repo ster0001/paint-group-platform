@@ -343,7 +343,7 @@
       "feature": "estimates-tab",
       "role": "staff",
       "title": "Find an estimate and see where it stands",
-      "summary": "The Estimates page opens on All estimates; above it, Pipeline lays open estimates out by stage, Online now shows who is in the wizard, and Work queue lists what is waiting on you.",
+      "summary": "The Estimates page opens on All estimates; above it, Pipeline lays open estimates out by stage, Online now shows who is in the wizard, Work queue lists what is waiting on you, and Funnel shows where people stop.",
       "path": "docs/help/estimates-tab/staff.md",
       "walkthrough": null,
       "media": [],

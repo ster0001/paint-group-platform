@@ -25,6 +25,11 @@ const query = z.object({
   who: z.enum(["mine", "team"]).optional(),
   family: z.string().max(20).optional(),
   q: z.string().max(120).optional(),
+  // Estimates tab session 5: the Funnel view's filters, so its CSVs are what the screen shows.
+  brand: z.enum(["paintgroup", "painthome"]).optional(),
+  device: z.enum(["mobile", "desktop"]).optional(),
+  job: z.string().max(40).optional(),
+  src: z.string().max(60).optional(),
 });
 
 export async function GET(request: Request) {
@@ -49,7 +54,11 @@ export async function GET(request: Request) {
   try {
     const { input, failures } = await loadMetricInput(supabase, range, now, [def.section], { userId: user.id, who: parsed.data.who, family: parsed.data.family ?? null, q: parsed.data.q ?? null }, roles);
     if (failures.length) return NextResponse.json({ error: "a read failed", failures }, { status: 503 });
-    const result = runMetric(def, input, range, roles);
+    const d = parsed.data;
+    const filtered = d.brand || d.device || d.job || d.src
+      ? { ...input, funnelFilter: { brand: d.brand ?? null, device: d.device ?? null, jobType: d.job ?? null, leadSource: d.src ?? null } }
+      : input;
+    const result = runMetric(def, filtered, range, roles);
     return new Response(csvStream(def, result.rows as Record<string, unknown>[]), {
       status: 200,
       headers: {

@@ -29,13 +29,3 @@ export default function EstimatesViews({ current, hidden = [] }: { current: Excl
     </nav>
   );
 }
-
-/** Funnel's information lives on the home card until session 5 builds the report. */
-export function ViewComingSoon() {
-  return (
-    <div className="mt-4 rounded-lg border border-gray-200 bg-white p-8 text-center text-sm text-gray-500" data-testid="estimates-view-soon">
-      <p>The Funnel report is the next build.</p>
-      <p className="mt-2"><Link href="/home" className="font-medium text-gray-700 hover:underline">The headline counts are on the home dashboard’s Where estimates go →</Link></p>
-    </div>
-  );
-}

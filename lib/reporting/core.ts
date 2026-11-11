@@ -100,6 +100,8 @@ export type MetricInput = {
   pl?: PlSlice | null;
   /** Session 5: the strip's anomaly threshold (Settings dashboard_anomaly_threshold_pct). */
   thresholds?: { anomalyPct: number } | null;
+  /** Estimates tab session 5: the Funnel view's filters, so its CSVs export what the screen shows. */
+  funnelFilter?: import("./metrics/funnel").FunnelFilter | null;
 };
 
 export type ClosedJobRow = {
@@ -166,13 +168,19 @@ export type FunnelSlice = {
     /** Paint Home brief §6: which shopfront the session came through (null = Paint Group). */
     brand?: string | null;
     /** S6: the gate (addendum A §4.7). Null on sessions from before. */
-    gate_version?: string | null; gate_shown_at?: string | null; gate_completed_at?: string | null; range_shown_at?: string | null; range_option?: string | null }[];
+    gate_version?: string | null; gate_shown_at?: string | null; gate_completed_at?: string | null; range_shown_at?: string | null; range_option?: string | null;
+    /** Estimates tab session 5: the Funnel view's job-type filter and the came-back chart. */
+    job_type?: string | null; visits?: number | null }[];
   /** The estimates the drafts became, whatever their date. */
   estimates: FunnelEstimate[];
   /** Paint Home brief §6–7: the website's own events in the range (crm_events `web_event`), for visits / address typed / see price per shopfront. */
   web?: WebEventRow[];
   /** Wizard mobile v5 §8: the wizard's own events in the range (gate viewed, gate door, Contact opened, visit booked), for the two rates. */
   wizardEvents?: WizardEventRow[];
+  /** Estimates tab session 5: the Funnel view's events (step views and completions, ranges, actions), keyed by session. */
+  funnelEvents?: import("./metrics/funnel").FunnelEventRow[];
+  /** Estimates tab session 5 (R7, ⚑3): the price-band edges from Settings `funnel_price_bands`, cents. */
+  priceBands?: number[];
 };
 export type WizardEventRow = { type: string; session_id: string | null; cta: string | null; from: string | null; occurred_at: string };
 export type WebEventRow = { name: string; audience: string | null; visitor_id: string | null; occurred_at: string };
