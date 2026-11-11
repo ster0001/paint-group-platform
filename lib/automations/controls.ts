@@ -9,8 +9,9 @@
  * office that never touches the screen gets exactly the behaviour shipped.
  *
  * Alongside them, two site-wide rules for AUTOMATIC customer and painter
- * messages (decisions D1, D2): quiet hours — a message due outside them is
- * held and released at the next opening — and a daily cap per customer. Both
+ * messages (decisions D1, D2): quiet hours — a TEXT due outside them is
+ * held and released at the next opening (ruling A‑N: texts only, 8am–8pm
+ * every day) — and a daily cap per customer. Both
  * have exemptions the registry declares per automation (an offer, a receipt,
  * a sign-off message must not wait).
  *
@@ -35,8 +36,13 @@ export type AutomationControl = {
 export type QuietWindow = [number, number] | null;
 export type QuietHours = { weekday: QuietWindow; saturday: QuietWindow; sunday: QuietWindow };
 
-/** D1: 8am–7pm weekdays, 9am–5pm Saturday, nothing Sunday. */
-export const DEFAULT_QUIET_HOURS: QuietHours = { weekday: [8, 19], saturday: [9, 17], sunday: null };
+/**
+ * Automations ruling A‑N (Tom, 11 Nov 2026): texts go 8am–8pm, every day
+ * (quiet 20:00–08:00). Replaces D1's 8–7 weekdays / 9–5 Saturday / no
+ * Sunday. Applies to TEXTS only — an email-only send goes at any hour
+ * (decide.ts). The office can still change the hours in Settings → Automations.
+ */
+export const DEFAULT_QUIET_HOURS: QuietHours = { weekday: [8, 20], saturday: [8, 20], sunday: [8, 20] };
 /** D2: three automatic job messages per customer per Melbourne day. */
 export const DEFAULT_DAILY_CAP = 3;
 

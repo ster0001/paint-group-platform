@@ -58,6 +58,19 @@ test("D1: quiet hours hold an automatic customer message until the next opening;
   assert.equal(decide({ automation: base, cfg: {}, contact, now: atNight, sentToday: 9, direct: true }).action, "send");
 });
 
+test("A‑N: quiet hours hold texts only — an email-only send goes at night; text and email wait together", () => {
+  const byEmail = decide({ automation: base, cfg: { controls: { t_job: { channel: "email" } } }, contact, now: atNight, sentToday: 0 });
+  assert.equal(byEmail.action, "send");
+  assert.deepEqual(ch(byEmail), ["email"]);
+  const byText = decide({ automation: base, cfg: { controls: { t_job: { channel: "sms" } } }, contact, now: atNight, sentToday: 0 });
+  assert.equal(byText.action, "hold");
+  const both = decide({ automation: base, cfg: {}, contact, now: atNight, sentToday: 0 });
+  assert.equal(both.action, "hold");
+  assert.deepEqual(ch(both), ["sms", "email"]);
+  // Sunday midday is open for texts now.
+  assert.equal(decide({ automation: base, cfg: {}, contact, now: melbourneInstant(2026, 9, 20, 12), sentToday: 0 }).action, "send");
+});
+
 test("D2: the third message today is fine, the fourth is held for tomorrow's opening; exempt kinds and painters pass", () => {
   assert.equal(decide({ automation: base, cfg: {}, contact, now: inHours, sentToday: 2 }).action, "send");
   const d = decide({ automation: base, cfg: {}, contact, now: inHours, sentToday: 3 });
@@ -71,10 +84,10 @@ test("D2: the third message today is fine, the fourth is held for tomorrow's ope
   assert.equal(decide({ automation: exempt, cfg: {}, contact, now: inHours, sentToday: 3 }).action, "send");
   const painter: Automation = { ...base, audience: "painter" };
   assert.equal(decide({ automation: painter, cfg: {}, contact, now: inHours, sentToday: 3 }).action, "send");
-  // A Saturday-evening cap hold lands Monday 08:00 (Sunday closed).
+  // A Saturday cap hold lands Sunday 08:00 (A‑N: Sunday is open).
   const sat = melbourneInstant(2026, 9, 19, 12);
   const w = decide({ automation: base, cfg: {}, contact, now: sat, sentToday: 3 });
-  assert.equal(w.action === "hold" && w.releaseAt.getTime(), melbourneInstant(2026, 9, 21, 8).getTime());
+  assert.equal(w.action === "hold" && w.releaseAt.getTime(), melbourneInstant(2026, 9, 20, 8).getTime());
 });
 
 test("timing reads the stored number, else the registry default", () => {

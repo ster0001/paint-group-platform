@@ -14,7 +14,7 @@ You need a staff login. Texts need a mobile number and email needs an address on
 
 ## Steps
 1. Open **Settings → Automations**. Use the chips at the top to see just Customers, Contractors or Staff.
-2. **Sending hours** are at the top. Automatic customer and painter messages due outside them wait until the next opening. Untick a day to send nothing that day. Job offers, receipts, sign-in links and calendar invites ignore these hours.
+2. **Sending hours** are at the top: 8 am to 8 pm every day, Sunday included, unless you change them (since 11 Nov 2026). They apply to **texts**: an automatic text to a customer or painter that is due outside them waits until the next opening, and a message going by text and email waits whole so both arrive together. An **email on its own goes at any hour**. Untick a day to send no texts that day. Job offers, receipts, sign-in links and calendar invites ignore these hours. Hours you saved before 11 Nov stay as you set them, so check them once.
 3. **Daily limit per customer** stops a customer getting more than this many automatic job messages in a day. The extras go the next morning. Payment and sign-off messages never count.
 4. On any row, the switch turns the message **On** or **Off**. Off means nothing is sent; the event is still recorded.
 5. **Send by** appears when a message can go by text and email. Pick **Text**, **Email** or **Both**.
@@ -47,6 +47,9 @@ You need a staff login. Texts need a mobile number and email needs an address on
 ## Office reminders (12 Oct 2026)
 - **Today's follow ups (estimates)** emails **tom@paintgroup.com.au** Monday to Friday from 8 am with every estimate sent 3 days ago that is still waiting — not accepted, declined or expired. Each row has the customer's name, the address, their phone (tap to ring) and **Open estimate**, which opens it in the builder (the staff screen, so opening it does not count as a customer view). Monday's email also has the estimates sent the Wednesday and Thursday before, whose 3 days ran out over the weekend, so none is missed. Nothing is sent on a day with nothing to follow up. Switch it off on its row like any other automation.
 - **Pre-start checklist not filled out** (PC Command) texts at 2 pm on a business day (Monday to Friday, public holidays on the visit-booking list excluded). A **Reminder** names how many jobs start within 2 business days whose pre-start list isn't done; a **FINAL reminder** names how many start on the next business day — on a Friday that is Saturday, Sunday and Monday starts. "Not done" is the start gate's own test: no pre-start list yet, or a required pre-start tick still open. Both link to PC Command → Project progress. It goes to whoever has **Pre-start** ticked under Settings → Staff logins (text, email or both) — **nobody is ticked to begin with**, so tick it for the people who should get it. Each reminder goes once a day, and not at all when every job is ready.
+
+## New automations start switched off (11 Nov 2026)
+Every automation added from 11 Nov 2026 arrives **Off**. Nothing new sends until you switch it on here. Automations that were already on the list keep the state they had.
 
 ## When a customer says no to marketing (11 Nov 2026)
 Some automations are **marketing**: a message the customer did not ask for, sent to bring them back. Today that is **Abandoned wizard — pick up where you left off**. A marketing message is not sent, and is recorded in Messages as **suppressed** with the reason, when the customer:

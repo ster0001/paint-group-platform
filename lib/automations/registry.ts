@@ -86,6 +86,12 @@ export type Automation = {
    * message: something the customer asked for or a job in progress needs.
    */
   consent?: "marketing";
+  /**
+   * Ruling A‑D (11 Nov 2026): ships switched OFF. Every automation added from
+   * the automations brief on carries this; it sends only once the office turns
+   * it on (`messaging.enabled`). Existing keys keep their shipped state.
+   */
+  defaultOff?: true;
   /** Numbers the office can tune (days before, hours after…). */
   timing?: TimingDef[];
 };

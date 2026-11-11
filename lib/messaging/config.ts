@@ -10,6 +10,10 @@
  */
 
 import type { AutomationControl, QuietHours } from "@/lib/automations/controls";
+import { AUTOMATIONS } from "@/lib/automations/registry";
+
+/** Ruling A‑D: the registry keys that ship switched off. */
+const DEFAULT_OFF_KEYS: ReadonlySet<string> = new Set(AUTOMATIONS.filter((a) => a.defaultOff).map((a) => a.key));
 
 export const MESSAGING_KEY = "messaging";
 
@@ -46,6 +50,12 @@ export type MessagingSettings = {
 
   /** Registry keys switched OFF. Absent key = on (the shipped default). */
   disabled: string[];
+  /**
+   * Ruling A‑D (11 Nov 2026): registry keys marked `defaultOff` that the
+   * office has switched ON. A default-off key is off until it is listed here,
+   * so a new automation never sends because it shipped.
+   */
+  enabled?: string[];
 
   // ---- Session 1 controls (Tom's brief, 16 Sep 2026) ------------------------
   /** Per automation: channel (Text/Email/Both), mode (auto / office approves first), timing numbers. Absent = registry default. */
@@ -345,6 +355,7 @@ export const DEFAULT_MESSAGING: MessagingSettings = {
     "Any questions before we start, just reply to this email or give us a call.",
 
   disabled: [],
+  enabled: [],
 
   controls: {},
   quietHours: { weekday: [8, 19], saturday: [9, 17], sunday: null },
@@ -676,13 +687,24 @@ export const DEFAULT_MESSAGING: MessagingSettings = {
 };
 
 /**
- * Is an automation switched on? Absent from `disabled` = on. Callers pass the
- * MERGED settings ({...DEFAULT_MESSAGING, ...saved}) or a bare partial — a
- * missing or malformed list never switches anything off.
+ * Is an automation switched on? Absent from `disabled` = on — except a key
+ * the registry marks `defaultOff` (ruling A‑D), which is on only once it is
+ * in `enabled`. `disabled` always wins. Callers pass the messaging settings
+ * row they already loaded.
  */
-export function automationOn(cfg: Partial<MessagingSettings> | null | undefined, key: string): boolean {
-  const list = cfg?.disabled;
-  return !(Array.isArray(list) && list.includes(key));
+export function automationOn(cfg: Partial<MessagingSettings> | null | undefined, key: string, defaultOff: boolean = DEFAULT_OFF_KEYS.has(key)): boolean {
+  if (Array.isArray(cfg?.disabled) && cfg.disabled.includes(key)) return false;
+  if (defaultOff) return Array.isArray(cfg?.enabled) && cfg.enabled.includes(key);
+  return true;
+}
+
+/** The office's switch, as the next `disabled` / `enabled` lists — the one place a switch is written. */
+export function switchAutomation(cfg: Pick<Partial<MessagingSettings>, "disabled" | "enabled">, key: string, on: boolean, defaultOff: boolean = DEFAULT_OFF_KEYS.has(key)): { disabled: string[]; enabled: string[] } {
+  const disabled = (Array.isArray(cfg.disabled) ? cfg.disabled : []).filter((k) => k !== key);
+  const enabled = (Array.isArray(cfg.enabled) ? cfg.enabled : []).filter((k) => k !== key);
+  if (on) { if (defaultOff) enabled.push(key); }
+  else disabled.push(key);
+  return { disabled, enabled };
 }
 
 /** Placeholders offered in the Settings UI — keep this list in step with renderTemplate. */
