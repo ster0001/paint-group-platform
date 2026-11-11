@@ -55,7 +55,7 @@ describe("the after-job call on a 1–2 day job", () => {
     expect(item.kind).toBe("job_followup");
     expect(item.title).toBe("Melissa Hartley — job done, check they are happy");
     expect(item.detail).toContain("a 2-day job by Sam");
-    expect(item.dueAt).toBe(melbourneInstant(2026, 10, 7, 9).toISOString());
+    expect(item.dueAt).toBe(melbourneInstant(2026, 10, 7, 8).toISOString()); // the office opens at 8 (12 Nov 2026)
   });
   it("appears the moment the job closes, even on its last day", () => {
     const [item] = buildJobCheckinItems([short.stage === "closed" ? short : { ...short, stage: "closed" }], melbourneInstant(2026, 10, 6, 15));

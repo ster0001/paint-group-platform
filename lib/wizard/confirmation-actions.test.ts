@@ -108,16 +108,14 @@ describe("overdue is measured in business hours, not wall-clock", () => {
   });
 
   /**
-   * The office opens at 9 (businessHours.OPEN_HOUR), so a request that arrives
-   * at 8 does not start counting until then. Eight business hours later is
-   * 17:00 — the close — and that is the first moment it is late. An earlier
-   * version of this test assumed an 8am start and was wrong about the product,
-   * not about the code.
+   * The office opens at 8 (businessHours.OPEN_HOUR; Tom, 12 Nov 2026), so a
+   * request that arrives at 7 does not start counting until then. Eight
+   * business hours later is 16:00, and that is the first moment it is late.
    */
   test("a request waiting before the office opens is late at close, not before", () => {
-    const beforeOpen = new Date("2026-09-14T08:00:00+10:00");
-    expect(isOverdue({ requestedAt: beforeOpen, now: new Date("2026-09-14T16:30:00+10:00"), turnaroundHours: 8 })).toBe(false);
-    expect(isOverdue({ requestedAt: beforeOpen, now: new Date("2026-09-14T17:00:00+10:00"), turnaroundHours: 8 })).toBe(true);
+    const beforeOpen = new Date("2026-09-14T07:00:00+10:00");
+    expect(isOverdue({ requestedAt: beforeOpen, now: new Date("2026-09-14T15:30:00+10:00"), turnaroundHours: 8 })).toBe(false);
+    expect(isOverdue({ requestedAt: beforeOpen, now: new Date("2026-09-14T16:00:00+10:00"), turnaroundHours: 8 })).toBe(true);
   });
 
   test("and is not late an hour in", () => {

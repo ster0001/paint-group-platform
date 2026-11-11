@@ -15,7 +15,7 @@ Nothing. The chat works on the link we sent you, signed in or not.
 1. Open your estimate from the link in your text or email.
 2. Press **Ask a question** at the top, **💬 Chat with us** in the bar at the bottom of the screen, or **Message us** under **Ready when you are**. The chat box opens in the bottom corner over the page.
 3. Type your message and press **Send message**. It appears as your bubble.
-4. Out of office hours you see a note: *Thanks — we've received your message. Our office hours are Monday to Friday, 8:30am to 4:30pm; we'll get back to you as soon as we're open.*
+4. Out of office hours you see a note: *Thanks — we've received your message. Our office hours are Monday to Friday, 8am to 5pm; we'll get back to you as soon as we're open.*
 5. When we reply you get a text and an email with a link; opening it brings the chat back up with our answer. Press × to close the box any time; your messages stay.
 
 ## What the labels mean

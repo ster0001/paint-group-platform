@@ -6,10 +6,10 @@
  * next working day after the holiday. Pure; the holiday list comes from
  * `settings.visit_booking_rules.publicHolidays` and is passed in.
  */
-import { melbourneInstant, melbourneParts } from "./businessHours";
+import { CLOSE_HOUR, melbourneInstant, melbourneParts } from "./businessHours";
 
-/** 17:00 Melbourne — the end of a working day. */
-export const END_OF_DAY_HOUR = 17;
+/** The end of a working day: the office closing hour (lib/time/businessHours). */
+export const END_OF_DAY_HOUR = CLOSE_HOUR;
 
 const pad = (n: number) => String(n).padStart(2, "0");
 export const ymdOf = (p: { y: number; m: number; d: number }) => `${p.y}-${pad(p.m)}-${pad(p.d)}`;
