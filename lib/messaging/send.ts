@@ -14,7 +14,8 @@
  *   TWILIO_ACCOUNT_SID / TWILIO_AUTH_TOKEN / TWILIO_FROM — SMS sender (number in E.164, or alphanumeric ID)
  */
 
-import { htmlToPlain, newReplyToken, recordMessage, replyAddress, type MessageContext } from "./record";
+import { htmlToPlain, newReplyToken, recordMessage, replyAddress, resolveAccount, type MessageContext } from "./record";
+import { marketingRefusal } from "./consent";
 import { createServiceClient } from "@/lib/supabase/service";
 import { NOTIFY_TYPES, notifyAllowed, notifyTypeOfKind, parseNotifyPrefs, type NotifyChannel } from "@/lib/notifications/prefs";
 
@@ -32,29 +33,50 @@ export type DeliveryResult =
  * Untagged sends (sign-in links, office mail, campaigns) never come here.
  * Any failure to look up = send as normal: a preference must never lose a
  * message by accident.
+ *
+ * Ruling A‑E (11 Nov 2026): a MARKETING send (`ctx.marketing`) is also
+ * checked against STOP / unsubscribe / a declined permit
+ * (`marketingRefusal`). Its account is found by id, else by the address it
+ * is going to — the way the STOP reply itself matched them. For marketing
+ * the lookup fails CLOSED: a "no" we could not read is not a yes.
  */
-async function customerSwitchedOff(ctx: MessageContext | undefined, channel: NotifyChannel): Promise<string | null> {
+async function customerSwitchedOff(ctx: MessageContext | undefined, channel: NotifyChannel, address?: string | null): Promise<string | null> {
+  if (ctx?.skipRecord) return null;
   const type = notifyTypeOfKind(ctx?.kind);
-  if (!type || ctx?.skipRecord) return null;
+  const marketing = ctx?.marketing === true;
+  if (!type && !marketing) return null;
   try {
     const svc = createServiceClient();
-    if (!svc) return null;
+    if (!svc) return marketing ? "Marketing consent could not be checked (no service client) — not sent." : null;
     let accountId = ctx?.accountId ?? null;
     if (!accountId && ctx?.estimateId) {
-      const { data } = await svc.from("estimates").select("account_id").eq("id", ctx.estimateId).maybeSingle();
+      const { data, error } = await svc.from("estimates").select("account_id").eq("id", ctx.estimateId).maybeSingle();
+      if (error && marketing) throw error;
       accountId = (data as { account_id?: string | null } | null)?.account_id ?? null;
     }
     if (!accountId && ctx?.invoiceId) {
-      const { data } = await svc.from("invoices").select("account_id").eq("id", ctx.invoiceId).maybeSingle();
+      const { data, error } = await svc.from("invoices").select("account_id").eq("id", ctx.invoiceId).maybeSingle();
+      if (error && marketing) throw error;
       accountId = (data as { account_id?: string | null } | null)?.account_id ?? null;
     }
+    if (!accountId && marketing && address) {
+      accountId = await resolveAccount(svc, channel === "sms" ? { phone: address } : { email: address });
+    }
     if (!accountId) return null;
-    const { data } = await svc.from("accounts").select("notify_prefs").eq("id", accountId).maybeSingle();
-    const prefs = parseNotifyPrefs((data as { notify_prefs?: unknown } | null)?.notify_prefs);
+    const { data, error } = await svc.from("accounts").select("notify_prefs, permit_email, permit_sms, marketing_unsubscribed_at").eq("id", accountId).maybeSingle();
+    if (error) { if (marketing) throw error; return null; }
+    const row = (data ?? {}) as { notify_prefs?: unknown; permit_email?: string | null; permit_sms?: string | null; marketing_unsubscribed_at?: string | null };
+    if (marketing) {
+      const refused = marketingRefusal(row, channel);
+      if (refused) return refused;
+    }
+    if (!type) return null;
+    const prefs = parseNotifyPrefs(row.notify_prefs);
     if (notifyAllowed(prefs, type, channel)) return null;
     const label = NOTIFY_TYPES.find((t) => t.key === type)?.label ?? type;
     return `Customer switched off ${channel === "sms" ? "texts" : "email"} for ${label.toLowerCase()} in their account.`;
-  } catch {
+  } catch (e) {
+    if (marketing) return `Marketing consent could not be checked (${e instanceof Error ? e.message : "lookup failed"}) — not sent.`;
     return null;
   }
 }
@@ -89,8 +111,8 @@ export async function sendEmail(opts: {
   // Decision 8.6: with REPLY_DOMAIN set, replies route back into the CRM
   // thread (reply+<token>@…) instead of a mailbox the platform cannot see.
   const routedReplyTo = replyAddress(token);
-  const off = await customerSwitchedOff(opts.ctx, "email");
   const recipients = recipientList(opts.to);
+  const off = await customerSwitchedOff(opts.ctx, "email", recipients[0] ?? null);
   const result: DeliveryResult = off ? { status: "suppressed", message: off }
     : recipients.length === 0 ? { status: "error", message: "No email address to send to." }
     : await sendEmailRaw({ ...opts, to: recipients, replyTo: routedReplyTo ?? opts.replyTo });
@@ -187,7 +209,7 @@ async function sendEmailRaw(opts: {
 }
 
 export async function sendSms(opts: { to: string; body: string; ctx?: MessageContext }): Promise<DeliveryResult> {
-  const off = await customerSwitchedOff(opts.ctx, "sms");
+  const off = await customerSwitchedOff(opts.ctx, "sms", opts.to);
   const result: DeliveryResult = off ? { status: "suppressed", message: off } : await sendSmsRaw(opts);
   await recordMessage({
     channel: "sms", direction: "out", body: opts.body,

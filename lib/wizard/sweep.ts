@@ -6,6 +6,7 @@ import { isTestEmail } from "@/lib/accounts/identity";
 import { loadMessaging } from "@/lib/messaging/load";
 import { automationOn, renderTemplate, type MessagingSettings } from "@/lib/messaging/config";
 import { sendMagicLink } from "@/lib/portal/auth";
+import { automationByKey } from "@/lib/automations/registry";
 
 // SERVER ONLY.
 /**
@@ -74,6 +75,8 @@ export async function sweepWizardSessions(db: SupabaseClient, minutes: number = 
               subject: renderTemplate(messaging.messaging.wizardResumeSubject, vars),
               intro: renderTemplate(messaging.messaging.wizardResumeBody, vars),
               buttonLabel: "Pick up where I left off",
+              // Ruling A‑E: a nudge back is marketing — STOP / unsubscribe / a declined permit stop it.
+              ctx: { automation: "wizard_abandoned", marketing: automationByKey("wizard_abandoned")?.consent === "marketing", accountId: r.account_id, estimateId: r.estimate_id },
             });
             if (sent.status === "sent") emailed += 1;
           }

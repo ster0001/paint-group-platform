@@ -3,6 +3,7 @@ import { createServiceClient } from "@/lib/supabase/service";
 import { ensureAccount } from "@/lib/accounts/link";
 import { normaliseEmail } from "@/lib/accounts/identity";
 import { buildEstimateEmailHtml, emailConfigured, sendEmail } from "@/lib/messaging/send";
+import type { MessageContext } from "@/lib/messaging/record";
 import { reportError } from "@/lib/monitoring/report";
 import { emailLogoUrl } from "@/lib/messaging/logo";
 import type { SupabaseClient as SessionClient, User } from "@supabase/supabase-js";
@@ -63,6 +64,8 @@ export function safeNextPath(raw: string | null | undefined): string {
 
 export type MagicLinkResult =
   | { status: "sent" }
+  /** Ruling A‑E: a marketing send (the abandoned-wizard email) to someone who said no. Recorded, not sent. */
+  | { status: "suppressed" }
   | { status: "throttled" }
   | { status: "not_configured" }
   | { status: "unavailable" }
@@ -76,6 +79,8 @@ export async function sendMagicLink(opts: {
   subject?: string;
   intro?: string;
   buttonLabel?: string;
+  /** Who and what this send is about; `marketing: true` makes STOP / unsubscribe stop it (lib/messaging/consent.ts). */
+  ctx?: MessageContext;
 }): Promise<MagicLinkResult> {
   const email = normaliseEmail(opts.email);
   if (!email || !email.includes("@") || email.length > 200) return { status: "invalid" };
@@ -102,7 +107,7 @@ export async function sendMagicLink(opts: {
   const sent = await sendEmail({
     to: email,
     subject: opts.subject ?? `Sign in to your ${companyName} account`,
-    ctx: { kind: "magic_link" },
+    ctx: { kind: "magic_link", ...(opts.ctx ?? {}) },
     html: buildEstimateEmailHtml({
       intro,
       link,
@@ -116,6 +121,7 @@ export async function sendMagicLink(opts: {
     }),
   });
   if (sent.status === "not_configured") return { status: "not_configured" };
+  if (sent.status === "suppressed") return { status: "suppressed" };
   if (sent.status === "error") {
     reportError(new Error(sent.message), { where: "portal.magicLink.send", bestEffort: true });
     return { status: "unavailable" };

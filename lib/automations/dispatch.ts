@@ -104,7 +104,8 @@ async function deliver(
   channels: SendChannel[], send: AutomationSend, ctx: MessageContext, fallback?: string,
 ): Promise<Partial<Record<SendChannel, DeliveryResult>>> {
   const results: Partial<Record<SendChannel, DeliveryResult>> = {};
-  const full: MessageContext = { ...ctx, automation: send.key, fallback: fallback ?? null };
+  // Ruling A‑E: a marketing key's sends are checked against STOP / unsubscribe in the send layer.
+  const full: MessageContext = { ...ctx, automation: send.key, fallback: fallback ?? null, marketing: automationByKey(send.key)?.consent === "marketing" };
   for (const ch of channels) {
     if (ch === "sms" && send.sms && send.to.phone) {
       results.sms = await sendSms({ to: send.to.phone, body: send.sms.body, ctx: full });
