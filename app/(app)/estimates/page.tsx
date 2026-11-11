@@ -18,15 +18,30 @@ import { getWorkQueue } from "@/app/crm/queue";
 import { estimatesPageItems } from "@/lib/crm/work-queue";
 import { journeyFromRow, WIZARD_BUCKETS, WIZARD_SESSION_COLUMNS, type WizardBucket, type WizardJourney } from "@/lib/wizard/journey";
 import { realOnly } from "@/lib/demo/scope";
+import { parseEstimateView } from "@/lib/estimate/views";
+import EstimatesViews, { ViewComingSoon } from "./EstimatesViews";
 
 export const dynamic = "force-dynamic";
 
 export default async function EstimatesPage({
   searchParams,
 }: {
-  searchParams: Promise<{ status?: string; bucket?: string; source?: string; mode?: string; open?: string; built?: string; q?: string; brand?: string }>;
+  searchParams: Promise<{ status?: string; bucket?: string; source?: string; mode?: string; open?: string; built?: string; q?: string; brand?: string; view?: string }>;
 }) {
-  const { status, bucket, source, mode, open, built, brand: brandParam } = await searchParams;
+  const { status, bucket, source, mode, open, built, brand: brandParam, view: viewParam } = await searchParams;
+  // Estimates tab session 3 (brief §4, R11, E-I): the six views sit above
+  // everything below; All estimates (no `view=`) is this page as it was.
+  const view = parseEstimateView(viewParam);
+  const views = <EstimatesViews current={view} />;
+  if (view !== "all") {
+    return (
+      <div className="p-6">
+        <h1 className="text-xl font-semibold tracking-tight">Estimates</h1>
+        {views}
+        <ViewComingSoon view={view} />
+      </div>
+    );
+  }
   // Paint Home brief §6: one brand filter on every tab of this page.
   const brandFilter = parseBrandFilter(brandParam);
   // Tom, 15 Sep: the search box — one needle (`?q=`), matched against whatever
@@ -43,6 +58,8 @@ export default async function EstimatesPage({
   const templates0: TemplateMeta[] = (Array.isArray(tplRow0?.value) ? (tplRow0!.value as { id: string; name: string }[]) : [])
     .map((t) => ({ id: t.id, name: t.name }));
   const tabs = (
+    <>
+    {views}
     <div className="mt-4 flex flex-wrap gap-1 border-b border-gray-200">
       {FILTERS.map((f) => {
         const active = (status ?? DEFAULT_LIST_FILTER) === f;
@@ -61,6 +78,7 @@ export default async function EstimatesPage({
       })}
       <BrandFilterChips value={brandFilter} className="ml-auto flex items-center gap-1 self-center pb-1" hrefFor={(b) => `/estimates?status=${status ?? DEFAULT_LIST_FILTER}${sourceFilter !== "all" ? `&built=${sourceFilter}` : ""}${b !== "all" ? `&brand=${b}` : ""}`} />
     </div>
+    </>
   );
 
   /**

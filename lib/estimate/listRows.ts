@@ -63,6 +63,10 @@ export type ListRow = {
   /** Tom, 15 Sep: shown under the title, and what the search box matches. */
   customer: string | null;
   address: string | null;
+  /** Estimates tab session 3 (R12): opens of the sent estimate, one per visit (`estimate_views`). */
+  viewCount: number;
+  /** R13: times the customer came back to the wizard session behind it (visits − 1). */
+  cameBack: number;
 };
 
 /**
@@ -134,6 +138,7 @@ export function buildListRow(
     number: raw.number ?? null,
     customer, address, title: raw.title, status: raw.status, created_at: raw.created_at, viewed_at: raw.viewed_at, source: raw.source, brand: raw.brand ?? null,
     hasWizard, pill, action, value, wizard: deps.wizard,
+    viewCount: views.length, cameBack: Math.max(0, (deps.wizard?.visits ?? 1) - 1),
   };
 }
 

@@ -151,6 +151,8 @@ export type WizardJourney = {
   convertedAt: string | null;
   droppedAt: string | null;
   estValueCents: number | null;
+  /** Estimates tab session 3 (R13): visits to the session; above 1 it came back (`wizard_session_resumed`). */
+  visits: number;
 };
 
 /** wizard_drafts row → WizardJourney (tolerant of the pre-20270107 shape). */
@@ -171,6 +173,7 @@ export function journeyFromRow(r: Record<string, unknown>): WizardJourney {
     activeSeconds: n(r.active_seconds, 0), stepTimes,
     startedAt: s(r.started_at), lastActiveAt: s(r.last_seen_at), convertedAt: s(r.converted_at), droppedAt: s(r.dropped_at),
     estValueCents: typeof r.est_value_cents === "number" ? r.est_value_cents : null,
+    visits: Math.max(1, n(r.visits, 1)),
   };
 }
 
@@ -189,7 +192,7 @@ export function journeySteps(j: Pick<WizardJourney, "jobType" | "furthestPage" |
 }
 
 export const WIZARD_SESSION_COLUMNS =
-  "id, user_id, account_id, estimate_id, name, email, phone, address, suburb, postcode, job_type, mode, entry_source, brand, bucket, outcome, outcome_at, outcome_note, current_page, furthest_page, pages_total, active_seconds, step_times, started_at, last_seen_at, converted_at, dropped_at, est_value_cents, progress_pct";
+  "id, user_id, account_id, estimate_id, name, email, phone, address, suburb, postcode, job_type, mode, entry_source, brand, bucket, outcome, outcome_at, outcome_note, current_page, furthest_page, pages_total, active_seconds, step_times, started_at, last_seen_at, converted_at, dropped_at, est_value_cents, progress_pct, visits";
 
 // ---- C7b: the estimate's own status — the extended pill vocabulary --------
 

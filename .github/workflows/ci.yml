@@ -368,7 +368,8 @@ jobs:
             e2e/wo-ticks-by-surface.spec.ts e2e/wo-customer-updates.spec.ts e2e/wo-customer-notes.spec.ts \
             e2e/automation-morning-defect.spec.ts \
             e2e/portal-photos-every-day.spec.ts e2e/portal-timeline.spec.ts \
-            e2e/wo-line-item-hours.spec.ts
+            e2e/wo-line-item-hours.spec.ts \
+            e2e/estimates-list.spec.ts
 
       # C7c acceptance: "a full run leaves the count it started with, ±0".
       # global-setup logged the count before and global-teardown deleted this

@@ -340,6 +340,17 @@
       "sources": []
     },
     {
+      "feature": "estimates-tab",
+      "role": "staff",
+      "title": "Find an estimate and see where it stands",
+      "summary": "The Estimates page opens on All estimates — every estimate, newest first — with six views above it, a view count and a came-back tag on each row.",
+      "path": "docs/help/estimates-tab/staff.md",
+      "walkthrough": null,
+      "media": [],
+      "verified_at_commit": null,
+      "sources": []
+    },
+    {
       "feature": "estimator",
       "role": "commercial",
       "title": "A price for an office, warehouse, shop or building — online where we can, a quick visit where we can't",
