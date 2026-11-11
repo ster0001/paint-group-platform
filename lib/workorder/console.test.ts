@@ -265,6 +265,20 @@ describe("each trigger produces exactly one card", () => {
     expect(q[0].detail.toLowerCase()).toContain("call");
   });
 
+  it("draws one quiet-site card per job, from the newest flag (Tom, 12 Nov 2026)", () => {
+    const q = buildQueue(base({ quietSites: [
+      { workOrderId: "w1", at: hoursAgo(90), days: 3 },
+      { workOrderId: "w1", at: hoursAgo(14), days: 3 },
+    ] }));
+    expect(q.filter((c) => c.key === "quiet-site:w1")).toHaveLength(1);
+    expect(Math.round(q[0].ageHours)).toBe(14);
+  });
+
+  it("a closed-off quiet site stays closed", () => {
+    const q = buildQueue(base({ quietSites: [{ workOrderId: "w1", at: hoursAgo(14), days: 3 }], dismissedKeys: ["quiet-site:w1"] }));
+    expect(q).toHaveLength(0);
+  });
+
   it("flags a variation waiting on a price", () => {
     const q = buildQueue(base({
       variations: [{ id: "v1", workOrderId: "w1", status: "raised", createdAt: hoursAgo(4), pricedAt: null }],

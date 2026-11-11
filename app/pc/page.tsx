@@ -6,6 +6,7 @@ import { buildQueue, headline, needsYouItems, pcCardSnoozeKey, pulseTiles, spark
 import DismissCard from "./DismissCard";
 import ReofferDialog from "./ReofferDialog";
 import BonusHandover from "./BonusHandover";
+import NudgeCrew from "./NudgeCrew";
 import QueueDismiss from "./QueueDismiss";
 import RemindLater from "./RemindLater";
 import CheckinDone from "./CheckinDone";
@@ -411,6 +412,8 @@ export default async function DashboardPage() {
               <span className="tm">{age(card.ageHours)}</span>
               <DismissCard workOrderId={card.workOrderId} cardKey={card.key} />
               <RemindLater itemKey={pcCardSnoozeKey(card.workOrderId, card.key)} />
+              {/* Tom, 12 Nov 2026: one press texts the crew to update and closes the card. */}
+              {card.key.startsWith("quiet-site:") && <NudgeCrew workOrderId={card.workOrderId} primary />}
               {card.action.kind === "reoffer" && card.offerId ? (
                 <span data-testid={`action-${card.key}`}>
                   <ReofferDialog

@@ -67,7 +67,7 @@ export type ConsoleInput = {
     workOrderId: string; evidencePackSentAt: string | null; signedAt: string | null;
     extensionRequestedAt: string | null; extensionApprovedAt: string | null;
   }[];
-  quietSites: { workOrderId: string; at: string; days: number }[];
+  quietSites: QuietSite[];
   /** Open quality checks (result null), with any date the office set. */
   qaChecks?: { workOrderId: string; kind: string; scheduledFor: string | null; createdAt: string }[];
   /** Work orders with a final walkthrough BOOKED. */
@@ -91,6 +91,8 @@ export type ConsoleInput = {
     updateEveryDays?: number;
   };
 };
+
+type QuietSite = { workOrderId: string; at: string; days: number };
 
 const hoursBetween = (from: string | Date, to: Date): number =>
   (to.getTime() - new Date(from).getTime()) / 3_600_000;
@@ -290,7 +292,15 @@ export function buildQueue(input: ConsoleInput): QueueCard[] {
   // 2. A site that has gone quiet for a few days. A REMINDER, not a blockage:
   // nobody expects a painter to tick daily, and a red card every morning is
   // just noise. Never an automated message to the customer either — a call.
+  // One card per job: the sweep can flag a job twice inside the week the
+  // console reads (once per window), and two cards with one key is two ✕s that
+  // look like one card refusing to close. The newest flag speaks for the job.
+  const latestQuiet = new Map<string, QuietSite>();
   for (const flag of input.quietSites) {
+    const seen = latestQuiet.get(flag.workOrderId);
+    if (!seen || flag.at > seen.at) latestQuiet.set(flag.workOrderId, flag);
+  }
+  for (const flag of latestQuiet.values()) {
     const w = byId.get(flag.workOrderId);
     if (!w) continue;
     cards.push({
