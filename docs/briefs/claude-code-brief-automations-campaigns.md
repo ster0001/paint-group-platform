@@ -176,3 +176,4 @@ Golden tests: brand mapping (every brand × channel), quiet-hour deferral bounda
 - 6 Nov 2026 — session 0 done: `docs/briefs/automations-session-0.md`. Existing engine found; brief to be amended after rulings A-A to A-N.
 - 11 Nov 2026 — **A‑A ruled by Tom: extend the existing engine.** §3 and §5 marked superseded; session 2 rewritten. A‑B…A‑N open.
 - 11 Nov 2026 — A‑B…A‑N ruled by Tom as proposed (block above §3).
+- 11 Nov 2026 — A‑E built as its own PR: registry `consent: "marketing"` (wizard_abandoned), the send layer honours STOP / unsubscribe / declined permits for marketing sends (fails closed), the sweep's direct `sendMagicLink` carries the flag, a guard test for raw sends. Next: A‑D default-off + A‑N hours in one place.

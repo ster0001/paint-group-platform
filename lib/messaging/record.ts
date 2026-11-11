@@ -67,6 +67,8 @@ export type MessageContext = {
   threadId?: string | null;
   /** True for a test send or a send that must not be recorded (rare). */
   skipRecord?: boolean;
+  /** Ruling A‑E: a marketing send — STOP, unsubscribe and a declined permit stop it (lib/messaging/consent.ts). */
+  marketing?: boolean;
 };
 
 export type MessageRow = {

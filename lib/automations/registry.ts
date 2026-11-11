@@ -79,6 +79,13 @@ export type Automation = {
   capExempt?: boolean;
   /** The `ctx.kind` the dispatcher stamps on the send, so the customer's alert settings apply. */
   sendKind?: string;
+  /**
+   * Ruling A‑E (11 Nov 2026): "marketing" — a promotional message (nudging a
+   * lead back, a follow-up they did not ask for). STOP, unsubscribe and a
+   * declined permit stop it (lib/messaging/consent.ts). Absent = a service
+   * message: something the customer asked for or a job in progress needs.
+   */
+  consent?: "marketing";
   /** Numbers the office can tune (days before, hours after…). */
   timing?: TimingDef[];
 };
@@ -1108,7 +1115,7 @@ export const AUTOMATIONS: Automation[] = [
     trigger: "An accepted estimate with no booking. Shows as a card on the CRM board; no automatic message.",
   },
   {
-    key: "wizard_abandoned", name: "Abandoned wizard — pick up where you left off", audience: "customer", channels: ["email"], kind: "automatic",
+    key: "wizard_abandoned", name: "Abandoned wizard — pick up where you left off", audience: "customer", channels: ["email"], kind: "automatic", consent: "marketing",
     defaultChannel: "email", quietExempt: true, capExempt: true, sendKind: "wizard_resume",
     trigger: "A wizard run sits idle for 45 minutes with an email on it. One sign-in link per run, landing on the customer's account page where the unfinished estimate waits. Sent by the sweep — every 30 minutes, and whenever staff open CRM Today or Estimates → Wizard.",
     templates: [

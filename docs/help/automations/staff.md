@@ -48,6 +48,14 @@ You need a staff login. Texts need a mobile number and email needs an address on
 - **Today's follow ups (estimates)** emails **tom@paintgroup.com.au** Monday to Friday from 8 am with every estimate sent 3 days ago that is still waiting — not accepted, declined or expired. Each row has the customer's name, the address, their phone (tap to ring) and **Open estimate**, which opens it in the builder (the staff screen, so opening it does not count as a customer view). Monday's email also has the estimates sent the Wednesday and Thursday before, whose 3 days ran out over the weekend, so none is missed. Nothing is sent on a day with nothing to follow up. Switch it off on its row like any other automation.
 - **Pre-start checklist not filled out** (PC Command) texts at 2 pm on a business day (Monday to Friday, public holidays on the visit-booking list excluded). A **Reminder** names how many jobs start within 2 business days whose pre-start list isn't done; a **FINAL reminder** names how many start on the next business day — on a Friday that is Saturday, Sunday and Monday starts. "Not done" is the start gate's own test: no pre-start list yet, or a required pre-start tick still open. Both link to PC Command → Project progress. It goes to whoever has **Pre-start** ticked under Settings → Staff logins (text, email or both) — **nobody is ticked to begin with**, so tick it for the people who should get it. Each reminder goes once a day, and not at all when every job is ready.
 
+## When a customer says no to marketing (11 Nov 2026)
+Some automations are **marketing**: a message the customer did not ask for, sent to bring them back. Today that is **Abandoned wizard — pick up where you left off**. A marketing message is not sent, and is recorded in Messages as **suppressed** with the reason, when the customer:
+- replied **STOP** to any of our texts,
+- unsubscribed from marketing, or
+- is marked as not wanting marketing texts or email on their customer record (that channel only).
+
+Everything else on this list — their estimate, visit times, job updates, invoices, receipts — is a service message and still goes; the customer's own switches in their account still apply to those. If we cannot check a customer's answer (a lookup fails), a marketing message is held back rather than sent.
+
 ## Which logo the emails use
 Every email the platform sends (estimates, offers, reminders, reset links, campaigns, the lot) takes the **Logo for emails** from Settings → Company. Upload a version with its own solid background, not a transparent one: mail apps in dark mode invert or recolour transparent logos, which is why the logo used to come out light in some inboxes and dark in others. If no email logo is uploaded, the light-background logo is used, and failing that the main one.
 
