@@ -14,6 +14,7 @@ import { warrantyAttachmentLine } from "@/lib/warranty/terms";
 import "../customer.css";
 import { clientId } from "@/app/components/clientId";
 import { isVideoUrl } from "@/lib/media/video";
+import type { EstimateSignature } from "@/lib/estimate/signature";
 
 /**
  * One view per VISIT, not per mount (Estimates tab session 1). A refresh, or
@@ -64,6 +65,8 @@ const relTime = (iso: string): string => {
 };
 const money0 = (c: number) => "$" + Math.round(c / 100).toLocaleString("en-AU");
 const dateFmt = (iso: string | null) => (iso ? new Date(iso).toLocaleDateString("en-AU", { day: "numeric", month: "short", year: "numeric" }) : "");
+// The signing moment is a timestamp: its calendar day is Melbourne's, on the server render and in any browser.
+const signedFmt = (iso: string) => new Date(iso).toLocaleDateString("en-AU", { day: "numeric", month: "short", year: "numeric", timeZone: "Australia/Melbourne" });
 
 const DECLINE_PICKS = ["Went with another quote", "Postponing", "Price", "Other"];
 
@@ -97,6 +100,7 @@ export default function CustomerEstimate({
   snapshot: snap, token, status = "sent", acceptedName = null, estimateNumber = null,
   validUntil = null, sentAt = null, selectedOptionsInit = null, preview = false,
   changes = null, docLabel = "Estimate", fromPortal = false, referencesLine = null, bank = null, progressPreview = null, progressPreviewSet = null,
+  signature = null,
 }: {
   snapshot: CustomerSnapshot;
   estimateNumber?: number | null;
@@ -125,6 +129,9 @@ export default function CustomerEstimate({
   progressPreview?: ReactNode;
   /** Which messaging set the phone shows — rides on the hero button's tracking ping. */
   progressPreviewSet?: "residential" | "commercial" | null;
+  /** Tom, 11 Nov 2026: the customer's stored signature on an accepted estimate —
+   * fills the printed estimate's signature lines (token page and staff builder). */
+  signature?: EstimateSignature | null;
 }) {
   const gstRate = (snap.gstRatePct ?? 10) / 100;
   // Invoice dress (Tom, 24 Aug close-off): the revision preview is the
@@ -156,6 +163,7 @@ export default function CustomerEstimate({
   const [chatBusy, setChatBusy] = useState(false);
   const [name, setName] = useState(snap.contactName || "");
   const [signatureData, setSignatureData] = useState<string | null>(null);
+  const [signedNow, setSignedNow] = useState<EstimateSignature | null>(null);
   const [declineReason, setDeclineReason] = useState("");
   const [declinePick, setDeclinePick] = useState("");
   const [busy, setBusy] = useState(false);
@@ -225,7 +233,10 @@ export default function CustomerEstimate({
       p_token: token,
       p_signature: signatureData,
     });
-    setSignatureSaved(reportIfError(sig, { where: "estimate.signature", extra: { token } }));
+    const saved = reportIfError(sig, { where: "estimate.signature", extra: { token } });
+    setSignatureSaved(saved);
+    // A download straight after signing prints what was just signed.
+    setSignedNow({ image: saved ? signatureData : null, name: name.trim(), at: new Date().toISOString() });
 
     // Tell the office (Settings → Automations → "Estimate accepted"). Fire and
     // forget: idempotent server-side, never in the way of the acceptance.
@@ -837,6 +848,7 @@ export default function CustomerEstimate({
         selectedIds={selected} grossSubtotal={grossSubtotal} discount={discount}
         discountPct={discountPct} discountMode={discountMode} gst={gst} total={total}
         deposit={deposit} depositPct={depositPct} acceptedName={acceptedName} done={done}
+        signature={signedNow ?? signature}
         bank={bank} invoiceMode={invoiceMode}
       />
 
@@ -865,12 +877,13 @@ export default function CustomerEstimate({
 
 function PrintQuote({
   snap, est, sentAt, validUntil, selectedIds, grossSubtotal, discount, discountPct,
-  discountMode, gst, total, deposit, depositPct, acceptedName, done, bank, invoiceMode,
+  discountMode, gst, total, deposit, depositPct, acceptedName, done, signature, bank, invoiceMode,
 }: {
   snap: CustomerSnapshot; est: string; sentAt: string | null; validUntil: string | null;
   selectedIds: Set<string>; grossSubtotal: number; discount: number; discountPct: number;
   discountMode: string; gst: number; total: number; deposit: number; depositPct: number;
   acceptedName: string | null; done: null | "accepted" | "declined";
+  signature: EstimateSignature | null;
   bank: BankDetails | null;
   /** The same document doubles as the printed invoice; the warranty block is a quote's. */
   invoiceMode: boolean;
@@ -905,7 +918,7 @@ function PrintQuote({
             <tr><td>Date</td><td>{dateFmt(sentAt)}</td></tr>
             {validUntil && <tr><td>Valid until</td><td>{dateFmt(validUntil)}</td></tr>}
             {c.estimatorName && <tr><td>Prepared by</td><td>{c.estimatorName}</td></tr>}
-            {done === "accepted" && <tr><td>Status</td><td>Accepted{acceptedName ? ` · ${acceptedName}` : ""}</td></tr>}
+            {(done === "accepted" || signature) && <tr><td>Status</td><td>Accepted{signature?.name ?? acceptedName ? ` · ${signature?.name ?? acceptedName}` : ""}{signature?.at ? ` · ${signedFmt(signature.at)}` : ""}</td></tr>}
           </tbody></table>
         </div>
       </div>
@@ -1050,10 +1063,20 @@ function PrintQuote({
         </div>
       )}
 
-      <div className="pd-sign">
-        <div className="pd-sigcol"><div className="pd-sigline" />Customer signature</div>
-        <div className="pd-sigcol"><div className="pd-sigline" />Name</div>
-        <div className="pd-sigcol"><div className="pd-sigline" />Date</div>
+      {/* Tom, 11 Nov 2026: a signed estimate prints its signature, name and date
+          on these lines — blank only while it is unsigned. */}
+      <div className="pd-sign" data-testid="print-signature" data-signed={signature ? "1" : "0"}>
+        <div className="pd-sigcol">
+          <div className="pd-sigline">
+            {signature?.image
+              // eslint-disable-next-line @next/next/no-img-element
+              ? <img className="pd-sigimg" src={signature.image} alt={`Signature of ${signature.name ?? "the customer"}`} data-testid="print-signature-image" />
+              : null}
+          </div>
+          Customer signature
+        </div>
+        <div className="pd-sigcol"><div className="pd-sigline pd-sigtext">{signature?.name ?? ""}</div>Name</div>
+        <div className="pd-sigcol"><div className="pd-sigline pd-sigtext">{signature?.at ? signedFmt(signature.at) : ""}</div>Date</div>
       </div>
 
       <div className="pd-foot">

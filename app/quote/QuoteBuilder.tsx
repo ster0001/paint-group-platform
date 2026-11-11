@@ -33,6 +33,7 @@ import type { BackTo } from "@/lib/navigation/backTo";
 import EstimateHeader from "./EstimateHeader";
 import RichTextEditor from "@/app/components/RichTextEditor";
 import CustomerEstimate from "@/app/e/[token]/CustomerEstimate";
+import { toEstimateSignature } from "@/lib/estimate/signature";
 import { renderProgressPreviewAction, type ProgressPreviewRender } from "./progressPreviewAction";
 import ProgressPhone from "@/app/e/[token]/ProgressPhone";
 import { DEFAULT_PROOF, ESTIMATE_DOCS_BUCKET, PREPARATION_DESCRIPTION, PREPARATION_ID, PREPARATION_TITLE, estimateDocUrl, type CustomerSnapshot, type SnapshotArea, type SnapshotLine, type SnapshotPaint, type SnapshotSurface } from "@/lib/customer/snapshot";
@@ -325,7 +326,7 @@ export default function QuoteBuilder({
   settings: Setting[];
   lineItems: LineItemRef[];
   areaNames: AreaNameRef[];
-  initial: { id: string | null; number?: number | null; title: string | null; builder_state: unknown; share_token?: string | null; status?: string | null; sent_at?: string | null; viewed_at?: string | null; accepted_at?: string | null; valid_until?: string | null; presentation_id?: string | null; lead_source?: string | null; sent_snapshot?: unknown; selected_options?: string[] | null; reporting_excluded_at?: string | null; reporting_excluded_reason?: string | null } | null;
+  initial: { id: string | null; number?: number | null; title: string | null; builder_state: unknown; share_token?: string | null; status?: string | null; sent_at?: string | null; viewed_at?: string | null; accepted_at?: string | null; accepted_name?: string | null; accepted_signature?: string | null; valid_until?: string | null; presentation_id?: string | null; lead_source?: string | null; sent_snapshot?: unknown; selected_options?: string[] | null; reporting_excluded_at?: string | null; reporting_excluded_reason?: string | null } | null;
   company: CompanyProfile;
   inclusionTemplates?: InclusionTemplate[];
   exclusionTemplates?: InclusionTemplate[];
@@ -2505,6 +2506,10 @@ export default function QuoteBuilder({
               validUntil={validUntil}
               sentAt={sentAt}
               preview
+              // Tom, 11 Nov 2026: the customer's copy of a signed estimate downloads signed.
+              signature={!unsaved && sentSnapshot && initial?.status === "accepted"
+                ? toEstimateSignature({ signature: initial.accepted_signature, name: initial.accepted_name, at: initial.accepted_at })
+                : null}
               progressPreview={progressData
                 ? <ProgressPhone token={null} preview={progressData.preview} feed={progressData.feed} />
                 : null}

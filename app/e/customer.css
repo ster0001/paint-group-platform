@@ -392,6 +392,9 @@
   .cv .printdoc .pd-sign { display: flex; gap: 24px; margin-top: 28px; break-inside: avoid; }
   .cv .printdoc .pd-sigcol { flex: 1; font-size: 9.5px; color: #666; text-transform: uppercase; letter-spacing: .05em; }
   .cv .printdoc .pd-sigline { border-bottom: 1px solid #111; height: 36px; margin-bottom: 4px; }
+  .cv .printdoc .pd-sigline { display: flex; align-items: flex-end; height: 48px; }
+  .cv .printdoc .pd-sigimg { max-height: 46px; max-width: 100%; object-fit: contain; }
+  .cv .printdoc .pd-sigtext { font-size: 12px; color: #111; text-transform: none; letter-spacing: 0; padding-bottom: 3px; }
   .cv .printdoc .pd-foot { margin-top: 20px; padding-top: 8px; border-top: 1px solid #ccc; font-size: 9.5px; color: #666; }
   .cv .topbar, .cv .stickybar, .cv .cta-row, .cv .finebtns, .cv .tinylinks,
   .cv .print-hide, .cv .status::before { display: none !important; }
