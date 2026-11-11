@@ -473,7 +473,7 @@ export const AUTOMATIONS: Automation[] = [
       { field: "contractorJobUpdateSms3Green", label: "Third text for a Green painter", kind: "sms", placeholders: P.jobUpdate },
     ],
     guard: "Up to three texts per moment, each claimed on the moment's row (wo_reminder_moments) before it goes; they stop the instant a tick or a photo lands that day, on a day the PC marked No work, or once the job reaches its quality check, walkthrough or close. The days are the painter's booked working days (weekends only if they work them).",
-    note: "7:30 am is before the office's sending hours, so this text is exempt from quiet hours by design.",
+    note: "7:30 am is before the office's sending hours, so this text is exempt from quiet hours by design. The office can also send the first text by hand: Text the crew on PC Command's Nothing ticked in N days card (Tom, 12 Nov 2026).",
   },
   {
     key: "contractor_job_update_morning", name: "Update your work order — morning heads-up", audience: "painter", channels: ["sms", "email"], kind: "automatic",
