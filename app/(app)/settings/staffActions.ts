@@ -5,7 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import { DASHBOARD_ROLES, isDashboardRole, type DashboardRole } from "@/lib/reporting/roles";
 import { reportError } from "@/lib/monitoring/report";
-import { STAFF_AREA_KEYS, parseStaffAccess, type StaffAccess } from "@/lib/staff/access";
+import { STAFF_ACCESS_KEYS, parseStaffAccess, type StaffAccess } from "@/lib/staff/access";
 import { STAFF_EVENT_KEYS, parseStaffNotify, type StaffNotifyMap } from "@/lib/staff/notifyEvents";
 import { normalisePhoneAU } from "@/lib/messaging/config";
 import { lookupAuthUserByEmail } from "@/lib/auth/userByEmail";
@@ -97,7 +97,7 @@ export async function listStaffAction(): Promise<StaffListResult> {
 
 const accessSchema = z.record(z.string(), z.boolean()).transform((m) => {
   const out: StaffAccess = {};
-  for (const k of STAFF_AREA_KEYS) if (m[k] === false) out[k] = false;
+  for (const k of STAFF_ACCESS_KEYS) if (m[k] === false) out[k] = false;
   return out;
 });
 

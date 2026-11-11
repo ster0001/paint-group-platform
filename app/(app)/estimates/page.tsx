@@ -18,8 +18,16 @@ import { getWorkQueue } from "@/app/crm/queue";
 import { estimatesPageItems } from "@/lib/crm/work-queue";
 import { journeyFromRow, WIZARD_BUCKETS, WIZARD_SESSION_COLUMNS, type WizardBucket, type WizardJourney } from "@/lib/wizard/journey";
 import { realOnly } from "@/lib/demo/scope";
-import { parseEstimateView } from "@/lib/estimate/views";
+import { parseEstimateView, type EstimateView } from "@/lib/estimate/views";
 import EstimatesViews, { ViewComingSoon } from "./EstimatesViews";
+import { canSeeView } from "@/lib/staff/access";
+import { staffVisibility } from "@/lib/staff/gate";
+import { loadPipeline } from "@/lib/estimate/pipelineLoad";
+import PipelineBoard from "./PipelineBoard";
+import { buildOnlineNow } from "@/lib/estimate/onlineNow";
+import OnlineNowView from "./OnlineNowView";
+import { estimatesWorkQueueItems } from "@/lib/crm/work-queue";
+import { AFTER_HOURS_NOTE_STAFF, officeOpenAt } from "@/lib/messaging/officeHours";
 
 export const dynamic = "force-dynamic";
 
@@ -31,14 +39,55 @@ export default async function EstimatesPage({
   const { status, bucket, source, mode, open, built, brand: brandParam, view: viewParam } = await searchParams;
   // Estimates tab session 3 (brief §4, R11, E-I): the six views sit above
   // everything below; All estimates (no `view=`) is this page as it was.
-  const view = parseEstimateView(viewParam);
-  const views = <EstimatesViews current={view} />;
+  const supabase = await createClient();
+  // Ruling E-N: Pipeline and Funnel can be kept off a login (Settings → Staff
+  // logins). Enforced here on the server: a hidden view is never rendered,
+  // its chip is dropped and its URL reads as All estimates.
+  const { data: { user } } = await supabase.auth.getUser();
+  const vis = user ? await staffVisibility(supabase, user.id) : { isOwner: false, access: {} };
+  const hidden: EstimateView[] = [
+    ...(canSeeView(vis, "estimates_pipeline") ? [] : ["pipeline" as const]),
+    ...(canSeeView(vis, "estimates_funnel") ? [] : ["funnel" as const]),
+  ];
+  const asked = parseEstimateView(viewParam);
+  const view = hidden.includes(asked) ? "all" : asked;
+  const views = <EstimatesViews current={view} hidden={hidden} />;
   if (view !== "all") {
+    const now = new Date();
+    let body: React.ReactNode;
+    if (view === "pipeline") {
+      const load = await loadPipeline(supabase, now);
+      body = load.ok ? <PipelineBoard pipeline={load.pipeline} now={now} /> : (
+        <div className="mt-4 rounded-lg border border-red-200 bg-red-50 p-6 text-sm text-red-800" data-testid="estimates-error">
+          The pipeline could not be loaded: {load.error}. Reload the page.
+        </div>
+      );
+    } else if (view === "online") {
+      await maybeSweep(createServiceClient());
+      const { data: rows, error } = await supabase.from("wizard_drafts").select(WIZARD_SESSION_COLUMNS).is("converted_at", null)
+        .gte("last_seen_at", new Date(now.getTime() - 14 * 86_400_000).toISOString()).order("last_seen_at", { ascending: false }).limit(500);
+      body = error ? (
+        <div className="mt-4 rounded-lg border border-red-200 bg-red-50 p-6 text-sm text-red-800" data-testid="estimates-error">
+          Online now could not be loaded: {error.message}. Reload the page.
+        </div>
+      ) : <OnlineNowView view={buildOnlineNow(((rows ?? []) as unknown as Record<string, unknown>[]).map(journeyFromRow), now)} />;
+    } else if (view === "queue") {
+      // Brief §4.4: the one queue (CRM Today's), cut to estimates; the hide/undo table the Waiting tab uses.
+      const queue = await getWorkQueue();
+      body = (
+        <>
+          {!officeOpenAt(now) && <p className="mt-4 rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-900" data-testid="queue-after-hours">{AFTER_HOURS_NOTE_STAFF}</p>}
+          <WaitingTable items={estimatesWorkQueueItems(queue.items)} now={now} />
+        </>
+      );
+    } else {
+      body = <ViewComingSoon />;
+    }
     return (
       <div className="p-6">
         <h1 className="text-xl font-semibold tracking-tight">Estimates</h1>
         {views}
-        <ViewComingSoon view={view} />
+        {body}
       </div>
     );
   }
@@ -52,7 +101,6 @@ export default async function EstimatesPage({
   // C7b: the source filter on the status tabs. `built`, not `source` — the
   // Wizard tab already uses `source` for a session's entry_source.
   const sourceFilter = sourceFilterOf(built);
-  const supabase = await createClient();
 
   const { data: tplRow0 } = await supabase.from("settings").select("value").eq("key", "estimate_templates").maybeSingle();
   const templates0: TemplateMeta[] = (Array.isArray(tplRow0?.value) ? (tplRow0!.value as { id: string; name: string }[]) : [])
