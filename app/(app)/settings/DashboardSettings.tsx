@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { SOURCES } from "@/lib/crm/attribution";
 import { fyLabel, fyMonthLabel, fyMonths, fyOf } from "@/lib/reporting/financialYear";
+import { parsePriceBandsText } from "@/lib/reporting/metrics/funnel";
 
 /**
  * Dashboard 0d (B7) — owner/admin only (⚑2; the folder is not rendered for
@@ -47,7 +48,9 @@ const toCents = (s: string): number | null => {
   return Number.isFinite(n) && n >= 0 ? Math.round(n * 100) : null;
 };
 
-export default function DashboardSettings({ targets, spend, thresholds, history = [] }: { targets: TargetRow[]; spend: SpendRow[]; thresholds: ThresholdRow[]; history?: HistoryRow[] }) {
+export default function DashboardSettings({ targets, spend, thresholds, history = [], priceBandsCents = [] }: { targets: TargetRow[]; spend: SpendRow[]; thresholds: ThresholdRow[]; history?: HistoryRow[];
+  /** Estimates tab session 5 (R7, ⚑3): the Funnel's price-band edges, cents. */
+  priceBandsCents?: number[] }) {
   const router = useRouter();
   const supabase = createClient();
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
@@ -64,6 +67,7 @@ export default function DashboardSettings({ targets, spend, thresholds, history 
   const [sAmount, setSAmount] = useState("");
   const [sNote, setSNote] = useState("");
   const [th, setTh] = useState<Record<string, string>>(Object.fromEntries(thresholds.map((t) => [t.key, String(t.value)])));
+  const [bands, setBands] = useState(priceBandsCents.map((c) => String(c / 100)).join(", "));
 
   const done = (error: { message: string; code?: string } | null, okText: string) => {
     setBusy(false);
@@ -131,6 +135,14 @@ export default function DashboardSettings({ targets, spend, thresholds, history 
     setBusy(true); setMsg(null);
     const { error } = await supabase.from("settings").upsert({ key: t.key, value: { value: n, unit: t.unit, notes: t.notes } }, { onConflict: "key" });
     done(error, "Saved.");
+  }
+
+  async function saveBands() {
+    const parsed = parsePriceBandsText(bands);
+    if (!parsed.ok) { setMsg({ ok: false, text: parsed.message }); return; }
+    setBusy(true); setMsg(null);
+    const { error } = await supabase.from("settings").upsert({ key: "funnel_price_bands", value: { bands_cents: parsed.cents } }, { onConflict: "key" });
+    done(error, "Price bands saved.");
   }
 
   return (
@@ -254,6 +266,15 @@ export default function DashboardSettings({ targets, spend, thresholds, history 
             </label>
           ))}
         </div>
+      </section>
+
+      <section>
+        <h4 className="text-sm font-semibold">Funnel price bands</h4>
+        <p className="text-xs text-gray-500">Where each band starts, in dollars inc GST, smallest first. Estimates → Funnel groups sessions by the middle of the first range they saw; under the first amount is its own band, and the last is open-ended.</p>
+        <span className="mt-2 flex gap-2">
+          <input className={`w-full max-w-md ${inp}`} value={bands} onChange={(e) => setBands(e.target.value)} placeholder="2k, 4k, 6k, 9k, 12k, 18k" data-testid="funnel-bands-input" />
+          <button type="button" disabled={busy} onClick={() => void saveBands()} className="rounded-md border border-gray-300 px-2 py-1 text-xs" data-testid="funnel-bands-save">Save</button>
+        </span>
       </section>
 
       {msg && <p className={`text-sm ${msg.ok ? "text-emerald-700" : "text-red-600"}`} data-testid="dashboard-settings-msg">{msg.text}</p>}

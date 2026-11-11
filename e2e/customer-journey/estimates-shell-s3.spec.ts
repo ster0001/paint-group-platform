@@ -101,11 +101,11 @@ test.describe("Estimates shell, session 3 — chips, view count, came back", () 
     for (const tab of ["waiting", "all", "draft", "sent", "viewed", "accepted", "declined", "expired", "wizard"]) {
       await expect(page.getByTestId(`estimates-tab-${tab}`)).toBeVisible();
     }
-    // A view still to be built (Funnel, session 5) says so, and keeps the chips; the tabs are All estimates' own.
+    // Another view keeps the chips; the tabs are All estimates' own (every view is built from session 5).
     await page.getByTestId("estimates-view-funnel").click();
     await expect(page).toHaveURL(/view=funnel/);
     await expect(page.getByTestId("estimates-view-funnel")).toHaveAttribute("aria-current", "page");
-    await expect(page.getByTestId("estimates-view-soon")).toBeVisible();
+    await expect(page.getByTestId("funnel-view")).toBeVisible();
     await expect(page.getByTestId("estimates-tab-all")).toHaveCount(0);
     // Campaigns › Automations opens Campaigns until its sub-tab exists (§4.7).
     await expect(page.getByTestId("estimates-view-automations")).toHaveAttribute("href", "/crm/campaigns");

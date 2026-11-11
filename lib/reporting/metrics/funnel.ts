@@ -229,6 +229,8 @@ export function buildWizardRates(input: MetricInput, range: Range, brand: "paint
 export type FunnelEventRow = {
   type: string; session_id: string | null; step: string | null;
   range_low: number | null; range_high: number | null; occurred_at: string;
+  /** Session 5: `payload.breakpoint` (mobile / desktop) — the device filter and split. */
+  breakpoint?: string | null;
 };
 
 /** What the Funnel view reads from the log (session 5 wires the loader). */
@@ -253,6 +255,8 @@ export type StepConversion = {
   completed_pct: number | null;
   /** Saw it and never completed it — where they stopped. */
   stopped: number;
+  /** Session 5: the median seconds from first seeing the step to completing it, over the sessions that did. */
+  median_seconds: number | null;
 };
 
 /**
@@ -264,22 +268,36 @@ export type StepConversion = {
 export function buildStepConversion(rows: readonly FunnelEventRow[], range: Range, order?: readonly string[]): StepConversion[] {
   const viewed = new Map<string, Set<string>>();
   const completed = new Map<string, Set<string>>();
+  const firstAt = new Map<string, { seen?: string; done?: string }>();
   for (const r of rows) {
     if (!r.session_id || !r.step || !inRange(r.occurred_at, range)) continue;
     const into = r.type === "wizard_step_viewed" ? viewed : r.type === "wizard_step_completed" ? completed : null;
     if (!into) continue;
     if (!into.has(r.step)) into.set(r.step, new Set());
     into.get(r.step)!.add(r.session_id);
+    const k = `${r.step}|${r.session_id}`;
+    const t = firstAt.get(k) ?? {};
+    if (r.type === "wizard_step_viewed" && (!t.seen || r.occurred_at < t.seen)) t.seen = r.occurred_at;
+    if (r.type === "wizard_step_completed" && (!t.done || r.occurred_at < t.done)) t.done = r.occurred_at;
+    firstAt.set(k, t);
   }
+  const medianSeconds = (step: string, sessions: Iterable<string>): number | null => {
+    const secs = [...sessions].map((sid) => firstAt.get(`${step}|${sid}`)).filter((t): t is { seen: string; done: string } => Boolean(t?.seen && t?.done && t.done >= t.seen))
+      .map((t) => (Date.parse(t.done) - Date.parse(t.seen)) / 1000).sort((a, b) => a - b);
+    if (!secs.length) return null;
+    const m = secs.length % 2 ? secs[Math.floor(secs.length / 2)] : (secs[secs.length / 2 - 1] + secs[secs.length / 2]) / 2;
+    return Math.round(m);
+  };
   const steps = order ? order.filter((s) => viewed.has(s)) : [...viewed.keys()].sort((a, b) => viewed.get(b)!.size - viewed.get(a)!.size || a.localeCompare(b));
   return steps.map((step) => {
     const saw = viewed.get(step)!;
-    const went = [...(completed.get(step) ?? [])].filter((s) => saw.has(s)).length;
-    return { step, viewed: saw.size, completed: went, completed_pct: saw.size ? Math.round((went / saw.size) * 100) : null, stopped: saw.size - went };
+    const wentIds = [...(completed.get(step) ?? [])].filter((s) => saw.has(s));
+    const went = wentIds.length;
+    return { step, viewed: saw.size, completed: went, completed_pct: saw.size ? Math.round((went / saw.size) * 100) : null, stopped: saw.size - went, median_seconds: medianSeconds(step, wentIds) };
   });
 }
 
-/** R7's price bands, in cents inc. GST (⚑3 default, Settings-editable in session 5). The last band is open-ended. */
+/** R7's price bands, in cents inc. GST (⚑3 default; Settings `funnel_price_bands` overrides). The last band is open-ended. */
 export const PRICE_BANDS_CENTS = [200_000, 400_000, 600_000, 900_000, 1_200_000, 1_800_000] as const;
 
 export type PriceBandRow = { band: string; low_cents: number; saw_range: number; took_action: number; dropped_pct: number | null };
@@ -318,3 +336,168 @@ export function buildPriceBandDropout(rows: readonly FunnelEventRow[], range: Ra
   for (const b of out) b.dropped_pct = b.saw_range ? Math.round(((b.saw_range - b.took_action) / b.saw_range) * 100) : null;
   return out;
 }
+
+// ---- Estimates tab session 5 — the Funnel view (brief §4.5) ----------------------
+
+/**
+ * The Funnel view's filters. Each narrows the SESSIONS (wizard drafts started
+ * in the range); every chart then counts only those sessions' events. The
+ * home card is the same module with no filter — so the two cannot disagree.
+ */
+export type FunnelFilter = {
+  brand: "paintgroup" | "painthome" | null;
+  /** `payload.breakpoint` of the session's first event: mobile or desktop. */
+  device: "mobile" | "desktop" | null;
+  jobType: string | null;
+  leadSource: string | null;
+};
+export const NO_FUNNEL_FILTER: FunnelFilter = { brand: null, device: null, jobType: null, leadSource: null };
+
+/** Settings `funnel_price_bands` → band edges in cents: ascending, positive, whole dollars. Anything else is the default. */
+export function priceBandsFromSettings(value: unknown): number[] {
+  const raw = value && typeof value === "object" && !Array.isArray(value) ? (value as { bands_cents?: unknown }).bands_cents : value;
+  if (!Array.isArray(raw) || raw.length === 0 || raw.length > 12) return [...PRICE_BANDS_CENTS];
+  const xs = raw.map(Number);
+  const ok = xs.every((x, i) => Number.isInteger(x) && x > 0 && x % 100 === 0 && (i === 0 || x > xs[i - 1]));
+  return ok ? xs : [...PRICE_BANDS_CENTS];
+}
+
+/** The Settings box: "2000, 4000, 6000" (dollars) → cents, or a reason it cannot be saved. */
+export function parsePriceBandsText(text: string): { ok: true; cents: number[] } | { ok: false; message: string } {
+  const parts = text.split(/[,\s]+/).map((p) => p.replace(/[$k]/gi, (m) => (m.toLowerCase() === "k" ? "000" : ""))).filter(Boolean);
+  if (parts.length === 0) return { ok: false, message: "Type at least one dollar amount." };
+  if (parts.length > 12) return { ok: false, message: "Twelve bands at most." };
+  const dollars = parts.map(Number);
+  if (dollars.some((d) => !Number.isInteger(d) || d <= 0)) return { ok: false, message: "Whole dollar amounts above zero, please." };
+  if (dollars.some((d, i) => i > 0 && d <= dollars[i - 1])) return { ok: false, message: "Each amount must be bigger than the one before." };
+  return { ok: true, cents: dollars.map((d) => d * 100) };
+}
+
+/** The sessions a filter keeps: started in the range, matching every filter that is set. */
+export function funnelSessions(input: MetricInput, range: Range, f: FunnelFilter = NO_FUNNEL_FILTER): Set<string> {
+  const slice = input.funnel; if (!slice) return new Set();
+  const deviceOf = new Map<string, string>();
+  if (f.device) {
+    for (const e of [...(slice.funnelEvents ?? [])].sort((a, b) => a.occurred_at.localeCompare(b.occurred_at))) {
+      if (e.session_id && e.breakpoint && !deviceOf.has(e.session_id)) deviceOf.set(e.session_id, e.breakpoint);
+    }
+  }
+  const est = new Map(slice.estimates.map((e) => [e.id, e]));
+  return new Set(slice.drafts.filter((d) => {
+    if (!inRange(d.started_at, range)) return false;
+    if (f.brand && brandOfDraft(d) !== f.brand) return false;
+    if (f.jobType && (d.job_type ?? "") !== f.jobType) return false;
+    if (f.leadSource && ((d.estimate_id ? est.get(d.estimate_id)?.lead_source : null) ?? d.lead_source ?? "unknown") !== f.leadSource) return false;
+    if (f.device && deviceOf.get(d.id) !== f.device) return false;
+    return true;
+  }).map((d) => d.id));
+}
+
+export type CameBackRow = { group: "came_back" | "did_not"; sessions: number; gave_details: number; saw_range: number; asked: number; accepted: number };
+
+/**
+ * Chart 3, Came back (R13): sessions that returned (visits > 1) against those
+ * that did not, and what each went on to do. By channel and by automation
+ * is not recorded yet — the return link's `via` comes with the automations
+ * brief — and the view says so rather than guessing.
+ */
+export function buildCameBack(input: MetricInput, range: Range, f: FunnelFilter = NO_FUNNEL_FILTER): CameBackRow[] {
+  const slice = input.funnel; if (!slice) return [];
+  const keep = funnelSessions(input, range, f);
+  const est = new Map(slice.estimates.map((e) => [e.id, e]));
+  const asked = new Set((slice.funnelEvents ?? []).filter((e) => e.session_id && ASKED.has(e.type)).map((e) => e.session_id!));
+  const rows: Record<CameBackRow["group"], CameBackRow> = {
+    came_back: { group: "came_back", sessions: 0, gave_details: 0, saw_range: 0, asked: 0, accepted: 0 },
+    did_not: { group: "did_not", sessions: 0, gave_details: 0, saw_range: 0, asked: 0, accepted: 0 },
+  };
+  for (const d of slice.drafts) {
+    if (!keep.has(d.id)) continue;
+    const r = rows[(d.visits ?? 1) > 1 ? "came_back" : "did_not"];
+    r.sessions++;
+    if (d.email) r.gave_details++;
+    if (d.range_shown_at) r.saw_range++;
+    if (asked.has(d.id)) r.asked++;
+    if (d.estimate_id && est.get(d.estimate_id)?.status === "accepted") r.accepted++;
+  }
+  return [rows.came_back, rows.did_not];
+}
+const ASKED: ReadonlySet<string> = new Set(["visit_request_made", "visit_booked", "visit_booked_from_wizard", "callback_requested"]);
+
+export type FunnelView = {
+  tiles: { started: number; gave_details: number; accepted: number };
+  steps: Array<StepConversion & { worst: boolean; mobile: StepConversion | null; desktop: StepConversion | null }>;
+  bands: Array<PriceBandRow & { worst: boolean }>;
+  cameBack: CameBackRow[];
+};
+
+/** Everything the Funnel view draws, from one input — the tiles are `buildFunnel`'s own steps, so they match the home card. */
+export function buildFunnelView(input: MetricInput, range: Range, f: FunnelFilter = NO_FUNNEL_FILTER): FunnelView {
+  const keep = funnelSessions(input, range, f);
+  const events = (input.funnel?.funnelEvents ?? []).filter((e) => e.session_id && keep.has(e.session_id));
+  const devOf = new Map<string, string>();
+  for (const e of [...events].sort((a, b) => a.occurred_at.localeCompare(b.occurred_at))) if (e.breakpoint && !devOf.has(e.session_id!)) devOf.set(e.session_id!, e.breakpoint);
+  const steps = buildStepConversion(events, range);
+  const byDevice = (d: string) => new Map(buildStepConversion(events.filter((e) => devOf.get(e.session_id!) === d), range).map((s) => [s.step, s]));
+  const mobile = byDevice("mobile"); const desktop = byDevice("desktop");
+  const worstSteps = new Set([...steps].filter((s) => s.completed_pct != null && s.stopped > 0).sort((a, b) => (a.completed_pct! - b.completed_pct!) || (b.stopped - a.stopped)).slice(0, 3).map((s) => s.step));
+  const bands = buildPriceBandDropout(events, range, input.funnel?.priceBands ?? PRICE_BANDS_CENTS);
+  const worstBand = [...bands].filter((b) => b.dropped_pct != null).sort((a, b) => (b.dropped_pct! - a.dropped_pct!) || (b.saw_range - a.saw_range))[0]?.band ?? null;
+  // The tiles are buildFunnel's steps over the same sessions (brand is its own filter; the rest narrow its rows).
+  const fr = funnelRows(input, range, f.brand);
+  const drafts = (input.funnel?.drafts ?? []).filter((d) => inRange(d.started_at, range) && (f.brand == null || brandOfDraft(d) === f.brand));
+  const kept = drafts.map((d, i) => ({ d, r: fr[i] })).filter(({ d }) => keep.has(d.id)).map(({ r }) => r);
+  return {
+    tiles: { started: kept.length, gave_details: kept.filter((r) => r.email_captured).length, accepted: kept.filter((r) => r.accepted).length },
+    steps: steps.map((s) => ({ ...s, worst: worstSteps.has(s.step), mobile: mobile.get(s.step) ?? null, desktop: desktop.get(s.step) ?? null })),
+    bands: bands.map((b) => ({ ...b, worst: b.band === worstBand })),
+    cameBack: buildCameBack(input, range, f),
+  };
+}
+
+const funnelFilterOf = (input: MetricInput) => input.funnelFilter ?? NO_FUNNEL_FILTER;
+const FUNNEL_ROLES = ["owner", "admin", "sales"] as const;
+
+export const funnelStepConversion: MetricDef<StepConversion> = {
+  key: "funnel.step_conversion",
+  kind: "period",
+  section: "funnel",
+  title: "Where they stop",
+  definition: "Per wizard step, in sessions started in the range: how many saw it (wizard_step_viewed), how many completed it (wizard_step_completed), the share that went on, the median seconds it took, and how many stopped there.",
+  unit: "count",
+  gst: null,
+  roles: FUNNEL_ROLES,
+  aggregate: { sum: "viewed" },
+  columns: [{ key: "step", label: "Step" }, { key: "viewed", label: "Saw it" }, { key: "completed", label: "Completed" }, { key: "completed_pct", label: "% on" }, { key: "median_seconds", label: "Median seconds" }, { key: "stopped", label: "Stopped here" }],
+  href: "/estimates?view=funnel",
+  select: (input, range) => buildFunnelView(input, range, funnelFilterOf(input)).steps.map(({ step, viewed, completed, completed_pct, stopped, median_seconds }) => ({ step, viewed, completed, completed_pct, stopped, median_seconds })),
+};
+
+export const funnelPriceBands: MetricDef<PriceBandRow> = {
+  key: "funnel.price_bands",
+  kind: "period",
+  section: "funnel",
+  title: "Drop-out by price band",
+  definition: "Wizard sessions started in the range, banded by the middle of the first range they saw (gate_viewed, inc. GST; bands from Settings), and how many then did anything with it (a gate button, the quote stage, a visit or call request, a message, a help request).",
+  unit: "count",
+  gst: "inc",
+  roles: FUNNEL_ROLES,
+  aggregate: { sum: "saw_range" },
+  columns: [{ key: "band", label: "Band" }, { key: "saw_range", label: "Saw a range" }, { key: "took_action", label: "Took an action" }, { key: "dropped_pct", label: "% dropped" }],
+  href: "/estimates?view=funnel",
+  select: (input, range) => buildFunnelView(input, range, funnelFilterOf(input)).bands.map(({ band, low_cents, saw_range, took_action, dropped_pct }) => ({ band, low_cents, saw_range, took_action, dropped_pct })),
+};
+
+export const funnelCameBack: MetricDef<CameBackRow> = {
+  key: "funnel.came_back",
+  kind: "period",
+  section: "funnel",
+  title: "Came back",
+  definition: "Wizard sessions started in the range that came back after leaving (wizard_drafts.visits above 1) against those that did not, with how many gave details, saw a range, asked for a visit or call, and accepted.",
+  unit: "count",
+  gst: null,
+  roles: FUNNEL_ROLES,
+  aggregate: { sum: "sessions" },
+  columns: [{ key: "group", label: "Group" }, { key: "sessions", label: "Sessions" }, { key: "gave_details", label: "Gave details" }, { key: "saw_range", label: "Saw a range" }, { key: "asked", label: "Asked for a visit or call" }, { key: "accepted", label: "Accepted" }],
+  href: "/estimates?view=funnel",
+  select: (input, range) => buildCameBack(input, range, funnelFilterOf(input)),
+};

@@ -19,7 +19,7 @@ import { estimatesPageItems } from "@/lib/crm/work-queue";
 import { journeyFromRow, WIZARD_BUCKETS, WIZARD_SESSION_COLUMNS, type WizardBucket, type WizardJourney } from "@/lib/wizard/journey";
 import { realOnly } from "@/lib/demo/scope";
 import { parseEstimateView, type EstimateView } from "@/lib/estimate/views";
-import EstimatesViews, { ViewComingSoon } from "./EstimatesViews";
+import EstimatesViews from "./EstimatesViews";
 import { canSeeView } from "@/lib/staff/access";
 import { staffVisibility } from "@/lib/staff/gate";
 import { loadPipeline } from "@/lib/estimate/pipelineLoad";
@@ -28,15 +28,21 @@ import { buildOnlineNow } from "@/lib/estimate/onlineNow";
 import OnlineNowView from "./OnlineNowView";
 import { estimatesWorkQueueItems } from "@/lib/crm/work-queue";
 import { AFTER_HOURS_NOTE_STAFF, officeOpenAt } from "@/lib/messaging/officeHours";
+import FunnelView from "./FunnelView";
+import { parsePreset, rangeLabel, resolveRange, type RangePreset } from "@/lib/reporting/core";
+import { loadMetricInput, loadRoles } from "@/lib/reporting/load";
+import { sectionsFor } from "@/lib/reporting/roles";
+import { buildFunnelView, type FunnelFilter } from "@/lib/reporting/metrics/funnel";
 
 export const dynamic = "force-dynamic";
 
 export default async function EstimatesPage({
   searchParams,
 }: {
-  searchParams: Promise<{ status?: string; bucket?: string; source?: string; mode?: string; open?: string; built?: string; q?: string; brand?: string; view?: string }>;
+  searchParams: Promise<{ status?: string; bucket?: string; source?: string; mode?: string; open?: string; built?: string; q?: string; brand?: string; view?: string; preset?: string; from?: string; to?: string; device?: string; job?: string; src?: string }>;
 }) {
-  const { status, bucket, source, mode, open, built, brand: brandParam, view: viewParam } = await searchParams;
+  const sp = await searchParams;
+  const { status, bucket, source, mode, open, built, brand: brandParam, view: viewParam } = sp;
   // Estimates tab session 3 (brief §4, R11, E-I): the six views sit above
   // everything below; All estimates (no `view=`) is this page as it was.
   const supabase = await createClient();
@@ -81,7 +87,46 @@ export default async function EstimatesPage({
         </>
       );
     } else {
-      body = <ViewComingSoon />;
+      // Brief §4.5: the Funnel. The same loader, module and role gate as the home dashboard's funnel section.
+      const roles = await loadRoles(supabase);
+      if (!sectionsFor(roles).includes("funnel")) {
+        body = <p className="mt-4 rounded-lg border border-gray-200 bg-white p-6 text-sm text-gray-500" data-testid="funnel-not-for-you">The Funnel is for owner, admin and sales logins.</p>;
+      } else {
+        const preset: RangePreset = parsePreset(sp.preset) ?? (sp.from && sp.to ? "custom" : "month");
+        const range = resolveRange(preset, now, { from: sp.from, to: sp.to });
+        const filter: FunnelFilter = {
+          brand: sp.brand === "paintgroup" || sp.brand === "painthome" ? sp.brand : null,
+          device: sp.device === "mobile" || sp.device === "desktop" ? sp.device : null,
+          jobType: sp.job && /^[a-z_-]{1,40}$/.test(sp.job) ? sp.job : null,
+          leadSource: sp.src && /^[a-z0-9_-]{1,60}$/.test(sp.src) ? sp.src : null,
+        };
+        const { input, failures } = await loadMetricInput(supabase, range, now, ["funnel"], { userId: user?.id ?? null }, roles);
+        const params = (k: string, v: string | null) => {
+          const p = new URLSearchParams({ view: "funnel", preset });
+          if (preset === "custom") { p.set("from", range.from); p.set("to", range.to); }
+          if (filter.brand) p.set("brand", filter.brand); if (filter.device) p.set("device", filter.device);
+          if (filter.jobType) p.set("job", filter.jobType); if (filter.leadSource) p.set("src", filter.leadSource);
+          if (k !== "view") { if (v == null) p.delete(k); else p.set(k, v); }
+          return p;
+        };
+        const drafts = (input.funnel?.drafts ?? []);
+        body = (
+          <>
+            {failures.length > 0 && (
+              <div className="mt-4 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800" data-testid="estimates-error">
+                Some of the Funnel could not be read ({failures.map((f) => f.where).join(", ")}), so its numbers may be short. Reload the page.
+              </div>
+            )}
+            <FunnelView
+              data={buildFunnelView(input, range, filter)} filter={filter} preset={preset} rangeLabel={rangeLabel(range)}
+              jobTypes={[...new Set(drafts.map((d) => d.job_type).filter((x): x is string => Boolean(x)))].sort()}
+              sources={[...new Set(drafts.map((d) => d.lead_source).filter((x): x is string => Boolean(x)))].sort()}
+              hrefWith={(k, v) => `/estimates?${params(k, v).toString()}`}
+              exportHref={(metric) => { const p = params("view", null); p.delete("view"); p.set("metric", metric); return `/api/reporting/export?${p.toString()}`; }}
+            />
+          </>
+        );
+      }
     }
     return (
       <div className="p-6">

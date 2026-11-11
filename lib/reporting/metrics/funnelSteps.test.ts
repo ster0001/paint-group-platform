@@ -18,8 +18,8 @@ describe("step conversion, counted in sessions", () => {
   ];
   it("each step: who saw it, who went on, who stopped there", () => {
     expect(buildStepConversion(rows, range)).toEqual([
-      { step: "what", viewed: 3, completed: 2, completed_pct: 67, stopped: 1 },
-      { step: "beds", viewed: 2, completed: 1, completed_pct: 50, stopped: 1 },
+      { step: "what", viewed: 3, completed: 2, completed_pct: 67, stopped: 1, median_seconds: 0 },
+      { step: "beds", viewed: 2, completed: 1, completed_pct: 50, stopped: 1, median_seconds: 0 },
     ]);
   });
   it("a caller's order wins, and a step nobody saw is left out", () => {
