@@ -44,6 +44,17 @@ Nothing. The page opens on **All estimates**.
 - **Last sent — · Next due —** — automated messages, once the automations are built.
 - **Back-taps** and **which link brought someone back** — not recorded yet; the Funnel says so where they would go.
 
+## On an estimate
+Open any estimate. A bar above it shows:
+- which website it came through (**Paint Home** or **Paint Group**), its number, and whether it came from the wizard or was built by staff;
+- **Viewed N×** and **Came back ×N**, the same as on the list;
+- the **stages** it walks — details, range, visit, estimate sent, viewed, accepted, booked, in progress, signed off, paid — with the one it is at now in black, how long it has been there and why;
+- the **wizard path** in one line: each step and how long it took. Slow steps are in bold.
+
+A Paint Home estimate shows Paint Home's name, phone and logo in its header.
+
+**Activity** (in the panel on the right) lists everything that happened to the estimate and its wizard session, newest first: sent, opened (with how long they stayed), questions, visits, calls, notes, wizard steps. It shows the newest ten; **Show all** opens the rest. Tap **Messages**, **Wizard** or **Staff** to see only those. **Older activity** at the bottom holds entries from before the activity log existed, such as "Emailed to customer".
+
 ## Who sees which view
 Pipeline and Funnel can be switched off for a login: Settings → Company → Staff logins, untick **Estimates › Pipeline** or **Estimates › Funnel**. That person no longer sees the chip, and the link takes them to All estimates.
 

@@ -11,6 +11,8 @@ import { loadPackBundle } from "./pack-load";
 import AssistantDrawer from "./AssistantDrawer";
 import ImportedHistory, { type ImportedHistoryRow } from "./ImportedHistory";
 import { DEFAULT_COMPANY, type CompanyProfile } from "./company";
+import { companyForBrand } from "@/lib/messaging/brand";
+import EstimateFunnelBar from "./EstimateFunnelBar";
 import { DEFAULT_INCLUSION_TEMPLATES, DEFAULT_EXCLUSION_TEMPLATES, INCLUSION_TEMPLATES_KEY, EXCLUSION_TEMPLATES_KEY, type InclusionTemplate } from "@/lib/estimate/inclusionTemplates";
 import { parseBackTo } from "@/lib/navigation/backTo";
 import { estimateDocuments } from "@/lib/wizard/documents";
@@ -113,7 +115,7 @@ export default async function QuotePage({
     supabase.from("settings").select("*"),
     supabase.from("line_items").select("*").order("type").order("name"),
     supabase.from("area_names").select("area, type").order("type").order("area"),
-    id ? supabase.from("estimates").select("id, number, title, builder_state, share_token, status, sent_at, viewed_at, accepted_at, accepted_name, accepted_signature, valid_until, presentation_id, lead_source, sent_snapshot, selected_options, source, external_ref, total_cents, subtotal_cents, level_of_finish, declined_at, created_at, account_id, reporting_excluded_at, reporting_excluded_reason").eq("id", id).single() : Promise.resolve({ data: null }),
+    id ? supabase.from("estimates").select("id, number, title, brand, builder_state, share_token, status, sent_at, viewed_at, accepted_at, accepted_name, accepted_signature, valid_until, presentation_id, lead_source, sent_snapshot, selected_options, source, external_ref, total_cents, subtotal_cents, level_of_finish, declined_at, created_at, account_id, reporting_excluded_at, reporting_excluded_reason").eq("id", id).single() : Promise.resolve({ data: null }),
     id ? supabase.from("work_orders").select("*").eq("estimate_id", id).maybeSingle() : Promise.resolve({ data: null }),
     supabase.from("contractors").select("id, profiles(name)").eq("active", true),
     supabase.from("presentations").select("id, name, is_default, presentation_blocks(kind, position, enabled, content)").order("name"),
@@ -135,7 +137,11 @@ export default async function QuotePage({
 
   const settingsRows = (settings.data as { key: string; value: unknown }[] | null) ?? [];
   const companyRow = settingsRows.find((s) => s.key === "company_profile");
-  const company: CompanyProfile = { ...DEFAULT_COMPANY, ...((companyRow?.value as Partial<CompanyProfile>) ?? {}) };
+  const company0: CompanyProfile = { ...DEFAULT_COMPANY, ...((companyRow?.value as Partial<CompanyProfile>) ?? {}) };
+  // Estimates tab session 6 (R3): a Paint Home estimate wears Paint Home's name, phone and marks here too,
+  // the same overlay /e applies — never a Paint Group logo on a Paint Home estimate.
+  const estimateBrand = (estimateRes.data as { brand?: string | null } | null)?.brand === "painthome" ? "painthome" : "paintgroup";
+  const company: CompanyProfile = companyForBrand(company0, estimateBrand);
   // "What's included" templates — fall back to built-in defaults until customised.
   const inclusionRow = settingsRows.find((s) => s.key === INCLUSION_TEMPLATES_KEY);
   const inclusionTemplates: InclusionTemplate[] = Array.isArray(inclusionRow?.value) && (inclusionRow!.value as unknown[]).length
@@ -265,7 +271,12 @@ export default async function QuotePage({
    * figures the pack shows when they open it. Only a wizard estimate has one.
    */
   const bundle = hasWizard && id ? await loadPackBundle(supabase, id) : null;
-  const strip = bundle ? <EstimateStrip bundle={bundle} /> : null;
+  const funnelBar = id && initial ? (
+    <EstimateFunnelBar supabase={supabase} estimateId={id} number={(initial as { number?: number | null }).number ?? null}
+      brand={(initial as { brand?: string | null }).brand ?? null} source={(initial as { source?: string | null }).source ?? null} />
+  ) : null;
+  const strip0 = bundle ? <EstimateStrip bundle={bundle} /> : null;
+  const strip = <>{funnelBar}{strip0}</>;
   const estimateTabs = hasWizard && id ? (
     <div className="mx-auto flex max-w-6xl gap-1 border-b border-gray-200 px-6 pt-4" data-testid="estimate-tabs">
       <Link

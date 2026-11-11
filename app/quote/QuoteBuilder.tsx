@@ -31,6 +31,7 @@ import { useSaveBeforeLeave, type LeaveChoice } from "@/app/components/useSaveBe
 import { formatEstimateNumber } from "@/lib/estimate/number";
 import type { BackTo } from "@/lib/navigation/backTo";
 import EstimateHeader from "./EstimateHeader";
+import EstimateActivity from "./EstimateActivity";
 import RichTextEditor from "@/app/components/RichTextEditor";
 import CustomerEstimate from "@/app/e/[token]/CustomerEstimate";
 import { toEstimateSignature } from "@/lib/estimate/signature";
@@ -241,32 +242,7 @@ let nextId = 1;
 const DEFAULT_INCLUSIONS: string[] = [];
 const SHEEN_LEVELS = ["Flat", "Matt", "Egg Shell", "Satin", "Low Sheen", "Semi Gloss", "Gloss", "High Gloss"];
 
-// Friendly labels + relative times for the Activity feed.
-function eventLabel(type: string): string {
-  switch (type) {
-    case "sent": return "Sent to customer";
-    case "viewed": return "Viewed by customer";
-    case "accepted": return "Accepted";
-    case "declined": return "Declined";
-    case "question": return "Customer message";
-    case "email_sent": return "Emailed to customer";
-    case "email_failed": return "Email failed";
-    case "sms_sent": return "Texted to customer";
-    case "sms_failed": return "Text failed";
-    default: return type;
-  }
-}
-// Exact date + time for view entries, in the reader's local time.
-function fmtDateTime(iso: string): string {
-  return new Date(iso).toLocaleString("en-AU", { day: "numeric", month: "short", year: "numeric", hour: "numeric", minute: "2-digit", hour12: true });
-}
-// Dwell is heartbeat-based (15s ticks), so a short open records 0ms.
-function fmtDwell(ms: number): string {
-  if (ms < 15000) return "under 15 sec";
-  const s = Math.round(ms / 1000);
-  const m = Math.floor(s / 60);
-  return m === 0 ? `${s} sec` : `${m} min${s % 60 ? ` ${s % 60} sec` : ""}`;
-}
+// Relative times for the chat thread.
 function relTime(iso: string): string {
   const s = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 1000));
   if (s < 60) return "just now";
@@ -802,14 +778,11 @@ export default function QuoteBuilder({
   const [extraPick, setExtraPick] = useState("");
   // Right-column tools bar: Activity / Chat / Calculations / Follow-ups.
   const [rightTab, setRightTab] = useState<null | "activity" | "chat" | "calc" | "followups">(null);
-  const [events, setEvents] = useState<{ type: string; payload: unknown; created_at: string }[]>([]);
-  const [views, setViews] = useState<{ created_at: string; updated_at: string; dwell_ms: number }[]>([]);
   const [questions, setQuestions] = useState<{ message: string; created_at: string }[]>([]);
   const [messages, setMessages] = useState<{ id: string; direction: "staff" | "customer"; body: string; author_name: string | null; created_at: string }[]>([]);
   const [chatDraft, setChatDraft] = useState("");
   const [chatSending, setChatSending] = useState(false);
   const [chatMsg, setChatMsg] = useState("");
-  const [activityLoading, setActivityLoading] = useState(false);
 
   function newArea(preset?: { name: string; type: "Interior" | "Exterior" }): Area {
     const type = preset?.type ?? "Interior";
@@ -1292,29 +1265,21 @@ export default function QuoteBuilder({
     }
   }
 
-  // Load the activity feed + customer messages for the Activity / Chat tabs.
+  // Load the customer messages for the Chat tab (Activity reads the CRM log itself: EstimateActivity).
   async function loadActivity() {
     if (!quoteId) return;
-    setActivityLoading(true);
     const supabase = createClient();
-    const [{ data: ev }, { data: q }, { data: vw }, { data: msgs }] = await Promise.all([
-      supabase.from("estimate_events").select("type, payload, created_at").eq("estimate_id", quoteId).order("created_at", { ascending: false }).limit(50),
+    const [{ data: q }, { data: msgs }] = await Promise.all([
       supabase.from("estimate_questions").select("message, created_at").eq("estimate_id", quoteId).order("created_at", { ascending: false }).limit(50),
-      // One row per open session — created_at is when they opened it, dwell_ms
-      // how long the page stayed in front of them (15s heartbeats).
-      supabase.from("estimate_views").select("created_at, updated_at, dwell_ms").eq("estimate_id", quoteId).order("created_at", { ascending: false }).limit(50),
       supabase.from("estimate_messages").select("id, direction, body, author_name, created_at").eq("estimate_id", quoteId).order("created_at").limit(200),
     ]);
-    setEvents((ev as typeof events) ?? []);
     setQuestions((q as typeof questions) ?? []);
-    setViews((vw as typeof views) ?? []);
     setMessages((msgs as typeof messages) ?? []);
-    setActivityLoading(false);
   }
   const openRightTab = (tab: typeof rightTab) => {
     const next = rightTab === tab ? null : tab;
     setRightTab(next);
-    if (next === "activity" || next === "chat") loadActivity();
+    if (next === "chat") loadActivity();
   };
 
   // Poll the chat while it's open, so a customer reply appears without a manual
@@ -3288,6 +3253,7 @@ export default function QuoteBuilder({
                 <button
                   onClick={() => openRightTab(row.key as typeof rightTab)}
                   className="flex w-full items-center justify-between px-3 py-2.5 text-sm font-medium hover:bg-gray-50"
+                  data-testid={`tools-${row.key}`}
                 >
                   <span className="flex items-center gap-2"><span aria-hidden>{row.icon}</span>{row.label}</span>
                   <span className="text-gray-400">{rightTab === row.key ? "▾" : "▸"}</span>
@@ -3295,38 +3261,10 @@ export default function QuoteBuilder({
 
                 {rightTab === row.key && (
                   <div className="border-t border-gray-100 px-3 py-3 text-sm">
+                    {/* Estimates tab session 6 (R16): the Activity reads the CRM log (EstimateActivity). */}
                     {row.key === "activity" && (
                       !quoteId ? <p className="text-xs text-gray-500">Save the estimate to start tracking activity.</p>
-                      : activityLoading ? <p className="text-xs text-gray-400">Loading…</p>
-                      : events.length === 0 && views.length === 0 ? <p className="text-xs text-gray-500">No activity yet.</p>
-                      : (
-                        <ul className="space-y-2">
-                          {[
-                            // The bare "viewed" flag is superseded by the per-session
-                            // entries below, which carry the open time + duration.
-                            ...events.filter((e) => !(e.type === "viewed" && views.length > 0)).map((e) => ({
-                              at: e.created_at,
-                              label: eventLabel(e.type),
-                              detail: null as string | null,
-                            })),
-                            ...views.map((v) => ({
-                              at: v.created_at,
-                              label: "Opened by customer",
-                              detail: `${fmtDateTime(v.created_at)} · viewed for ${fmtDwell(v.dwell_ms)}`,
-                            })),
-                          ]
-                            .sort((a, b) => b.at.localeCompare(a.at))
-                            .map((e, i) => (
-                              <li key={i} className="flex items-start justify-between gap-2">
-                                <span className="text-gray-700">
-                                  {e.label}
-                                  {e.detail && <span className="block text-[11px] text-gray-400">{e.detail}</span>}
-                                </span>
-                                <span className="shrink-0 text-[11px] tabular-nums text-gray-400">{relTime(e.at)}</span>
-                              </li>
-                            ))}
-                        </ul>
-                      )
+                      : <EstimateActivity estimateId={quoteId} />
                     )}
 
                     {row.key === "chat" && (
