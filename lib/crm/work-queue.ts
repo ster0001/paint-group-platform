@@ -53,6 +53,12 @@ export const WORK_ITEM_KINDS = [
   "approval_pending",
   "invoice_action",
   "visit_rebook",
+  /**
+   * Estimates tab & funnel, session 2 (master plan C1, R5): a visit is done and no
+   * estimate has gone to that customer since. Ours to send within 2 days of the
+   * visit; sending one (any estimate for the customer, after the visit) clears it.
+   */
+  "estimate_after_visit",
   "variation_pending",
   "signoff_due",
   "broadcast_incomplete",
@@ -281,6 +287,7 @@ const CUSTOMER_VISIBLE: ReadonlySet<WorkItemKind> = new Set([
   "message_unanswered",
   "callback_requested",
   "visit_rebook",
+  "estimate_after_visit",
   "signoff_due",
   "change_request",
   "handoff_requested",
@@ -348,6 +355,7 @@ export const KIND_WEIGHT: Record<WorkItemKind, number> = {
   callback_requested: 24,
   message_unmatched: 18,
   visit_rebook: 22,
+  estimate_after_visit: 22,
   signoff_due: 20,
   snooze_expired: 16,
   followup_due: 14,
@@ -503,6 +511,7 @@ export const GROUP_OF_KIND: Record<WorkItemKind, Exclude<FilterGroup, "all">> = 
   followup_due: "followups",
   snooze_expired: "followups",
   visit_rebook: "followups",
+  estimate_after_visit: "followups",
   approval_pending: "approvals",
   variation_pending: "approvals",
   signoff_due: "approvals",
@@ -1008,6 +1017,50 @@ export function buildRebookItems(rows: RebookVisitRow[], laterBooked: Array<{ ac
       dueAt: nextBusinessMorning(new Date(since)).toISOString(),
       action: { label: "Rebook", href: v.account_id ? `/crm/customers/${v.account_id}` : "/crm/diary" },
     }, { valueCents: null, promisedToCustomer: true }, now));
+  }
+  return items;
+}
+
+// ---- source: estimate_after_visit (Estimates tab session 2, master plan C1) --
+
+/** How long after a visit the estimate is due (R5: "sent within 2 days"). */
+export const ESTIMATE_AFTER_VISIT_DAYS = 2;
+
+export type VisitDoneRow = {
+  id: string; account_id: string | null; estimate_id: string | null; starts_at: string; outcome_at: string | null;
+  customer_name: string | null; address: string | null;
+};
+export type AccountEstimateRow = { id: string; account_id: string | null; sent_at: string | null; total_cents: number | null };
+
+/**
+ * A visit marked done, with no estimate sent to that customer at or after the
+ * visit. Due two days after it; the value is the visit's own estimate when it
+ * has one. The subject is that estimate when there is one (so the Estimates
+ * tab's queue carries it), the visit otherwise — the key is the visit's
+ * either way, so a dismissal survives the estimate being linked later.
+ */
+export function buildEstimateAfterVisitItems(rows: readonly VisitDoneRow[], estimates: readonly AccountEstimateRow[], now: Date): WorkItem[] {
+  const items: WorkItem[] = [];
+  for (const v of rows) {
+    const sent = estimates.some((e) => e.sent_at && e.sent_at >= v.starts_at
+      && ((v.account_id && e.account_id === v.account_id) || (v.estimate_id && e.id === v.estimate_id)));
+    if (sent) continue;
+    const since = v.outcome_at ?? v.starts_at;
+    const own = v.estimate_id ? estimates.find((e) => e.id === v.estimate_id) : undefined;
+    const who = v.customer_name || "A customer";
+    items.push(finish({
+      key: itemKey("estimate_after_visit", "visit", v.id, "send"),
+      kind: "estimate_after_visit",
+      accountId: v.account_id,
+      subjectRef: v.estimate_id ? { type: "estimate", id: v.estimate_id } : { type: "visit", id: v.id },
+      title: `${who} — visit done, estimate not sent`,
+      detail: [v.address, `visited ${melbourneDay(new Date(v.starts_at))}`].filter(Boolean).join(" · "),
+      since,
+      dueAt: new Date(new Date(since).getTime() + ESTIMATE_AFTER_VISIT_DAYS * 86_400_000).toISOString(),
+      action: v.estimate_id
+        ? { label: "Open the estimate", href: `/quote?id=${v.estimate_id}` }
+        : { label: "Start the estimate", href: v.account_id ? `/crm/customers/${v.account_id}` : "/estimates" },
+    }, { valueCents: own?.total_cents ?? null, promisedToCustomer: false }, now));
   }
   return items;
 }
@@ -3266,6 +3319,20 @@ export async function buildWorkQueue(supabase: SupabaseClient, now = new Date())
   ]);
   const rebookRows = (rebookRes.error ? [] : (rebookRes.data ?? [])) as RebookVisitRow[];
   const laterBooked = (laterRes.error ? [] : (laterRes.data ?? [])) as Array<{ account_id: string | null; starts_at: string; created_at: string }>;
+  // Estimates tab session 2 (C1): visits done in the last 30 days, and the estimates their customers have been sent since.
+  const doneVisitsRes = await supabase.from("visits").select("id, account_id, estimate_id, starts_at, outcome_at, customer_name, address")
+    .eq("status", "done").gte("starts_at", since30d).order("starts_at", { ascending: true }).limit(CAP.rebook);
+  if (doneVisitsRes.error) truncated.push("visits done: read failed");
+  const doneVisits = (doneVisitsRes.error ? [] : (doneVisitsRes.data ?? [])) as VisitDoneRow[];
+  const doneAccountIds = [...new Set(doneVisits.map((v) => v.account_id).filter((x): x is string => Boolean(x)))];
+  const doneEstimateIds = [...new Set(doneVisits.map((v) => v.estimate_id).filter((x): x is string => Boolean(x)))];
+  const [byAccount, byEstimate] = await Promise.all([
+    sliceRead<AccountEstimateRow>(doneAccountIds, (ids) => supabase.from("estimates").select("id, account_id, sent_at, total_cents").in("account_id", ids).limit(ids.length * 10)),
+    sliceRead<AccountEstimateRow>(doneEstimateIds, (ids) => supabase.from("estimates").select("id, account_id, sent_at, total_cents").in("id", ids)),
+  ]);
+  if (byAccount.error || byEstimate.error) truncated.push("estimates after visits: read failed");
+  // A failed estimates read must not turn every done visit into "not sent": drop the source instead.
+  const afterVisitRows = byAccount.error || byEstimate.error ? [] : doneVisits;
   const inboundRows = (inboundMsgs.error ? [] : (inboundMsgs.data ?? [])) as unknown as InboundMessageRow[];
   const inboundAccountIds = [...new Set(inboundRows.map((m) => m.account_id).filter((x): x is string => Boolean(x)))];
   const [outboundTouches, inboundAttempts, inboundAccounts] = await Promise.all([
@@ -3375,6 +3442,7 @@ export async function buildWorkQueue(supabase: SupabaseClient, now = new Date())
     ...buildMessageItems(inboundRows, outboundTouches as OutboundTouchRow[], inboundAttempts as ContactEventRow[], inboundNames, now, thresholds.messageOverdueHours),
     ...buildDelayEndedItems(delayedRows, now),
     ...buildRebookItems(rebookRows, laterBooked, now),
+    ...buildEstimateAfterVisitItems(afterVisitRows, [...byAccount.rows, ...byEstimate.rows], now),
     ...buildPhotoReviewItems(photoRows, now),
     ...buildDeskCheckItems(deskRows, deskPolicy, now, deskTurnaround, deskSends.sends),
   ];
