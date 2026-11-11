@@ -31,8 +31,22 @@ export const STAFF_AREAS = [
 export type StaffAreaKey = (typeof STAFF_AREAS)[number]["key"];
 export const STAFF_AREA_KEYS = STAFF_AREAS.map((a) => a.key) as StaffAreaKey[];
 
+/**
+ * Views INSIDE an area that a login can be kept off (Estimates tab ruling
+ * E‑N, Nov 2026: Pipeline and Funnel hidden from PCs). Not sidebar entries —
+ * a view's chip is dropped and its URL falls back to the area's first view.
+ * Like areas, a missing key means visible.
+ */
+export const STAFF_VIEWS = [
+  { key: "estimates_pipeline", area: "estimates", label: "Estimates › Pipeline" },
+  { key: "estimates_funnel", area: "estimates", label: "Estimates › Funnel" },
+] as const satisfies ReadonlyArray<{ key: string; area: StaffAreaKey; label: string }>;
+export type StaffViewKey = (typeof STAFF_VIEWS)[number]["key"];
+/** Every key the access map may hold: the areas, then the views. */
+export const STAFF_ACCESS_KEYS = [...STAFF_AREA_KEYS, ...STAFF_VIEWS.map((v) => v.key)] as Array<StaffAreaKey | StaffViewKey>;
+
 /** { areaKey: false } hides; anything else (missing, true) shows. */
-export type StaffAccess = Partial<Record<StaffAreaKey, boolean>>;
+export type StaffAccess = Partial<Record<StaffAreaKey | StaffViewKey, boolean>>;
 
 export type StaffVisibility = { isOwner: boolean; access: StaffAccess };
 
@@ -40,7 +54,7 @@ export type StaffVisibility = { isOwner: boolean; access: StaffAccess };
 export function parseStaffAccess(value: unknown): StaffAccess {
   if (!value || typeof value !== "object" || Array.isArray(value)) return {};
   const out: StaffAccess = {};
-  for (const key of STAFF_AREA_KEYS) {
+  for (const key of STAFF_ACCESS_KEYS) {
     const v = (value as Record<string, unknown>)[key];
     if (typeof v === "boolean") out[key] = v;
   }
@@ -50,6 +64,13 @@ export function parseStaffAccess(value: unknown): StaffAccess {
 export function canSee(vis: StaffVisibility, key: StaffAreaKey): boolean {
   if (vis.isOwner) return true;
   return vis.access[key] !== false;
+}
+
+/** A view inside an area: hidden when its area is, or when its own key is false. Owners see every view. */
+export function canSeeView(vis: StaffVisibility, key: StaffViewKey): boolean {
+  if (vis.isOwner) return true;
+  const view = STAFF_VIEWS.find((v) => v.key === key)!;
+  return canSee(vis, view.area) && vis.access[key] !== false;
 }
 
 /** The area a path belongs to (longest prefix wins), or null for paths outside the staff app. */

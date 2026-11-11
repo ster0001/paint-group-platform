@@ -28,3 +28,14 @@ describe("staff access (Tom, 5 Sep)", () => {
     expect(firstVisibleHref({ isOwner: false, access: Object.fromEntries(visibleAreas({ isOwner: true, access: {} }).map((k) => [k, false])) })).toBe("/account");
   });
 });
+
+describe("views inside an area (Estimates tab ruling E‑N)", () => {
+  it("a view is visible unless its own key or its area is false; owners see all", async () => {
+    const { canSeeView, parseStaffAccess: parse } = await import("./access");
+    expect(canSeeView({ isOwner: false, access: {} }, "estimates_pipeline")).toBe(true);
+    expect(canSeeView({ isOwner: false, access: parse({ estimates_pipeline: false }) }, "estimates_pipeline")).toBe(false);
+    expect(canSeeView({ isOwner: false, access: parse({ estimates_pipeline: false }) }, "estimates_funnel")).toBe(true);
+    expect(canSeeView({ isOwner: false, access: { estimates: false } }, "estimates_funnel")).toBe(false);
+    expect(canSeeView({ isOwner: true, access: { estimates_pipeline: false } }, "estimates_pipeline")).toBe(true);
+  });
+});

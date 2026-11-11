@@ -12,6 +12,8 @@ export const OFFICE_HOURS = {
 };
 export const OFFICE_HOURS_LINE = "Monday to Friday, 8:30am to 4:30pm";
 export const AFTER_HOURS_NOTE = `Thanks — we've received your message. Our office hours are ${OFFICE_HOURS_LINE}; we'll get back to you as soon as we're open.`;
+/** Estimates tab session 4 (brief §4.4): the Work queue banner out of hours, read from the same hours. */
+export const AFTER_HOURS_NOTE_STAFF = `Out of office hours (${OFFICE_HOURS_LINE}). Call-back and help requests that come in now wait until the office opens.`;
 
 const minutes = (hhmm: string) => Number(hhmm.slice(0, 2)) * 60 + Number(hhmm.slice(3, 5));
 

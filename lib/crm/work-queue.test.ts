@@ -11,7 +11,7 @@ import {
   buildDelayEndedItems,
   suppressQuiet,
   type DelayedAccountRow,
-  buildQuietQuoteItems, type QuietQuoteRow, estimatesPageItems, buildHoursPendingItems, answeredByAcceptance,
+  buildQuietQuoteItems, type QuietQuoteRow, estimatesPageItems, estimatesWorkQueueItems, buildHoursPendingItems, answeredByAcceptance,
   buildEstimateAfterVisitItems, type VisitDoneRow, GROUP_OF_KIND,
 } from "./work-queue";
 
@@ -480,6 +480,21 @@ describe("estimatesPageItems (C7b) — the Waiting tab's cut", () => {
     }], [], new Map(), T, NOW);
     expect(chase).toHaveLength(1);
     expect(estimatesPageItems(chase)).toHaveLength(0);
+  });
+});
+
+describe("estimatesWorkQueueItems (Estimates tab session 4) — the Work queue view's cut", () => {
+  it("keeps the quote chases the Waiting tab leaves out, and a done visit with no estimate", () => {
+    const T = { chaseUnopenedDays: 3, chaseOpenedDays: 5, goingColdDays: 14 };
+    const chase = buildQuietQuoteItems([{
+      id: "e9", title: "t", account_id: "a1", status: "sent", sent_at: new Date(NOW.getTime() - 4 * 86_400_000).toISOString(),
+      created_at: NOW.toISOString(), viewed_at: null, total_cents: 1000,
+    }], [], new Map(), T, NOW);
+    expect(estimatesWorkQueueItems(chase)).toHaveLength(1);
+    const visit = { ...chase[0], kind: "estimate_after_visit" as const, subjectRef: { type: "visit" as const, id: "v1" } };
+    const other = { ...chase[0], kind: "estimate_after_visit" as const, subjectRef: { type: "work_order" as const, id: "w1" } };
+    expect(estimatesWorkQueueItems([visit])).toHaveLength(1);
+    expect(estimatesWorkQueueItems([{ ...other, kind: chase[0].kind }])).toHaveLength(0);
   });
 });
 

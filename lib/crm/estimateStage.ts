@@ -59,6 +59,14 @@ export const ESTIMATE_STAGES = [
 ] as const;
 
 export type EstimateStage = (typeof ESTIMATE_STAGES)[number]["key"];
+/**
+ * Estimates tab session 4 (brief §4.2): the Pipeline's lanes, B2 → C5 in
+ * stage order. Before B2 there is nothing to chase (Online now has those);
+ * after C5 the estimate is decided.
+ */
+export const PIPELINE_STAGES = ["range_no_action", "needs_help", "tightening", "tightened_no_action", "visit_requested", "visit_booked",
+  "call_requested", "visit_done", "estimate_sent", "estimate_viewed", "question_asked", "revised"] as const satisfies readonly EstimateStage[];
+export type PipelineStage = (typeof PIPELINE_STAGES)[number];
 export const ESTIMATE_STAGE_LABEL = Object.fromEntries(ESTIMATE_STAGES.map((s) => [s.key, s.label])) as Record<EstimateStage, string>;
 
 /** The stages a won job is in. `cold` never applies to them. */

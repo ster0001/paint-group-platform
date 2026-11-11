@@ -3482,3 +3482,13 @@ export function estimatesPageItems(items: readonly WorkItem[]): WorkItem[] {
   // tidying the same day.
   return items.filter((i) => i.kind !== "followup_due" && (i.subjectRef.type === "estimate" || i.subjectRef.type === "wizard_session"));
 }
+
+/**
+ * Estimates tab session 4 (brief §4.4): the Work queue view — every item
+ * about an estimate or a wizard session, chases included (unlike the Waiting
+ * tab above), plus a done visit still waiting for its estimate. A filter of
+ * the ONE queue, in its own ranking; it builds nothing of its own.
+ */
+export function estimatesWorkQueueItems(items: readonly WorkItem[]): WorkItem[] {
+  return items.filter((i) => i.subjectRef.type === "estimate" || i.subjectRef.type === "wizard_session" || i.kind === "estimate_after_visit");
+}

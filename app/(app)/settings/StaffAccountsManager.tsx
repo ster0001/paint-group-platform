@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { STAFF_AREAS, type StaffAreaKey } from "@/lib/staff/access";
+import { STAFF_AREAS, STAFF_VIEWS, type StaffAreaKey, type StaffViewKey } from "@/lib/staff/access";
 import { DASHBOARD_ROLES, ROLE_LABEL, type DashboardRole } from "@/lib/reporting/roles";
 import { createStaffAction, listStaffAction, removeStaffAction, sendStaffResetLinkAction, setStaffPasswordAction, updateStaffAction, type StaffRow } from "./staffActions";
 
@@ -48,12 +48,13 @@ export default function StaffAccountsManager() {
     load();
   };
 
-  const toggle = (row: StaffRow, key: StaffAreaKey, visible: boolean) =>
+  const toggle = (row: StaffRow, key: StaffAreaKey | StaffViewKey, visible: boolean) =>
     setRows((rs) => rs.map((x) => (x.id === row.id ? { ...x, access: { ...x.access, [key]: visible } } : x)));
   const save = async (row: StaffRow) => {
     setMsg(null); setBusy(true);
     const access: Record<string, boolean> = {};
     for (const a of STAFF_AREAS) access[a.key] = row.access[a.key] !== false;
+    for (const v of STAFF_VIEWS) access[v.key] = row.access[v.key] !== false;
     const r = await updateStaffAction({ id: row.id, isOwner: row.isOwner, access, roles: row.roles, name: row.name, phone: row.phone }).catch(() => null);
     setBusy(false);
     setMsg(r ? { ok: r.status === "ok", text: r.message } : { ok: false, text: "That didn't save — try again." });
@@ -97,12 +98,19 @@ export default function StaffAccountsManager() {
   const withRole = (roles: DashboardRole[], r: DashboardRole, on: boolean): DashboardRole[] =>
     DASHBOARD_ROLES.filter((x) => (x === r ? on : roles.includes(x)));
 
-  const areaTicks = (access: Record<string, boolean | undefined>, onTick: (k: StaffAreaKey, v: boolean) => void, disabled: boolean) => (
+  const areaTicks = (access: Record<string, boolean | undefined>, onTick: (k: StaffAreaKey | StaffViewKey, v: boolean) => void, disabled: boolean) => (
     <div className="flex flex-wrap gap-x-4 gap-y-1.5 text-sm">
       {STAFF_AREAS.map((a) => (
         <label key={a.key} className={`flex items-center gap-1.5 ${disabled ? "text-gray-400" : "text-gray-700"}`}>
           <input type="checkbox" disabled={disabled} checked={access[a.key] !== false} onChange={(e) => onTick(a.key, e.target.checked)} data-testid={`area-${a.key}`} />
           {a.label}
+        </label>
+      ))}
+      {/* Estimates tab ruling E‑N: views inside an area, e.g. keep a PC off Pipeline and Funnel. */}
+      {STAFF_VIEWS.map((v) => (
+        <label key={v.key} className={`flex items-center gap-1.5 ${disabled || access[v.area] === false ? "text-gray-400" : "text-gray-700"}`}>
+          <input type="checkbox" disabled={disabled || access[v.area] === false} checked={access[v.area] !== false && access[v.key] !== false} onChange={(e) => onTick(v.key, e.target.checked)} data-testid={`view-${v.key}`} />
+          {v.label}
         </label>
       ))}
     </div>
