@@ -50,6 +50,11 @@ export default async function DashboardPage() {
     ...checkins.items.map((i) => i.key), ...queue.map((c) => c.key),
   ]);
   const noteFor = (key: string) => <WorkItemNote itemKey={key} initial={itemNotes.notes.get(key) ?? ""} />;
+  // Tom, 11 Nov 2026: "all reminders can be closed off". Every card here can go
+  // for good — the queue's own dismissal, the same one Today uses, with the
+  // reason on the log. A card with its own outcome button (Rang them, Reviewed,
+  // Confirmed, ✕) keeps that instead; Remind me… still brings one back on a day.
+  const closeOff = (key: string) => <QueueDismiss itemKey={key} label="Close off" reason="Closed off from PC Command" />;
   const dueWord = (item: { bucket: string; dueAt: string | null }) =>
     item.bucket === "overdue" ? "overdue" : item.bucket === "today" ? "by 5 pm today" : "waiting";
 
@@ -156,7 +161,9 @@ export default async function DashboardPage() {
                 <div className="note" style={{ margin: "2px 0 0" }}>{item.detail}</div>
               </div>
               <Link className="btn primary" href={item.action.href} data-testid={`qa-to-book-open-${item.subjectRef.id}`}>{item.action.label}</Link>
-              {item.action.label === "Open the check" && <QueueDismiss itemKey={item.key} label="Confirmed" reason="Quality check slot confirmed (PC Command)" />}
+              {item.action.label === "Open the check"
+                ? <QueueDismiss itemKey={item.key} label="Confirmed" reason="Quality check slot confirmed (PC Command)" />
+                : closeOff(item.key)}
               <RemindLater itemKey={item.key} />
             </div>
           ))}
@@ -258,7 +265,7 @@ export default async function DashboardPage() {
               </div>
               <span className="tm">{age((input.now.getTime() - new Date(item.since).getTime()) / 3_600_000)}</span>
               <Link className="btn primary" href={item.action.href} data-testid={`callback-card-open-${item.key}`}>{item.action.label}</Link>
-              {item.kind === "walkthrough_flagged" && <CheckinDone itemKey={item.key} accountId={null} />}
+              {item.kind === "walkthrough_flagged" ? <CheckinDone itemKey={item.key} accountId={null} /> : closeOff(item.key)}
               <RemindLater itemKey={item.key} />
             </div>
           ) : item.kind === "painter_red" || item.kind === "painter_orange" || item.kind === "bonus_due" || item.kind === "bonus_changed" || item.kind === "payment_hold" ? (
@@ -280,6 +287,7 @@ export default async function DashboardPage() {
                 : <Link className="btn primary" href={item.action.href} data-testid={`status-card-open-${item.key}`}>{item.action.label}</Link>}
               {item.kind === "painter_orange" && <QueueDismiss itemKey={item.key} label="Rang them" reason="Rang the painter about their Orange status (PC Command)" />}
               {item.kind === "bonus_changed" && <QueueDismiss itemKey={item.key} label="Reviewed" reason="Reviewed the changed qualifying job (PC Command)" />}
+              {item.kind !== "painter_orange" && item.kind !== "bonus_changed" && closeOff(item.key)}
               <RemindLater itemKey={item.key} />
             </div>
           ) : item.kind === "site_visit_due" ? (
@@ -298,12 +306,14 @@ export default async function DashboardPage() {
               </div>
               <span className="tm">{age((input.now.getTime() - new Date(item.since).getTime()) / 3_600_000)}</span>
               <Link className="btn primary" href={item.action.href} data-testid={`site-visit-card-open-${item.key}`}>{item.action.label}</Link>
+              {closeOff(item.key)}
               <RemindLater itemKey={item.key} />
             </div>
           ) : item.kind === "qa_check_due" || item.kind === "qa_check_final_cancelled" ? (
             // Tom, 8 Oct 2026: a quality check on its day, or
             // one whose final walkthrough was cancelled. Recording the check
-            // (or rebooking the final) is what clears it — no dismiss button.
+            // (or rebooking the final) clears it; Close off takes it away for
+            // good without either (Tom, 11 Nov 2026).
             <div className={`al ${item.bucket === "overdue" ? "al-crit" : item.kind === "qa_check_due" ? "al-info" : "al-warn"}`} key={item.key}
               data-testid={`qa-card-${item.key}`} data-kind={item.kind}>
               <span className="rail" />
@@ -317,6 +327,7 @@ export default async function DashboardPage() {
               </div>
               <span className="tm">{age((input.now.getTime() - new Date(item.since).getTime()) / 3_600_000)}</span>
               <Link className="btn primary" href={item.action.href} data-testid={`qa-card-open-${item.key}`}>{item.action.label}</Link>
+              {closeOff(item.key)}
               <RemindLater itemKey={item.key} />
             </div>
           ) : item.kind === "colour_match_outstanding" ? (
@@ -329,6 +340,7 @@ export default async function DashboardPage() {
                 <span className="ref">Colour match · {dueWord(item)}</span></div><p>{item.detail}</p></div>
               <span className="tm">{age((input.now.getTime() - new Date(item.since).getTime()) / 3_600_000)}</span>
               <Link className="btn primary" href={item.action.href} data-testid={`gap-card-open-${item.key}`}>{item.action.label}</Link>
+              {closeOff(item.key)}
               <RemindLater itemKey={item.key} />
             </div>
           ) : item.kind === "material_request" || item.kind === "no_work_requested" ? (
@@ -342,6 +354,7 @@ export default async function DashboardPage() {
                 <span className="ref">{item.kind === "material_request" ? "Materials" : "No work today"} · {dueWord(item)}</span></div><p>{item.detail}</p></div>
               <span className="tm">{age((input.now.getTime() - new Date(item.since).getTime()) / 3_600_000)}</span>
               <Link className="btn primary" href={item.action.href} data-testid={`gap-card-open-${item.key}`}>{item.action.label}</Link>
+              {closeOff(item.key)}
               <RemindLater itemKey={item.key} />
             </div>
           ) : item.kind === "painter_message" ? (
@@ -360,6 +373,7 @@ export default async function DashboardPage() {
               </div>
               <span className="tm">{age((input.now.getTime() - new Date(item.since).getTime()) / 3_600_000)}</span>
               <Link className="btn primary" href={item.action.href} data-testid={`message-card-open-${item.subjectRef.id}`}>{item.action.label}</Link>
+              {closeOff(item.key)}
               <RemindLater itemKey={item.key} />
             </div>
           ) : (

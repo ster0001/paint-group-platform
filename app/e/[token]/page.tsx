@@ -8,6 +8,8 @@ import { createServiceClient } from "@/lib/supabase/service";
 import CustomerEstimate, { type CustomerChanges, type EstimateRow } from "./CustomerEstimate";
 import ProgressSection from "./ProgressSection";
 import { loadProgressContext } from "@/lib/progress-preview/context";
+import { toEstimateSignature, type EstimateSignature } from "@/lib/estimate/signature";
+import { reportError } from "@/lib/monitoring/report";
 
 export const dynamic = "force-dynamic";
 
@@ -46,7 +48,13 @@ export default async function Page({
   // Signed changes + adjusted total (accepted jobs; null before the 20261120
   // migration or when there's nothing to show — the page degrades quietly).
   let changes: CustomerChanges | null = null;
+  // Tom, 11 Nov 2026: the signed estimate prints the customer's signature. A
+  // failed read prints the estimate with blank lines (and is reported), never a 500.
+  let signature: EstimateSignature | null = null;
   if (row.status === "accepted") {
+    const { data: sig, error: sigError } = await supabase.rpc("estimate_signature_by_token", { p_token: token });
+    if (sigError) reportError(sigError, { where: "estimate.signature.read", bestEffort: true });
+    else signature = toEstimateSignature(sig as { signature?: unknown; name?: unknown; at?: unknown } | null);
     const { data: ch } = await supabase.rpc("estimate_changes_by_token", { p_token: token });
     if (ch && typeof ch === "object" && Array.isArray((ch as CustomerChanges).variations)) {
       changes = ch as CustomerChanges;
@@ -91,6 +99,7 @@ export default async function Page({
       referencesLine={referencesLine}
       progressPreview={progressPreview}
       progressPreviewSet={progressSet}
+      signature={signature}
     />
   );
 }

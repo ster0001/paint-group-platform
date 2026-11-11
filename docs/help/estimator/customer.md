@@ -3,7 +3,7 @@ feature: estimator
 role: customer
 title: Get a painting price online, in about two minutes
 summary: A few quick screens give you a guide range; then you can tighten it room by room or side by side, and send it to your estimator to fix the price — or book a visit at any point.
-sources: app/(marketing)/_components/AddressField.tsx, app/estimate/page.tsx, app/wizard/WizardApp.tsx, app/wizard/QuickLook.tsx, app/wizard/MobileQuickLook.tsx, app/wizard/MobileStrip.tsx, app/wizard/pictures/MobilePicture.tsx, app/wizard/MobileGate.tsx, app/wizard/MobileContact.tsx, app/wizard/PictureCard.tsx, app/wizard/Reveal.tsx, app/estimate/scope/ScopeEditor.tsx, app/estimate/scope/SidesEditor.tsx, app/estimate/finish/Finish.tsx, app/estimate/sent/Sent.tsx
+sources: app/(marketing)/_components/AddressField.tsx, app/estimate/page.tsx, app/wizard/WizardApp.tsx, app/wizard/QuickLook.tsx, app/wizard/MobileQuickLook.tsx, app/wizard/MobileStrip.tsx, app/wizard/pictures/MobilePicture.tsx, app/wizard/MobileGate.tsx, app/wizard/MobileContact.tsx, app/wizard/PictureCard.tsx, app/wizard/Reveal.tsx, app/estimate/scope/ScopeEditor.tsx, app/estimate/scope/SidesEditor.tsx, app/estimate/finish/Finish.tsx, app/estimate/sent/Sent.tsx, app/e/[token]/CustomerEstimate.tsx
 verified_at_commit: 58a44da407
 ---
 
@@ -59,7 +59,7 @@ On a phone (any screen narrower than about 770px) the same questions come one at
 - **Counts.** In "Scope of works, item by item", anything we price per item — doors, windows, posts, architraves — shows how many we counted in that room, e.g. **Doors × 4**. A single item shows no number, and walls and ceilings are measured, not counted, so they carry none either. If a count looks wrong, tell your estimator before accepting; the price follows the count.
 
 ## The PDF, and the colour note
-- **Download estimate (PDF)** prints a paper copy of the quote: every area and its price (per-item surfaces with their count, e.g. "Doors × 4"), the deposit, the paint being supplied, what is and is not included, and a **Payment details** box with Paint Group's ABN, bank account and the reference to use — so the deposit can be paid straight from the PDF.
+- **Download estimate (PDF)** prints a paper copy of the quote: every area and its price (per-item surfaces with their count, e.g. "Doors × 4"), the deposit, the paint being supplied, what is and is not included, and a **Payment details** box with Paint Group's ABN, bank account and the reference to use — so the deposit can be paid straight from the PDF. Once you have accepted, the PDF is your signed copy (since 11 Nov 2026): the signature you drew, your name and the date you signed fill the signature lines at the bottom, and the top reads **Status · Accepted** with your name and date.
 - **SWMS.** When Paint Group has attached a Safe Work Method Statement for your job, a **Download SWMS** button sits on the SWMS card beside the public liability card (or on its own **SWMS** card under "Why Melburnians choose us"). It opens as a PDF.
 - **Colour consultation included** shows near the top while any colour on the job is still to be decided. Once every colour has been chosen it disappears — there is nothing left to consult on.
 

@@ -382,7 +382,8 @@
         "app/estimate/scope/ScopeEditor.tsx",
         "app/estimate/scope/SidesEditor.tsx",
         "app/estimate/finish/Finish.tsx",
-        "app/estimate/sent/Sent.tsx"
+        "app/estimate/sent/Sent.tsx",
+        "app/e/[token]/CustomerEstimate.tsx"
       ]
     },
     {
@@ -406,7 +407,8 @@
         "lib/crm/work-queue.ts",
         "app/quote/QuoteBuilder.tsx",
         "lib/estimate/leadSource.ts",
-        "app/(app)/settings/PresentationsManager.tsx"
+        "app/(app)/settings/PresentationsManager.tsx",
+        "lib/estimate/signature.ts"
       ]
     },
     {
