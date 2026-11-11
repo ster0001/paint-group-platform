@@ -229,3 +229,4 @@ _(updated at the end of every session)_
 - 6 Nov 2026 — session 0 done: `docs/briefs/estimates-tab-session-0.md`. Session 1 waits on rulings E-A to E-R; master supplied is v2, not v3.
 - 11 Nov 2026 — all session 0 rulings E‑A…E‑R ruled by Tom as proposed (block above §3). Session 1 rescoped.
 - 11 Nov 2026 — session 1 merged (#448, 20270310 live). Session 2 built: `lib/crm/estimateStage.ts` + golden tests, `estimate_after_visit` work item, funnel step/price-band counts, dev route `/estimates/stage/[id]`.
+- 11 Nov 2026 — session 2 merged (#449). Session 3 built: the six-chip shell (`?view=`), `Viewed N×` and `Came back ×N` on every row, `e2e/estimates-list.spec.ts` regression guard. Pipeline / Online now / Work queue / Funnel are placeholders until sessions 4–5; the PC screen gate (E‑N) lands with the views it hides.

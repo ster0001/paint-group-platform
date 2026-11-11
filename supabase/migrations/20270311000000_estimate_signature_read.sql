@@ -1,17 +1,17 @@
 -- =============================================================================
--- The signed estimate (Tom, 11 Nov 2026): "when a customer signs an estimate
--- and I download it from the estimates tab, I can't see their signature".
+-- The signed estimate (Tom, 11 Nov 2026): when a customer signs an estimate
+-- and I download it from the estimates tab, I cannot see their signature.
 --
 -- The drawn signature has been stored on acceptance since 20260816
 -- (estimates.accepted_signature, a PNG data URL written by
 -- save_estimate_signature) but nothing ever read it back: get_estimate_by_token
 -- does not return it and the printed estimate drew three blank lines.
 --
--- 1. estimate_signature_by_token — the token page's read of the signature,
+-- 1. estimate_signature_by_token — the read of the signature for the token page,
 --    name and date. Accepted estimates only; anything else (unknown token,
 --    draft, sent, declined) answers null, so there is nothing to enumerate.
 --    A separate function rather than a new column on get_estimate_by_token,
---    so that function's return type (and every caller) is untouched.
+--    so the return type of that function (and every caller) is untouched.
 -- 2. save_estimate_signature now writes only to an ACCEPTED estimate and only
 --    a PNG data URL under 1 MB. It used to take any text against any token,
 --    and the printed estimate now draws what it holds.

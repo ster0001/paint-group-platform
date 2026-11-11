@@ -254,6 +254,18 @@ export default function EstimatesTable({ estimates, empty = null }: { estimates:
                       {e.pill.flag}
                     </span>
                   )}
+                  {/* Estimates tab session 3: R12 — the view count on every row that has one,
+                      whatever the pill says; R13 — a green tag when the customer came back. */}
+                  {e.viewCount > 0 && (
+                    <span className="mr-2 mt-1 inline-block rounded-full border border-cyan-300 px-2 py-0.5 text-[11px] font-semibold text-cyan-800" data-testid={`estimate-viewed-${e.id}`}>
+                      Viewed {e.viewCount}×
+                    </span>
+                  )}
+                  {e.cameBack > 0 && (
+                    <span className="mr-2 mt-1 inline-block rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-semibold text-emerald-800" data-testid={`estimate-came-back-${e.id}`}>
+                      Came back ×{e.cameBack}
+                    </span>
+                  )}
                   {/* C7b (brief 2.4): the pack, only where there is one — the same test
                       the quote shell uses for the Pack tab, decided on the server. */}
                   {e.hasWizard && (
