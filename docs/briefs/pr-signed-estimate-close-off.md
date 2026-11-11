@@ -20,7 +20,9 @@ Every work-item card on `/pc` that had only **Remind me…** now also has **Clos
 Paste `supabase/migrations/20270311000000_estimate_signature_read.sql` whole. Then compare the read-back row with the `_expect_` values: read_anon, read_definer, save_anon and save_guarded should all be true. The last two columns count accepted estimates and how many of them hold a signature. **The code depends on this migration.** Without it, the token page just prints blank lines and reports the read failure, so nothing breaks, but no signature shows.
 
 ### Proof
-E2E_RESULT_LINE
+- Unit: `lib/estimate/signature.test.ts` plus `lib/workorder` and `lib/crm`: 891/891 passed. Lint is clean; typecheck shows only the existing `LayoutProps` errors that need Next's generated types.
+- `20270311` is applied on the C1 test project.
+- e2e: `e2e/estimate-signed-pdf.spec.ts` and `e2e/pc-close-off.spec.ts` have **not run yet**. The local run was REFUSED twice because CI run 42939744892 held the test-project lock (it started 02:15Z and was still holding it 29 minutes later). The PR's own e2e run is the proof.
 
 ### Manual test (Tom)
 1. Send yourself a test estimate. Open the link on your phone, sign, and accept. Then press **⤓ Download estimate (PDF)**: the bottom of the PDF shows your signature, your name and today's date.
