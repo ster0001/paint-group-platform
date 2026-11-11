@@ -2,7 +2,7 @@
 
 import { useMemo, useRef, useState, useTransition } from "react";
 import { createClient } from "@/lib/supabase/client";
-import { DEFAULT_MESSAGING, MESSAGING_KEY, automationOn, renderTemplate, type MessagingSettings as Msg } from "@/lib/messaging/config";
+import { DEFAULT_MESSAGING, MESSAGING_KEY, automationOn, renderTemplate, switchAutomation, type MessagingSettings as Msg } from "@/lib/messaging/config";
 import {
   AUDIENCE_LABEL, AUTOMATIONS, CHANNEL_LABEL,
   type Audience, type Automation, type TemplateField,
@@ -46,11 +46,7 @@ export default function AutomationsSettings({
 
   const set = <K extends keyof Msg>(key: K, value: Msg[K]) => { setForm((f) => ({ ...f, [key]: value })); setDirty(true); };
   const toggle = (key: string, on: boolean) => {
-    setForm((f) => {
-      const cur = Array.isArray(f.disabled) ? f.disabled : [];
-      const next = on ? cur.filter((k) => k !== key) : [...new Set([...cur, key])];
-      return { ...f, disabled: next };
-    });
+    setForm((f) => ({ ...f, ...switchAutomation(f, key, on) }));
     setDirty(true);
   };
   const setControl = (key: string, patch: Partial<AutomationControl>) => {
@@ -174,14 +170,14 @@ function SendingRules({ form, set }: { form: Msg; set: <K extends keyof Msg>(key
       <div className="flex flex-wrap items-start gap-6">
         <div>
           <p className="text-xs font-semibold text-gray-800">Sending hours <span className="font-normal text-gray-500">(Melbourne time)</span></p>
-          <p className="mt-0.5 text-[11px] text-gray-500">Automatic customer and painter messages due outside these hours wait for the next opening. Job offers, receipts, sign-in links and calendar invites go at any hour.</p>
+          <p className="mt-0.5 text-[11px] text-gray-500">Automatic texts to customers and painters due outside these hours wait for the next opening (a message going by text and email waits whole). Emails on their own go at any hour, and so do job offers, receipts, sign-in links and calendar invites.</p>
           <div className="mt-2 space-y-1.5">
             {([["weekday", "Mon–Fri"], ["saturday", "Saturday"], ["sunday", "Sunday"]] as const).map(([day, label]) => {
               const w = q[day];
               return (
                 <div key={day} className="flex items-center gap-2 text-xs text-gray-700">
                   <label className="flex w-24 items-center gap-1.5">
-                    <input type="checkbox" checked={w !== null} onChange={(e) => setDay(day, e.target.checked ? (day === "weekday" ? [8, 19] : [9, 17]) : null)} className="h-3.5 w-3.5 accent-emerald-600" data-testid={`quiet-${day}-on`} />
+                    <input type="checkbox" checked={w !== null} onChange={(e) => setDay(day, e.target.checked ? [8, 20] : null)} className="h-3.5 w-3.5 accent-emerald-600" data-testid={`quiet-${day}-on`} />
                     {label}
                   </label>
                   {w ? (

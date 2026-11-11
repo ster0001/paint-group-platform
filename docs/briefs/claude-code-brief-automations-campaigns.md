@@ -177,3 +177,4 @@ Golden tests: brand mapping (every brand × channel), quiet-hour deferral bounda
 - 11 Nov 2026 — **A‑A ruled by Tom: extend the existing engine.** §3 and §5 marked superseded; session 2 rewritten. A‑B…A‑N open.
 - 11 Nov 2026 — A‑B…A‑N ruled by Tom as proposed (block above §3).
 - 11 Nov 2026 — A‑E built as its own PR: registry `consent: "marketing"` (wizard_abandoned), the send layer honours STOP / unsubscribe / declined permits for marketing sends (fails closed), the sweep's direct `sendMagicLink` carries the flag, a guard test for raw sends. Next: A‑D default-off + A‑N hours in one place.
+- 11 Nov 2026 — A‑E merged (#456). A‑D (registry `defaultOff`, `messaging.enabled`, `switchAutomation`) and A‑N (quiet hours 8–20 every day, texts only) built. The working-hours unification (08:30–16:30 / 09–17 / 17:00 in three modules) is waiting on Tom: one set of hours changes customer-facing wording.

@@ -75,8 +75,10 @@ export function decide(input: DecideInput): Decision {
 
   if (modeFor(a, cfg) === "approve") return { action: "pending", channels: plan.channels, fallback: plan.fallback };
 
-  // D1 — quiet hours apply to automatic customer and painter messages only.
-  if (a.audience !== "office" && !a.quietExempt) {
+  // D1 — quiet hours apply to automatic customer and painter messages only, and
+  // (ruling A‑N, 11 Nov 2026) only when a TEXT is going: email waits for nobody.
+  // A message going by both waits whole, so the text and the email arrive together.
+  if (a.audience !== "office" && !a.quietExempt && plan.channels.includes("sms")) {
     const q = parseQuietHours(cfg?.quietHours);
     if (!withinSendingHours(now, q)) {
       const releaseAt = nextSendingOpen(now, q);

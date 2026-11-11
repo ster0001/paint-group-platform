@@ -45,3 +45,30 @@ describe("normalisePhoneAU", () => {
     expect(normalisePhoneAU("123")).toBeNull();
   });
 });
+
+describe("default-off automations (ruling A‑D)", async () => {
+  const { automationOn, switchAutomation } = await import("./config");
+  const { AUTOMATIONS } = await import("@/lib/automations/registry");
+  it("a default-off key is off until the office switches it on; disabled always wins", () => {
+    expect(automationOn({ disabled: [] }, "new_key", true)).toBe(false);
+    expect(automationOn({ disabled: [], enabled: ["new_key"] }, "new_key", true)).toBe(true);
+    expect(automationOn({ disabled: ["new_key"], enabled: ["new_key"] }, "new_key", true)).toBe(false);
+    expect(automationOn(null, "new_key", true)).toBe(false);
+  });
+  it("an existing key keeps its shipped state: on unless disabled", () => {
+    expect(automationOn({ disabled: [] }, "old_key", false)).toBe(true);
+    expect(automationOn({ disabled: ["old_key"] }, "old_key", false)).toBe(false);
+  });
+  it("the switch writes both lists so on and off round-trip", () => {
+    const on = switchAutomation({ disabled: ["new_key"], enabled: [] }, "new_key", true, true);
+    expect(on).toEqual({ disabled: [], enabled: ["new_key"] });
+    expect(automationOn(on, "new_key", true)).toBe(true);
+    const off = switchAutomation(on, "new_key", false, true);
+    expect(off).toEqual({ disabled: ["new_key"], enabled: [] });
+    expect(automationOn(off, "new_key", true)).toBe(false);
+    expect(switchAutomation({ disabled: ["old_key"] }, "old_key", true, false)).toEqual({ disabled: [], enabled: [] });
+  });
+  it("every key shipped before the automations brief stays as it was (none default-off yet)", () => {
+    expect(AUTOMATIONS.filter((a) => a.defaultOff).map((a) => a.key)).toEqual([]);
+  });
+});

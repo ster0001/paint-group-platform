@@ -23,31 +23,32 @@ test("D3: a chosen channel with no contact detail falls back and says so", () =>
   assert.deepEqual(planChannels("sms", ["email"], { email: "a@b.c", phone: "+61400000000" }), { channels: ["email"], fallback: "No mobile on file — sent by email instead." }, "text is not supported → email");
 });
 
-test("D1 quiet hours: weekdays 8–7, Saturday 9–5, Sunday closed — Melbourne clock", () => {
+test("A‑N quiet hours: texts 8am–8pm every day, Sunday included — Melbourne clock", () => {
   // Wed 16 Sep 2026 (AEST, +10)
   assert.equal(withinSendingHours(melbourneInstant(2026, 9, 16, 7, 59)), false);
   assert.equal(withinSendingHours(melbourneInstant(2026, 9, 16, 8, 0)), true);
-  assert.equal(withinSendingHours(melbourneInstant(2026, 9, 16, 18, 59)), true);
-  assert.equal(withinSendingHours(melbourneInstant(2026, 9, 16, 19, 0)), false);
-  // Sat 19 Sep
-  assert.equal(withinSendingHours(melbourneInstant(2026, 9, 19, 8, 30)), false);
-  assert.equal(withinSendingHours(melbourneInstant(2026, 9, 19, 12, 0)), true);
-  // Sun 20 Sep — never
-  assert.equal(withinSendingHours(melbourneInstant(2026, 9, 20, 12, 0)), false);
+  assert.equal(withinSendingHours(melbourneInstant(2026, 9, 16, 19, 59)), true);
+  assert.equal(withinSendingHours(melbourneInstant(2026, 9, 16, 20, 0)), false);
+  // Sat 19 Sep and Sun 20 Sep — the same window
+  assert.equal(withinSendingHours(melbourneInstant(2026, 9, 19, 8, 30)), true);
+  assert.equal(withinSendingHours(melbourneInstant(2026, 9, 20, 12, 0)), true);
+  assert.equal(withinSendingHours(melbourneInstant(2026, 9, 20, 21, 0)), false);
 });
 
-test("a held message is released at the next opening, across the weekend and the DST change", () => {
+test("a held text is released at the next opening, and across the DST change", () => {
   // Wed 16 Sep 21:00 → Thu 17 Sep 08:00
   assert.equal(nextSendingOpen(melbourneInstant(2026, 9, 16, 21)).getTime(), melbourneInstant(2026, 9, 17, 8).getTime());
-  // Sat 19 Sep 18:00 → Mon 21 Sep 08:00 (Sunday skipped)
-  assert.equal(nextSendingOpen(melbourneInstant(2026, 9, 19, 18)).getTime(), melbourneInstant(2026, 9, 21, 8).getTime());
+  // Sat 19 Sep 21:00 → Sun 20 Sep 08:00 (Sunday is open now)
+  assert.equal(nextSendingOpen(melbourneInstant(2026, 9, 19, 21)).getTime(), melbourneInstant(2026, 9, 20, 8).getTime());
   // Inside the window: unchanged
   const inside = melbourneInstant(2026, 9, 16, 10);
   assert.equal(nextSendingOpen(inside).getTime(), inside.getTime());
-  // DST starts Sun 4 Oct 2026: Sat 3 Oct 20:00 (+10) → Mon 5 Oct 08:00 (+11). 8am Melbourne is 21:00Z, not 22:00Z.
-  const mon = nextSendingOpen(melbourneInstant(2026, 10, 3, 20));
-  assert.equal(mon.toISOString(), "2026-10-04T21:00:00.000Z");
-  // A Sunday-only-closed config with everything else null cannot spin.
+  // DST starts Sun 4 Oct 2026: Sat 3 Oct 21:00 (+10) → Sun 4 Oct 08:00 (+11) = 3 Oct 21:00Z.
+  assert.equal(nextSendingOpen(melbourneInstant(2026, 10, 3, 21)).toISOString(), "2026-10-03T21:00:00.000Z");
+  // An office that closes Sunday still skips it: Sat 21:00 → Mon 08:00.
+  const noSunday = parseQuietHours({ weekday: [8, 20], saturday: [8, 20], sunday: null });
+  assert.equal(nextSendingOpen(melbourneInstant(2026, 9, 19, 21), noSunday).getTime(), melbourneInstant(2026, 9, 21, 8).getTime());
+  // An all-closed config cannot spin.
   const allClosed = parseQuietHours({ weekday: null, saturday: null, sunday: null });
   const at = melbourneInstant(2026, 9, 16, 10);
   assert.equal(nextSendingOpen(at, allClosed).getTime(), at.getTime());
@@ -55,7 +56,7 @@ test("a held message is released at the next opening, across the weekend and the
 
 test("stored quiet hours are read defensively", () => {
   assert.deepEqual(parseQuietHours(null), DEFAULT_QUIET_HOURS);
-  assert.deepEqual(parseQuietHours({ weekday: [9, 17], saturday: "nope", sunday: null }), { weekday: [9, 17], saturday: [9, 17], sunday: null });
+  assert.deepEqual(parseQuietHours({ weekday: [9, 17], saturday: "nope", sunday: null }), { weekday: [9, 17], saturday: [8, 20], sunday: null });
   assert.deepEqual(parseQuietHours({ weekday: [19, 8] }), DEFAULT_QUIET_HOURS, "open after close is ignored");
 });
 
