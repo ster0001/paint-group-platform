@@ -12,6 +12,7 @@ import {
   suppressQuiet,
   type DelayedAccountRow,
   buildQuietQuoteItems, type QuietQuoteRow, estimatesPageItems, buildHoursPendingItems, answeredByAcceptance,
+  buildEstimateAfterVisitItems, type VisitDoneRow, GROUP_OF_KIND,
 } from "./work-queue";
 
 /** Mid-afternoon Melbourne, mid-week. Every test pins its own clock. */
@@ -493,5 +494,37 @@ describe("hours_to_confirm — a handover job with no per-area hours (16 Sep)", 
     expect(item.action?.href).toBe("/quote?id=e9");
     expect(buildHoursPendingItems([{ ...row, external_ref: { quote_no: "3701", hours_pending: false } }], NOW)).toHaveLength(0);
     expect(buildHoursPendingItems([{ ...row, external_ref: null }], NOW)).toHaveLength(0);
+  });
+});
+
+describe("estimate_after_visit — visit done, estimate not sent (Estimates tab session 2, master plan C1)", () => {
+  const now = new Date("2026-11-11T02:00:00Z");
+  const visit = (over: Partial<VisitDoneRow> = {}): VisitDoneRow => ({
+    id: "v1", account_id: "a1", estimate_id: null, starts_at: "2026-11-09T23:00:00Z", outcome_at: "2026-11-10T00:30:00Z",
+    customer_name: "Sam Lee", address: "4 Elm St", ...over,
+  });
+  it("a done visit with nothing sent since is an item, due two days after it", () => {
+    const [item] = buildEstimateAfterVisitItems([visit()], [], now);
+    expect(item.kind).toBe("estimate_after_visit");
+    expect(item.title).toBe("Sam Lee — visit done, estimate not sent");
+    expect(item.dueAt).toBe("2026-11-12T00:30:00.000Z");
+    expect(item.subjectRef).toEqual({ type: "visit", id: "v1" });
+    expect(item.key).toBe("estimate_after_visit:visit:v1:send");
+  });
+  it("any estimate sent to that customer after the visit clears it; one sent before does not", () => {
+    expect(buildEstimateAfterVisitItems([visit()], [{ id: "e9", account_id: "a1", sent_at: "2026-11-10T05:00:00Z", total_cents: 1 }], now)).toEqual([]);
+    expect(buildEstimateAfterVisitItems([visit()], [{ id: "e9", account_id: "a1", sent_at: "2026-11-01T05:00:00Z", total_cents: 1 }], now)).toHaveLength(1);
+  });
+  it("the visit's own estimate is the subject and the value, and sending it clears the item", () => {
+    const own = { id: "e1", account_id: null, sent_at: null, total_cents: 820_000 };
+    const [item] = buildEstimateAfterVisitItems([visit({ account_id: null, estimate_id: "e1" })], [own], now);
+    expect(item.subjectRef).toEqual({ type: "estimate", id: "e1" });
+    expect(item.valueCents).toBe(820_000);
+    expect(item.action.href).toBe("/quote?id=e1");
+    expect(buildEstimateAfterVisitItems([visit({ account_id: null, estimate_id: "e1" })], [{ ...own, sent_at: "2026-11-10T03:00:00Z" }], now)).toEqual([]);
+  });
+  it("it sits in the follow-ups chip and the customer can see it going unanswered", () => {
+    expect(GROUP_OF_KIND.estimate_after_visit).toBe("followups");
+    expect(isCustomerVisible("estimate_after_visit")).toBe(true);
   });
 });

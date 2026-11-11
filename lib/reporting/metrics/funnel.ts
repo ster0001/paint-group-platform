@@ -217,3 +217,104 @@ export function buildWizardRates(input: MetricInput, range: Range, brand: "paint
     contact_opened: contactOpened, contact_booked: contactBooked, contact_booked_pct: pct(contactBooked, contactOpened),
   };
 }
+
+
+// ---- Estimates tab & funnel, session 2 — step conversion and price bands (master plan §3.3, R7) ----
+
+/**
+ * One wizard event as the Funnel view reads it. `session_id` is the wizard
+ * draft — `crm_events.wizard_draft_id` from session 1, or `payload.sessionId`
+ * on older rows; the loader decides, these functions only count.
+ */
+export type FunnelEventRow = {
+  type: string; session_id: string | null; step: string | null;
+  range_low: number | null; range_high: number | null; occurred_at: string;
+};
+
+/** What the Funnel view reads from the log (session 5 wires the loader). */
+export const FUNNEL_EVENT_TYPES = [
+  "wizard_step_viewed", "wizard_step_completed", "gate_viewed",
+  "gate_cta_clicked", "quote_stage_viewed", "visit_request_made", "visit_booked", "visit_booked_from_wizard",
+  "callback_requested", "customer_message_sent", "wizard_help_requested",
+] as const;
+
+/** Anything a customer does with their range: the "took an action" side of R7. */
+const RANGE_ACTIONS: ReadonlySet<string> = new Set([
+  "gate_cta_clicked", "quote_stage_viewed", "visit_request_made", "visit_booked", "visit_booked_from_wizard",
+  "callback_requested", "customer_message_sent", "wizard_help_requested",
+]);
+
+export type StepConversion = {
+  step: string;
+  /** Sessions that saw the step. */
+  viewed: number;
+  /** …of which left it forward. */
+  completed: number;
+  completed_pct: number | null;
+  /** Saw it and never completed it — where they stopped. */
+  stopped: number;
+};
+
+/**
+ * Step by step, in SESSIONS: how many saw each step and how many went on.
+ * Steps come in `order` when the caller has one (a job type's own list);
+ * otherwise by how many sessions saw them, most first, which is the walk's
+ * order for every step a session cannot skip.
+ */
+export function buildStepConversion(rows: readonly FunnelEventRow[], range: Range, order?: readonly string[]): StepConversion[] {
+  const viewed = new Map<string, Set<string>>();
+  const completed = new Map<string, Set<string>>();
+  for (const r of rows) {
+    if (!r.session_id || !r.step || !inRange(r.occurred_at, range)) continue;
+    const into = r.type === "wizard_step_viewed" ? viewed : r.type === "wizard_step_completed" ? completed : null;
+    if (!into) continue;
+    if (!into.has(r.step)) into.set(r.step, new Set());
+    into.get(r.step)!.add(r.session_id);
+  }
+  const steps = order ? order.filter((s) => viewed.has(s)) : [...viewed.keys()].sort((a, b) => viewed.get(b)!.size - viewed.get(a)!.size || a.localeCompare(b));
+  return steps.map((step) => {
+    const saw = viewed.get(step)!;
+    const went = [...(completed.get(step) ?? [])].filter((s) => saw.has(s)).length;
+    return { step, viewed: saw.size, completed: went, completed_pct: saw.size ? Math.round((went / saw.size) * 100) : null, stopped: saw.size - went };
+  });
+}
+
+/** R7's price bands, in cents inc. GST (⚑3 default, Settings-editable in session 5). The last band is open-ended. */
+export const PRICE_BANDS_CENTS = [200_000, 400_000, 600_000, 900_000, 1_200_000, 1_800_000] as const;
+
+export type PriceBandRow = { band: string; low_cents: number; saw_range: number; took_action: number; dropped_pct: number | null };
+
+const bandLabel = (lo: number, hi: number | null): string => {
+  const k = (c: number) => `$${c / 100_000}k`;
+  return hi == null ? `${k(lo)}+` : lo === 0 ? `Under ${k(hi)}` : `${k(lo)}–${k(hi).slice(1)}`;
+};
+
+/**
+ * Drop-out by price band (R7): per band, the sessions that saw their range
+ * and the ones that then did anything with it. A session is banded by the
+ * middle of the FIRST range it saw, so a later tighten does not move it.
+ * Under the first band is its own row, never folded into $2–4k.
+ */
+export function buildPriceBandDropout(rows: readonly FunnelEventRow[], range: Range, bands: readonly number[] = PRICE_BANDS_CENTS): PriceBandRow[] {
+  const firstRange = new Map<string, { at: string; mid: number }>();
+  const acted = new Map<string, string[]>();
+  for (const r of rows) {
+    if (!r.session_id) continue;
+    if (r.type === "gate_viewed" && r.range_low != null && r.range_high != null && inRange(r.occurred_at, range)) {
+      const seen = firstRange.get(r.session_id);
+      if (!seen || r.occurred_at < seen.at) firstRange.set(r.session_id, { at: r.occurred_at, mid: Math.round((r.range_low + r.range_high) / 2) });
+    } else if (RANGE_ACTIONS.has(r.type)) {
+      acted.set(r.session_id, [...(acted.get(r.session_id) ?? []), r.occurred_at]);
+    }
+  }
+  const edges = [0, ...bands];
+  const out: PriceBandRow[] = edges.map((lo, i) => ({ band: bandLabel(lo, edges[i + 1] ?? null), low_cents: lo, saw_range: 0, took_action: 0, dropped_pct: null }));
+  for (const [session, seen] of firstRange) {
+    let i = edges.length - 1;
+    while (i > 0 && seen.mid < edges[i]) i--;
+    out[i].saw_range++;
+    if ((acted.get(session) ?? []).some((at) => at >= seen.at)) out[i].took_action++;
+  }
+  for (const b of out) b.dropped_pct = b.saw_range ? Math.round(((b.saw_range - b.took_action) / b.saw_range) * 100) : null;
+  return out;
+}
