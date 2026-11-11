@@ -51,6 +51,7 @@ test.describe("Nothing ticked in 3 days on PC Command", () => {
   });
 
   test.afterAll(async () => {
+    if (crossJob) await db!.from("wo_variations").delete().eq("work_order_id", crossJob.workOrderId);
     if (contractorId && phoneBefore !== undefined) await db!.from("contractors").update({ phone: phoneBefore }).eq("id", contractorId);
     await destroyLoopFixture(db!, crossJob);
     await destroyLoopFixture(db!, textJob);
@@ -95,5 +96,31 @@ test.describe("Nothing ticked in 3 days on PC Command", () => {
     await page.goto("/pc");
     await expect(page.locator("h1")).toBeVisible({ timeout: 20_000 });
     await expect(page.getByTestId(`card-${key}`)).toHaveCount(0);
+  });
+
+  // Tom, 12 Nov 2026: "the extra scope items also need an x to be able to be
+  // closed off". The row leaves the list for good; the variation is untouched.
+  test("an Extra scope row on Variations for approval closes off with its ✕", async ({ page }) => {
+    const v = await db!.from("wo_variations").insert({
+      work_order_id: crossJob!.workOrderId, category: "extra_scope",
+      comment: "Paint the shed too", est_hours: 2, status: "raised",
+    }).select("id").single();
+    if (v.error) throw v.error;
+    const id = (v.data as { id: string }).id;
+
+    await signIn(page, staff!, /\/(home|estimates)/);
+    await page.goto("/pc");
+    const row = page.getByTestId(`variation-approval-${id}`);
+    await expect(row).toBeVisible({ timeout: 20_000 });
+    await expect(row).toContainText("Extra scope");
+    await row.getByTestId(`dismiss-variation-approval:${id}`).click();
+    await expect(row).toHaveCount(0, { timeout: 20_000 });
+
+    await page.goto("/pc");
+    await expect(page.locator("h1")).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByTestId(`variation-approval-${id}`)).toHaveCount(0);
+    const { data, error } = await db!.from("wo_variations").select("status").eq("id", id).single();
+    if (error) throw error;
+    expect((data as { status: string }).status).toBe("raised");
   });
 });

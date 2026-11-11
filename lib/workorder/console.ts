@@ -603,11 +603,18 @@ export type VariationForApproval = {
 };
 
 
+/** The dismissal key of one row on Variations for approval. */
+export const variationApprovalKey = (variationId: string): string => `variation-approval:${variationId}`;
+
 export function variationsForApproval(input: ConsoleInput): VariationForApproval[] {
   const byId = new Map(input.workOrders.map((w) => [w.id, w]));
   const rows: VariationForApproval[] = [];
+  // Tom, 12 Nov 2026: a row closed off with its ✕ stays off this list. The
+  // variation itself is untouched; it is still on the job page.
+  const dismissed = new Set(input.dismissedKeys ?? []);
   for (const v of input.variations) {
     if (v.status !== "raised" && v.status !== "priced" && v.status !== "customer_approved") continue;
+    if (dismissed.has(variationApprovalKey(v.id))) continue;
     const w = byId.get(v.workOrderId);
     const waitingOn = v.status === "raised" ? "office" : v.status === "priced" ? "customer" : "contractor";
     rows.push({

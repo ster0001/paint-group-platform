@@ -2,7 +2,7 @@ import Link from "next/link";
 import { reportError } from "@/lib/monitoring/report";
 import { createClient } from "@/lib/supabase/server";
 import { loadConsole } from "@/lib/workorder/consoleData";
-import { buildQueue, headline, needsYouItems, pcCardSnoozeKey, pulseTiles, sparkline, variationsForApproval } from "@/lib/workorder/console";
+import { buildQueue, headline, needsYouItems, pcCardSnoozeKey, pulseTiles, sparkline, variationApprovalKey, variationsForApproval } from "@/lib/workorder/console";
 import DismissCard from "./DismissCard";
 import ReofferDialog from "./ReofferDialog";
 import BonusHandover from "./BonusHandover";
@@ -219,6 +219,8 @@ export default async function DashboardPage() {
                 {v.waitingOn === "office" && <RejectVariation variationId={v.id} />}
               </div>
               <span className="tm">{age(v.ageHours)}</span>
+              {/* Tom, 12 Nov 2026: every row closes off, extra scope included. */}
+              <DismissCard workOrderId={v.workOrderId} cardKey={variationApprovalKey(v.id)} />
               <Link className={`btn ${v.waitingOn === "office" ? "primary" : ""}`} href={v.href}
                 data-testid={`variation-approval-open-${v.id}`}>
                 {v.waitingOn === "office" ? "Price it" : "Open"}
