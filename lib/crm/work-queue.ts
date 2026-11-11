@@ -11,7 +11,7 @@ import {
 } from "@/lib/wizard/policy";
 import { sortQueue } from "@/lib/wizard/confirmation";
 import { DEFAULT_TURNAROUND_SETTING, isOverdue, turnaroundFromSettings, type TurnaroundSetting } from "@/lib/wizard/confirmation-actions";
-import { addBusinessHours, melbourneInstant, melbourneParts, nextBusinessMorning } from "@/lib/time/businessHours";
+import { CLOSE_HOUR, addBusinessHours, melbourneInstant, melbourneParts, nextBusinessMorning } from "@/lib/time/businessHours";
 import { melbourneDatePlus, nextYearHolidaysMissing } from "@/lib/time/workingDays";
 import { mergeBookingRules } from "@/lib/visits/schedule";
 import { customerCheckins, dayLabel, jobDays } from "@/lib/workorder/jobRhythm";
@@ -618,7 +618,7 @@ export function buildJobCheckinItems(rows: readonly JobCheckinRow[], now: Date):
       } else {
         // After the job: once its last booked day has passed (or it closed).
         if (w.stage !== "closed" && today <= c.date) continue;
-        const due = nextBusinessMorning(melbInstant(c.date, 17));
+        const due = nextBusinessMorning(melbInstant(c.date, CLOSE_HOUR));
         if (now.getTime() - due.getTime() > 10 * 86_400_000) continue;   // ten days, then it is history
         items.push(finish({
           key: itemKey("job_followup", "work_order", w.id, c.id),

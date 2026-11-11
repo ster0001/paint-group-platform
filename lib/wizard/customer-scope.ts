@@ -32,6 +32,7 @@ import { holdDaysFromSettings } from "@/lib/wizard/confirmation-actions";
 import { resolveEstimator, type Estimator } from "@/lib/wizard/estimator";
 import { estimateDocuments, type EstimateDocuments } from "@/lib/wizard/documents";
 import { exteriorAddOptions, interiorAddOptions, type AddOption } from "@/lib/wizard/add-catalogue";
+import { PHONE_HOURS_LINE } from "@/lib/messaging/officeHours";
 import { paintSystemsView, type PaintSystemLine } from "@/lib/wizard/systems-view";
 import { roomExtrasView } from "@/lib/wizard/room-extras";
 import { asksLift, type SiteAccess } from "@/lib/wizard/site-access";
@@ -41,10 +42,11 @@ import { PAINT_SYSTEMS_KEY, conditionBandFromDamageTier, paintSystemsFrom } from
 /**
  * What the customer is told about our phone lines when Settings → Company
  * details has not set `phoneHours` (Tom, 8 Sep 2026: "it needs to be clear
- * that our lines are open from 08:30-16:30"). A licensee overrides it in
- * Settings rather than in this file.
+ * that our lines are open from 08:30-16:30"); since 12 Nov 2026 the office
+ * hours themselves (lib/time/businessHours, 8am to 5pm). A licensee
+ * overrides it in Settings rather than in this file.
  */
-export const DEFAULT_PHONE_HOURS = "8:30am \u2013 4:30pm, Monday to Friday";
+export const DEFAULT_PHONE_HOURS = PHONE_HOURS_LINE;
 
 export type EstimateRow = {
   id: string; status: string; source?: string | null; created_by?: string | null;
@@ -195,7 +197,8 @@ export async function loadCustomerScope(db: SupabaseClient, estimate: EstimateRo
   const companyPhone = profile.phone?.trim() || null;
   // Tom, 8 Sep: "it needs to be clear that our lines are open from
   // 08:30-16:30" — Settings → Company details owns the wording, and the
-  // constant is what a licensee sees before they set their own.
+  // constant (the office hours, 8am to 5pm since 12 Nov) is what a licensee
+  // sees before they set their own.
   const phoneHours = profile.phoneHours?.trim() || DEFAULT_PHONE_HOURS;
   // Tom, 8 Sep: a call-back form must not ask again for a number the
   // customer already typed on the contact page — it arrives filled in and

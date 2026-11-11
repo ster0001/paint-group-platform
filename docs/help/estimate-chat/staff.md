@@ -11,7 +11,7 @@ Customers write on the chat on their estimate (Ask a question, Chat with us in t
 ## Before you start
 - **Who gets the alert:** Settings → Staff logins → each person's notifications → tick **Customer chat message** for email, text or both. With nobody ticked, the office address (Settings → Automations → the alert's "Send to") is emailed so a message is never silent.
 - **The alert itself:** Settings → Automations → **Customer wrote on the estimate chat** — on/off, Text/Email/Both, and the wording (placeholders `{{customer}}`, `{{job}}`, `{{message}}`, `{{hours_tag}}`, `{{hours_line}}`, `{{link}}`). Out of hours the subject carries *(after hours)*.
-- **Office hours** shown to the customer are Monday to Friday, 8:30am to 4:30pm Melbourne. They are fixed in the code, not a setting.
+- **Office hours** shown to the customer are Monday to Friday, 8am to 5pm Melbourne (since 12 Nov 2026). They are fixed in the code, not a setting, and they are the same hours every "business hours" and "working day" due time on the Work queue counts in.
 
 ## Steps
 1. A customer sends a message. The dock in the bottom-left corner of every staff page pops open, chimes, and lists the estimate as **Estimate chat · Waiting** with the customer's name, the job address and their last line.

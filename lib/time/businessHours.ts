@@ -6,7 +6,12 @@
  */
 
 const TZ = "Australia/Melbourne";
-export const OPEN_HOUR = 9;
+/**
+ * THE office hours (Tom, 12 Nov 2026: "8–5, as the brief" — Mon–Fri
+ * 08:00–17:00). The customer chat note, the phone-lines default, every
+ * business-hours due time and the end of a working day all read these two.
+ */
+export const OPEN_HOUR = 8;
 export const CLOSE_HOUR = 17;
 
 const fmt = new Intl.DateTimeFormat("en-AU", {
@@ -51,7 +56,7 @@ const isBusinessDay = (p: Parts, holidays: ReadonlySet<string>) => p.weekday >= 
 export function nextOpen(at: Date, holidays: ReadonlySet<string> = NO_HOLIDAYS): Date {
   const p = melbourneParts(at);
   if (isBusinessDay(p, holidays) && p.h >= OPEN_HOUR && p.h < CLOSE_HOUR) return at;
-  // Same day before opening, or roll to the next business day at 9:00.
+  // Same day before opening, or roll to the next business day at opening.
   let day = melbourneInstant(p.y, p.m, p.d, OPEN_HOUR);
   if (!(isBusinessDay(p, holidays) && p.h < OPEN_HOUR)) {
     do { day = new Date(day.getTime() + 24 * 3_600_000); day = (() => { const q = melbourneParts(day); return melbourneInstant(q.y, q.m, q.d, OPEN_HOUR); })(); }
@@ -60,7 +65,7 @@ export function nextOpen(at: Date, holidays: ReadonlySet<string> = NO_HOLIDAYS):
   return day;
 }
 
-/** `at` + `hours` of office time (Mon–Fri 9–17, Melbourne, holidays excluded when given). */
+/** `at` + `hours` of office time (Mon–Fri OPEN_HOUR–CLOSE_HOUR, Melbourne, holidays excluded when given). */
 export function addBusinessHours(at: Date, hours: number, holidays: ReadonlySet<string> = NO_HOLIDAYS): Date {
   let remaining = hours * 3_600_000;
   let cur = nextOpen(at, holidays);
@@ -75,7 +80,7 @@ export function addBusinessHours(at: Date, hours: number, holidays: ReadonlySet<
   return cur;
 }
 
-/** 9:00 on the next business day strictly after `at`'s Melbourne day. */
+/** Opening time on the next business day strictly after `at`'s Melbourne day. */
 export function nextBusinessMorning(at: Date, holidays: ReadonlySet<string> = NO_HOLIDAYS): Date {
   const p = melbourneParts(at);
   let day = melbourneInstant(p.y, p.m, p.d, OPEN_HOUR);

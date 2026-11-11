@@ -114,7 +114,7 @@ test.describe("Ask a question opens the chat pop-up; the staff dock never leaves
   });
 
   test("out of hours (a Sunday), a sent message is answered with the office-hours note", async ({ page }) => {
-    // The browser's clock decides the note (the same Mon–Fri 08:30–16:30 Melbourne rule the server tags the alert with).
+    // The browser's clock decides the note (the same Mon–Fri 08:00–17:00 Melbourne rule the server tags the alert with).
     await page.clock.setFixedTime(new Date("2026-09-20T02:00:00Z")); // Sunday 12:00 AEST
     await page.goto(`/e/${token}`);
     await expect(page.locator("details.room").first()).toBeVisible();
@@ -127,7 +127,20 @@ test.describe("Ask a question opens the chat pop-up; the staff dock never leaves
     const note = pop.getByTestId("chat-after-hours");
     await expect(note).toBeVisible();
     await expect(note).toContainText("we've received your message");
-    await expect(note).toContainText("Monday to Friday, 8:30am to 4:30pm");
+    await expect(note).toContainText("Monday to Friday, 8am to 5pm");
+  });
+
+  test("8:15 on a Monday is office hours now (Tom, 12 Nov 2026: 8 to 5) — no after-hours note", async ({ page }) => {
+    // Before 12 Nov the office opened at 8:30 and this message got the closed note.
+    await page.clock.setFixedTime(new Date("2026-09-20T22:15:00Z")); // Monday 21 Sep 08:15 AEST
+    await page.goto(`/e/${token}`);
+    await expect(page.locator("details.room").first()).toBeVisible();
+    await page.getByTestId("ask-a-question").click();
+    const pop = page.getByTestId("chat-pop");
+    await pop.getByPlaceholder("Type your message…").fill(`Early Monday question ${run}`);
+    await pop.getByRole("button", { name: "Send message" }).click();
+    await expect(pop.locator(".chatrow.mine .chatbody").last()).toContainText(`Early Monday question ${run}`);
+    await expect(pop.getByTestId("chat-after-hours")).toHaveCount(0);
   });
 
   test("staff: the customer's chat is a Waiting row in the dock; a reply from there lands on the customer's thread", async ({ page, browser }) => {
