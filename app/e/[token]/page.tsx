@@ -7,6 +7,8 @@ import type { BankDetails, CustomerSnapshot } from "@/lib/customer/snapshot";
 import { createServiceClient } from "@/lib/supabase/service";
 import CustomerEstimate, { type CustomerChanges, type EstimateRow } from "./CustomerEstimate";
 import ProgressSection from "./ProgressSection";
+import LeadRange from "./LeadRange";
+import { parseLeadSnapshot } from "@/lib/estimate/leadSnapshot";
 import { loadProgressContext } from "@/lib/progress-preview/context";
 import { toEstimateSignature, type EstimateSignature } from "@/lib/estimate/signature";
 import { reportError } from "@/lib/monitoring/report";
@@ -30,6 +32,9 @@ export default async function Page({
   const { data, error } = await supabase.rpc("get_estimate_by_token", { p_token: token });
   const row = (Array.isArray(data) ? data[0] : data) as EstimateRow | undefined;
 
+  // Automations A‑F: no SENT estimate on this token — a lead's page, when the
+  // wizard kept their range as a snapshot. Anything else is still a 404.
+  if (!error && !row) return renderLead(supabase, token);
   if (error || !row || !row.snapshot) notFound();
   // extra guard: never render anything that isn't a valid customer snapshot
   const snap0 = row.snapshot as Partial<CustomerSnapshot>;
@@ -102,6 +107,29 @@ export default async function Page({
       signature={signature}
     />
   );
+}
+
+async function renderLead(supabase: Awaited<ReturnType<typeof createClient>>, token: string) {
+  const { data, error } = await supabase.rpc("get_lead_by_token", { p_token: token });
+  if (error) reportError(error, { where: "lead.byToken" });
+  const lead = (Array.isArray(data) ? data[0] : data) as { snapshot?: unknown } | undefined;
+  const snapshot = parseLeadSnapshot(lead?.snapshot);
+  if (error || !snapshot) notFound();
+  const brand = await estimateBrandByToken(token);
+  const co = companyForBrand(await loadLeadCompany(), brand);
+  return <LeadRange snapshot={snapshot} token={token} company={{ name: co.name, phone: co.phone, logoUrl: co.logoUrlLight || co.logoUrl }} />;
+}
+
+/** The company block for a lead's page (`settings` is staff-only: one service read of the one row). Falls back to the name alone. */
+async function loadLeadCompany(): Promise<{ name: string; phone: string; logoUrl: string; logoUrlLight: string }> {
+  const fallback = { name: "Paint Group", phone: "", logoUrl: "", logoUrlLight: "" };
+  const service = createServiceClient();
+  if (!service) return fallback;
+  const { data, error } = await service.from("settings").select("value").eq("key", "company_profile").maybeSingle();
+  if (error) { reportError(error, { where: "lead.company", bestEffort: true }); return fallback; }
+  const v = ((data as { value?: Record<string, unknown> } | null)?.value ?? {}) as Record<string, unknown>;
+  const str = (k: string) => (typeof v[k] === "string" ? (v[k] as string).trim() : "");
+  return { name: str("name") || fallback.name, phone: str("phone"), logoUrl: str("logoUrl"), logoUrlLight: str("logoUrlLight") };
 }
 
 async function loadBankDetails(): Promise<BankDetails | null> {

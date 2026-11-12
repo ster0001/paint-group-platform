@@ -576,6 +576,28 @@
       "sources": []
     },
     {
+      "feature": "lead-page",
+      "role": "customer",
+      "title": "Your price range page — come back to your range and ask us anything",
+      "summary": "Once you have seen your price range online, the link we send you opens a page with that range, the address and a chat with our office; it shows the range as you saw it, and your messages reach us straight away.",
+      "path": "docs/help/lead-page/customer.md",
+      "walkthrough": null,
+      "media": [],
+      "verified_at_commit": null,
+      "sources": []
+    },
+    {
+      "feature": "lead-page",
+      "role": "staff",
+      "title": "A wizard lead's page — their range and the chat, before you've sent an estimate",
+      "summary": "Every customer who sees a range in the online wizard now has a page at the estimate's link showing that range as a snapshot and the estimate chat; their messages reach the chat dock like any estimate chat, and your reply texts and emails them a link back to the page.",
+      "path": "docs/help/lead-page/staff.md",
+      "walkthrough": null,
+      "media": [],
+      "verified_at_commit": null,
+      "sources": []
+    },
+    {
       "feature": "live-progress",
       "role": "customer",
       "title": "The live-updates demo on your estimate — an example of the updates you'll get while we paint",

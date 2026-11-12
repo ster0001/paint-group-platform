@@ -4,6 +4,8 @@ import { loadExteriorTypicals } from "@/lib/wizard/exterior-typicals-db";
 import { parseAddressText } from "@/lib/wizard/addressText";
 import { DEFAULT_BOOKING_RULES, speakWithUsFor } from "@/lib/visits/schedule";
 import { paintHomeTier } from "@/lib/wizard/brand";
+import { buildLeadSnapshot } from "@/lib/estimate/leadSnapshot";
+import { recordLeadSnapshot } from "@/lib/estimate/leadRecord";
 import { loadBookingRules } from "@/lib/visits/scheduleDb";
 import { z } from "zod";
 import { attributionSchema } from "@/lib/crm/attribution";
@@ -1124,6 +1126,21 @@ export async function POST(request: Request) {
       : null;
     await db.from("estimates").update({ builder_state: { ...builderState, guideRange: { loCents: cp.rangeLoCents, hiCents: cp.rangeHiCents, jobType: effectiveState.jobType } } }).eq("id", estimateId)
       .then((r) => { if (r.error) reportError(r.error, { where: "wizard.submit.guideRange", bestEffort: true }); });
+    // Automations A‑F (Tom, 11 Nov 2026): the range just priced, kept as the lead's
+    // SNAPSHOT on the draft, with a share token — /e/[token] renders it with the
+    // chat before any estimate is sent. Best-effort: the range on screen never waits on it.
+    if (actor.kind === "customer") {
+      const leadSnap = buildLeadSnapshot({
+        rangeLoCents: cp.rangeLoCents, rangeHiCents: cp.rangeHiCents, parts: cp.parts ?? null,
+        jobType: effectiveState.jobType, contactName: state.contact.name,
+        address: state.address?.formatted || [streetLine, state.customer?.suburb, state.customer?.postcode].filter(Boolean).join(", "),
+        biggerJob: paintHome?.tier === "visit", now: new Date(),
+      });
+      if (leadSnap) {
+        const kept = await recordLeadSnapshot(db, estimateId, leadSnap);
+        if (kept.error) reportError(new Error(kept.error), { where: "wizard.submit.leadSnapshot", bestEffort: true, extra: { estimateId } });
+      }
+    }
     // A website chat this visitor opened before the range ("Send a message", R3)
     // now belongs with the estimate, so staff see one conversation per customer.
     await db.from("agent_conversations").update({ estimate_id: estimateId }).eq("created_by", actor.user.id).is("estimate_id", null)
