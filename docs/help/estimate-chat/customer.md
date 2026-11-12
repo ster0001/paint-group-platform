@@ -17,6 +17,7 @@ Nothing. The chat works on the link we sent you, signed in or not.
 3. Type your message and press **Send message**. It appears as your bubble.
 4. Out of office hours you see a note: *Thanks — we've received your message. Our office hours are Monday to Friday, 8am to 5pm; we'll get back to you as soon as we're open.*
 5. When we reply you get a text and an email with a link; opening it brings the chat back up with our answer. Press × to close the box any time; your messages stay.
+6. You can also just reply to our email or our text. Since 12 Nov 2026 your reply lands in this same chat, as your bubble, so the whole conversation is in one place (an email reply shows your words, without the earlier messages quoted under them).
 
 ## What the labels mean
 - **You** — your messages, on the right.

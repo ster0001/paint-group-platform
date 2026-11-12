@@ -19,6 +19,7 @@ Customers write on the chat on their estimate (Ask a question, Chat with us in t
 3. Type in **Reply to the customer…** and press **Send**. The reply is posted on the thread and the customer is texted and emailed a link that reopens their chat (the *Reply on the estimate chat* automation, same as replying from the builder).
 4. Or reply from the estimate itself: the builder's messages panel works exactly as before.
 5. Or reply to the alert email from your mailbox. When the reply domain is set up (Settings → Company, the `reply+…` address on outgoing mail), an emailed reply from a staff address is posted on the chat as your reply and the customer is notified the same way. Only the text above the quoted email is posted.
+6. **Replies by email and text join the chat (since 12 Nov 2026).** When a customer answers one of our emails about their estimate (any email with the `reply+…` address), or texts back within 30 days of a text we sent them about it, their words are posted on that estimate's chat as their message and show in the dock as Waiting. The email or text itself is still in the CRM's Messages, once, and an emailed reply is still copied to the office mailbox. A text that answers nothing we sent about an estimate stays in Messages only. Replying to the chat alert from your mailbox posts your reply on the chat (this had not worked before 12 Nov: the lookup behind it always failed).
 
 ## What the colours and labels mean
 - **Waiting** (amber) — the customer's last line has no reply yet.
