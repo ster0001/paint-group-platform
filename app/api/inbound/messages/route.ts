@@ -9,6 +9,7 @@ import { forwardEmail } from "@/lib/messaging/send";
 import { loadMessaging } from "@/lib/messaging/load";
 import { postStaffChatReply, stripQuotedReply } from "@/lib/estimates/chatReply";
 import { forwardedOrigin } from "@/lib/messaging/forwarded";
+import { answersCustomerMessage, postReplyIntoChat } from "@/lib/estimates/replyIntoChat";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -71,13 +72,17 @@ export async function POST(req: Request) {
   let estimateId: string | null = null;
   let parentKind: string | null = null;
   if (token) {
-    const { data: parent } = await db.from("messages").select("id, account_id, thread_id, estimate_id, kind").eq("reply_token", token).maybeSingle();
+    // 12 Nov 2026 (A‑G): `kind` lives in meta (lib/messaging/record.ts) — there is
+    // no kind column, and selecting one failed every lookup while the error was
+    // dropped, so a reply never found its thread, customer or estimate.
+    const { data: parent, error: parentErr } = await db.from("messages").select("id, account_id, thread_id, estimate_id, meta").eq("reply_token", token).maybeSingle();
+    if (parentErr) reportError(parentErr, { where: "inboundMessages.parent", extra: { token } });
     if (parent) {
-      const p = parent as { id: string; account_id: string | null; thread_id: string | null; estimate_id: string | null; kind: string | null };
+      const p = parent as { id: string; account_id: string | null; thread_id: string | null; estimate_id: string | null; meta: { kind?: unknown } | null };
       accountId = p.account_id;
       threadId = p.thread_id ?? p.id;
       estimateId = p.estimate_id;
-      parentKind = p.kind;
+      parentKind = typeof p.meta?.kind === "string" ? p.meta.kind : null;
     }
   }
 
@@ -121,9 +126,15 @@ export async function POST(req: Request) {
       fromAddress: email.fromEmail, toAddress: firstTo(json), accountId, threadId, estimateId,
       kind: "reply", meta: { resendEmailId: email.emailId, ...(origin ? { forwardedByOffice: true, forwardedFromName: origin.fromName } : {}) },
     }, db);
+    // A‑G (Tom, 11 Nov 2026): a customer's reply to a message about an estimate
+    // goes on that estimate's chat too, so their page shows it and the office
+    // answers it in one place. Staff mail (an alert reply) never lands there.
+    const chat = id && estimateId && !fromOffice && answersCustomerMessage(parentKind)
+      ? await postReplyIntoChat(db, { estimateId, messageId: id, text: email.text, via: "email" })
+      : null;
     // A forward from the office already sits in the office mailbox.
     const forwarded = origin ? false : await relayToOffice(db, email, { accountId, messageId: id });
-    return NextResponse.json({ received: true, id, matched: accountId != null, forwarded, viaOfficeForward: Boolean(origin) });
+    return NextResponse.json({ received: true, id, matched: accountId != null, forwarded, viaOfficeForward: Boolean(origin), chat });
   } catch (e) {
     reportError(e, { where: "inboundMessages", extra: { messageId: email.messageId } });
     return new NextResponse("Storage failed.", { status: 500 });

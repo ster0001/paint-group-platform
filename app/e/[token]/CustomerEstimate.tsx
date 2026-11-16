@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { reportIfError } from "@/lib/monitoring/report";
 import { formatEstimateNumber } from "@/lib/estimate/number";
@@ -8,7 +8,7 @@ import { preparationLineFor, type CustomerSnapshot, type SnapshotPaint, allColou
 import { DEFAULT_DEPOSIT_PCT } from "@/lib/invoicing/settings";
 import PresentationBlocks from "./PresentationBlocks";
 import LiveUpdatesCard from "./LiveUpdatesCard";
-import { AFTER_HOURS_NOTE, officeOpenAt } from "@/lib/messaging/officeHours";
+import { ChatPanel, useEstimateChat } from "./EstimateChat";
 import SignaturePad from "@/app/components/SignaturePad";
 import { warrantyAttachmentLine } from "@/lib/warranty/terms";
 import "../customer.css";
@@ -154,13 +154,12 @@ export default function CustomerEstimate({
   // differently on the server and fails hydration).
   const [panel, setPanel] = useState<null | "accept" | "decline">(null);
   // Tom, 20 Sep: "Ask a question" pops the live chat up in the corner — one
-  // chat, one place, reachable from the hero, the accept panel and #chat.
-  const [chatOpen, setChatOpen] = useState(false);
-  // Tom, 20 Sep: out of hours the chat says so, once, after their message lands.
-  const [afterHours, setAfterHours] = useState(false);
-  const [thread, setThread] = useState<{ id: string; direction: "staff" | "customer"; body: string; author_name: string | null; created_at: string }[]>([]);
-  const [chatDraft, setChatDraft] = useState("");
-  const [chatBusy, setChatBusy] = useState(false);
+  // chat, one place, reachable from the hero, the accept panel and #chat
+  // (the thread itself is EstimateChat, shared with the lead's page).
+  const chat = useEstimateChat(token, interactive);
+  const chatOpen = chat.open;
+  const setChatOpen = chat.setOpen;
+  const thread = chat.thread;
   const [name, setName] = useState(snap.contactName || "");
   const [signatureData, setSignatureData] = useState<string | null>(null);
   const [signedNow, setSignedNow] = useState<EstimateSignature | null>(null);
@@ -284,73 +283,15 @@ export default function CustomerEstimate({
   }
 
   // ---- live chat (two-way) --------------------------------------------------
-  const loadThread = useCallback(async () => {
-    if (!interactive) return;
-    const supabase = createClient();
-    const { data } = await supabase.rpc("get_estimate_thread_by_token", { p_token: token });
-    setThread((data as typeof thread) ?? []);
-  }, [interactive, token]);
-
-  useEffect(() => {
-    if (!interactive) return;
-    // loadThread awaits the RPC before any setState — it's a subscribe-style
-    // fetch, not a synchronous render loop.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    loadThread();
-    if (typeof window !== "undefined" && window.location.hash === "#chat") setChatOpen(true);
-    const iv = setInterval(loadThread, 15000); // keep the conversation live
-    return () => clearInterval(iv);
-  }, [interactive, loadThread]);
-
-  async function sendMessage() {
-    const body = chatDraft.trim();
-    if (!body) return;
-    setChatBusy(true); setErr("");
-    // Through the route (Tom, 20 Sep): the message lands the same way, and
-    // the office is emailed / texted in the same breath.
-    let res: { ok?: boolean; error?: string } | null = null;
-    try {
-      const r = await fetch("/api/estimates/chat", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ token, body }) });
-      res = await r.json().catch(() => null);
-      if (!r.ok) { setChatBusy(false); setErr(res?.error || "That didn't go through — please try again."); return; }
-    } catch {
-      setChatBusy(false); setErr("That didn't go through — check the connection and try again."); return;
-    }
-    setChatBusy(false);
-    setChatDraft("");
-    if (!officeOpenAt(new Date())) setAfterHours(true);
-    await loadThread();
-  }
-
   // One chat, reused before AND after the decision — the same thread the
   // portal's Messages tab reads, so the conversation never has two homes.
   const chatUi = (
-    <div className="panelbox" id="chatbox">
-      <h3>Chat with us</h3>
-      <div className="chatthread">
-        {thread.length === 0
-          ? <p className="sub" style={{ margin: "4px 0 10px" }}>{interactive ? <>Ask us anything about your estimate. We&apos;ll reply here and let you know by text and email.</> : <>Preview: your customer asks their questions here, and the answers land in the same thread.</>}</p>
-          : thread.map((m) => (
-              <div key={m.id} className={`chatrow ${m.direction === "customer" ? "mine" : "theirs"}`}>
-                <div className="chatbubble">
-                  <div className="chatbody">{m.body}</div>
-                  <div className="chatmeta">{m.direction === "staff" ? (m.author_name || "Paint Group") : "You"} · {relTime(m.created_at)}</div>
-                </div>
-              </div>
-            ))}
-        {afterHours && <div className="chatnote" role="status" data-testid="chat-after-hours">{AFTER_HOURS_NOTE}</div>}
-      </div>
-      <label className="field">
-        <textarea
-          rows={3} value={chatDraft}
-          onChange={(e) => setChatDraft(e.target.value)}
-          onKeyDown={(e) => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) { e.preventDefault(); sendMessage(); } }}
-          placeholder="Type your message…"
-        />
-      </label>
-      <button className="btn btn-primary" onClick={sendMessage} disabled={!interactive || chatBusy || chatDraft.trim() === ""}>{chatBusy ? "Sending…" : "Send message"}</button>
-      {err && <p className="errline">{err}</p>}
-    </div>
+    <ChatPanel
+      chat={chat}
+      staffName="Paint Group"
+      relTime={relTime}
+      intro={interactive ? <>Ask us anything about your estimate. We&apos;ll reply here and let you know by text and email.</> : <>Preview: your customer asks their questions here, and the answers land in the same thread.</>}
+    />
   );
 
   const statusChip = done === "accepted"

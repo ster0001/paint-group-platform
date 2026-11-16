@@ -25,8 +25,8 @@ describe("which automations are marketing, and that every send of one carries th
   const { join } = await import("node:path");
   const marketing = AUTOMATIONS.filter((a) => a.consent === "marketing");
 
-  it("the marketing keys today: only the abandoned-wizard nudge (campaigns guard themselves)", () => {
-    expect(marketing.map((a) => a.key)).toEqual(["wizard_abandoned"]);
+  it("the marketing keys today: the abandoned-wizard nudge and the lead sequence (campaigns guard themselves)", () => {
+    expect(marketing.map((a) => a.key)).toEqual(["wizard_abandoned", "lead_range_reminder", "lead_range_nudge", "lead_range_human"]);
     expect(marketing.every((a) => a.audience === "customer")).toBe(true);
   });
 

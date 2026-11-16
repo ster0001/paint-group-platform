@@ -7,6 +7,7 @@ import { buildEvent, dedupeKey } from "@/lib/crm/events";
 import { recordMessage } from "@/lib/messaging/record";
 import { toE164Au } from "@/lib/campaigns/sms";
 import { reportError } from "@/lib/monitoring/report";
+import { estimateForSmsReply, postReplyIntoChat } from "@/lib/estimates/replyIntoChat";
 
 /**
  * Twilio's inbound-SMS webhook — the other half of "Reply STOP to opt out".
@@ -61,7 +62,7 @@ export async function POST(req: Request) {
     // P3: the text itself is a row in `messages`, matched or not — an
     // unmatched one is a Today item to attach, never a dropped reply.
     const primary = (matched[0]?.id as string | undefined) ?? null;
-    await recordMessage({
+    const messageId = await recordMessage({
       channel: "sms", direction: "in", body: String(params.Body ?? "").slice(0, 2000),
       provider: "twilio", providerMessageId: String(params.MessageSid ?? "") || null, status: "received",
       fromAddress: toE164Au(from) ?? from, toAddress: String(params.To ?? "") || null,
@@ -105,6 +106,15 @@ export async function POST(req: Request) {
 
     if (kind === "help") {
       return xml(twimlReply("Paint Group — 03 8840 9414 or info@paintgroup.com.au. Reply STOP to opt out of marketing."));
+    }
+
+    // A‑G (Tom, 11 Nov 2026): a reply to a text we sent about an estimate goes on
+    // that estimate's chat — the newest such text within the window decides which.
+    const e164 = toE164Au(from);
+    if (messageId && e164) {
+      const found = await estimateForSmsReply(db, e164);
+      if (found.error) reportError(new Error(found.error), { where: "sms.inbound.estimate", bestEffort: true });
+      if (found.estimateId) await postReplyIntoChat(db, { estimateId: found.estimateId, messageId, text: String(params.Body ?? ""), via: "sms" });
     }
 
     // An ordinary reply: put it on the timeline, answer nothing. An SMS

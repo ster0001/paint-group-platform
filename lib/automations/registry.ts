@@ -97,6 +97,7 @@ export type Automation = {
 };
 
 const P = {
+  lead: ["{{first_name}}", "{{estimator}}", "{{brand}}", "{{address}}", "{{range}}", "{{link}}"],
   paymentMessage: ["{{first_name}}", "{{amount}}", "{{address}}", "{{due_date}}", "{{start_date}}", "{{pay_link}}"],
   estimate: ["{{first_name}}", "{{name}}", "{{company_name}}", "{{estimate_title}}", "{{total}}", "{{estimator_name}}", "{{link}}"],
   preStart: ["{{first_name}}", "{{company_name}}", "{{start_date}}", "{{address}}", "{{estimate_title}}"],
@@ -1129,6 +1130,39 @@ export const AUTOMATIONS: Automation[] = [
       { field: "wizardResumeBody", label: "Email body", kind: "body", placeholders: P.wizardResume },
     ],
     note: "Never sent to a run without an email (the contact page is last), nor to a test address.",
+  },
+  // ---- Lead sequence (automations brief §4 L1–L3, built 17 Nov 2026). Ruling A‑D: all ship OFF.
+  // One sweep (lib/automations/sweeps/leadSequence.ts) derives what is due from the lead's
+  // stage and how long it has been in it, so a lead who moves on is never sent the next one.
+  {
+    key: "lead_range_reminder", name: "Lead L1 — your range is saved (text)", audience: "customer", channels: ["sms"], kind: "automatic",
+    consent: "marketing", defaultOff: true, defaultChannel: "sms", capExempt: true, sendKind: "lead_nudge",
+    trigger: "A customer saw their price range in the wizard and has done nothing since: one text at 2 hours with the link to their range page. Only while they are still at \"Range seen, no action\" — tightening, asking for help, booking a visit or getting an estimate stops it.",
+    templates: [{ field: "leadRangeReminderSms", label: "Text", kind: "sms", placeholders: P.lead }],
+    timing: [{ id: "after", label: "Hours after the range", unit: "hours", default: 2, min: 1, max: 48 }],
+    guard: "Once per estimate (automation_claims). Never sent more than 2 hours late — switching it on does not text people who saw their range long ago.",
+  },
+  {
+    key: "lead_range_nudge", name: "Lead L2 — three ways forward (chat)", audience: "customer", channels: ["email"], kind: "automatic",
+    consent: "marketing", defaultOff: true, defaultChannel: "email", capExempt: true, sendKind: "lead_nudge",
+    trigger: "A day after the range, still no action: a message on their range page's chat, in the estimator's name, with an email telling them it is there.",
+    templates: [
+      { field: "leadRangeNudgeSubject", label: "Email subject", kind: "subject", placeholders: P.lead },
+      { field: "leadRangeNudgeBody", label: "Chat message", kind: "body", placeholders: P.lead },
+    ],
+    timing: [{ id: "after", label: "Days after the range", unit: "days", default: 1, min: 1, max: 14 }],
+    guard: "Once per estimate (automation_claims). Not sent once the chat has any message after the range — a conversation has started. Never sent more than a day late.",
+  },
+  {
+    key: "lead_range_human", name: "Lead L3 — a personal check-in (chat)", audience: "customer", channels: ["email"], kind: "automatic",
+    consent: "marketing", defaultOff: true, defaultChannel: "email", capExempt: true, sendKind: "lead_nudge",
+    trigger: "Three days after the range, still no action and no conversation: a short personal line on the chat offering a call, with the email.",
+    templates: [
+      { field: "leadRangeHumanSubject", label: "Email subject", kind: "subject", placeholders: P.lead },
+      { field: "leadRangeHumanBody", label: "Chat message", kind: "body", placeholders: P.lead },
+    ],
+    timing: [{ id: "after", label: "Days after the range", unit: "days", default: 3, min: 2, max: 21 }],
+    guard: "Once per estimate (automation_claims). Not sent once the chat has a message after the range. Never sent more than a day late.",
   },
 ];
 

@@ -52,12 +52,25 @@ You need a staff login. Texts need a mobile number and email needs an address on
 Every automation added from 11 Nov 2026 arrives **Off**. Nothing new sends until you switch it on here. Automations that were already on the list keep the state they had.
 
 ## When a customer says no to marketing (11 Nov 2026)
-Some automations are **marketing**: a message the customer did not ask for, sent to bring them back. Today that is **Abandoned wizard — pick up where you left off**. A marketing message is not sent, and is recorded in Messages as **suppressed** with the reason, when the customer:
+Some automations are **marketing**: a message the customer did not ask for, sent to bring them back. Today that is **Abandoned wizard — pick up where you left off** and the three lead messages below. A marketing message is not sent, and is recorded in Messages as **suppressed** with the reason, when the customer:
 - replied **STOP** to any of our texts,
 - unsubscribed from marketing, or
 - is marked as not wanting marketing texts or email on their customer record (that channel only).
 
 Everything else on this list — their estimate, visit times, job updates, invoices, receipts — is a service message and still goes; the customer's own switches in their account still apply to those. If we cannot check a customer's answer (a lookup fails), a marketing message is held back rather than sent.
+
+## The lead messages, L1–L3 (17 Nov 2026)
+Three messages for a customer who saw their price range in the online wizard and then did nothing. All three are **off** until you turn them on, one by one, under Settings → Automations → Customers.
+
+- **Lead L1 — your range is saved (text)**: 2 hours after the range, one text with the link to their range page.
+- **Lead L2 — three ways forward (chat)**: a day after, a message on their range page's chat in the estimator's name — their range, and that they can tighten it, book a visit or just reply — with an email telling them it is there.
+- **Lead L3 — a personal check-in (chat)**: three days after, a short line offering a call, the same way.
+
+Each goes once per estimate, and only while the customer is still at **Range seen, no action**: the moment they tighten their range, ask for help, request or book a visit, or you send them an estimate, nothing more goes. L2 and L3 also stop once a conversation has started on the chat (they wrote, or one of you replied). Each has a number you can change (hours or days after the range).
+
+**Switching one on does not message old leads.** A message goes from its moment until a little after it (2 hours for L1, a day for L2 and L3), never later, so only customers reaching that point from now on get it. The text keeps to the sending hours (8 am to 8 pm); the chat and its email go at any hour. Like every marketing message, none of them goes to a customer who texted STOP, unsubscribed, or said no to texts or emails.
+
+The chat message appears in the estimate's chat and on the customer's range page under the estimator's first name (Settings → Company → estimator). A Paint Home lead's email comes from Paint Home.
 
 ## Which logo the emails use
 Every email the platform sends (estimates, offers, reminders, reset links, campaigns, the lot) takes the **Logo for emails** from Settings → Company. Upload a version with its own solid background, not a transparent one: mail apps in dark mode invert or recolour transparent logos, which is why the logo used to come out light in some inboxes and dark in others. If no email logo is uploaded, the light-background logo is used, and failing that the main one.
