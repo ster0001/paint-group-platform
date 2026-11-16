@@ -2,10 +2,11 @@ import Link from "next/link";
 import { reportError } from "@/lib/monitoring/report";
 import { createClient } from "@/lib/supabase/server";
 import { loadConsole } from "@/lib/workorder/consoleData";
-import { buildQueue, headline, needsYouItems, pcCardSnoozeKey, pulseTiles, sparkline, variationsForApproval } from "@/lib/workorder/console";
+import { buildQueue, headline, needsYouItems, pcCardSnoozeKey, pulseTiles, sparkline, variationApprovalKey, variationsForApproval } from "@/lib/workorder/console";
 import DismissCard from "./DismissCard";
 import ReofferDialog from "./ReofferDialog";
 import BonusHandover from "./BonusHandover";
+import NudgeCrew from "./NudgeCrew";
 import QueueDismiss from "./QueueDismiss";
 import RemindLater from "./RemindLater";
 import CheckinDone from "./CheckinDone";
@@ -218,6 +219,8 @@ export default async function DashboardPage() {
                 {v.waitingOn === "office" && <RejectVariation variationId={v.id} />}
               </div>
               <span className="tm">{age(v.ageHours)}</span>
+              {/* Tom, 12 Nov 2026: every row closes off, extra scope included. */}
+              <DismissCard workOrderId={v.workOrderId} cardKey={variationApprovalKey(v.id)} />
               <Link className={`btn ${v.waitingOn === "office" ? "primary" : ""}`} href={v.href}
                 data-testid={`variation-approval-open-${v.id}`}>
                 {v.waitingOn === "office" ? "Price it" : "Open"}
@@ -411,6 +414,8 @@ export default async function DashboardPage() {
               <span className="tm">{age(card.ageHours)}</span>
               <DismissCard workOrderId={card.workOrderId} cardKey={card.key} />
               <RemindLater itemKey={pcCardSnoozeKey(card.workOrderId, card.key)} />
+              {/* Tom, 12 Nov 2026: one press texts the crew to update and closes the card. */}
+              {card.key.startsWith("quiet-site:") && <NudgeCrew workOrderId={card.workOrderId} primary />}
               {card.action.kind === "reoffer" && card.offerId ? (
                 <span data-testid={`action-${card.key}`}>
                   <ReofferDialog

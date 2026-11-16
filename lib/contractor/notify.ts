@@ -253,6 +253,59 @@ export async function notifyVariationReleased(
 }
 
 /**
+ * Tom, 12 Nov 2026: "press one button and it send another text to the crew to
+ * update" — the PC Command "Nothing ticked in N days" card. Every painter on
+ * the job (the contractor and any crew not released) gets the same "update
+ * your work order" text the reminder sweep sends (the same automation, its
+ * switch and its wording), once per press. The outcome per painter is written
+ * on the job as `quiet_site_nudged`.
+ */
+/** `sent` counts painters whose text went through the send (or was queued by it). */
+export type QuietSiteNudge = { sent: number; painters: number; outcomes: Record<string, string>; reason?: string };
+
+export async function notifyQuietSiteNudge(service: SupabaseClient, workOrderId: string, now = new Date()): Promise<QuietSiteNudge> {
+  const { data: wo, error: woErr } = await service
+    .from("work_orders").select("id, wo_ref, contractor_id, wo_snapshot").eq("id", workOrderId).maybeSingle();
+  if (woErr) throw woErr;
+  const job = wo as { id: string; wo_ref: string; contractor_id: string | null; wo_snapshot: { jobAddress?: string | null } | null } | null;
+  if (!job) return { sent: 0, painters: 0, outcomes: {}, reason: "The job wasn't found." };
+
+  const { data: asg, error: asgErr } = await service
+    .from("wo_assignments").select("contractor_id").eq("work_order_id", workOrderId).neq("status", "released");
+  if (asgErr) throw asgErr;
+  const painters = new Set<string>(((asg ?? []) as { contractor_id: string }[]).map((r) => r.contractor_id));
+  if (job.contractor_id) painters.add(job.contractor_id);
+  if (painters.size === 0) return { sent: 0, painters: 0, outcomes: {}, reason: "Nobody is on the job to text." };
+
+  const { messaging, company } = await loadMessaging(service);
+  const link = `${siteUrl()}/portal/jobs/${job.id}`;
+  const outcomes: Record<string, string> = {};
+  let sent = 0;
+  for (const contractorId of painters) {
+    const c = await contactFor(service, contractorId);
+    const body = renderTemplate(messaging.contractorJobUpdateSms, {
+      first_name: c.firstName, company_name: company.name || "Paint Group", wo_ref: job.wo_ref,
+      suburb: job.wo_snapshot?.jobAddress ? suburbOnly(job.wo_snapshot.jobAddress) : job.wo_ref, day_label: "today", link,
+    });
+    const d = await sendAutomation(service, {
+      key: "contractor_job_update_reminder", to: { phone: c.phone }, sms: { body },
+      ctx: { workOrderId: job.id, kind: "job_update_reminder" }, contractorId, now,
+    });
+    // The provider's answer when it went, the dispatch decision when it didn't
+    // (off, nobody, queued for approval or quiet hours).
+    outcomes[contractorId] = d.outcome === "sent" ? (d.results.sms?.status ?? "sent") : d.outcome;
+    if (d.outcome === "sent" || d.outcome === "pending" || d.outcome === "held") sent += 1;
+  }
+  const ev = await record(service, job.id, "quiet_site_nudged", { outcomes, painters: painters.size });
+  if (ev.error) throw ev.error;
+  const reason = sent > 0 ? undefined
+    : Object.values(outcomes).every((o) => o === "off") ? "The update-reminder text is switched off in Automations."
+    : Object.values(outcomes).some((o) => o === "error") ? "The text didn't go — the error monitor has it."
+    : "No painter on the job has a mobile number on file.";
+  return { sent, painters: painters.size, outcomes, reason };
+}
+
+/**
  * Tom, 13 Oct 2026: the office changed the contractor's hourly RATE on a job
  * the painter already has — it waits on their Accept (work_orders.pay_change_*,
  * 20270254). The same automation and wording as a variation waiting on them;

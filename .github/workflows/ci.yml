@@ -364,12 +364,15 @@ jobs:
           # customer's timeline, minted on demand — and the timeline spec that pins the route.
           # Line items with hours on the work order (11 Nov 2026, 5 Milton St): builder save →
           # the customer accepts in their own session → the job sheet carries the line's hours.
+          # Signed estimate PDF + Close off on PC Command (11 Nov 2026, #450) and Nothing ticked
+          # in N days: the ✕ and Text the crew (12 Nov 2026) — none of the three ran in CI before.
           npx playwright test e2e/customer-journey e2e/wo-rls.spec.ts e2e/account-rls.spec.ts e2e/ledger-parity.spec.ts e2e/trade-org-rls.spec.ts e2e/trade-walk-a.spec.ts \
             e2e/wo-ticks-by-surface.spec.ts e2e/wo-customer-updates.spec.ts e2e/wo-customer-notes.spec.ts \
             e2e/automation-morning-defect.spec.ts \
             e2e/portal-photos-every-day.spec.ts e2e/portal-timeline.spec.ts \
             e2e/wo-line-item-hours.spec.ts \
-            e2e/estimates-list.spec.ts
+            e2e/estimates-list.spec.ts \
+            e2e/estimate-signed-pdf.spec.ts e2e/pc-close-off.spec.ts e2e/pc-quiet-site.spec.ts
 
       # C7c acceptance: "a full run leaves the count it started with, ±0".
       # global-setup logged the count before and global-teardown deleted this

@@ -13,9 +13,14 @@ export default function DismissCard({ workOrderId, cardKey }: {
   const router = useRouter();
   const [pending, start] = useTransition();
   const [gone, setGone] = useState(false);
+  // Tom, 12 Nov 2026: a refused close used to do nothing at all — the card just
+  // stayed. Now it says why.
+  const [error, setError] = useState<string | null>(null);
 
   if (gone) return null;
   return (
+    <>
+    {error && <span className="dmsg" role="alert" data-testid={`dismiss-error-${cardKey}`} style={{ fontSize: 12, color: "var(--clay, #C8553D)", alignSelf: "flex-start" }}>{error}</span>}
     <button
       type="button"
       aria-label="Close this card off — it's been actioned"
@@ -28,6 +33,8 @@ export default function DismissCard({ workOrderId, cardKey }: {
           if (r.ok) {
             setGone(true);
             router.refresh();
+          } else {
+            setError(r.message || "That didn't close — try again.");
           }
         })
       }
@@ -39,5 +46,6 @@ export default function DismissCard({ workOrderId, cardKey }: {
     >
       ✕
     </button>
+    </>
   );
 }

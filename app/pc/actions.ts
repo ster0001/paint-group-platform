@@ -19,7 +19,7 @@ import { sendWalkthroughInvites } from "@/lib/workorder/walkthroughInvite";
 import { sendQaCheckInvites } from "@/lib/workorder/qaCheckInvite";
 import { qaWhenMessage } from "@/lib/workorder/qaSchedule";
 import { runPainterStatus, runPainterStatusSweep } from "@/lib/painterStatus/run";
-import { notifyJobOffer, notifyQaFail, notifyVariationReleased } from "@/lib/contractor/notify";
+import { notifyJobOffer, notifyQaFail, notifyQuietSiteNudge, notifyVariationReleased } from "@/lib/contractor/notify";
 import { deliverSiteVisitNote } from "@/lib/workorder/siteNoteMessage";
 import { SITE_VISIT_NOTE_MAX } from "@/lib/workorder/siteVisits";
 import { melbourneDate } from "@/lib/workorder/console";
@@ -1221,6 +1221,33 @@ export async function dismissCard(raw: unknown): Promise<PcResult> {
   }, "Closed off.");
   if (res.ok) revalidatePath("/home");   // Tom, 12 Oct: Home's strip closes cards off too
   return res;
+}
+
+/**
+ * Tom, 12 Nov 2026: "Nothing ticked in N days" — one press texts every painter
+ * on the job to update their work order, then closes the card off the same way
+ * the ✕ does (`wo_dismiss_card`, permanent per card key). Staff first; the
+ * text goes before the card closes, so a refused send leaves the card up with
+ * the reason.
+ */
+export async function nudgeQuietSite(raw: unknown): Promise<PcResult> {
+  const parsed = z.object({ workOrderId: uuid }).safeParse(raw);
+  if (!parsed.success) return { ok: false, message: "Invalid input." };
+  const supabase = await createClient();
+  if (!(await requireStaff(supabase))) return { ok: false, message: "Staff only." };
+  const service = createServiceClient();
+  if (!service) return { ok: false, message: "Texts can't be sent from here right now." };
+  let sentWord: string;
+  try {
+    const n = await notifyQuietSiteNudge(service, parsed.data.workOrderId);
+    if (n.sent === 0) return { ok: false, message: n.reason ?? "Nothing went out." };
+    sentWord = n.sent === 1 ? "Texted the crew." : `Texted ${n.sent} painters.`;
+  } catch (e) {
+    reportError(e, { where: "pc.nudgeQuietSite", extra: { workOrderId: parsed.data.workOrderId } });
+    return { ok: false, message: "The text didn't go — the error monitor has it." };
+  }
+  const closed = await dismissCard({ workOrderId: parsed.data.workOrderId, cardKey: `quiet-site:${parsed.data.workOrderId}` });
+  return closed.ok ? { ok: true, message: sentWord } : { ok: false, message: `${sentWord} The card didn't close: ${closed.message}` };
 }
 
 // ---- Materials on the PC job page (Tom, 4 Sep) ------------------------------

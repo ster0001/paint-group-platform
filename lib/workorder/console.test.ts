@@ -3,7 +3,7 @@ import {
   variationsForApproval,
   buildQueue, headline, melbourneDate, melbourneDayStartUtc, pulseTiles, rankQueue, sparkline,
   type ConsoleInput, type QueueCard, HIDDEN_FROM_NEEDS_YOU, needsYouItems } from "./console";
-import { pcCardSnoozeKey } from "./console";
+import { pcCardSnoozeKey, variationApprovalKey } from "./console";
 
 const now = new Date("2026-08-21T09:00:00+10:00");
 const hoursAgo = (h: number) => new Date(now.getTime() - h * 3_600_000).toISOString();
@@ -263,6 +263,28 @@ describe("each trigger produces exactly one card", () => {
     expect(q[0].action.kind).toBe("call");
     // And never an automated message to the customer.
     expect(q[0].detail.toLowerCase()).toContain("call");
+  });
+
+  it("draws one quiet-site card per job, from the newest flag (Tom, 12 Nov 2026)", () => {
+    const q = buildQueue(base({ quietSites: [
+      { workOrderId: "w1", at: hoursAgo(90), days: 3 },
+      { workOrderId: "w1", at: hoursAgo(14), days: 3 },
+    ] }));
+    expect(q.filter((c) => c.key === "quiet-site:w1")).toHaveLength(1);
+    expect(Math.round(q[0].ageHours)).toBe(14);
+  });
+
+  it("a variation row closed off with its ✕ leaves Variations for approval (Tom, 12 Nov 2026)", () => {
+    const v = { id: "v1", workOrderId: "w1", status: "raised", createdAt: hoursAgo(5), pricedAt: null, category: "extra_scope", comment: "Paint the shed" };
+    const open = variationsForApproval(base({ variations: [v] }));
+    expect(open.map((r) => r.id)).toEqual(["v1"]);
+    const closed = variationsForApproval(base({ variations: [v], dismissedKeys: [variationApprovalKey("v1")] }));
+    expect(closed).toHaveLength(0);
+  });
+
+  it("a closed-off quiet site stays closed", () => {
+    const q = buildQueue(base({ quietSites: [{ workOrderId: "w1", at: hoursAgo(14), days: 3 }], dismissedKeys: ["quiet-site:w1"] }));
+    expect(q).toHaveLength(0);
   });
 
   it("flags a variation waiting on a price", () => {
