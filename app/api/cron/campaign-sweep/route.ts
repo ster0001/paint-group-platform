@@ -12,6 +12,7 @@ import { runFinishReminderSweep } from "@/lib/automations/sweeps/finishReminder"
 import { runCustomerNoteTriggers, runCustomerUpdatesAutoSend } from "@/lib/automations/sweeps/customerUpdates";
 import { sendFollowupDigest, sendPrestartReminders } from "@/lib/automations/sweeps/officeDigests";
 import { reportError } from "@/lib/monitoring/report";
+import { runLeadSequenceSweep } from "@/lib/automations/sweeps/leadSequence";
 
 /**
  * The campaign sweep, on a schedule.
@@ -44,6 +45,9 @@ export async function GET(req: Request) {
     // `?only=reminders` (the e2e, a hand run) skips the campaign engine.
     const params = new URL(req.url).searchParams;
     const only = params.get("only");
+    // Automations brief L1–L3: the lead sequence (all three ship off). `?only=leads` is the hand run.
+    const leads = only == null || only === "leads" ? await runLeadSequenceSweep(db, now) : null;
+    if (only === "leads") return NextResponse.json({ ok: true, leads, released: await releaseDueHolds(db, now) });
     const outcomes = only === "reminders" || only === "standards" || only === "certificates" || only === "moments" || only === "status" || only === "defect" || only === "finish" || only === "office" ? [] : await runSweep(db, now);
     // Tom, 12 Oct: "Today's follow ups" email (Mon–Fri from 8am) and the 14:00
     // pre-start texts for PC Command. Each is once a day; outside its window it
@@ -102,6 +106,7 @@ export async function GET(req: Request) {
       customerUpdates,
       standards,
       certificates,
+      leads,
       // The first few failures by name, so a run that writes nothing says why (9 Oct 2026: production had no status rows and no way to see the cause).
       status: { ran: status.ran, failed: status.failed, errors: status.outcomes.filter((o) => !o.ok).slice(0, 5).map((o) => `${o.painterId.slice(0, 8)}: ${o.error ?? "?"}`) },
       note: "Campaign steps are queued only. Held automatic messages whose time has come are sent.",

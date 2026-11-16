@@ -227,6 +227,12 @@ export type MessagingSettings = {
   /** Customer: they dropped out of the wizard — pick up where they left off (Tom, 7 Sep). */
   wizardResumeSubject: string;
   wizardResumeBody: string;
+  /** Lead sequence (automations brief L1–L3, Nov 2026): the range reminder text and the two chat messages. Ship off. */
+  leadRangeReminderSms: string;
+  leadRangeNudgeSubject: string;
+  leadRangeNudgeBody: string;
+  leadRangeHumanSubject: string;
+  leadRangeHumanBody: string;
   /** Office: an estimate was accepted (Tom, 4 Sep). */
   officeEmail: string;
   acceptedOfficeSubject: string;
@@ -575,6 +581,15 @@ export const DEFAULT_MESSAGING: MessagingSettings = {
     "{{accepted_name}} has accepted the estimate for {{estimate_title}}.\n\n" +
     "Total: {{total}} incl. GST\nDeposit: {{deposit}}\nAccepted: {{accepted_at}}\n\n" +
     "A work order has been created and the deposit invoice is drafted. Open the estimate to book it in.",
+  // Lead sequence L1–L3: the master plan's Appendix A wording, one copy for both brands ({{brand}}).
+  leadRangeReminderSms: "Hi {{first_name}}, it's {{estimator}} from {{brand}}. Your price range for {{address}} is saved here: {{link}}. Open it any time.",
+  leadRangeNudgeSubject: "Your range for {{address}}",
+  leadRangeNudgeBody:
+    "Hi {{first_name}}, {{estimator}} here from {{brand}}. Your range for {{address}} came out at {{range}}.\n\n" +
+    "From here you can tighten the price with a few room details, book a visit, or just reply to this message with any questions. " +
+    "The range moves most with ceiling height, how much prep is needed and whether the house is occupied — so if any of that wasn't quite right, let me know and I'll adjust it.",
+  leadRangeHumanSubject: "About the {{address}} job",
+  leadRangeHumanBody: "Hi {{first_name}}, just checking in. Happy to talk through the {{address}} job if that's easier than the online steps — reply with a good time and I'll call you.",
   wizardResumeSubject: "Pick up where you left off — your estimate is saved",
   wizardResumeBody:
     "You were part-way through your {{company_name}} estimate for {{where}} — your answers are saved.\n\n" +

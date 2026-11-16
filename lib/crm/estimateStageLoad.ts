@@ -1,3 +1,4 @@
+import { melbourneInstant } from "@/lib/time/businessHours";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { realOnly } from "@/lib/demo/scope";
 import { estimateStageFor, type EstimateStageEvent, type EstimateStageFacts, type EstimateStageResult } from "./estimateStage";
@@ -76,7 +77,9 @@ export async function loadEstimateStages(
       .in("type", ACCOUNT_TYPES).gte("occurred_at", earliest).order("occurred_at").limit(5000)),
     byChunk<{ estimate_id: string; direction: string; created_at: string }>(estIds, "chat", (ids) => supabase.from("estimate_messages").select("estimate_id, direction, created_at").in("estimate_id", ids).order("created_at").limit(5000)),
     byChunk<{ id: string; estimate_id: string }>(estIds, "work order", (ids) => realOnly(supabase.from("work_orders").select("id, estimate_id")).in("estimate_id", ids)),
-    byChunk<{ estimate_id: string; paid_at: string | null }>(estIds, "final invoice", (ids) => realOnly(supabase.from("invoices").select("estimate_id, paid_at")).in("estimate_id", ids).eq("kind", "final").eq("status", "paid")),
+    // 17 Nov 2026: `invoices` has no paid_at — this read named one from session 2 on, so every stage
+    // load with an estimate in it failed. The paid moment is the ledger's: the payments' paid_on.
+    byChunk<{ id: string; estimate_id: string; created_at: string }>(estIds, "final invoice", (ids) => realOnly(supabase.from("invoices").select("id, estimate_id, created_at")).in("estimate_id", ids).eq("kind", "final").eq("status", "paid")),
   ]);
   if (!byEstimate.ok) return byEstimate;
   if (!byDraft.ok) return byDraft;
@@ -87,6 +90,12 @@ export async function loadEstimateStages(
 
   const woOf = new Map<string, string[]>();
   for (const w of wos.rows) woOf.set(w.estimate_id, [...(woOf.get(w.estimate_id) ?? []), w.id]);
+  const paidOn = await byChunk<{ invoice_id: string; paid_on: string | null }>(finals.rows.map((f) => f.id), "final payment",
+    (ids) => supabase.from("payments").select("invoice_id, paid_on").in("invoice_id", ids));
+  if (!paidOn.ok) return paidOn;
+  const lastPaidOf = new Map<string, string>();
+  for (const p of paidOn.rows) if (p.paid_on && p.paid_on > (lastPaidOf.get(p.invoice_id) ?? "")) lastPaidOf.set(p.invoice_id, p.paid_on);
+
   const offers = await byChunk<{ work_order_id: string; responded_at: string | null }>(wos.rows.map((w) => w.id), "booking offer",
     (ids) => realOnly(supabase.from("booking_offers").select("work_order_id, responded_at")).in("work_order_id", ids).eq("state", "accepted").order("responded_at"));
   if (!offers.ok) return offers;
@@ -102,7 +111,12 @@ export async function loadEstimateStages(
   const evByDraft = group(byDraft.rows, (r) => r.wizard_draft_id);
   const evByAcc = group(byAccount.rows, (r) => r.account_id);
   const chatByEst = group(chat.rows, (r) => r.estimate_id);
-  const paidByEst = new Map(finals.rows.map((f) => [f.estimate_id, f.paid_at]));
+  // The day it was paid, as midday Melbourne; a paid invoice with no payment row counts from its creation.
+  const paidByEst = new Map(finals.rows.map((f) => {
+    const day = lastPaidOf.get(f.id);
+    const [y, m, d] = (day ?? "").split("-").map(Number);
+    return [f.estimate_id, day && y && m && d ? melbourneInstant(y, m, d, 12).toISOString() : f.created_at];
+  }));
 
   const stages = new Map<string, StageOf>();
   for (const s of subjects) {

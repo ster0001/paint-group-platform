@@ -201,6 +201,8 @@ export function smsLength(body: string): SmsLength {
  */
 export const SAMPLE_VARS: Record<string, string> = {
   note: "Ask for the trade account at the counter.",
+  // Lead sequence L1–L3 (Nov 2026)
+  estimator: "Sarah", brand: "Paint Group", range: "$6,400–$7,900 inc. GST",
   ask: "Please collect the paint (Dulux · 2 lines · 6 cans) from Dulux Trade Centre Oakleigh",
   order_line: "Order PG-0427 under Paint Group. ",
   // Movements (Session 5)
