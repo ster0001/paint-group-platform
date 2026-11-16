@@ -18,7 +18,7 @@ import { test } from "../helpers";
  */
 const db = serviceClient();
 const run = randomBytes(4).toString("hex");
-const INBOUND_SECRET = process.env.MESSAGES_INBOUND_SECRET ?? "whsec_dGVzdC1tZXNzYWdlcy1zZWNyZXQtMTIzNDU2Nzg5MA==";
+const INBOUND_SECRET = process.env.MESSAGES_INBOUND_SECRET ?? "";
 const TWILIO_TOKEN = process.env.TWILIO_AUTH_TOKEN ?? "";
 const SITE = process.env.E2E_BASE_URL ?? "http://localhost:3103";
 const STAFF_EMAIL = process.env.E2E_STAFF_EMAIL ?? "";
@@ -51,6 +51,8 @@ const postEmail = (request: APIRequestContext, e: { from: string; to: string; te
 test.describe("Replies land in the estimate chat (A‑G)", () => {
   test.describe.configure({ mode: "serial" });
   test.skip(!db, "service key needed");
+  // The webhook answers 503 until MESSAGES_INBOUND_SECRET is set on the server it drives (not set in CI or the C1 runner yet).
+  test.skip(!process.env.MESSAGES_INBOUND_SECRET, "needs MESSAGES_INBOUND_SECRET on the app under test (the inbound webhook is off without it)");
   let estId = "";
   const token = `ag${run}${randomBytes(10).toString("hex")}`;
 

@@ -35,7 +35,7 @@ import { realOnly } from "@/lib/demo/scope";
 export type AutomationSend = {
   key: string;
   to: { email?: string | null; phone?: string | null };
-  email?: { subject: string; html: string; replyTo?: string; attachments?: { filename: string; content: string; contentType?: string }[] };
+  email?: { subject: string; html: string; replyTo?: string; attachments?: { filename: string; content: string; contentType?: string }[]; /** The brand's From header (lib/messaging/brand.ts fromForBrand). */ from?: string };
   sms?: { body: string };
   /** Who this is about. `kind` is stamped from the registry when absent. */
   ctx?: MessageContext;
@@ -110,7 +110,7 @@ async function deliver(
     if (ch === "sms" && send.sms && send.to.phone) {
       results.sms = await sendSms({ to: send.to.phone, body: send.sms.body, ctx: full });
     } else if (ch === "email" && send.email && send.to.email) {
-      results.email = await sendEmail({ to: send.to.email, subject: send.email.subject, html: send.email.html, replyTo: send.email.replyTo, attachments: send.email.attachments, ctx: full });
+      results.email = await sendEmail({ to: send.to.email, subject: send.email.subject, html: send.email.html, replyTo: send.email.replyTo, attachments: send.email.attachments, ctx: full, ...(send.email.from ? { from: send.email.from } : {}) });
     }
   }
   return results;
