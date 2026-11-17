@@ -180,6 +180,8 @@ export type MessagingSettings = {
   visitConfirmSubject: string;
   visitConfirmBody: string;
   visitReminderSms: string;
+  /** Lead L11 (17 Nov 2026): the text two hours before the visit. Ships off. */
+  visitReminder2hSms: string;
   /** Visit booking addendum A (S3): the 6-digit code, and the "booked" text. */
   visitCodeSms: string;
   visitBookedSms: string;
@@ -541,6 +543,8 @@ export const DEFAULT_MESSAGING: MessagingSettings = {
     "If that time no longer suits, reply to this email or call us and we'll move it.",
   visitReminderSms:
     "{{company_name}}: a reminder that {{estimator_name}} is visiting {{address}} tomorrow, {{visit_when}}. Reply or call us if anything's changed.",
+  // Appendix A's L11 −2 h line, signed with the company (a text with no sender reads as spam).
+  visitReminder2hSms: "Hi {{first_name}}, {{estimator_name}} will be with you between {{window}} today. — {{company_name}}",
   visitCodeSms: "{{code}} is your {{company_name}} code to book your site visit. It expires in 10 minutes.",
   visitBookedSms: "{{company_name}}: your site visit is booked for {{visit_when}} at {{address}}. A calendar invitation from {{company_email}} is on its way by email — please accept it. We will text a reminder the evening before. To cancel, decline the invitation or call us.",
   requestReceivedSubject: "We have your request — {{company_name}}",
@@ -767,6 +771,8 @@ export const TEMPLATE_PLACEHOLDERS = [
 ] as const;
 
 export type TemplateVars = {
+  /** Lead L11 (17 Nov 2026): a visit's time window, "10:00 am and 11:00 am". */
+  window?: string;
   /** Standards messages: the version number being confirmed. */
   version?: string;
   /** Agreement messages: the expiry day of the signed agreement, "21 Oct 2027". */

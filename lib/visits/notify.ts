@@ -1,6 +1,7 @@
 /**
  * What a booking owes the customer (P6): a confirmation with a calendar
- * invite, and a text the evening before. SERVER ONLY.
+ * invite, a text the evening before, and (Lead L11, 17 Nov 2026) a text two
+ * hours before. SERVER ONLY.
  *
  * Both ride the automations registry (visit_confirmation / visit_reminder),
  * so the office can switch either off or reword it under Settings →
@@ -18,6 +19,8 @@ import { dispatched, sendAutomation } from "@/lib/automations/dispatch";
 import { isTestEmail } from "@/lib/accounts/identity";
 import { buildIcs } from "@/lib/workorder/ics";
 import { melbourneParts } from "@/lib/time/businessHours";
+import { claimRung } from "@/lib/automations/reminders";
+import { dueForTwoHourReminder, visitWindow } from "./reminder2h";
 import { scopesCanWritePrimary } from "@/lib/gcal/oauth";
 import { toE164Au } from "@/lib/campaigns/sms";
 import { reportError } from "@/lib/monitoring/report";
@@ -207,6 +210,45 @@ export async function sendVisitReminders(db: SupabaseClient, now = new Date()): 
       ctx: { accountId: v.account_id, estimateId: v.estimate_id, kind: "visit_reminder" }, now,
     });
     await db.from("visits").update({ reminder_sent_at: now.toISOString() }).eq("id", v.id);
+    if (dispatched(r)) sent += 1; else skipped += 1;
+  }
+  return { sent, skipped };
+}
+
+// ---- Lead L11: the text two hours before (17 Nov 2026) --------------------------------
+
+/**
+ * The half-hour sweep: text today's customers two hours before. Ships off
+ * (A‑D). Once per visit START (automation_claims, the rung is the start time),
+ * so a visit moved to another time is reminded again for the new one.
+ */
+export async function sendTwoHourVisitReminders(db: SupabaseClient, now = new Date()): Promise<{ sent: number; skipped: number }> {
+  const { messaging, company } = await loadMessaging(db);
+  if (!automationOn(messaging, "visit_reminder_2h")) return { sent: 0, skipped: 0 };
+  const { data, error } = await db.from("visits").select("id, starts_at, ends_at, status, customer_phone, customer_name, address, staff_id, account_id, estimate_id")
+    .eq("status", "booked").gte("starts_at", new Date(now.getTime() + 3_600_000).toISOString()).lte("starts_at", new Date(now.getTime() + 2 * 3_600_000).toISOString()).limit(200);
+  if (error) throw new Error(`visits: ${error.message}`);
+  const due = dueForTwoHourReminder((data ?? []) as VisitRow[], now, messaging.quietHours);
+  let sent = 0, skipped = 0;
+  const companyName = company.name || "Paint Group";
+  for (const v of due) {
+    const to = toE164Au(v.customer_phone);
+    if (!to) { skipped += 1; continue; }
+    if (!(await claimRung(db, "visit_reminder_2h", v.id, v.starts_at))) continue;
+    let estimator = companyName;
+    if (v.staff_id) {
+      const { data: s, error: sErr } = await db.from("profiles").select("name").eq("id", v.staff_id).maybeSingle();
+      if (sErr) reportError(sErr, { where: "visits.reminder2h.estimator", bestEffort: true });
+      estimator = ((s?.name as string | null) || "").trim().split(/\s+/)[0] || companyName;
+    }
+    const body = renderTemplate(messaging.visitReminder2hSms, {
+      first_name: (v.customer_name || "").split(/\s+/)[0] || "there", estimator_name: estimator,
+      window: visitWindow(v.starts_at, v.ends_at), address: v.address || "your property", company_name: companyName,
+    });
+    const r = await sendAutomation(db, {
+      key: "visit_reminder_2h", to: { phone: to }, sms: { body },
+      ctx: { accountId: v.account_id, estimateId: v.estimate_id, kind: "visit_reminder" }, now,
+    });
     if (dispatched(r)) sent += 1; else skipped += 1;
   }
   return { sent, skipped };
