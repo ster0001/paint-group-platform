@@ -5112,3 +5112,5 @@ Tom: "the messages still aren't clearer". `composeUpdate` in `lib/workorder/upda
 
 **Lead L11: the visit text two hours before (17 Nov 2026).** `visit_reminder_2h` (registry, ships off) is sent by `sendTwoHourVisitReminders` (`lib/visits/notify.ts`) off the half-hour campaign sweep (`?only=visits` is the hand run). Which visits are due is pure (`lib/visits/reminder2h.ts`): booked, a mobile on file, two hours to one hour before the start, and only inside sending hours. Each start time is claimed in `automation_claims` (rung = `starts_at`), so a moved visit is reminded again; no migration. The evening-before text (`visit_reminder`, wo-sweep, `visits.reminder_sent_at`) is unchanged.
 
+**Lead L12: the no-show text (17 Nov 2026).** `setVisitStatus` (`lib/visits/book.ts`), the one place a visit's status changes from the app, calls `sendVisitNoShow` (`lib/visits/noShow.ts`) on `no_show`: one text (`visit_no_show`, ships off, a service message so quiet hours hold it) with the estimate's range page as the rebook link, claimed once per visit in `automation_claims`. No range page, no text — the Today rebook card still covers it. No migration.
+

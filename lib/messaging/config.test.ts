@@ -69,8 +69,8 @@ describe("default-off automations (ruling A‑D)", async () => {
     expect(switchAutomation({ disabled: ["old_key"] }, "old_key", true, false)).toEqual({ disabled: [], enabled: [] });
   });
   it("only the automations brief's keys ship off; every older key stays as it was", () => {
-    expect(AUTOMATIONS.filter((a) => a.defaultOff).map((a) => a.key)).toEqual(["visit_reminder_2h", "office_lead_help", "office_visit_request", "office_call_request", "lead_range_reminder", "lead_range_nudge", "lead_range_human", "lead_tighten_resume", "lead_tighten_help", "lead_tightened_close", "lead_visit_request_ack"]);
+    expect(AUTOMATIONS.filter((a) => a.defaultOff).map((a) => a.key)).toEqual(["visit_reminder_2h", "visit_no_show", "office_lead_help", "office_visit_request", "office_call_request", "lead_range_reminder", "lead_range_nudge", "lead_range_human", "lead_tighten_resume", "lead_tighten_help", "lead_tightened_close", "lead_visit_request_ack"]);
     // Off out of the box: nothing stored, nothing sends.
-    for (const k of ["visit_reminder_2h", "office_lead_help", "office_visit_request", "office_call_request", "lead_range_reminder", "lead_range_nudge", "lead_range_human", "lead_tighten_resume", "lead_tighten_help", "lead_tightened_close", "lead_visit_request_ack"]) expect(automationOn({}, k)).toBe(false);
+    for (const k of ["visit_reminder_2h", "visit_no_show", "office_lead_help", "office_visit_request", "office_call_request", "lead_range_reminder", "lead_range_nudge", "lead_range_human", "lead_tighten_resume", "lead_tighten_help", "lead_tightened_close", "lead_visit_request_ack"]) expect(automationOn({}, k)).toBe(false);
   });
 });
