@@ -1,4 +1,65 @@
-# Messaging automations — inventory (as built, 16 Sep 2026)
+# Messaging automations — inventory (as built, 16 Sep 2026; funnel added 17 Nov 2026)
+
+> **17 Nov 2026 — the automations brief's funnel (session 6).** Every lead, estimate, won and after-the-job message (L1–L13, E1–E12, W1–W4, R1–R5) is in section 0 below, generated from `lib/automations/registry.ts` and `lib/automations/funnel.ts` — what Campaigns › Automations shows. All new keys ship off; a chat step is a message on the estimate's own chat in the estimator's name plus the email that carries it; texts keep to 8 pm–8 am quiet hours; Paint Home's own wording, where written, is in `automation_brand_wording`. Sections 1–6 are the September inventory and are not re-audited here: where a funnel row and an older row name the same key (`visit_reminder`, `customer_accepted_welcome`, `office_estimate_chat`, `review_request`), section 0 is current.
+
+## 0. The funnel (Campaigns › Automations)
+### Lead — they have their range
+
+| Code | Key | Message | Channel | Ships | Trigger |
+|---|---|---|---|---|---|
+| L1 | `lead_range_reminder` | Lead L1 — your range is saved (text) | Text | off, marketing | A customer saw their price range in the wizard and has done nothing since: one text at 2 hours with the link to their range page. Only while they are still at "Range seen, no action" — tightening, asking for help, booking a visit or getting an estimate stops it. |
+| L2 | `lead_range_nudge` | Lead L2 — three ways forward (chat) | Email | off, marketing | A day after the range, still no action: a message on their range page's chat, in the estimator's name, with an email telling them it is there. |
+| L3 | `lead_range_human` | Lead L3 — a personal check-in (chat) | Email | off, marketing | Three days after the range, still no action and no conversation: a short personal line on the chat offering a call, with the email. |
+| L4 | `lead_range_last` | Lead L4 — a job like yours (chat) | Email | off, marketing | Ten days after the range, still no action and no conversation: one last note with a finished job like theirs and its price (a published showcase job — the same suburb and job type first), and their range page. With no published, priced showcase job to show, nothing is sent. |
+| L5 | `lead_tighten_resume` | Lead L5 — pick up where you left off (text) | Text | off, marketing | A customer started tightening their range and has not finished: one text an hour after they started, with the link to their range page. Only while they are still at "Tightening" — finishing, booking a visit or asking for help stops it. |
+| L6 | `lead_tighten_help` | Lead L6 — measuring help (chat) | Email | off, marketing | A day after they started tightening, still not finished: a measuring tip on their range page's chat — or book a visit instead — with the email. |
+| L7 | `lead_tightened_close` | Lead L7 — your closer range is ready (text) | Text | off, marketing | A customer finished tightening and has booked nothing: one text 4 hours later with the closer range and the link to book a visit. Only while they are still at "Tightened, no action". |
+| L8 | — | A call card on Today when a lead tightens and books nothing — always on, sends nothing. | — | — | — |
+| L9 | `office_lead_help` | Lead L9 — a customer needs help (staff alert) | Email + Text | off | A customer asks for help in the wizard ("I'm stuck, call me" or a question). In office hours (Mon–Fri 8–5, the Settings holidays out) everyone routed by email is emailed and the chat pop-up shows it; out of hours everyone routed by text is texted as well. |
+| L10 | `office_visit_request` | Lead L10 — visit request (staff alert) | Email + Text | off | A customer asks for a visit (a time, or a visit before the range). Routed by the office hours the same way as L9. The customer's own "we're on it" chat a working day later is Lead L10 — we're sorting a time. |
+| L10 | `lead_visit_request_ack` | Lead L10 — we're sorting a time (chat) | Email | off | A customer asked for a visit and nobody has offered a time a working day later (office days, the Settings holidays out): a line on their range page's chat saying a time is being sorted and when we will come back to them, with the email. Answering the request stops it. |
+| L11 | `visit_reminder` | Visit reminder text | Text | on | The evening before an estimator visit, to the customer's mobile. |
+| L11 | `visit_reminder_2h` | Lead L11 — visit reminder two hours before (text) | Text | off | Two hours before an estimator visit, to the customer's mobile: who is coming and the visit's time window. Sent from two hours before until one hour before, never closer; inside quiet hours it is skipped (an early visit's customer already had the evening-before text). |
+| L12 | `visit_no_show` | Lead L12 — we missed each other (text) | Text | off | Staff mark an estimator visit No show (the Diary or the customer's record): one text with the link to their range page, whose Book a visit button rebooks. Quiet hours hold it until sending hours open. A visit whose estimate has no range page is not texted — the Today card is how that one is rebooked. |
+| L13 | `office_call_request` | Lead L13 — call request (staff alert) | Email + Text | off | A customer asks us to call (Speak with us, a call back, a call to finalise by phone). Routed by the office hours the same way as L9. |
+
+### Estimate — the quote is out
+
+| Code | Key | Message | Channel | Ships | Trigger |
+|---|---|---|---|---|---|
+| E1 | `office_estimate_overdue` | E1 — estimate overdue after a visit (staff alert) | Email + Text | off | A visit was marked done two days ago and no estimate has gone to that customer since (the same rule as the Today card). Sent in office hours only — an overdue estimate waits for the morning — to everyone ticked under Staff logins. |
+| E2 | `estimate_unopened` | Estimate E2 — your quote is ready (text) | Text | off, marketing | A sent quote nobody has opened, 2 days on: one text with the link. Only while it is still at "Sent, not opened" — opening it, a question or a decision stops it. |
+| E3 | `estimate_unopened_again` | Estimate E3 — here it is again (chat) | Email | off, marketing | Still unopened 5 days after sending: a line on the quote's chat in the estimator's name — here it is again, or a run-through on the phone — with the email. |
+| E4 | `estimate_viewed_any_q` | Estimate E4 — any questions? (chat) | Email | off, marketing | They opened the quote 2 days ago and have said nothing: anything to change or explain? On the chat, with the email. |
+| E5 | `estimate_viewed_worth` | Estimate E5 — worth knowing before you decide (chat) | Email | off, marketing | Opened 5 days ago, still quiet: the warranty and the daily updates, with the link. On the chat, with the email. |
+| E6 | — | The call at 7 days is the Follow up card on Today (Settings → CRM chase days), as is E3's call. | — | — | — |
+| E7 | `estimate_viewed_held` | Estimate E7 — your price is held (chat) | Email | off, marketing | Opened 14 days ago, still quiet: no pressure, the price is held until the quote's valid-until day — no discount or incentive (R9). On the chat, with the email. |
+| E8 | `office_estimate_chat` | Customer wrote on the estimate chat | Email + Text | on | A customer sends a message from the chat on their estimate (Ask a question / Chat with us / Message us). Who is told is each person's routing under Settings → Staff logins; with nobody routed, the office address is emailed. E8 (17 Nov 2026): in office hours (Mon–Fri 8–5, the Settings holidays out) by email and the chat pop-up; out of hours the Text box as well, and the subject carries an (after hours) tag. |
+| E9 | `estimate_expiry_warning` | Estimate E9 — your price is valid until (text + chat) | Text + Email | off, marketing | A sent quote with no decision, a week before its valid-until day (from 9 am): one text with the link, and one line on its chat with the email. Only while it is still open — a decision stops it. |
+| E10 | `estimate_expired_chat` | Estimate E10 — your quote has lapsed (chat) | Email | off, marketing | A quote passes its valid-until day with no decision: reply and we will refresh the price. On its chat, with the email. The office's own "Estimate expired" alert is unchanged. |
+| E11 | `estimate_declined_reason` | Estimate E11 — which was it? (chat) | Email | off, marketing | A customer declines without giving a reason: four one-tap reasons (Price, Timing, Went with someone else, Not going ahead) on the chat, with the email. Each opens a page with one button, so a link-checking email scanner never picks one. |
+| E12 | `estimate_declined_timing` | Estimate E12 — ready now? (chat) | Email | off, marketing | Sixty days after a decline whose reason was timing ("Postponing"): if that has changed, here is the quote. On the chat, with the email. |
+
+### Won — before the job starts
+
+| Code | Key | Message | Channel | Ships | Trigger |
+|---|---|---|---|---|---|
+| W1 | `customer_accepted_welcome` | Welcome — thanks, what happens next | Email + Text | on | A customer accepts an estimate. Thanks, what happens next, and a link to their account — with the deposit link when the deposit invoice has been issued. |
+| W2 | `deposit_due` | W2 — deposit due before the start (text + chat) | Text + Email | off | R6: the deposit is still owing a few days before the job starts — one text and one line on the estimate chat (with the email), from 9 am. Replaces the Deposit reminder ladder: while this is on, that one stands down. |
+| W3 | `colours_tbc` | W3 — colours still to confirm (text) | Text | off | A booked job starts in a few days and the pre-start "Colour schedule finalised" box is not ticked: one text asking them to book a colour consult, from 9 am. |
+| W4 | `start_reminder` | W4 — your job starts soon (text) | Text | off | A booked job starts in two days: one text with the painter's name, the day and the arrival window, from 9 am. The arrival window is in the wording. |
+
+### After the job
+
+| Code | Key | Message | Channel | Ships | Trigger |
+|---|---|---|---|---|---|
+| R1 | `review_request` | R1 — review request (text) | Text | off | The morning after a job is signed off (from 9 am): one text asking for a Google review, with the brand's review link. Not sent when staff already asked (PC Command's review box), or when that brand has no review link set below. Recorded as asked on the job. |
+| R2 | — | Referrals wait for referral tables (ruling A‑L). | — | — | — |
+| R3 | `anniversary_12` | R3 — a year on (chat) | Email | off, marketing | Twelve months after a job was signed off (from 9 am): how's it holding up, a touch-up under the warranty, or another room. On the estimate chat, with the email. |
+| R4 | `anniversary_24` | R4 — two years on, the warranty ends (chat) | Email | off, marketing | Twenty-four months after a job was signed off (from 9 am): the workmanship warranty's end date, and for a job with exterior work the exterior line below. On the estimate chat, with the email. |
+| R5 | `cold_nurture` | R5 — a fresh range, once a quarter (chat) | Email | off, marketing | A customer who declined, let a quote lapse, or left the wizard at their range, 90 days on (up to two years), and has gone ahead with nothing since: at most once a quarter, on a weekday between 10 am and 3 pm, the season's line, a finished job like theirs with its price, and a link to a fresh range. On their last estimate's chat, with the email. With no published, priced showcase job to show, nothing is sent. |
+
+---
 
 > **Session 1 (16 Sep, evening) changed the plumbing:** every automatic row below now goes through `lib/automations/dispatch.ts` — channel (Text/Email/Both), "office approves first", sending hours (8–7 weekdays, 9–5 Sat, none Sun) and the 3-a-day cap are Settings → Automations controls; held or pending messages sit in `automation_holds` and surface at CRM → Messages to approve. Three sends were added to the registry (tenant access text, CRM record reply, Google Calendar push) and the six staff alerts have editable wording. Section 6 items 6 and 8 are done; the rest stand.
 
