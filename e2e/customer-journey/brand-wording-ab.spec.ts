@@ -5,7 +5,7 @@ import { credentials, signIn, test } from "../helpers";
 
 /**
  * A‑B (17 Nov 2026): staff write Paint Home's own wording for a message at
- * Settings → Automations; a Paint Home lead then gets that text, a Paint Group
+ * Campaigns › Automations (A‑C); a Paint Home lead then gets that text, a Paint Group
  * lead the Paint Group one. Clearing the box puts Paint Home back on the
  * Paint Group wording. L1 ships off: the spec switches it on and puts the
  * settings back.
@@ -52,7 +52,7 @@ test.describe("Paint Home wording (A‑B)", () => {
     hadRow = prev.data as { body: string } | null;
 
     await signIn(page, staff!, /\/(home|estimates|dashboard|crm|pc)/);
-    await page.goto("/settings#automations");
+    await page.goto("/crm/campaigns/automations");
     const row = page.getByTestId("automation-lead_range_reminder");
     await expect(row).toBeVisible({ timeout: 30_000 });
     await page.getByTestId("edit-lead_range_reminder").click();

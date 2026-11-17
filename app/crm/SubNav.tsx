@@ -13,10 +13,12 @@ import { usePathname } from "next/navigation";
 export default function SubNav() {
   const path = usePathname();
   const on = (p: string) => path === p || path.startsWith(`${p}/`);
-  const onCampaigns = on("/crm/campaigns") && !on("/crm/campaigns/emails");
+  const onCampaigns = on("/crm/campaigns") && !on("/crm/campaigns/emails") && !on("/crm/campaigns/automations");
   return (
     <div className="chips" style={{ marginBottom: 14 }}>
       <Link href="/crm/campaigns" className={`chip ${onCampaigns ? "on" : ""}`}>Campaigns</Link>
+      {/* A‑C: the funnel's automatic messages — lead, estimate, won, after the job. */}
+      <Link href="/crm/campaigns/automations" className={`chip ${on("/crm/campaigns/automations") ? "on" : ""}`} data-testid="subnav-automations">Automations</Link>
       <Link href="/crm/campaigns/emails" className={`chip ${on("/crm/campaigns/emails") ? "on" : ""}`}>Emails</Link>
       <Link href="/crm/segments" className={`chip ${on("/crm/segments") ? "on" : ""}`}>Audiences</Link>
       <Link href="/crm/sources" className={`chip ${on("/crm/sources") ? "on" : ""}`}>Lead sources</Link>
