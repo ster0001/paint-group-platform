@@ -99,6 +99,9 @@ When a customer asks for a person, staff hear about it straight away. The three 
 ## The visit reminder two hours before, L11 (17 Nov 2026)
 **Lead L11 — visit reminder two hours before (text)** is off until you turn it on. Two hours before an estimator visit, the customer is texted who is coming and the visit's window. It goes from two hours before until one hour before, never closer, and is skipped when that falls in the quiet hours. Each visit gets it once; a visit moved to another time gets it again. The evening-before text is still **Visit reminder text**, unchanged.
 
+## The no-show text, L12 (17 Nov 2026)
+**Lead L12 — we missed each other (text)** is off until you turn it on. When a visit is marked **No show**, the customer gets one text with the link to their range page, where **Book a visit** rebooks. Quiet hours hold it until sending hours open. The Today card to rebook stays as it was.
+
 ## Which logo the emails use
 Every email the platform sends (estimates, offers, reminders, reset links, campaigns, the lot) takes the **Logo for emails** from Settings → Company. Upload a version with its own solid background, not a transparent one: mail apps in dark mode invert or recolour transparent logos, which is why the logo used to come out light in some inboxes and dark in others. If no email logo is uploaded, the light-background logo is used, and failing that the main one.
 

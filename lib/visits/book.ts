@@ -9,6 +9,7 @@
  * separate write that could be forgotten.
  */
 
+import { sendVisitNoShow } from "./noShow";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { readGoogleBusyForStaff } from "@/lib/gcal/read";
 import { DEFAULT_VISITS_SETTINGS, mergeVisitsSettings, type StaffAvailability, type VisitKind, type VisitRow, type VisitSource, type VisitsSettings } from "./types";
@@ -130,6 +131,8 @@ export async function setVisitStatus(db: SupabaseClient, visitId: string, status
   if (status === "cancelled" || status === "rebook") {
     try { await sendVisitCancellation(db, visitId); } catch (e) { reportError(e, { where: "visits.cancelNotify", bestEffort: true }); }
   }
+  // Lead L12: the "we missed each other" text with the rebook link (ships off; reports its own failures).
+  if (status === "no_show") await sendVisitNoShow(visitId);
   try { await reconcileForVisit([before?.staff_id as string | null]); } catch (e) { reportError(e, { where: "visits.gcal", bestEffort: true }); }
   return { ok: true, visitId };
 }

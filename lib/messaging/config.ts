@@ -182,6 +182,8 @@ export type MessagingSettings = {
   visitReminderSms: string;
   /** Lead L11 (17 Nov 2026): the text two hours before the visit. Ships off. */
   visitReminder2hSms: string;
+  /** Lead L12 (17 Nov 2026): the text after a no-show, with the rebook link. Ships off. */
+  visitNoShowSms: string;
   /** Visit booking addendum A (S3): the 6-digit code, and the "booked" text. */
   visitCodeSms: string;
   visitBookedSms: string;
@@ -545,6 +547,7 @@ export const DEFAULT_MESSAGING: MessagingSettings = {
     "{{company_name}}: a reminder that {{estimator_name}} is visiting {{address}} tomorrow, {{visit_when}}. Reply or call us if anything's changed.",
   // Appendix A's L11 −2 h line, signed with the company (a text with no sender reads as spam).
   visitReminder2hSms: "Hi {{first_name}}, {{estimator_name}} will be with you between {{window}} today. — {{company_name}}",
+  visitNoShowSms: "Hi {{first_name}}, we missed each other at {{address}} today. Rebook here: {{link}} — {{estimator_name}}, {{company_name}}",
   visitCodeSms: "{{code}} is your {{company_name}} code to book your site visit. It expires in 10 minutes.",
   visitBookedSms: "{{company_name}}: your site visit is booked for {{visit_when}} at {{address}}. A calendar invitation from {{company_email}} is on its way by email — please accept it. We will text a reminder the evening before. To cancel, decline the invitation or call us.",
   requestReceivedSubject: "We have your request — {{company_name}}",

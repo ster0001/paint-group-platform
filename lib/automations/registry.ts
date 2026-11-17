@@ -290,6 +290,13 @@ export const AUTOMATIONS: Automation[] = [
     note: "Rides the half-hour campaign sweep. The evening-before text is Visit reminder text above.",
   },
   {
+    key: "visit_no_show", name: "Lead L12 — we missed each other (text)", audience: "customer", channels: ["sms"], kind: "automatic",
+    defaultOff: true, defaultChannel: "sms", sendKind: "visit_no_show", capExempt: true,
+    trigger: "Staff mark an estimator visit No show (the Diary or the customer's record): one text with the link to their range page, whose Book a visit button rebooks. Quiet hours hold it until sending hours open. A visit whose estimate has no range page is not texted — the Today card is how that one is rebooked.",
+    templates: [{ field: "visitNoShowSms", label: "Text", kind: "sms", placeholders: ["{{first_name}}", "{{address}}", "{{link}}", "{{estimator_name}}", "{{company_name}}"] }],
+    guard: "Once per visit (automation_claims).",
+  },
+  {
     key: "walkthrough_invite", name: "Final walkthrough calendar invite", audience: "customer", channels: ["email", "ics"], kind: "automatic",
     defaultChannel: "email", sendKind: "walkthrough_invite", quietExempt: true,
     trigger: "The final walkthrough is booked, moved or cancelled. The customer AND the painter each get a calendar invite that updates itself.",
