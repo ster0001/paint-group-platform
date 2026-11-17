@@ -1,5 +1,5 @@
 import type { SequenceStep } from "./leadSequence";
-import { melbourneInstant } from "@/lib/time/businessHours";
+import { morningBeforeDue } from "./dateOffset";
 
 /**
  * The estimate sequence, E2–E7 (automations brief §4.3, master plan Appendix
@@ -51,13 +51,8 @@ export const OPEN_ESTIMATE_STAGES: ReadonlySet<string> = new Set(["estimate_sent
  * past the moment. Only while the quote is open.
  */
 export function expiryWarningDue(validUntil: string | null, stage: string | null, now: Date, daysBefore: number): boolean {
-  if (!validUntil || !stage || !OPEN_ESTIMATE_STAGES.has(stage)) return false;
-  const [y, m, d] = validUntil.split("-").map(Number);
-  if (!y || !m || !d) return false;
-  const day = new Date(Date.UTC(y, m - 1, d - daysBefore));
-  const at = melbourneInstant(day.getUTCFullYear(), day.getUTCMonth() + 1, day.getUTCDate(), 9).getTime();
-  const t = now.getTime();
-  return t >= at && t < at + DAY;
+  if (!stage || !OPEN_ESTIMATE_STAGES.has(stage)) return false;
+  return morningBeforeDue(validUntil, daysBefore, now);
 }
 
 const EXPIRY = new Intl.DateTimeFormat("en-AU", { timeZone: "Australia/Melbourne", weekday: "short", day: "numeric", month: "short" });

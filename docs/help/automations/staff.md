@@ -125,6 +125,14 @@ Four more, all **off** until you turn them on. Each goes once per quote, and non
 - **Estimate E11 — which was it? (chat)**: when someone declines without a reason, four one-tap reasons go on their chat: Price, Timing, Went with someone else, Not going ahead. Each opens a short page with one button. Nothing is recorded until they press it, so an email scanner that opens links can't pick one. The reason is saved in the same words as the decline panel ("Timing" is saved as "Postponing"), and it never replaces a reason already given.
 - **Estimate E12 — ready now? (chat)**: 60 days after a decline for timing (Postponing): if that has changed, here's the quote.
 
+## Before the job starts, W1–W4 (17 Nov 2026)
+- **W1, the welcome**, is **Welcome — thanks, what happens next**, which already sends on acceptance (email and text, with the deposit link and their account). Nothing changed.
+- **W2 — deposit due before the start (text + chat)**: off until you turn it on. Three days before the start, from 9 am, if the deposit is still owing, the customer gets one text and one line on their estimate chat (with the email), each with the pay link and the painter's name. **This replaces the Deposit reminder ladder.** While W2 is on, the old reminder stands down, so nobody gets both.
+- **W3 — colours still to confirm (text)**: off until you turn it on. Five days before the start, if the job's pre-start **Colour schedule finalised** box isn't ticked, one text asks them to book a colour consult.
+- **W4 — your job starts soon (text)**: off until you turn it on. Two days before the start, one text with the painter's first name, the day, and the arrival window. No job records an arrival time, so the window ("between 7:30 and 8:30 am") is in the wording. Change it there.
+
+All three are about a job the customer booked, so a marketing STOP doesn't stop them. They keep to sending hours, and a start date that moves gets them again for the new date.
+
 ## Which logo the emails use
 Every email the platform sends (estimates, offers, reminders, reset links, campaigns, the lot) takes the **Logo for emails** from Settings → Company. Upload a version with its own solid background, not a transparent one: mail apps in dark mode invert or recolour transparent logos, which is why the logo used to come out light in some inboxes and dark in others. If no email logo is uploaded, the light-background logo is used, and failing that the main one.
 

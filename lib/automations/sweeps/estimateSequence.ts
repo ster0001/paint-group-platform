@@ -21,9 +21,8 @@ import { ESTIMATE_STEPS, expiryWarningDue, expiryWords, type EstimateStep, type 
 import { declineReasonMissing, isTimingReason, reasonLinks } from "@/lib/estimate/declineReason";
 import { loadMessaging } from "@/lib/messaging/load";
 import { automationOn, normalisePhoneAU, renderTemplate, type MessagingSettings } from "@/lib/messaging/config";
-import { buildChatEmailHtml } from "@/lib/messaging/send";
-import { emailLogoUrl } from "@/lib/messaging/logo";
-import { brandRecord, companyForBrand, fromForBrand, messageBrandOf, publicOriginFor } from "@/lib/messaging/brand";
+import { brandRecord, messageBrandOf, publicOriginFor } from "@/lib/messaging/brand";
+import { sendChatStep } from "../chatStep";
 import { siteUrl } from "@/lib/invoicing/pdf";
 import { isTestEmail } from "@/lib/accounts/identity";
 import { loadEstimateStages, type StageEstimateRow } from "@/lib/crm/estimateStageLoad";
@@ -160,26 +159,12 @@ async function sendText(db: SupabaseClient, key: string, i: Ctx, template: strin
   return word === "sent" || word === "not_configured" || o.outcome === "held";
 }
 
-/** A chat step (R1): the email that carries it, then the message on the estimate's own chat in the estimator's name. */
 async function sendChat(db: SupabaseClient, key: string, i: Ctx, subjectT: string, bodyT: string): Promise<boolean> {
-  if (!i.email) return false;
-  const { brand, estimator, link, vars } = varsFor(i);
-  const co = companyForBrand(i.company, brand);
-  const body = renderTemplate(bodyT, vars);
-  const o = await sendAutomation(db, {
-    key, to: { email: i.email },
-    email: {
-      subject: renderTemplate(subjectT, vars),
-      html: buildChatEmailHtml({ message: body, link: `${link}#chat`, companyName: co.name || brandRecord(brand).name, logoUrl: emailLogoUrl(co), estimatorName: i.company.estimatorName || undefined, companyPhone: co.phone || undefined }),
-      from: fromForBrand(brand),
-    },
-    ctx: { estimateId: i.est.id, accountId: i.est.account_id }, now: i.now,
+  const { brand, link, vars } = varsFor(i);
+  return sendChatStep(db, {
+    key, estimateId: i.est.id, accountId: i.est.account_id, email: i.email, brand, company: i.company,
+    subject: renderTemplate(subjectT, vars), body: renderTemplate(bodyT, vars), link, now: i.now,
   });
-  const word = outcomeWord(o);
-  if (word !== "sent" && word !== "not_configured") return false;
-  const { error } = await db.from("estimate_messages").insert({ estimate_id: i.est.id, direction: "staff", body, author_name: estimator === "The team" ? null : estimator });
-  if (error) { reportError(error, { where: "automations.estimateSequence.chatRow", extra: { estimateId: i.est.id, key } }); return false; }
-  return true;
 }
 
 async function sendStep(db: SupabaseClient, i: Ctx & { step: EstimateStep }): Promise<boolean> {
