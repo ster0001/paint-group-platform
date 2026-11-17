@@ -265,6 +265,16 @@ export type MessagingSettings = {
   estimateViewedWorthBody: string;
   estimateViewedHeldSubject: string;
   estimateViewedHeldBody: string;
+  /** E9–E12 (17 Nov 2026): the expiry warning (text + chat), the lapsed chat, the decline-reason chips, the timing follow-up. Ship off. */
+  estimateExpirySms: string;
+  estimateExpirySubject: string;
+  estimateExpiryBody: string;
+  estimateExpiredSubject: string;
+  estimateExpiredBody: string;
+  estimateDeclinedReasonSubject: string;
+  estimateDeclinedReasonBody: string;
+  estimateDeclinedTimingSubject: string;
+  estimateDeclinedTimingBody: string;
   /** Office: an estimate was accepted (Tom, 4 Sep). */
   officeEmail: string;
   acceptedOfficeSubject: string;
@@ -656,6 +666,16 @@ export const DEFAULT_MESSAGING: MessagingSettings = {
   estimateViewedWorthBody: "Hi {{first_name}}, a couple of things worth knowing before you decide: everything's covered by our 2-year workmanship warranty, and you'll get photos and updates from the painter every day on your {{brand}} page. The quote's here: {{link}}.",
   estimateViewedHeldSubject: "Your price for {{address}}",
   estimateViewedHeldBody: "Hi {{first_name}}, no pressure at all — your price for {{address}} is held until {{expiry}}. If timing's the issue, tell me roughly when suits and I'll pencil it in.",
+  // E9–E12, Appendix A. E11's chips are links to a one-tap page ({{reason_links}}, one per line).
+  estimateExpirySms: "Hi {{first_name}}, your {{brand}} quote for {{address}} is valid until {{expiry}}: {{link}}",
+  estimateExpirySubject: "Your quote for {{address}} is valid until {{expiry}}",
+  estimateExpiryBody: "Hi {{first_name}}, just a heads-up that the price on your quote is valid until {{expiry}}. After that I'd need to re-check materials and availability. Happy to extend it if you're close to deciding — just reply.",
+  estimateExpiredSubject: "Your quote for {{address}}",
+  estimateExpiredBody: "Hi {{first_name}}, your quote for {{address}} has lapsed. If you'd still like the work done, reply here and I'll refresh the price for you.",
+  estimateDeclinedReasonSubject: "Thanks for letting us know",
+  estimateDeclinedReasonBody: "Thanks for letting us know, {{first_name}}. So we can improve, which was it?\n\n{{reason_links}}\n\nOne tap, no reply needed.",
+  estimateDeclinedTimingSubject: "Your quote for {{address}}",
+  estimateDeclinedTimingBody: "Hi {{first_name}}, you mentioned the timing wasn't right for {{address}} a couple of months ago. If that's changed, here's your quote — I'll refresh the price if anything's moved: {{link}}.",
   wizardResumeSubject: "Pick up where you left off — your estimate is saved",
   wizardResumeBody:
     "You were part-way through your {{company_name}} estimate for {{where}} — your answers are saved.\n\n" +

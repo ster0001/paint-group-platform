@@ -117,6 +117,14 @@ Five messages for a quote you have sent. All are **off** until you turn them on.
 
 A question, acceptance, decline or revision stops them. The calls in the plan (E3's call, and E6 at 7 days) are the **Follow up** card on Today, timed by Settings → CRM's chase days, so there's one card per quote, not two.
 
+## The end of a quote, E9–E12 (17 Nov 2026)
+Four more, all **off** until you turn them on. Each goes once per quote, and none goes to anyone who said no to marketing.
+
+- **Estimate E9 — your price is valid until (text + chat)**: a week before the quote's valid-until day, from 9 am, while it is still open. One text and one chat line.
+- **Estimate E10 — your quote has lapsed (chat)**: once the quote passes its valid-until day with no decision. It says reply and we'll refresh the price. Your own **Estimate expired** alert is unchanged.
+- **Estimate E11 — which was it? (chat)**: when someone declines without a reason, four one-tap reasons go on their chat: Price, Timing, Went with someone else, Not going ahead. Each opens a short page with one button. Nothing is recorded until they press it, so an email scanner that opens links can't pick one. The reason is saved in the same words as the decline panel ("Timing" is saved as "Postponing"), and it never replaces a reason already given.
+- **Estimate E12 — ready now? (chat)**: 60 days after a decline for timing (Postponing): if that has changed, here's the quote.
+
 ## Which logo the emails use
 Every email the platform sends (estimates, offers, reminders, reset links, campaigns, the lot) takes the **Logo for emails** from Settings → Company. Upload a version with its own solid background, not a transparent one: mail apps in dark mode invert or recolour transparent logos, which is why the logo used to come out light in some inboxes and dark in others. If no email logo is uploaded, the light-background logo is used, and failing that the main one.
 

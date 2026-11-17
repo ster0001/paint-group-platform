@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { ESTIMATE_STEPS, expiryWords, type EstimateStepKey } from "./estimateSequence";
+import { ESTIMATE_STEPS, expiryWarningDue, expiryWords, type EstimateStepKey } from "./estimateSequence";
+import { DECLINE_REASON_CODES, declineReasonMissing, isTimingReason, reasonLinks } from "@/lib/estimate/declineReason";
 import { sequenceStepsDue } from "./leadSequence";
 import { automationByKey } from "./registry";
 
@@ -24,7 +25,8 @@ describe("the estimate sequence E2–E7", () => {
     expect(keys(14, viewed)).toEqual(["estimate_viewed_held"]);
   });
   it("a question, a decision or a conversation stops them", () => {
-    for (const stage of ["question_asked", "accepted", "declined", "expired", "revised"]) expect(keys(2, facts({ stage }))).toEqual([]);
+    const followUps = new Set(["estimate_unopened", "estimate_unopened_again", "estimate_viewed_any_q", "estimate_viewed_worth", "estimate_viewed_held"]);
+    for (const stage of ["question_asked", "accepted", "declined", "expired", "revised"]) expect(keys(2, facts({ stage })).filter((k) => followUps.has(k))).toEqual([]);
     expect(keys(5, facts({ stage: "estimate_viewed", conversationAt: at(3).toISOString() }))).toEqual([]);
   });
   it("every step ships off, is marketing, and has an 'after' in days", () => {
@@ -36,5 +38,40 @@ describe("the estimate sequence E2–E7", () => {
   it("words the valid-until day as Appendix A does", () => {
     expect(expiryWords("2026-10-02")).toBe("Fri 2 Oct");
     expect(expiryWords(null)).toBe("the date on your quote");
+  });
+});
+
+
+describe("E9–E12", () => {
+  it("E9: from 9 am Melbourne a week before valid-until, for a day, only while the quote is open", () => {
+    // valid until Tue 25 Nov 2026 → due Tue 18 Nov 09:00 (+11) = 17 Nov 22:00Z
+    expect(expiryWarningDue("2026-11-25", "estimate_viewed", new Date("2026-11-17T21:59:00Z"), 7)).toBe(false);
+    expect(expiryWarningDue("2026-11-25", "estimate_viewed", new Date("2026-11-17T22:00:00Z"), 7)).toBe(true);
+    expect(expiryWarningDue("2026-11-25", "estimate_sent", new Date("2026-11-18T21:59:00Z"), 7)).toBe(true);
+    expect(expiryWarningDue("2026-11-25", "estimate_sent", new Date("2026-11-18T22:00:00Z"), 7)).toBe(false);
+    for (const stage of ["accepted", "declined", "expired", null]) expect(expiryWarningDue("2026-11-25", stage, new Date("2026-11-17T23:00:00Z"), 7)).toBe(false);
+    expect(expiryWarningDue(null, "estimate_sent", new Date("2026-11-17T23:00:00Z"), 7)).toBe(false);
+  });
+  it("E10 the day it lapses; E11 on a decline; E12 sixty days after it", () => {
+    const at = (d: number) => new Date(Date.parse(sent) + d * 86_400_000);
+    const allOn = new Map<EstimateStepKey, number>(ESTIMATE_STEPS.map((s) => [s.key, s.defaultAfter]));
+    const due = (stage: string, d: number) => sequenceStepsDue(ESTIMATE_STEPS, facts({ stage }), at(d), allOn).map((s) => s.key);
+    expect(due("expired", 0.5)).toEqual(["estimate_expired_chat"]);
+    expect(due("expired", 3.5)).toEqual(["estimate_expired_chat"]);
+    expect(due("expired", 4.1)).toEqual([]);
+    expect(due("declined", 0.1)).toEqual(["estimate_declined_reason"]);
+    expect(due("declined", 60.2)).toEqual(["estimate_declined_timing"]);
+  });
+  it("E11 asks only a decline with no reason; E12 follows only Postponing; a chip stores the panel's words", () => {
+    expect(declineReasonMissing(null)).toBe(true);
+    expect(declineReasonMissing("  ")).toBe(true);
+    expect(declineReasonMissing("Price")).toBe(false);
+    expect(isTimingReason("Postponing — next autumn")).toBe(true);
+    expect(isTimingReason("Price")).toBe(false);
+    expect(DECLINE_REASON_CODES.timing.stored).toBe("Postponing");
+    expect(reasonLinks("https://x/e/t/reason").split("\n")).toEqual([
+      "Price: https://x/e/t/reason?r=price", "Timing: https://x/e/t/reason?r=timing",
+      "Went with someone else: https://x/e/t/reason?r=other_quote", "Not going ahead: https://x/e/t/reason?r=not_going",
+    ]);
   });
 });

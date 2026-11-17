@@ -1304,6 +1304,39 @@ export const AUTOMATIONS: Automation[] = [
     timing: [{ id: "after", label: "Days after they opened it", unit: "days", default: 14, min: 7, max: 28 }],
     guard: "Once per estimate (automation_claims). Never sent more than a day late. Not sent once the chat has a message after the stage began.",
   },
+  // ---- E9–E12 (17 Nov 2026): the end of a quote — expiring, lapsed, declined.
+  {
+    key: "estimate_expiry_warning", name: "Estimate E9 — your price is valid until (text + chat)", audience: "customer", channels: ["sms", "email"], kind: "automatic",
+    consent: "marketing", defaultOff: true, defaultChannel: "both", capExempt: true, sendKind: "estimate_nudge",
+    trigger: "A sent quote with no decision, a week before its valid-until day (from 9 am): one text with the link, and one line on its chat with the email. Only while it is still open — a decision stops it.",
+    templates: [{ field: "estimateExpirySms", label: "Text", kind: "sms", placeholders: [...P.lead, "{{expiry}}"] }, { field: "estimateExpirySubject", label: "Email subject", kind: "subject", placeholders: [...P.lead, "{{expiry}}"] }, { field: "estimateExpiryBody", label: "Chat message", kind: "body", placeholders: [...P.lead, "{{expiry}}"] }],
+    timing: [{ id: "before", label: "Days before it expires", unit: "days", default: 7, min: 1, max: 21 }],
+    guard: "Once per estimate (automation_claims). Never sent more than a day late.",
+  },
+  {
+    key: "estimate_expired_chat", name: "Estimate E10 — your quote has lapsed (chat)", audience: "customer", channels: ["email"], kind: "automatic",
+    consent: "marketing", defaultOff: true, defaultChannel: "email", capExempt: true, sendKind: "estimate_nudge",
+    trigger: "A quote passes its valid-until day with no decision: reply and we will refresh the price. On its chat, with the email. The office's own \"Estimate expired\" alert is unchanged.",
+    templates: [{ field: "estimateExpiredSubject", label: "Email subject", kind: "subject", placeholders: [...P.lead, "{{expiry}}"] }, { field: "estimateExpiredBody", label: "Chat message", kind: "body", placeholders: [...P.lead, "{{expiry}}"] }],
+    timing: [{ id: "after", label: "Days after it lapses", unit: "days", default: 0, min: 0, max: 14 }],
+    guard: "Once per estimate (automation_claims). Never sent more than four days after the lapse.",
+  },
+  {
+    key: "estimate_declined_reason", name: "Estimate E11 — which was it? (chat)", audience: "customer", channels: ["email"], kind: "automatic",
+    consent: "marketing", defaultOff: true, defaultChannel: "email", capExempt: true, sendKind: "estimate_nudge",
+    trigger: "A customer declines without giving a reason: four one-tap reasons (Price, Timing, Went with someone else, Not going ahead) on the chat, with the email. Each opens a page with one button, so a link-checking email scanner never picks one.",
+    templates: [{ field: "estimateDeclinedReasonSubject", label: "Email subject", kind: "subject", placeholders: [...P.lead, "{{expiry}}"] }, { field: "estimateDeclinedReasonBody", label: "Chat message", kind: "body", placeholders: [...P.lead, "{{expiry}}", "{{reason_links}}"] }],
+    timing: [{ id: "after", label: "Days after the decline", unit: "days", default: 0, min: 0, max: 7 }],
+    guard: "Once per estimate (automation_claims). Only when no reason was given; a tapped reason is stored once and never overwrites one.",
+  },
+  {
+    key: "estimate_declined_timing", name: "Estimate E12 — ready now? (chat)", audience: "customer", channels: ["email"], kind: "automatic",
+    consent: "marketing", defaultOff: true, defaultChannel: "email", capExempt: true, sendKind: "estimate_nudge",
+    trigger: "Sixty days after a decline whose reason was timing (\"Postponing\"): if that has changed, here is the quote. On the chat, with the email.",
+    templates: [{ field: "estimateDeclinedTimingSubject", label: "Email subject", kind: "subject", placeholders: [...P.lead, "{{expiry}}"] }, { field: "estimateDeclinedTimingBody", label: "Chat message", kind: "body", placeholders: [...P.lead, "{{expiry}}"] }],
+    timing: [{ id: "after", label: "Days after the decline", unit: "days", default: 60, min: 30, max: 120 }],
+    guard: "Once per estimate (automation_claims). Never sent more than a day late.",
+  },
 ];
 
 // Tom, 10 Sep: the screen is broken into Customers / Contractors / Staff.
