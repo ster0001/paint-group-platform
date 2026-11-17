@@ -23,6 +23,14 @@ export const STAFF_EVENTS = [
   { key: "office_signoff_overdue",     label: "Sign-off overdue",         short: "Sign-off" },
   /** Tom, 20 Sep 2026: a customer wrote on their estimate's chat. */
   { key: "office_estimate_chat",       label: "Customer chat message",    short: "Chat" },
+  /**
+   * Lead L9 / L10 / L13 (R4, 17 Nov 2026): a customer asked for help, a visit or a call. Routed by
+   * the office hours (lib/staff/requestAlerts.ts): in hours, Email is the email (and the chat pop-up
+   * shows it); out of hours, Text is the after-hours text — and Email still gets the summary.
+   */
+  { key: "office_lead_help",           label: "Customer needs help (L9)",  short: "Help", byHours: true },
+  { key: "office_visit_request",       label: "Visit request (L10)",       short: "Visit req", byHours: true },
+  { key: "office_call_request",        label: "Call request (L13)",        short: "Call req", byHours: true },
   /** Tom, 9 Oct 2026: a painter wrote in a project's Messages box (PC Command). Optional — the PC work item is the record. */
   { key: "office_painter_message",     label: "Painter message",          short: "Painter msg" },
   /** Tom, 1 Oct 2026: a customer declines their estimate; a sent estimate lapses past its valid-until. */
@@ -54,6 +62,11 @@ export type StaffEventKey = (typeof STAFF_EVENTS)[number]["key"];
 export function emailOnlyEvent(key: StaffEventKey): boolean {
   const e = STAFF_EVENTS.find((x) => x.key === key);
   return Boolean(e && "emailOnly" in e && e.emailOnly);
+}
+/** An event routed by the office hours — its Text box means "text me out of hours". */
+export function byHoursEvent(key: StaffEventKey): boolean {
+  const e = STAFF_EVENTS.find((x) => x.key === key);
+  return Boolean(e && "byHours" in e && e.byHours);
 }
 export const STAFF_EVENT_KEYS = STAFF_EVENTS.map((e) => e.key) as StaffEventKey[];
 

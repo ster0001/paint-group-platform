@@ -3,7 +3,7 @@ import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import { bucketFor } from "@/lib/wizard/journey";
-import { logCrmEvent } from "@/lib/crm/events";
+import { logRequestEvent } from "@/lib/staff/requestAlerts";
 import { reportError } from "@/lib/monitoring/report";
 
 /**
@@ -59,7 +59,7 @@ export async function POST(req: Request) {
     }).eq("id", d.id);
     if (error) { reportError(error, { where: "wizard.outcome", bestEffort: true }); return quietly("update"); }
 
-    await logCrmEvent(db, {
+    await logRequestEvent(db, {
       type: outcome === "help_requested" ? "wizard_help_requested" : "wizard_question_asked",
       source: "customer",
       accountId: (d.account_id as string | null) ?? null,

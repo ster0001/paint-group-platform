@@ -12,7 +12,8 @@ import type { DefectRate } from "@/lib/capture/commit";
 import type { TypicalSizeRow } from "@/lib/wizard/starter";
 import type { TreeRefs } from "@/lib/wizard/build-tree";
 import { loadPricingContext } from "@/lib/pricing/context";
-import { logCrmEvent, type CrmEventInput } from "@/lib/crm/events";
+import type { CrmEventInput } from "@/lib/crm/events";
+import { logRequestEvent } from "@/lib/staff/requestAlerts";
 import type { BrainHit, ScopeStore } from "./scope-store";
 import type { ScopeDoc } from "./scope-doc";
 
@@ -65,7 +66,8 @@ export class SupabaseScopeStore implements ScopeStore {
   }
 
   ctx() { return loadPricingContext(this.db); }
-  logCrmEvent(input: CrmEventInput) { return logCrmEvent(this.db, input); }
+  /** The assistant's call back is a request: logRequestEvent tells staff (L13); any other type is logged as is. */
+  logCrmEvent(input: CrmEventInput) { return logRequestEvent(this.db, input); }
 
   /** Condition photos on file for the estimate (the editor's upload path). */
   async photoCount(estimateId: string): Promise<number> {

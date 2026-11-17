@@ -777,6 +777,39 @@ export const AUTOMATIONS: Automation[] = [
     ],
     guard: "Once per chat message.",
   },
+  // Lead L9 / L10 / L13 (R4, 17 Nov 2026): help, visit and call requests, routed by the office hours.
+  // Who is told is each person's routing under Settings → Staff logins: in hours the Email box (and the
+  // chat pop-up), out of hours the Text box as well. Ship off (A‑D).
+  {
+    key: "office_lead_help", name: "Lead L9 — a customer needs help (staff alert)", audience: "office", channels: ["email", "sms"], kind: "automatic",
+    defaultOff: true, defaultChannel: "both", sendKind: "office_alert", quietExempt: true, capExempt: true,
+    trigger: "A customer asks for help in the wizard (\"I'm stuck, call me\" or a question). In office hours (Mon–Fri 8–5, the Settings holidays out) everyone routed by email is emailed and the chat pop-up shows it; out of hours everyone routed by text is texted as well.",
+    templates: [
+      { field: "officeLeadHelpSubject", label: "Email subject", kind: "subject", placeholders: ["{{first_name}}", "{{address}}", "{{step}}", "{{message}}", "{{hours_tag}}", "{{link}}"] },
+      { field: "officeLeadHelpBody", label: "Message (also the after-hours text)", kind: "body", placeholders: ["{{first_name}}", "{{address}}", "{{step}}", "{{message}}", "{{hours_tag}}", "{{link}}"] },
+    ],
+    guard: "Once per request (staff_notifications, keyed on the CRM event).",
+  },
+  {
+    key: "office_visit_request", name: "Lead L10 — visit request (staff alert)", audience: "office", channels: ["email", "sms"], kind: "automatic",
+    defaultOff: true, defaultChannel: "both", sendKind: "office_alert", quietExempt: true, capExempt: true,
+    trigger: "A customer asks for a visit (a time, or a visit before the range). Routed by the office hours the same way as L9. The customer's own \"we're on it\" chat a working day later is Lead L10 — we're sorting a time.",
+    templates: [
+      { field: "officeVisitRequestSubject", label: "Email subject", kind: "subject", placeholders: ["{{first_name}}", "{{address}}", "{{zone}}", "{{due}}", "{{hours_tag}}", "{{link}}"] },
+      { field: "officeVisitRequestBody", label: "Message (also the after-hours text)", kind: "body", placeholders: ["{{first_name}}", "{{address}}", "{{zone}}", "{{due}}", "{{hours_tag}}", "{{link}}"] },
+    ],
+    guard: "Once per request (staff_notifications, keyed on the CRM event).",
+  },
+  {
+    key: "office_call_request", name: "Lead L13 — call request (staff alert)", audience: "office", channels: ["email", "sms"], kind: "automatic",
+    defaultOff: true, defaultChannel: "both", sendKind: "office_alert", quietExempt: true, capExempt: true,
+    trigger: "A customer asks us to call (Speak with us, a call back, a call to finalise by phone). Routed by the office hours the same way as L9.",
+    templates: [
+      { field: "officeCallRequestSubject", label: "Email subject", kind: "subject", placeholders: ["{{first_name}}", "{{address}}", "{{range}}", "{{phone}}", "{{hours_tag}}", "{{link}}"] },
+      { field: "officeCallRequestBody", label: "Message (also the after-hours text)", kind: "body", placeholders: ["{{first_name}}", "{{address}}", "{{range}}", "{{phone}}", "{{hours_tag}}", "{{link}}"] },
+    ],
+    guard: "Once per request (staff_notifications, keyed on the CRM event).",
+  },
   // Tom, 1 Oct 2026: "staff to receive email if an offered estimate is
   // rejected / expires". Same path as the other office alerts: the master
   // switch here, who gets it per login under Staff logins.
@@ -1192,6 +1225,17 @@ export const AUTOMATIONS: Automation[] = [
     templates: [{ field: "leadTightenedCloseSms", label: "Text", kind: "sms", placeholders: P.lead }],
     timing: [{ id: "after", label: "Hours after they finished", unit: "hours", default: 4, min: 1, max: 48 }],
     guard: "Once per estimate (automation_claims). Never sent more than 4 hours late. {{range}} is the last range the server priced for them.",
+  },
+  {
+    key: "lead_visit_request_ack", name: "Lead L10 — we're sorting a time (chat)", audience: "customer", channels: ["email"], kind: "automatic",
+    defaultOff: true, defaultChannel: "email", capExempt: true, sendKind: "lead_nudge",
+    trigger: "A customer asked for a visit and nobody has offered a time a working day later (office days, the Settings holidays out): a line on their range page's chat saying a time is being sorted and when we will come back to them, with the email. Answering the request stops it.",
+    templates: [
+      { field: "leadVisitAckSubject", label: "Email subject", kind: "subject", placeholders: [...P.lead, "{{due}}"] },
+      { field: "leadVisitAckBody", label: "Chat message", kind: "body", placeholders: [...P.lead, "{{due}}"] },
+    ],
+    timing: [{ id: "after", label: "Working days after the request", unit: "days", default: 1, min: 1, max: 5 }],
+    guard: "Once per estimate (automation_claims). Not sent once the chat has a message after the request. Never sent more than a day late.",
   },
 ];
 

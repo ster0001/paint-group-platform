@@ -81,6 +81,21 @@ Three more, for customers who go on to tighten their range. All three are **off*
 
 All three link to the customer's range page. Its **Tighten my range** and **Book a visit** buttons open their draft, on another phone after a code texted to the mobile on file. Two changes from the plan's wording: L5 doesn't say how many rooms they did (nothing records that part-way), and L6's visit link is the range page, whose Book a visit button is the door.
 
+## The staff alerts and the call card, L8–L10 and L13 (17 Nov 2026)
+When a customer asks for a person, staff hear about it straight away. The three alerts are **off** until you turn them on here. Who gets each one is set per person under **Settings → Staff logins → Who gets each staff alert** (the **Help**, **Visit req** and **Call req** columns).
+
+- **Lead L9 — a customer needs help**: they tapped "I'm stuck" or asked a question in the wizard.
+- **Lead L10 — visit request**: they asked for a visit time, or a visit before the range.
+- **Lead L13 — call request**: they asked us to call (Speak with us, a call back from the holding page or the range editor, or the assistant).
+
+**In office hours** (Monday to Friday, 8 am to 5 pm, with the public holidays from Settings → Booking rules off), everyone ticked **Email** is emailed. The request also pops up in the chat corner of every staff screen with a chime. Open it, and you are on that customer's estimate chat, so you can reply in the thread. The pop-up goes once someone replies, logs a call, offers a time or books a visit.
+
+**Out of office hours**, everyone ticked **Text after hours** gets a text with the same line, and Email still gets the email as the summary. Each request alerts once, however many times the customer taps.
+
+**Lead L10 — we're sorting a time (chat)** is for the customer. When nobody has offered a time a working day after a visit request, a line goes on their range page's chat: "I'm sorting a time and will come back to you by …", with the request's reply-by time and the email. Offering a time stops it. It is off until you turn it on.
+
+**L8 is a card, not a message.** When a lead tightens their range and books nothing, their **Follow up** card on Today becomes **Call {name} ({mobile}) — tightened {address} to {range}, no booking yet**, due a day later. The card's second line says **Phone-closable: yes** or **no**. Yes means the job can be confirmed on the call with no visit: interior and under the remote-confirmation cap, or for Paint Home, under the Paint Home ceiling. A call logged on the customer clears it, and so does them booking or asking for something. It is on for everyone (it is a card on Today, it sends nothing).
+
 ## Which logo the emails use
 Every email the platform sends (estimates, offers, reminders, reset links, campaigns, the lot) takes the **Logo for emails** from Settings → Company. Upload a version with its own solid background, not a transparent one: mail apps in dark mode invert or recolour transparent logos, which is why the logo used to come out light in some inboxes and dark in others. If no email logo is uploaded, the light-background logo is used, and failing that the main one.
 
