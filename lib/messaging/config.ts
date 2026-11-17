@@ -233,6 +233,11 @@ export type MessagingSettings = {
   leadRangeNudgeBody: string;
   leadRangeHumanSubject: string;
   leadRangeHumanBody: string;
+  /** Lead sequence L5–L7 (17 Nov 2026): the tighten-resume text, the measuring-help chat, the closer-range text. Ship off. */
+  leadTightenResumeSms: string;
+  leadTightenHelpSubject: string;
+  leadTightenHelpBody: string;
+  leadTightenedCloseSms: string;
   /** Office: an estimate was accepted (Tom, 4 Sep). */
   officeEmail: string;
   acceptedOfficeSubject: string;
@@ -590,6 +595,15 @@ export const DEFAULT_MESSAGING: MessagingSettings = {
     "The range moves most with ceiling height, how much prep is needed and whether the house is occupied — so if any of that wasn't quite right, let me know and I'll adjust it.",
   leadRangeHumanSubject: "About the {{address}} job",
   leadRangeHumanBody: "Hi {{first_name}}, just checking in. Happy to talk through the {{address}} job if that's easier than the online steps — reply with a good time and I'll call you.",
+  // L5–L7. Appendix A, with two changes the data forces: L5 has no {rooms_done} (nothing on the
+  // server counts rooms part-way through), and L6's {visit_link} is {{link}} — the lead page,
+  // whose Book a visit button is the door (Tom, 17 Nov 2026).
+  leadTightenResumeSms: "Hi {{first_name}}, your quote range for {{address}} is part done. Pick up where you left off: {{link}} — {{brand}}",
+  leadTightenHelpSubject: "Measuring at {{address}}",
+  leadTightenHelpBody:
+    "Hi {{first_name}}, measuring is the fiddly part. If you don't have a tape, one big step is about a metre — walk the long wall then the short wall and type those in. " +
+    "Or skip it entirely and I'll measure on a visit: {{link}}",
+  leadTightenedCloseSms: "Hi {{first_name}}, your closer range for {{address}} is ready: {{range}}. Book a time for us to confirm it: {{link}} — {{estimator}}, {{brand}}",
   wizardResumeSubject: "Pick up where you left off — your estimate is saved",
   wizardResumeBody:
     "You were part-way through your {{company_name}} estimate for {{where}} — your answers are saved.\n\n" +

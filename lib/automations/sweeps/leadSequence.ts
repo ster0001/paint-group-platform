@@ -1,5 +1,5 @@
 /**
- * The lead sequence sweep, L1–L3 (automations brief §4). SERVER ONLY, service
+ * The lead sequence sweep, L1–L3 and L5–L7 (automations brief §4). SERVER ONLY, service
  * client, off the half-hour campaign sweep (`?only=leads` is the hand run).
  *
  * Candidates are wizard leads with a range page (A‑F: an unsent draft holding
@@ -45,7 +45,7 @@ type LeadRow = StageEstimateRow & {
 };
 
 export async function runLeadSequenceSweep(db: SupabaseClient, now = new Date()): Promise<LeadSequenceResult> {
-  const out: LeadSequenceResult = { candidates: 0, due: 0, sent: { lead_range_reminder: 0, lead_range_nudge: 0, lead_range_human: 0 }, skipped: 0 };
+  const out: LeadSequenceResult = { candidates: 0, due: 0, sent: Object.fromEntries(LEAD_STEPS.map((s) => [s.key, 0])) as Record<LeadStepKey, number>, skipped: 0 };
   try {
     const { messaging, company } = await loadMessaging(db);
     const enabled = new Map<LeadStepKey, number>();
@@ -92,10 +92,10 @@ export async function runLeadSequenceSweep(db: SupabaseClient, now = new Date())
 
     for (const lead of leads) {
       const stage = staged.stages.get(lead.id)?.result ?? null;
-      const rangeAt = stage?.since ?? null;
+      const stageSince = stage?.since ?? null;
       const due = leadStepsDue({
-        stage: stage?.stage ?? null, since: rangeAt, claimed: claimedOf.get(lead.id) ?? new Set(),
-        conversationAt: conversationAt(chatOf.get(lead.id) ?? [], rangeAt, claimTimesOf.get(lead.id) ?? []),
+        stage: stage?.stage ?? null, since: stageSince, claimed: claimedOf.get(lead.id) ?? new Set(),
+        conversationAt: conversationAt(chatOf.get(lead.id) ?? [], stageSince, claimTimesOf.get(lead.id) ?? []),
       }, now, enabled);
       const snap = parseLeadSnapshot(lead.lead_snapshot);
       for (const step of due) {
@@ -113,6 +113,20 @@ export async function runLeadSequenceSweep(db: SupabaseClient, now = new Date())
   }
   return out;
 }
+
+/** Each step's wording (Settings → Automations; the defaults are Appendix A). */
+type SmsKey = "lead_range_reminder" | "lead_tighten_resume" | "lead_tightened_close";
+type ChatKey = Exclude<LeadStepKey, SmsKey>;
+const SMS_TEMPLATE: Record<SmsKey, (m: MessagingSettings) => string> = {
+  lead_range_reminder: (m) => m.leadRangeReminderSms,
+  lead_tighten_resume: (m) => m.leadTightenResumeSms,
+  lead_tightened_close: (m) => m.leadTightenedCloseSms,
+};
+const CHAT_TEMPLATE: Record<ChatKey, (m: MessagingSettings) => [string, string]> = {
+  lead_range_nudge: (m) => [m.leadRangeNudgeSubject, m.leadRangeNudgeBody],
+  lead_range_human: (m) => [m.leadRangeHumanSubject, m.leadRangeHumanBody],
+  lead_tighten_help: (m) => [m.leadTightenHelpSubject, m.leadTightenHelpBody],
+};
 
 async function sendStep(db: SupabaseClient, i: {
   step: LeadStep; lead: LeadRow; snap: LeadSnapshot;
@@ -136,16 +150,14 @@ async function sendStep(db: SupabaseClient, i: {
   if (step.channel === "sms") {
     const phone = lead.contact_phone ? normalisePhoneAU(lead.contact_phone) : null;
     if (!phone) return false;
-    const o = await sendAutomation(db, { key: step.key, to: { phone }, sms: { body: renderTemplate(messaging.leadRangeReminderSms, vars) }, ctx, now: i.now });
+    const o = await sendAutomation(db, { key: step.key, to: { phone }, sms: { body: renderTemplate(SMS_TEMPLATE[step.key as SmsKey](messaging), vars) }, ctx, now: i.now });
     const word = outcomeWord(o);
     return word === "sent" || word === "not_configured" || o.outcome === "held";
   }
 
   const email = lead.contact_email?.trim() || null;
   if (!email) return false;
-  const [subjectT, bodyT] = step.key === "lead_range_nudge"
-    ? [messaging.leadRangeNudgeSubject, messaging.leadRangeNudgeBody]
-    : [messaging.leadRangeHumanSubject, messaging.leadRangeHumanBody];
+  const [subjectT, bodyT] = CHAT_TEMPLATE[step.key as ChatKey](messaging);
   const body = renderTemplate(bodyT, vars);
   const o = await sendAutomation(db, {
     key: step.key, to: { email },

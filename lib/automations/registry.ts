@@ -1164,6 +1164,35 @@ export const AUTOMATIONS: Automation[] = [
     timing: [{ id: "after", label: "Days after the range", unit: "days", default: 3, min: 2, max: 21 }],
     guard: "Once per estimate (automation_claims). Not sent once the chat has a message after the range. Never sent more than a day late.",
   },
+  // ---- L5–L7 (17 Nov 2026), on the same sweep. The link is the lead page, whose Tighten my range
+  // and Book a visit buttons open the draft — in another browser, after a code to the mobile on file.
+  {
+    key: "lead_tighten_resume", name: "Lead L5 — pick up where you left off (text)", audience: "customer", channels: ["sms"], kind: "automatic",
+    consent: "marketing", defaultOff: true, defaultChannel: "sms", capExempt: true, sendKind: "lead_nudge",
+    trigger: "A customer started tightening their range and has not finished: one text an hour after they started, with the link to their range page. Only while they are still at \"Tightening\" — finishing, booking a visit or asking for help stops it.",
+    templates: [{ field: "leadTightenResumeSms", label: "Text", kind: "sms", placeholders: P.lead }],
+    timing: [{ id: "after", label: "Hours after they started", unit: "hours", default: 1, min: 1, max: 24 }],
+    guard: "Once per estimate (automation_claims). Never sent more than 2 hours late.",
+  },
+  {
+    key: "lead_tighten_help", name: "Lead L6 — measuring help (chat)", audience: "customer", channels: ["email"], kind: "automatic",
+    consent: "marketing", defaultOff: true, defaultChannel: "email", capExempt: true, sendKind: "lead_nudge",
+    trigger: "A day after they started tightening, still not finished: a measuring tip on their range page's chat — or book a visit instead — with the email.",
+    templates: [
+      { field: "leadTightenHelpSubject", label: "Email subject", kind: "subject", placeholders: P.lead },
+      { field: "leadTightenHelpBody", label: "Chat message", kind: "body", placeholders: P.lead },
+    ],
+    timing: [{ id: "after", label: "Days after they started", unit: "days", default: 1, min: 1, max: 7 }],
+    guard: "Once per estimate (automation_claims). Not sent once the chat has a message after they started. Never sent more than a day late.",
+  },
+  {
+    key: "lead_tightened_close", name: "Lead L7 — your closer range is ready (text)", audience: "customer", channels: ["sms"], kind: "automatic",
+    consent: "marketing", defaultOff: true, defaultChannel: "sms", capExempt: true, sendKind: "lead_nudge",
+    trigger: "A customer finished tightening and has booked nothing: one text 4 hours later with the closer range and the link to book a visit. Only while they are still at \"Tightened, no action\".",
+    templates: [{ field: "leadTightenedCloseSms", label: "Text", kind: "sms", placeholders: P.lead }],
+    timing: [{ id: "after", label: "Hours after they finished", unit: "hours", default: 4, min: 1, max: 48 }],
+    guard: "Once per estimate (automation_claims). Never sent more than 4 hours late. {{range}} is the last range the server priced for them.",
+  },
 ];
 
 // Tom, 10 Sep: the screen is broken into Customers / Contractors / Staff.

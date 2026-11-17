@@ -15,12 +15,14 @@ Nothing to set up. It applies to every customer who reaches the range in the wiz
 1. A lead writes in the chat on their page: it lands in the chat dock as a **Waiting** row, and the staff routed for **Customer chat message** are emailed and texted, exactly as for a sent estimate.
 2. Reply from the dock or from the estimate's Messages in the builder. The customer is texted and emailed with a link that opens their page at the chat.
 3. When you send the estimate, the same link opens the sent estimate instead. Nothing changes for the customer: the chat thread carries over.
+4. The page has **Tighten my range** and **Book a visit** (a bigger job: **Book a visit** only). They open the customer's own draft: straight away in the browser that built it, or after a six-digit code texted to the mobile on the estimate. The code opens that one draft in that browser, nothing else. The customer never types a number: the code goes to the mobile they gave us.
 
 ## What the colours and labels mean
-- The page shows only what the wizard showed: the range incl. GST (both halves on an inside-and-outside job), the address and the customer's first name. Changing the draft in the builder does **not** change the page; only re-pricing in the wizard or sending the estimate does.
+- The page shows only what the wizard showed: the range incl. GST (both halves on an inside-and-outside job), the address and the customer's first name. Changing the draft in the builder does **not** change the page; only re-pricing in the wizard, tightening the range (from 17 Nov 2026), or sending the estimate does. After tightening, the page shows the one closer range, without the inside and outside halves.
 - **We'll come and look** — a Paint Home job over the phone-close ceiling: the page says a visit is next.
 
 ## If something goes wrong
+- **The customer says they can't open Tighten my range** — check the estimate has their mobile (builder → contact). With no mobile, the page tells them to call.
 - **The customer says the link shows "Page not found"** — the estimate was built in the office (no wizard range), or it was priced before 12 Nov 2026. Send the estimate, or ask them to see their range again online.
 
 ## Related
