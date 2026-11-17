@@ -106,6 +106,17 @@ When a customer asks for a person, staff hear about it straight away. The three 
 - **E1 — estimate overdue after a visit (staff alert)** is off until you turn it on. When a visit was marked done two days ago and no estimate has gone to that customer since, everyone ticked **Overdue** under Staff logins is told once: "{address} visited {days} days ago, estimate not sent." It uses the same rule as the Today card. It goes in office hours only; one that falls due overnight comes in the morning.
 - **E8 — Customer wrote on the estimate chat** now follows the office hours like the help, visit and call alerts. In office hours, whoever is ticked **Email** is emailed and the chat corner pops up; the **Text** box no longer texts in office hours. Out of hours, whoever is ticked **Text after hours** is texted too. The public holidays from Booking rules count as out of hours.
 
+## The sent-quote follow-ups, E2–E7 (17 Nov 2026)
+Five messages for a quote you have sent. All are **off** until you turn them on. They work like the lead messages: once per quote, never more than a day late, not to anyone who said no to marketing, texts kept to sending hours, and the chat ones stop once a conversation has started.
+
+- **Estimate E2 — your quote is ready (text)**: not opened 2 days after sending.
+- **Estimate E3 — here it is again (chat)**: still not opened at 5 days.
+- **Estimate E4 — any questions? (chat)**: opened 2 days ago, nothing said.
+- **Estimate E5 — worth knowing before you decide (chat)**: opened 5 days ago, still quiet. It covers the warranty and the daily updates. The plan's "we can start from {date}" is left out, because nothing in the system knows the next free start yet.
+- **Estimate E7 — your price is held (chat)**: opened 14 days ago, still quiet. It says the price is held until the quote's valid-until day, with no discount or incentive.
+
+A question, acceptance, decline or revision stops them. The calls in the plan (E3's call, and E6 at 7 days) are the **Follow up** card on Today, timed by Settings → CRM's chase days, so there's one card per quote, not two.
+
 ## Which logo the emails use
 Every email the platform sends (estimates, offers, reminders, reset links, campaigns, the lot) takes the **Logo for emails** from Settings → Company. Upload a version with its own solid background, not a transparent one: mail apps in dark mode invert or recolour transparent logos, which is why the logo used to come out light in some inboxes and dark in others. If no email logo is uploaded, the light-background logo is used, and failing that the main one.
 

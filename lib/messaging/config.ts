@@ -255,6 +255,16 @@ export type MessagingSettings = {
   /** E1 (17 Nov 2026): a visit done and no estimate sent after two days. */
   officeEstimateOverdueSubject: string;
   officeEstimateOverdueBody: string;
+  /** Estimate sequence E2–E7 (17 Nov 2026): the unopened text, the unopened chat, and three viewed-no-reply chats. Ship off. */
+  estimateUnopenedSms: string;
+  estimateUnopenedAgainSubject: string;
+  estimateUnopenedAgainBody: string;
+  estimateViewedAnyQSubject: string;
+  estimateViewedAnyQBody: string;
+  estimateViewedWorthSubject: string;
+  estimateViewedWorthBody: string;
+  estimateViewedHeldSubject: string;
+  estimateViewedHeldBody: string;
   /** Office: an estimate was accepted (Tom, 4 Sep). */
   officeEmail: string;
   acceptedOfficeSubject: string;
@@ -635,6 +645,17 @@ export const DEFAULT_MESSAGING: MessagingSettings = {
   officeCallRequestBody: "{{first_name}} asked for a call about {{address}} ({{range}}). Phone {{phone}}. Log the call: {{link}}",
   officeEstimateOverdueSubject: "Estimate overdue — {{address}}",
   officeEstimateOverdueBody: "{{address}} visited {{days}} days ago, estimate not sent. Open: {{link}}",
+  // E2–E7, Appendix A. E5 has no {earliest_start} (nothing on the server knows the next free start), so
+  // that clause is left out rather than promising a date.
+  estimateUnopenedSms: "Hi {{first_name}}, your quote for {{address}} is ready: {{link}} — {{estimator}}, {{brand}}",
+  estimateUnopenedAgainSubject: "Your quote for {{address}}",
+  estimateUnopenedAgainBody: "Hi {{first_name}}, I sent your quote for {{address}} a few days ago — here it is again: {{link}}. If it's gone to the wrong place or you'd rather I run through it on the phone, just reply.",
+  estimateViewedAnyQSubject: "Your quote for {{address}}",
+  estimateViewedAnyQBody: "Hi {{first_name}}, I saw you've had a look at the quote for {{address}}. Anything you'd like changed or explained? Reply here and I'll sort it.",
+  estimateViewedWorthSubject: "Before you decide on {{address}}",
+  estimateViewedWorthBody: "Hi {{first_name}}, a couple of things worth knowing before you decide: everything's covered by our 2-year workmanship warranty, and you'll get photos and updates from the painter every day on your {{brand}} page. The quote's here: {{link}}.",
+  estimateViewedHeldSubject: "Your price for {{address}}",
+  estimateViewedHeldBody: "Hi {{first_name}}, no pressure at all — your price for {{address}} is held until {{expiry}}. If timing's the issue, tell me roughly when suits and I'll pencil it in.",
   wizardResumeSubject: "Pick up where you left off — your estimate is saved",
   wizardResumeBody:
     "You were part-way through your {{company_name}} estimate for {{where}} — your answers are saved.\n\n" +
