@@ -281,6 +281,15 @@ export type MessagingSettings = {
   depositDueBody: string;
   coloursTbcSms: string;
   startReminderSms: string;
+  /** After the job R1, R3, R4 (17 Nov 2026). The review links are per brand; R1 sends nothing for a brand with none. Ship off. */
+  googleReviewLink: string;
+  googleReviewLinkPaintHome: string;
+  reviewRequestSms: string;
+  anniversary12Subject: string;
+  anniversary12Body: string;
+  anniversary24Subject: string;
+  anniversary24Body: string;
+  anniversaryExteriorLine: string;
   /** Office: an estimate was accepted (Tom, 4 Sep). */
   officeEmail: string;
   acceptedOfficeSubject: string;
@@ -686,6 +695,15 @@ export const DEFAULT_MESSAGING: MessagingSettings = {
   depositDueBody: "Hi {{first_name}}, we start at {{address}} on {{date}} with {{painter}}. The deposit of {{deposit_amount}} inc. GST is still outstanding — here's the link: {{pay_link}}. Once it's through we're all set.",
   coloursTbcSms: "Hi {{first_name}}, we start {{address}} on {{date}} and still need your colours confirmed. Book a quick colour consult: {{link}} — {{brand}}",
   startReminderSms: "Hi {{first_name}}, {{painter}} will arrive at {{address}} on {{date}} between 7:30 and 8:30 am. Updates will appear on your {{brand}} page each day.",
+  // R1, R3, R4, Appendix A. {{exterior_line}} is anniversaryExteriorLine for a job with exterior work, else empty.
+  googleReviewLink: "",
+  googleReviewLinkPaintHome: "",
+  reviewRequestSms: "Hi {{first_name}}, thanks for having us at {{address}}. If you were happy with the work, a Google review would mean a lot: {{review_link}} — {{brand}}",
+  anniversary12Subject: "A year on at {{address}}",
+  anniversary12Body: "Hi {{first_name}}, it's been a year since we painted {{address}}. How's it holding up? If anything needs a touch-up under the warranty, reply here with a photo. And if there's another room on the list, your old quote makes a new one quick: {{link}}.",
+  anniversary24Subject: "Your warranty for {{address}}",
+  anniversary24Body: "Hi {{first_name}}, two years on from {{address}} — your workmanship warranty finishes on {{warranty_end}}. If anything needs looking at, now's the time to tell us. {{exterior_line}}",
+  anniversaryExteriorLine: "Exteriors usually want a fresh coat every 7–10 years — when you're ready, we'll happily look at it.",
   estimateDeclinedTimingSubject: "Your quote for {{address}}",
   estimateDeclinedTimingBody: "Hi {{first_name}}, you mentioned the timing wasn't right for {{address}} a couple of months ago. If that's changed, here's your quote — I'll refresh the price if anything's moved: {{link}}.",
   wizardResumeSubject: "Pick up where you left off — your estimate is saved",

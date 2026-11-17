@@ -26,7 +26,7 @@ describe("which automations are marketing, and that every send of one carries th
   const marketing = AUTOMATIONS.filter((a) => a.consent === "marketing");
 
   it("the marketing keys today: the abandoned-wizard nudge and the lead sequence (campaigns guard themselves)", () => {
-    expect(marketing.map((a) => a.key)).toEqual(["wizard_abandoned", "lead_range_reminder", "lead_range_nudge", "lead_range_human", "lead_tighten_resume", "lead_tighten_help", "lead_tightened_close", "estimate_unopened", "estimate_unopened_again", "estimate_viewed_any_q", "estimate_viewed_worth", "estimate_viewed_held", "estimate_expiry_warning", "estimate_expired_chat", "estimate_declined_reason", "estimate_declined_timing"]);
+    expect(marketing.map((a) => a.key)).toEqual(["wizard_abandoned", "lead_range_reminder", "lead_range_nudge", "lead_range_human", "lead_tighten_resume", "lead_tighten_help", "lead_tightened_close", "estimate_unopened", "estimate_unopened_again", "estimate_viewed_any_q", "estimate_viewed_worth", "estimate_viewed_held", "estimate_expiry_warning", "estimate_expired_chat", "estimate_declined_reason", "estimate_declined_timing", "anniversary_12", "anniversary_24"]);
     expect(marketing.every((a) => a.audience === "customer")).toBe(true);
   });
 

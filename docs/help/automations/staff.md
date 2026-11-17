@@ -133,6 +133,13 @@ Four more, all **off** until you turn them on. Each goes once per quote, and non
 
 All three are about a job the customer booked, so a marketing STOP doesn't stop them. They keep to sending hours, and a start date that moves gets them again for the new date.
 
+## After the job, R1 / R3 / R4 (17 Nov 2026)
+- **R1 — review request (text)**: off until you turn it on, and it needs your **Google review link**. Paste it into the R1 entry here; Paint Home has its own box. A brand with no link sends nothing. The morning after a job is signed off (from 9 am), the customer gets one text asking for a review. The job's review box in PC Command then shows it as asked, by the automation. If someone already asked from PC Command, the text doesn't go.
+- **R3 — a year on (chat)**: twelve months after sign-off. It asks how it's holding up, offers a touch-up under the warranty, and suggests another room from their old quote.
+- **R4 — two years on (chat)**: twenty-four months after sign-off. It gives the warranty end date and, for a job with exterior work, the exterior line, which you can edit.
+
+R3 and R4 count as marketing, so a STOP stops them; R1 doesn't. Each goes once per job.
+
 ## Which logo the emails use
 Every email the platform sends (estimates, offers, reminders, reset links, campaigns, the lot) takes the **Logo for emails** from Settings → Company. Upload a version with its own solid background, not a transparent one: mail apps in dark mode invert or recolour transparent logos, which is why the logo used to come out light in some inboxes and dark in others. If no email logo is uploaded, the light-background logo is used, and failing that the main one.
 

@@ -1172,8 +1172,15 @@ export const AUTOMATIONS: Automation[] = [
 
   // ---- recorded, not yet sent ---------------------------------------------
   {
-    key: "review_request", name: "Review request", audience: "customer", channels: [], kind: "planned",
-    trigger: "After sign-off. Recorded as a follow-up task; no message goes out yet.",
+    key: "review_request", name: "R1 — review request (text)", audience: "customer", channels: ["sms"], kind: "automatic",
+    defaultOff: true, defaultChannel: "sms", capExempt: true, sendKind: "review_request",
+    trigger: "The morning after a job is signed off (from 9 am): one text asking for a Google review, with the brand's review link. Not sent when staff already asked (PC Command's review box), or when that brand has no review link set below. Recorded as asked on the job.",
+    templates: [
+      { field: "googleReviewLink", label: "Paint Group Google review link (https://…)", kind: "subject" },
+      { field: "googleReviewLinkPaintHome", label: "Paint Home Google review link (https://…)", kind: "subject" },
+      { field: "reviewRequestSms", label: "Text", kind: "sms", placeholders: ["{{first_name}}", "{{address}}", "{{review_link}}", "{{brand}}"] },
+    ],
+    guard: "Once per job (automation_claims, and review_requests.sent_at).",
   },
   {
     key: "booking_chase", name: "Booking chase", audience: "customer", channels: [], kind: "planned",
@@ -1365,6 +1372,28 @@ export const AUTOMATIONS: Automation[] = [
     templates: [{ field: "startReminderSms", label: "Text", kind: "sms", placeholders: ["{{first_name}}", "{{address}}", "{{date}}", "{{painter}}", "{{brand}}"] }],
     timing: [{ id: "beforeStart", label: "Days before the start", unit: "days", default: 2, min: 1, max: 7 }],
     guard: "Once per job and start date (automation_claims); a moved start is reminded for its new date.",
+  },
+  // ---- After the job R3 / R4 (17 Nov 2026): the anniversaries of the sign-off, on the chat. R1 is review_request above.
+  {
+    key: "anniversary_12", name: "R3 — a year on (chat)", audience: "customer", channels: ["email"], kind: "automatic",
+    consent: "marketing", defaultOff: true, defaultChannel: "email", capExempt: true, sendKind: "aftercare",
+    trigger: "Twelve months after a job was signed off (from 9 am): how's it holding up, a touch-up under the warranty, or another room. On the estimate chat, with the email.",
+    templates: [
+      { field: "anniversary12Subject", label: "Email subject", kind: "subject", placeholders: ["{{first_name}}", "{{address}}", "{{brand}}", "{{link}}"] },
+      { field: "anniversary12Body", label: "Chat message", kind: "body", placeholders: ["{{first_name}}", "{{address}}", "{{brand}}", "{{link}}"] },
+    ],
+    guard: "Once per job (automation_claims).",
+  },
+  {
+    key: "anniversary_24", name: "R4 — two years on, the warranty ends (chat)", audience: "customer", channels: ["email"], kind: "automatic",
+    consent: "marketing", defaultOff: true, defaultChannel: "email", capExempt: true, sendKind: "aftercare",
+    trigger: "Twenty-four months after a job was signed off (from 9 am): the workmanship warranty's end date, and for a job with exterior work the exterior line below. On the estimate chat, with the email.",
+    templates: [
+      { field: "anniversary24Subject", label: "Email subject", kind: "subject", placeholders: ["{{first_name}}", "{{address}}", "{{brand}}", "{{link}}", "{{warranty_end}}"] },
+      { field: "anniversary24Body", label: "Chat message", kind: "body", placeholders: ["{{first_name}}", "{{address}}", "{{brand}}", "{{link}}", "{{warranty_end}}", "{{exterior_line}}"] },
+      { field: "anniversaryExteriorLine", label: "Exterior line (jobs with exterior work)", kind: "body" },
+    ],
+    guard: "Once per job (automation_claims).",
   },
 ];
 
