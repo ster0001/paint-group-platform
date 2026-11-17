@@ -15,6 +15,7 @@ import { reportError } from "@/lib/monitoring/report";
 import { runLeadSequenceSweep } from "@/lib/automations/sweeps/leadSequence";
 import { sendTwoHourVisitReminders } from "@/lib/visits/notify";
 import { runEstimateOverdueSweep } from "@/lib/automations/sweeps/estimateOverdue";
+import { runEstimateSequenceSweep } from "@/lib/automations/sweeps/estimateSequence";
 
 /**
  * The campaign sweep, on a schedule.
@@ -58,6 +59,9 @@ export async function GET(req: Request) {
     // E1: an estimate overdue after a visit, to staff in office hours (ships off). `?only=overdue` is the hand run.
     const overdue = only == null || only === "overdue" ? await runEstimateOverdueSweep(db, now) : null;
     if (only === "overdue") return NextResponse.json({ ok: true, overdue });
+    // E2–E7: the sent quote's follow-ups (all ship off). `?only=estimates` is the hand run.
+    const estimates = only == null || only === "estimates" ? await runEstimateSequenceSweep(db, now) : null;
+    if (only === "estimates") return NextResponse.json({ ok: true, estimates, released: await releaseDueHolds(db, now) });
     const outcomes = only === "reminders" || only === "standards" || only === "certificates" || only === "moments" || only === "status" || only === "defect" || only === "finish" || only === "office" ? [] : await runSweep(db, now);
     // Tom, 12 Oct: "Today's follow ups" email (Mon–Fri from 8am) and the 14:00
     // pre-start texts for PC Command. Each is once a day; outside its window it
@@ -119,6 +123,7 @@ export async function GET(req: Request) {
       leads,
       visits2h,
       overdue,
+      estimates,
       // The first few failures by name, so a run that writes nothing says why (9 Oct 2026: production had no status rows and no way to see the cause).
       status: { ran: status.ran, failed: status.failed, errors: status.outcomes.filter((o) => !o.ok).slice(0, 5).map((o) => `${o.painterId.slice(0, 8)}: ${o.error ?? "?"}`) },
       note: "Campaign steps are queued only. Held automatic messages whose time has come are sent.",

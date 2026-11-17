@@ -30,8 +30,13 @@ export type LeadStepKey =
   | "lead_tighten_resume" | "lead_tighten_help" | "lead_tightened_close"
   | "lead_visit_request_ack";
 export type LeadStage = "range_no_action" | "tightening" | "tightened_no_action" | "visit_requested";
-/** `working_days`: office days (lib/time/businessHours — Mon–Fri 8–5, the Settings holidays out), one day = a full office day of hours. */
-export type LeadStep = { key: LeadStepKey; stage: LeadStage; channel: "sms" | "chat"; unit: "hours" | "days" | "working_days"; defaultAfter: number; lateMs: number };
+/**
+ * One step of a stage-keyed sequence — the lead steps here, the estimate steps
+ * in estimateSequence.ts. `working_days`: office days (lib/time/businessHours —
+ * Mon–Fri 8–5, the Settings holidays out), one day = a full office day of hours.
+ */
+export type SequenceStep<K extends string = string, S extends string = string> = { key: K; stage: S; channel: "sms" | "chat"; unit: "hours" | "days" | "working_days"; defaultAfter: number; lateMs: number };
+export type LeadStep = SequenceStep<LeadStepKey, LeadStage>;
 
 const HOUR = 3_600_000;
 export const LEAD_STEPS: readonly LeadStep[] = [
@@ -57,13 +62,13 @@ export type LeadFacts = {
   conversationAt: string | null;
 };
 
-export const stepAfterMs = (step: LeadStep, after: number): number => after * (step.unit === "hours" ? HOUR : 24 * HOUR);
+export const stepAfterMs = (step: SequenceStep, after: number): number => after * (step.unit === "hours" ? HOUR : 24 * HOUR);
 
 /** One office day, in office hours (OPEN_HOUR–CLOSE_HOUR). */
 const OFFICE_DAY_HOURS = CLOSE_HOUR - OPEN_HOUR;
 
 /** The moment a step falls due, `after` (in the step's unit) from `since`. */
-export function stepDueAt(step: LeadStep, since: Date, after: number, holidays: ReadonlySet<string> = new Set()): Date {
+export function stepDueAt(step: SequenceStep, since: Date, after: number, holidays: ReadonlySet<string> = new Set()): Date {
   return step.unit === "working_days"
     ? addBusinessHours(since, after * OFFICE_DAY_HOURS, holidays)
     : new Date(since.getTime() + stepAfterMs(step, after));
@@ -74,12 +79,21 @@ export function stepDueAt(step: LeadStep, since: Date, after: number, holidays: 
  * their "after" value in the step's unit (Settings → Automations timing).
  */
 export function leadStepsDue(facts: LeadFacts, now: Date, enabled: ReadonlyMap<LeadStepKey, number>, holidays: ReadonlySet<string> = new Set()): LeadStep[] {
-  if (!facts.stage || !LEAD_STAGES.has(facts.stage) || !facts.since) return [];
+  return sequenceStepsDue(LEAD_STEPS, facts, now, enabled, holidays);
+}
+
+/**
+ * The steps of any stage-keyed sequence due now: in the step's stage, switched
+ * on, not claimed, inside [its moment, its moment + lateMs), and — a chat step
+ * — not once a person has started talking after the stage began.
+ */
+export function sequenceStepsDue<K extends string, St extends SequenceStep<K>>(steps: readonly St[], facts: LeadFacts, now: Date, enabled: ReadonlyMap<K, number>, holidays: ReadonlySet<string> = new Set()): St[] {
+  if (!facts.stage || !facts.since) return [];
   const since = Date.parse(facts.since);
   if (Number.isNaN(since)) return [];
   const talking = facts.conversationAt != null && Date.parse(facts.conversationAt) > since;
   const t = now.getTime();
-  return LEAD_STEPS.filter((step) => {
+  return steps.filter((step) => {
     const after = enabled.get(step.key);
     if (step.stage !== facts.stage || after == null || facts.claimed.has(step.key)) return false;
     if (step.channel === "chat" && talking) return false;

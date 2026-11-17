@@ -1262,6 +1262,48 @@ export const AUTOMATIONS: Automation[] = [
     timing: [{ id: "after", label: "Working days after the request", unit: "days", default: 1, min: 1, max: 5 }],
     guard: "Once per estimate (automation_claims). Not sent once the chat has a message after the request. Never sent more than a day late.",
   },
+  // ---- E2–E7 (17 Nov 2026): the sent quote, unopened and viewed-no-reply. E3's call and E6 are the
+  // Follow up card on Today (Settings → CRM chase days); these are the customer's messages.
+  {
+    key: "estimate_unopened", name: "Estimate E2 — your quote is ready (text)", audience: "customer", channels: ["sms"], kind: "automatic",
+    consent: "marketing", defaultOff: true, defaultChannel: "sms", capExempt: true, sendKind: "estimate_nudge",
+    trigger: "A sent quote nobody has opened, 2 days on: one text with the link. Only while it is still at \"Sent, not opened\" — opening it, a question or a decision stops it.",
+    templates: [{ field: "estimateUnopenedSms", label: "Text", kind: "sms", placeholders: [...P.lead, "{{expiry}}"] }],
+    timing: [{ id: "after", label: "Days after sending", unit: "days", default: 2, min: 1, max: 7 }],
+    guard: "Once per estimate (automation_claims). Never sent more than a day late.",
+  },
+  {
+    key: "estimate_unopened_again", name: "Estimate E3 — here it is again (chat)", audience: "customer", channels: ["email"], kind: "automatic",
+    consent: "marketing", defaultOff: true, defaultChannel: "email", capExempt: true, sendKind: "estimate_nudge",
+    trigger: "Still unopened 5 days after sending: a line on the quote's chat in the estimator's name — here it is again, or a run-through on the phone — with the email.",
+    templates: [{ field: "estimateUnopenedAgainSubject", label: "Email subject", kind: "subject", placeholders: [...P.lead, "{{expiry}}"] }, { field: "estimateUnopenedAgainBody", label: "Chat message", kind: "body", placeholders: [...P.lead, "{{expiry}}"] }],
+    timing: [{ id: "after", label: "Days after sending", unit: "days", default: 5, min: 3, max: 14 }],
+    guard: "Once per estimate (automation_claims). Never sent more than a day late. Not sent once the chat has a message after the stage began.",
+  },
+  {
+    key: "estimate_viewed_any_q", name: "Estimate E4 — any questions? (chat)", audience: "customer", channels: ["email"], kind: "automatic",
+    consent: "marketing", defaultOff: true, defaultChannel: "email", capExempt: true, sendKind: "estimate_nudge",
+    trigger: "They opened the quote 2 days ago and have said nothing: anything to change or explain? On the chat, with the email.",
+    templates: [{ field: "estimateViewedAnyQSubject", label: "Email subject", kind: "subject", placeholders: [...P.lead, "{{expiry}}"] }, { field: "estimateViewedAnyQBody", label: "Chat message", kind: "body", placeholders: [...P.lead, "{{expiry}}"] }],
+    timing: [{ id: "after", label: "Days after they opened it", unit: "days", default: 2, min: 1, max: 7 }],
+    guard: "Once per estimate (automation_claims). Never sent more than a day late. Not sent once the chat has a message after the stage began.",
+  },
+  {
+    key: "estimate_viewed_worth", name: "Estimate E5 — worth knowing before you decide (chat)", audience: "customer", channels: ["email"], kind: "automatic",
+    consent: "marketing", defaultOff: true, defaultChannel: "email", capExempt: true, sendKind: "estimate_nudge",
+    trigger: "Opened 5 days ago, still quiet: the warranty and the daily updates, with the link. On the chat, with the email.",
+    templates: [{ field: "estimateViewedWorthSubject", label: "Email subject", kind: "subject", placeholders: [...P.lead, "{{expiry}}"] }, { field: "estimateViewedWorthBody", label: "Chat message", kind: "body", placeholders: [...P.lead, "{{expiry}}"] }],
+    timing: [{ id: "after", label: "Days after they opened it", unit: "days", default: 5, min: 3, max: 14 }],
+    guard: "Once per estimate (automation_claims). Never sent more than a day late. Not sent once the chat has a message after the stage began.",
+  },
+  {
+    key: "estimate_viewed_held", name: "Estimate E7 — your price is held (chat)", audience: "customer", channels: ["email"], kind: "automatic",
+    consent: "marketing", defaultOff: true, defaultChannel: "email", capExempt: true, sendKind: "estimate_nudge",
+    trigger: "Opened 14 days ago, still quiet: no pressure, the price is held until the quote's valid-until day — no discount or incentive (R9). On the chat, with the email.",
+    templates: [{ field: "estimateViewedHeldSubject", label: "Email subject", kind: "subject", placeholders: [...P.lead, "{{expiry}}"] }, { field: "estimateViewedHeldBody", label: "Chat message", kind: "body", placeholders: [...P.lead, "{{expiry}}"] }],
+    timing: [{ id: "after", label: "Days after they opened it", unit: "days", default: 14, min: 7, max: 28 }],
+    guard: "Once per estimate (automation_claims). Never sent more than a day late. Not sent once the chat has a message after the stage began.",
+  },
 ];
 
 // Tom, 10 Sep: the screen is broken into Customers / Contractors / Staff.
