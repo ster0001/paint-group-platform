@@ -72,6 +72,15 @@ Each goes once per estimate, and only while the customer is still at **Range see
 
 The chat message appears in the estimate's chat and on the customer's range page under the estimator's first name (Settings → Company → estimator). A Paint Home lead's email comes from Paint Home.
 
+## The tightening messages, L5–L7 (17 Nov 2026)
+Three more, for customers who go on to tighten their range. All three are **off** until you turn them on. They work like L1–L3 above: once per estimate, never late, not to anyone who said no, and the texts keep to 8 am to 8 pm.
+
+- **Lead L5 — pick up where you left off (text)**: they started tightening their range and stopped. One text an hour after they started, while they are still at **Tightening**.
+- **Lead L6 — measuring help (chat)**: a day after they started, still not finished. A measuring tip on the chat, or book a visit instead, with the email. Stops once a conversation has started.
+- **Lead L7 — your closer range is ready (text)**: they finished tightening and booked nothing. One text 4 hours later with their closer range, while they are still at **Tightened, no action**.
+
+All three link to the customer's range page. Its **Tighten my range** and **Book a visit** buttons open their draft, on another phone after a code texted to the mobile on file. Two changes from the plan's wording: L5 doesn't say how many rooms they did (nothing records that part-way), and L6's visit link is the range page, whose Book a visit button is the door.
+
 ## Which logo the emails use
 Every email the platform sends (estimates, offers, reminders, reset links, campaigns, the lot) takes the **Logo for emails** from Settings → Company. Upload a version with its own solid background, not a transparent one: mail apps in dark mode invert or recolour transparent logos, which is why the logo used to come out light in some inboxes and dark in others. If no email logo is uploaded, the light-background logo is used, and failing that the main one.
 

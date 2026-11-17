@@ -69,8 +69,8 @@ describe("default-off automations (ruling A‑D)", async () => {
     expect(switchAutomation({ disabled: ["old_key"] }, "old_key", true, false)).toEqual({ disabled: [], enabled: [] });
   });
   it("only the automations brief's keys ship off; every older key stays as it was", () => {
-    expect(AUTOMATIONS.filter((a) => a.defaultOff).map((a) => a.key)).toEqual(["lead_range_reminder", "lead_range_nudge", "lead_range_human"]);
+    expect(AUTOMATIONS.filter((a) => a.defaultOff).map((a) => a.key)).toEqual(["lead_range_reminder", "lead_range_nudge", "lead_range_human", "lead_tighten_resume", "lead_tighten_help", "lead_tightened_close"]);
     // Off out of the box: nothing stored, nothing sends.
-    for (const k of ["lead_range_reminder", "lead_range_nudge", "lead_range_human"]) expect(automationOn({}, k)).toBe(false);
+    for (const k of ["lead_range_reminder", "lead_range_nudge", "lead_range_human", "lead_tighten_resume", "lead_tighten_help", "lead_tightened_close"]) expect(automationOn({}, k)).toBe(false);
   });
 });

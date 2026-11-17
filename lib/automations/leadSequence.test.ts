@@ -8,7 +8,7 @@ const all = new Map<LeadStepKey, number>([["lead_range_reminder", 2], ["lead_ran
 const lead = (over: Partial<Parameters<typeof leadStepsDue>[0]> = {}) => ({ stage: "range_no_action", since: range, claimed: new Set<string>(), conversationAt: null, ...over });
 const keys = (h: number, facts = lead(), on = all) => leadStepsDue(facts, at(h), on).map((s) => s.key);
 
-describe("the lead sequence L1–L3 (what is due)", () => {
+describe("the lead sequence L1–L3 and L5–L7 (what is due)", () => {
   it("L1 at 2 h, L2 at a day, L3 at three days — each in its own window", () => {
     expect(keys(1.9)).toEqual([]);
     expect(keys(2)).toEqual(["lead_range_reminder"]);
@@ -44,6 +44,21 @@ describe("the lead sequence L1–L3 (what is due)", () => {
     expect(conversationAt([l2Row, customer], range, [l2Claim])).toBe(customer.created_at);
     const before = { direction: "customer", created_at: at(-1).toISOString() };
     expect(conversationAt([before], range, [])).toBeNull();
+  });
+  it("L5 an hour into tightening, L6 a day in; L7 four hours after the closer range — each only in its own stage", () => {
+    const on = new Map<LeadStepKey, number>([...all, ["lead_tighten_resume", 1], ["lead_tighten_help", 1], ["lead_tightened_close", 4]]);
+    const tightening = lead({ stage: "tightening" });
+    expect(keys(0.9, tightening, on)).toEqual([]);
+    expect(keys(1, tightening, on)).toEqual(["lead_tighten_resume"]);
+    expect(keys(3.5, tightening, on)).toEqual([]);
+    expect(keys(24, tightening, on)).toEqual(["lead_tighten_help"]);
+    const closer = lead({ stage: "tightened_no_action" });
+    expect(keys(4, closer, on)).toEqual(["lead_tightened_close"]);
+    expect(keys(8.5, closer, on)).toEqual([]);
+    // the range-stage steps never fire in a tightening stage, nor the other way round
+    expect(keys(2, tightening, on)).toEqual(["lead_tighten_resume"]);
+    expect(keys(1, lead(), on)).toEqual([]);
+    expect(keys(24, lead({ stage: "tightening", conversationAt: at(3).toISOString() }), on)).toEqual([]);
   });
   it("every step is a default-off marketing key in the registry, with an 'after' timing", () => {
     for (const s of LEAD_STEPS) {

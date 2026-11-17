@@ -2,7 +2,7 @@
 feature: lead-page
 role: customer
 title: Your price range page — come back to your range and ask us anything
-summary: Once you have seen your price range online, the link we send you opens a page with that range, the address and a chat with our office; it shows the range as you saw it, and your messages reach us straight away.
+summary: Once you have seen your price range online, the link we send you opens a page with that range, the address and a chat with our office; from it you can carry on tightening your range or book a visit, on any phone, after a code we text you.
 ---
 
 ## What this is for
@@ -17,6 +17,7 @@ Nothing. The page works from the link on any phone or computer, without signing 
 3. To ask a question, type it in **Chat with us** at the bottom of the page and press **Send message**. It reaches the office straight away.
 4. When we reply, it appears in the same chat, and we let you know by text and email. The link in that message brings you back here.
 5. Prefer to talk? Press **Call** with our number.
+6. To carry on, press **Tighten my range** (or **Book a visit**). On the phone or computer you first used, it opens straight away. On any other, the page says it will text a code to your mobile (it shows the last three digits). Press **Text me a code**, type the six digits, and press **Open**. That opens your answers on this device; nothing else on your account.
 
 ## What the colours and labels mean
 - **Worked out … from your answers online** — the day the range was worked out. If you went back and changed an answer, the page shows the newest range you were shown.
@@ -25,6 +26,8 @@ Nothing. The page works from the link on any phone or computer, without signing 
 
 ## If something goes wrong
 - **"Page not found"** — the link may be cut short in the message. Open it from the original text or email, or call us.
+- **"That code didn't match"** — check the six digits and try again. After five wrong tries, or after 10 minutes, press **Send it again** for a new code. A new code can be sent once a minute, three times an hour.
+- **"We don't have a mobile for this one"** — call us and we'll take it from there.
 - **Out of office hours** the chat tells you we have your message and when we're back (Monday to Friday, 8am to 5pm).
 
 ## Related

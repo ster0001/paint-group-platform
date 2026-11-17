@@ -1,3 +1,4 @@
+import { refreshLeadRange } from "@/lib/estimate/leadRecord";
 import { gstRateFromSettings } from "@/lib/pricing/gst";
 import { NextResponse } from "next/server";
 import { logCrmEvent } from "@/lib/crm/events";
@@ -528,7 +529,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   if (actor.kind === "customer") {
     // Phase 1 (6 Sep plan): the anonymous builder OR a signed-in member of
     // the linked account (lib/supabase/guards customerOwnsDraft).
-    const own = await customerOwnsDraft(db, actor, estimate as { created_by?: string | null; source?: string | null; status?: string | null; account_id?: string | null });
+    const own = await customerOwnsDraft(db, actor, estimate as { id?: string | null; created_by?: string | null; source?: string | null; status?: string | null; account_id?: string | null });
     // 404, not 403 - existence is never confirmed to guessers.
     if (!own) return NextResponse.json({ error: "No such estimate." }, { status: 404 });
   }
@@ -2018,6 +2019,11 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     // Tom, 25 Oct 2026: an exterior envelope reaches 5% further under (policy.exteriorUnderPct).
     const envelope = envelopeFor({ blocks: blocks as Parameters<typeof envelopeFor>[0]["blocks"], state: widenSnap.success ? widenSnap.data : null, ctx, adj: adjustmentsFrom(newState), bands, widenPct: widen.widenPct, underPct: underPctFor(blocks, policyFromSettings(settingValue(ctx.settings, "wizard_policy"))), confirmed: loopState.states });
     const cp = customerPayload(payload, blocks, decision, bands, null, [], null, { ...widen, envelope, gstRate: gstRateFromSettings(ctx.settings) });
+    // Tom, 17 Nov 2026 (L7): the lead page keeps the last range the customer was shown — priced here, never by the browser.
+    if (actor.kind === "customer") {
+      const leadErr = await refreshLeadRange(db, id, cp.rangeLoCents, cp.rangeHiCents, new Date());
+      if (leadErr) reportError(new Error(leadErr), { where: "wizard.edit.leadRange", bestEffort: true, extra: { id } });
+    }
     const flags = (settingValue(ctx.settings, "scope_editor") ?? {}) as { visitSlots?: string[] };
     const hasExterior = blocks.some((b) => b.kind === "area" && b.type === "Exterior");
     const wizSnap = wizardStateSchema.safeParse((state.wizard as { state?: unknown } | undefined)?.state);

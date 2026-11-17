@@ -1,4 +1,5 @@
 import type { SupabaseClient, User } from "@supabase/supabase-js";
+import { reportError } from "@/lib/monitoring/report";
 
 // SERVER ONLY.
 
@@ -49,22 +50,34 @@ export async function requireStaff(supabase: SupabaseClient): Promise<User | nul
 /**
  * Phase 1 (6 Sep plan): may this CUSTOMER open and edit this draft?
  *
- * Two doors, both to a draft only:
+ * Three doors, all to a draft only:
  *   · the anonymous session that built it (created_by, source customer_intake)
  *     — the wizard's original rule;
  *   · a signed-in member of the account the estimate is linked to — the
- *     magic-link owner coming back on another device, or later.
- * Membership is read through the service client the callers already hold;
- * account_users rows only ever come from verified sign-ins (3a-1), so a
- * typed email never opens anyone else's estimate.
+ *     magic-link owner coming back on another device, or later;
+ *   · a login the lead page's code opened this draft for (L5–L7, Tom 17 Nov
+ *     2026: `estimate_draft_doors`, written only by lib/estimate/leadDoor.ts
+ *     after the right code reached the mobile on file). A phone code proves
+ *     the mobile, never the email, so it opens this one wizard draft and
+ *     never the account.
+ * Membership and doors are read through the service client the callers
+ * already hold; account_users rows only ever come from verified sign-ins
+ * (3a-1), so a typed email never opens anyone else's estimate. A read that
+ * fails refuses.
  */
 export async function customerOwnsDraft(
   db: SupabaseClient,
   actor: Extract<WizardActor, { kind: "customer" }>,
-  estimate: { created_by?: string | null; source?: string | null; status?: string | null; account_id?: string | null },
+  estimate: { id?: string | null; created_by?: string | null; source?: string | null; status?: string | null; account_id?: string | null },
 ): Promise<boolean> {
   if (estimate.status !== "draft") return false;
   if (estimate.created_by === actor.user.id && estimate.source === "customer_intake") return true;
+  if (estimate.id && estimate.source === "customer_intake") {
+    const door = await db.from("estimate_draft_doors").select("estimate_id")
+      .eq("estimate_id", estimate.id).eq("user_id", actor.user.id).maybeSingle();
+    if (door.error) reportError(door.error, { where: "guards.customerOwnsDraft.door", extra: { estimateId: estimate.id } });
+    else if (door.data) return true;
+  }
   if (!actor.verifiedEmail || !estimate.account_id) return false;
   const { data } = await db
     .from("account_users")

@@ -2,13 +2,15 @@
 
 import { leadMoney, type LeadSnapshot } from "@/lib/estimate/leadSnapshot";
 import { ChatPanel, useEstimateChat } from "./EstimateChat";
+import LeadDoor from "./LeadDoor";
 
 /**
  * The lead's page (automations ruling A‑F, Tom 11 Nov 2026): `/e/[token]`
  * before an estimate is sent. The range the customer was shown — read from
  * the SNAPSHOT the wizard kept, never the live draft — and the chat, the one
  * implementation the sent estimate uses. No accept, no options, no document:
- * this is a guide range, and the page says so.
+ * this is a guide range, and the page says so. Tom, 17 Nov 2026: Tighten my
+ * range and Book a visit (LeadDoor) are where the lead messages L5–L7 land.
  */
 const pricedFmt = (iso: string) => new Date(iso).toLocaleDateString("en-AU", { day: "numeric", month: "long", year: "numeric", timeZone: "Australia/Melbourne" });
 const relTime = (iso: string): string => {
@@ -52,9 +54,12 @@ export default function LeadRange({ snapshot, token, company }: {
                 </p>
               )}
             </div>
-            <div className="cta-row print-hide">
-              <a className="btn btn-primary" href="#chatbox">Ask a question</a>
-              {tel && <a className="btn btn-ghost" href={`tel:${tel}`} data-testid="lead-call">Call {company.phone}</a>}
+            <div style={{ display: "grid", gap: 12 }}>
+              <LeadDoor token={token} biggerJob={s.biggerJob} />
+              <div className="cta-row print-hide">
+                <a className="btn btn-ghost" href="#chatbox">Ask a question</a>
+                {tel && <a className="btn btn-ghost" href={`tel:${tel}`} data-testid="lead-call">Call {company.phone}</a>}
+              </div>
             </div>
           </div>
           <p className="viewnote" data-testid="lead-note">
