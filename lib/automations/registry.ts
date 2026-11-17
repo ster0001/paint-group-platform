@@ -1337,6 +1337,35 @@ export const AUTOMATIONS: Automation[] = [
     timing: [{ id: "after", label: "Days after the decline", unit: "days", default: 60, min: 30, max: 120 }],
     guard: "Once per estimate (automation_claims). Never sent more than a day late.",
   },
+  // ---- Won stage W2–W4 (17 Nov 2026). W1 is customer_accepted_welcome (built). Transactional: no consent flag.
+  {
+    key: "deposit_due", name: "W2 — deposit due before the start (text + chat)", audience: "customer", channels: ["sms", "email"], kind: "automatic",
+    defaultOff: true, defaultChannel: "both", capExempt: true, sendKind: "deposit_reminder",
+    trigger: "R6: the deposit is still owing a few days before the job starts — one text and one line on the estimate chat (with the email), from 9 am. Replaces the Deposit reminder ladder: while this is on, that one stands down.",
+    templates: [
+      { field: "depositDueSms", label: "Text", kind: "sms", placeholders: ["{{first_name}}", "{{address}}", "{{date}}", "{{painter}}", "{{brand}}", "{{deposit_amount}}", "{{pay_link}}"] },
+      { field: "depositDueSubject", label: "Email subject", kind: "subject", placeholders: ["{{first_name}}", "{{address}}", "{{date}}", "{{painter}}", "{{brand}}", "{{deposit_amount}}", "{{pay_link}}"] },
+      { field: "depositDueBody", label: "Chat message", kind: "body", placeholders: ["{{first_name}}", "{{address}}", "{{date}}", "{{painter}}", "{{brand}}", "{{deposit_amount}}", "{{pay_link}}"] },
+    ],
+    timing: [{ id: "beforeStart", label: "Days before the start", unit: "days", default: 3, min: 1, max: 14 }],
+    guard: "Once per deposit and start date (automation_claims); a moved start is reminded for its new date. Stops once paid.",
+  },
+  {
+    key: "colours_tbc", name: "W3 — colours still to confirm (text)", audience: "customer", channels: ["sms"], kind: "automatic",
+    defaultOff: true, defaultChannel: "sms", capExempt: true, sendKind: "job_prestart",
+    trigger: "A booked job starts in a few days and the pre-start \"Colour schedule finalised\" box is not ticked: one text asking them to book a colour consult, from 9 am.",
+    templates: [{ field: "coloursTbcSms", label: "Text", kind: "sms", placeholders: ["{{first_name}}", "{{address}}", "{{date}}", "{{painter}}", "{{brand}}", "{{link}}"] }],
+    timing: [{ id: "beforeStart", label: "Days before the start", unit: "days", default: 5, min: 1, max: 21 }],
+    guard: "Once per job and start date (automation_claims).",
+  },
+  {
+    key: "start_reminder", name: "W4 — your job starts soon (text)", audience: "customer", channels: ["sms"], kind: "automatic",
+    defaultOff: true, defaultChannel: "sms", capExempt: true, sendKind: "job_prestart",
+    trigger: "A booked job starts in two days: one text with the painter's name, the day and the arrival window, from 9 am. The arrival window is in the wording.",
+    templates: [{ field: "startReminderSms", label: "Text", kind: "sms", placeholders: ["{{first_name}}", "{{address}}", "{{date}}", "{{painter}}", "{{brand}}"] }],
+    timing: [{ id: "beforeStart", label: "Days before the start", unit: "days", default: 2, min: 1, max: 7 }],
+    guard: "Once per job and start date (automation_claims); a moved start is reminded for its new date.",
+  },
 ];
 
 // Tom, 10 Sep: the screen is broken into Customers / Contractors / Staff.

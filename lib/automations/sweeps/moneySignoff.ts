@@ -25,10 +25,14 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { automationByKey } from "../registry";
 import { timingFor } from "../decide";
-import { dueRungs, runLadder, type Rung } from "../reminders";
+import { claimRung, dueRungs, runLadder, type Rung } from "../reminders";
+import { morningBeforeDue } from "../dateOffset";
+import { sendChatStep } from "../chatStep";
+import { streetOf } from "../leadSequence";
+import { brandRecord, messageBrandOf, publicOriginFor } from "@/lib/messaging/brand";
 import { isTestEmail } from "@/lib/accounts/identity";
 import { sendAutomation } from "../dispatch";
-import { loadMessaging } from "@/lib/messaging/load";
+import { loadMessaging, type CompanyForMessages } from "@/lib/messaging/load";
 import { automationOn, normalisePhoneAU, renderTemplate, type MessagingSettings } from "@/lib/messaging/config";
 import { buildPlainEmailHtml } from "@/lib/messaging/send";
 import { buildInvoiceEmailHtml } from "@/lib/invoicing/sendInvoice";
@@ -198,6 +202,8 @@ async function moneyRecipient(db: SupabaseClient, inv: Pick<InvoiceRow, "estimat
 export type MoneySignoffResult = {
   invoices: { fired: number; stopped: number };
   deposits: { fired: number; stopped: number };
+  /** W2 (R6, 17 Nov 2026): the deposit-due text + chat, 3 days before the start. */
+  depositDue: { fired: number };
   signoff: { fired: number; nudged: number };
   variations: { fired: number; stopped: number };
   contractorPrompts: { fired: number; stopped: number };
@@ -215,7 +221,7 @@ export type MoneySignoffOptions = {
 
 export async function runMoneySignoffSweep(db: SupabaseClient, now = new Date(), opts: MoneySignoffOptions = {}): Promise<MoneySignoffResult> {
   const out: MoneySignoffResult = {
-    invoices: { fired: 0, stopped: 0 }, deposits: { fired: 0, stopped: 0 }, signoff: { fired: 0, nudged: 0 },
+    invoices: { fired: 0, stopped: 0 }, deposits: { fired: 0, stopped: 0 }, depositDue: { fired: 0 }, signoff: { fired: 0, nudged: 0 },
     variations: { fired: 0, stopped: 0 }, contractorPrompts: { fired: 0, stopped: 0 },
     offerReminders: { fired: 0, stopped: 0, held: 0 }, signoffOverdue: 0, ms: {},
   };
@@ -230,6 +236,7 @@ export async function runMoneySignoffSweep(db: SupabaseClient, now = new Date(),
 
   await timed("invoices", () => invoiceReminders(db, messaging, brand, now, out));
   await timed("deposits", () => depositReminders(db, messaging, brand, now, out));
+  await timed("depositDue", () => depositDue(db, messaging, company, now, out));
   await timed("signoff", () => signoffReminders(db, messaging, brand, now, out));
   await timed("variations", () => variationReminders(db, messaging, now, out));
   await timed("contractorPrompts", () => contractorInvoicePrompts(db, messaging, now, out));
@@ -313,6 +320,8 @@ async function invoiceReminders(db: SupabaseClient, messaging: MessagingSettings
 async function depositReminders(db: SupabaseClient, messaging: MessagingSettings, brand: Brand, now: Date, out: MoneySignoffResult) {
   const a = automationByKey("deposit_reminder");
   if (!a || !automationOn(messaging, a.key)) return;
+  // R6: W2 (deposit_due) replaces this ladder. With W2 on, the old rungs stand down — never both.
+  if (automationOn(messaging, "deposit_due")) return;
   const afterIssue = timingFor(a, messaging, "afterIssue");
   const beforeStart = timingFor(a, messaging, "beforeStart");
   const deposits = (await openInvoices(db, ["deposit"])).filter((i) => i.total_inc_cents - i.paid_cents > 0 && !i.chase_hold_reason);
@@ -349,6 +358,55 @@ async function depositReminders(db: SupabaseClient, messaging: MessagingSettings
     });
     if (r.fired) out.deposits.fired += 1;
     if (r.stopped) out.deposits.stopped += 1;
+  }
+}
+
+/**
+ * W2 — deposit due (R6, master plan; 17 Nov 2026): one text and one chat
+ * message, 3 days before the job starts, while the deposit is still owing.
+ * Replaces the deposit_reminder ladder (which stands down while this is on).
+ * From 9 am Melbourne on the day, for a day; once per deposit and start date
+ * (a moved start is reminded for the new date). Ships off; transactional.
+ */
+async function depositDue(db: SupabaseClient, messaging: MessagingSettings, company: CompanyForMessages, now: Date, out: MoneySignoffResult) {
+  const a = automationByKey("deposit_due");
+  if (!a || !automationOn(messaging, a.key)) return;
+  const before = timingFor(a, messaging, "beforeStart");
+  const deposits = (await openInvoices(db, ["deposit"])).filter((i) => i.total_inc_cents - i.paid_cents > 0 && !i.chase_hold_reason);
+  if (deposits.length === 0) return;
+  const estIds = [...new Set(deposits.map((d) => d.estimate_id))];
+  const [wos, ests] = await Promise.all([
+    realOnly(db.from("work_orders").select("estimate_id, start_date, contractors(company_name, profiles(name))")).in("estimate_id", estIds),
+    db.from("estimates").select("id, share_token, brand, title, sent_snapshot").in("id", estIds),
+  ]);
+  if (wos.error) throw wos.error;
+  if (ests.error) throw ests.error;
+  type Wo = { estimate_id: string; start_date: string | null; contractors: { company_name: string | null; profiles: { name: string | null } | null } | null };
+  type Est = { id: string; share_token: string | null; brand: string | null; title: string | null; sent_snapshot: { jobAddress?: string } | null };
+  const woOf = new Map(((wos.data ?? []) as unknown as Wo[]).map((w) => [w.estimate_id, w]));
+  const estOf = new Map(((ests.data ?? []) as unknown as Est[]).map((e) => [e.id, e]));
+  for (const inv of deposits) {
+    const wo = woOf.get(inv.estimate_id);
+    const est = estOf.get(inv.estimate_id);
+    if (!wo?.start_date || !est?.share_token || !morningBeforeDue(wo.start_date, before, now)) continue;
+    const who = await moneyRecipient(db, inv);
+    if (!who.email || isTestEmail(who.email)) continue;
+    if (!(await claimRung(db, a.key, inv.id, wo.start_date))) continue;
+    const brandKey = messageBrandOf(est.brand);
+    const painter = (wo.contractors?.profiles?.name || wo.contractors?.company_name || "your painter").trim().split(/\s+/)[0] || "your painter";
+    const vars = {
+      first_name: who.firstName, address: streetOf(est.sent_snapshot?.jobAddress || est.title || "") || "your place",
+      date: dateAU(wo.start_date), deposit_amount: money(inv.total_inc_cents - inv.paid_cents), pay_link: `${siteUrl()}/i/${inv.token}`,
+      painter, brand: brandRecord(brandKey).name,
+    };
+    const ctx = { accountId: inv.account_id, estimateId: inv.estimate_id, invoiceId: inv.id, kind: "deposit_reminder" };
+    if (who.phone) await sendAutomation(db, { key: a.key, to: { phone: who.phone }, sms: { body: renderTemplate(messaging.depositDueSms, vars) }, ctx, now });
+    await sendChatStep(db, {
+      key: a.key, estimateId: inv.estimate_id, accountId: inv.account_id, invoiceId: inv.id, email: who.email, brand: brandKey, company,
+      subject: renderTemplate(messaging.depositDueSubject, vars), body: renderTemplate(messaging.depositDueBody, vars),
+      link: `${publicOriginFor(brandKey, siteUrl())}/e/${est.share_token}`, now,
+    });
+    out.depositDue.fired += 1;
   }
 }
 

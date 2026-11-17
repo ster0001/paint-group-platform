@@ -275,6 +275,12 @@ export type MessagingSettings = {
   estimateDeclinedReasonBody: string;
   estimateDeclinedTimingSubject: string;
   estimateDeclinedTimingBody: string;
+  /** Won stage W2–W4 (17 Nov 2026): the deposit-due text + chat (R6), colours to confirm, the start reminder. Ship off. */
+  depositDueSms: string;
+  depositDueSubject: string;
+  depositDueBody: string;
+  coloursTbcSms: string;
+  startReminderSms: string;
   /** Office: an estimate was accepted (Tom, 4 Sep). */
   officeEmail: string;
   acceptedOfficeSubject: string;
@@ -674,6 +680,12 @@ export const DEFAULT_MESSAGING: MessagingSettings = {
   estimateExpiredBody: "Hi {{first_name}}, your quote for {{address}} has lapsed. If you'd still like the work done, reply here and I'll refresh the price for you.",
   estimateDeclinedReasonSubject: "Thanks for letting us know",
   estimateDeclinedReasonBody: "Thanks for letting us know, {{first_name}}. So we can improve, which was it?\n\n{{reason_links}}\n\nOne tap, no reply needed.",
+  // W2–W4, Appendix A. W4's arrival window is in the wording (no job carries an arrival time) — change it here.
+  depositDueSms: "Hi {{first_name}}, your {{address}} job starts on {{date}}. The deposit of {{deposit_amount}} is due before then: {{pay_link}} — {{brand}}",
+  depositDueSubject: "Your deposit for {{address}}",
+  depositDueBody: "Hi {{first_name}}, we start at {{address}} on {{date}} with {{painter}}. The deposit of {{deposit_amount}} inc. GST is still outstanding — here's the link: {{pay_link}}. Once it's through we're all set.",
+  coloursTbcSms: "Hi {{first_name}}, we start {{address}} on {{date}} and still need your colours confirmed. Book a quick colour consult: {{link}} — {{brand}}",
+  startReminderSms: "Hi {{first_name}}, {{painter}} will arrive at {{address}} on {{date}} between 7:30 and 8:30 am. Updates will appear on your {{brand}} page each day.",
   estimateDeclinedTimingSubject: "Your quote for {{address}}",
   estimateDeclinedTimingBody: "Hi {{first_name}}, you mentioned the timing wasn't right for {{address}} a couple of months ago. If that's changed, here's your quote — I'll refresh the price if anything's moved: {{link}}.",
   wizardResumeSubject: "Pick up where you left off — your estimate is saved",
