@@ -8,6 +8,8 @@
  *   L1  lead_range_reminder    text   2 h after the range        range_no_action
  *   L2  lead_range_nudge       chat   1 day after                range_no_action
  *   L3  lead_range_human       chat   3 days after               range_no_action
+ *   L4  lead_range_last        chat   10 days after: a finished  range_no_action
+ *                                     job like theirs, with its price (needs a published showcase job)
  *   L5  lead_tighten_resume    text   1 h after starting to      tightening
  *                                     tighten, still not done
  *   L6  lead_tighten_help      chat   1 day after starting       tightening
@@ -26,7 +28,7 @@
 import { CLOSE_HOUR, OPEN_HOUR, addBusinessHours } from "@/lib/time/businessHours";
 
 export type LeadStepKey =
-  | "lead_range_reminder" | "lead_range_nudge" | "lead_range_human"
+  | "lead_range_reminder" | "lead_range_nudge" | "lead_range_human" | "lead_range_last"
   | "lead_tighten_resume" | "lead_tighten_help" | "lead_tightened_close"
   | "lead_visit_request_ack";
 export type LeadStage = "range_no_action" | "tightening" | "tightened_no_action" | "visit_requested";
@@ -43,6 +45,7 @@ export const LEAD_STEPS: readonly LeadStep[] = [
   { key: "lead_range_reminder", stage: "range_no_action", channel: "sms", unit: "hours", defaultAfter: 2, lateMs: 2 * HOUR },
   { key: "lead_range_nudge", stage: "range_no_action", channel: "chat", unit: "days", defaultAfter: 1, lateMs: 24 * HOUR },
   { key: "lead_range_human", stage: "range_no_action", channel: "chat", unit: "days", defaultAfter: 3, lateMs: 24 * HOUR },
+  { key: "lead_range_last", stage: "range_no_action", channel: "chat", unit: "days", defaultAfter: 10, lateMs: 24 * HOUR },
   { key: "lead_tighten_resume", stage: "tightening", channel: "sms", unit: "hours", defaultAfter: 1, lateMs: 2 * HOUR },
   { key: "lead_tighten_help", stage: "tightening", channel: "chat", unit: "days", defaultAfter: 1, lateMs: 24 * HOUR },
   { key: "lead_tightened_close", stage: "tightened_no_action", channel: "sms", unit: "hours", defaultAfter: 4, lateMs: 4 * HOUR },

@@ -1229,6 +1229,17 @@ export const AUTOMATIONS: Automation[] = [
     timing: [{ id: "after", label: "Days after the range", unit: "days", default: 3, min: 2, max: 21 }],
     guard: "Once per estimate (automation_claims). Not sent once the chat has a message after the range. Never sent more than a day late.",
   },
+  {
+    key: "lead_range_last", name: "Lead L4 — a job like yours (chat)", audience: "customer", channels: ["email"], kind: "automatic",
+    consent: "marketing", defaultOff: true, defaultChannel: "email", capExempt: true, sendKind: "lead_nudge",
+    trigger: "Ten days after the range, still no action and no conversation: one last note with a finished job like theirs and its price (a published showcase job — the same suburb and job type first), and their range page. With no published, priced showcase job to show, nothing is sent.",
+    templates: [
+      { field: "leadRangeLastSubject", label: "Email subject", kind: "subject", placeholders: [...P.lead, "{{showcase_suburb}}", "{{showcase_range}}", "{{showcase_link}}"] },
+      { field: "leadRangeLastBody", label: "Chat message", kind: "body", placeholders: [...P.lead, "{{showcase_suburb}}", "{{showcase_range}}", "{{showcase_link}}"] },
+    ],
+    timing: [{ id: "after", label: "Days after the range", unit: "days", default: 10, min: 5, max: 21 }],
+    guard: "Once per estimate (automation_claims). Not sent once the chat has a message after the range. Never sent more than a day late.",
+  },
   // ---- L5–L7 (17 Nov 2026), on the same sweep. The link is the lead page, whose Tighten my range
   // and Book a visit buttons open the draft — in another browser, after a code to the mobile on file.
   {
@@ -1394,6 +1405,20 @@ export const AUTOMATIONS: Automation[] = [
       { field: "anniversaryExteriorLine", label: "Exterior line (jobs with exterior work)", kind: "body" },
     ],
     guard: "Once per job (automation_claims).",
+  },
+  {
+    key: "cold_nurture", name: "R5 — a fresh range, once a quarter (chat)", audience: "customer", channels: ["email"], kind: "automatic",
+    consent: "marketing", defaultOff: true, defaultChannel: "email", sendKind: "nurture",
+    trigger: "A customer who declined, let a quote lapse, or left the wizard at their range, 90 days on (up to two years), and has gone ahead with nothing since: at most once a quarter, on a weekday between 10 am and 3 pm, the season's line, a finished job like theirs with its price, and a link to a fresh range. On their last estimate's chat, with the email. With no published, priced showcase job to show, nothing is sent.",
+    templates: [
+      { field: "coldNurtureSubject", label: "Email subject", kind: "subject", placeholders: ["{{first_name}}", "{{address}}", "{{brand}}"] },
+      { field: "coldNurtureBody", label: "Chat message", kind: "body", placeholders: ["{{first_name}}", "{{seasonal_line}}", "{{showcase_suburb}}", "{{showcase_range}}", "{{showcase_link}}", "{{address}}", "{{link}}", "{{brand}}"] },
+      { field: "seasonalLineSpring", label: "Season line — spring (Sep–Nov)", kind: "subject" },
+      { field: "seasonalLineSummer", label: "Season line — summer (Dec–Feb)", kind: "subject" },
+      { field: "seasonalLineAutumn", label: "Season line — autumn (Mar–May)", kind: "subject" },
+      { field: "seasonalLineWinter", label: "Season line — winter (Jun–Aug)", kind: "subject" },
+    ],
+    guard: "Once a quarter per customer (automation_claims, the quarter as the rung). Counts toward the daily cap.",
   },
 ];
 

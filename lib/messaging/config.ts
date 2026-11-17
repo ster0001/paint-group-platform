@@ -282,6 +282,15 @@ export type MessagingSettings = {
   coloursTbcSms: string;
   startReminderSms: string;
   /** After the job R1, R3, R4 (17 Nov 2026). The review links are per brand; R1 sends nothing for a brand with none. Ship off. */
+  /** L4 (17 Nov 2026): the last lead note — a finished job like theirs. R5: the quarterly cold-nurture chat and its four seasonal lines. Ship off. */
+  leadRangeLastSubject: string;
+  leadRangeLastBody: string;
+  coldNurtureSubject: string;
+  coldNurtureBody: string;
+  seasonalLineSpring: string;
+  seasonalLineSummer: string;
+  seasonalLineAutumn: string;
+  seasonalLineWinter: string;
   googleReviewLink: string;
   googleReviewLinkPaintHome: string;
   reviewRequestSms: string;
@@ -696,6 +705,15 @@ export const DEFAULT_MESSAGING: MessagingSettings = {
   coloursTbcSms: "Hi {{first_name}}, we start {{address}} on {{date}} and still need your colours confirmed. Book a quick colour consult: {{link}} — {{brand}}",
   startReminderSms: "Hi {{first_name}}, {{painter}} will arrive at {{address}} on {{date}} between 7:30 and 8:30 am. Updates will appear on your {{brand}} page each day.",
   // R1, R3, R4, Appendix A. {{exterior_line}} is anniversaryExteriorLine for a job with exterior work, else empty.
+  // L4 and R5, Appendix A. L4 has no {lead_time} (nothing knows the next free start), so that clause is left out.
+  leadRangeLastSubject: "A job like yours in {{showcase_suburb}}",
+  leadRangeLastBody: "Hi {{first_name}}, one last note from me. We finished a similar job in {{showcase_suburb}} recently at {{showcase_range}} — photos here: {{showcase_link}}. Your range for {{address}} is still here: {{link}}.",
+  coldNurtureSubject: "A fresh range for {{address}}",
+  coldNurtureBody: "Hi {{first_name}}, {{seasonal_line}}. We just finished one in {{showcase_suburb}} at {{showcase_range}}: {{showcase_link}}. If you'd like a fresh range for {{address}}, it takes a couple of minutes: {{link}}. (Reply STOP and I won't message again.)",
+  seasonalLineSpring: "spring's a good time to get painting booked in before the summer rush",
+  seasonalLineSummer: "summer's the season for exteriors",
+  seasonalLineAutumn: "autumn's ideal for getting the inside done before winter",
+  seasonalLineWinter: "winter's a quiet time to get the interior done",
   googleReviewLink: "",
   googleReviewLinkPaintHome: "",
   reviewRequestSms: "Hi {{first_name}}, thanks for having us at {{address}}. If you were happy with the work, a Google review would mean a lot: {{review_link}} — {{brand}}",
