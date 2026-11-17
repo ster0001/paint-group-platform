@@ -34,6 +34,8 @@ import { loadEstimateStages, STAGE_DRAFT_COLUMNS, type StageDraftRow, type Stage
 import { realOnly } from "@/lib/demo/scope";
 import { BOOKING_RULES_KEY, mergeBookingRules } from "@/lib/visits/schedule";
 import { dueWords } from "@/lib/staff/requestAlertRules";
+import { pickShowcase, suburbOf, type PickableShowcase } from "../showcasePick";
+import { loadShowcaseForMessages, showcaseVars } from "../showcaseLoad";
 import { reportError } from "@/lib/monitoring/report";
 
 export type LeadSequenceResult = { candidates: number; due: number; sent: Record<LeadStepKey, number>; skipped: number; error?: string };
@@ -84,6 +86,8 @@ export async function runLeadSequenceSweep(db: SupabaseClient, now = new Date())
     if (rules.error) throw rules.error;
     if (requests.error) throw requests.error;
     const holidays = new Set(mergeBookingRules(rules.data?.value).publicHolidays);
+    // L4: the published showcase jobs and the Paint Home ceiling, read once — only when L4 is on.
+    const showcase = enabled.has("lead_range_last") ? await loadShowcaseForMessages(db) : { jobs: [], paintHomeCapCents: 0 };
     const dueOf = new Map<string, string>();
     for (const r of (requests.data ?? []) as { estimate_id: string; due_at: string }[]) if (!dueOf.has(r.estimate_id)) dueOf.set(r.estimate_id, r.due_at);
     const draftOf = new Map<string, StageDraftRow>();
@@ -111,9 +115,14 @@ export async function runLeadSequenceSweep(db: SupabaseClient, now = new Date())
       for (const step of due) {
         out.due += 1;
         if (!snap || !lead.share_token || (lead.contact_email && isTestEmail(lead.contact_email))) { out.skipped += 1; continue; }
+        // L4 needs a finished job to show; with none, nothing is claimed and nothing goes.
+        const pick = step.key === "lead_range_last"
+          ? pickShowcase(showcase.jobs, { suburb: suburbOf(snap.address), jobType: snap.jobType, brand: messageBrandOf(lead.brand), paintHomeCapCents: showcase.paintHomeCapCents })
+          : null;
+        if (step.key === "lead_range_last" && !pick) { out.skipped += 1; continue; }
         // Claim BEFORE sending, so two sweeps at once never double up.
         if (!(await claimRung(db, step.key, lead.id, ""))) continue;
-        const ok = await sendStep(db, { step, lead, snap, messaging, company, now, dueAt: dueOf.get(lead.id) ?? null });
+        const ok = await sendStep(db, { step, lead, snap, messaging, company, now, dueAt: dueOf.get(lead.id) ?? null, showcase: pick });
         if (ok) out.sent[step.key] += 1; else out.skipped += 1;
       }
     }
@@ -137,6 +146,7 @@ const CHAT_TEMPLATE: Record<ChatKey, (m: MessagingSettings) => [string, string]>
   lead_range_human: (m) => [m.leadRangeHumanSubject, m.leadRangeHumanBody],
   lead_tighten_help: (m) => [m.leadTightenHelpSubject, m.leadTightenHelpBody],
   lead_visit_request_ack: (m) => [m.leadVisitAckSubject, m.leadVisitAckBody],
+  lead_range_last: (m) => [m.leadRangeLastSubject, m.leadRangeLastBody],
 };
 
 async function sendStep(db: SupabaseClient, i: {
@@ -144,6 +154,8 @@ async function sendStep(db: SupabaseClient, i: {
   messaging: MessagingSettings; company: Awaited<ReturnType<typeof loadMessaging>>["company"]; now: Date;
   /** L10: the open visit request's reply-by. */
   dueAt: string | null;
+  /** L4: the finished job to show. */
+  showcase: PickableShowcase | null;
 }): Promise<boolean> {
   const { step, lead, snap, messaging } = i;
   const brand = messageBrandOf(lead.brand);
@@ -158,6 +170,7 @@ async function sendStep(db: SupabaseClient, i: {
     range: leadRangeWords(snap.rangeLoCents, snap.rangeHiCents),
     link,
     due: i.dueAt ? dueWords(i.dueAt) : "the end of the next working day",
+    ...showcaseVars(i.showcase, publicOriginFor(brand, siteUrl())),
   };
   const ctx = { estimateId: lead.id, accountId: lead.account_id };
 

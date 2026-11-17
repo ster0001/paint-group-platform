@@ -140,6 +140,12 @@ All three are about a job the customer booked, so a marketing STOP doesn't stop 
 
 R3 and R4 count as marketing, so a STOP stops them; R1 doesn't. Each goes once per job.
 
+## A finished job like theirs: L4 and R5 (17 Nov 2026)
+Both point at a real finished job from **Settings → Showcase**: a published one with a price. They pick the job in the customer's suburb with the same job type if there is one, then the same job type, then the newest. Paint Home customers only see home jobs under the Paint Home ceiling. **With no published, priced showcase job, neither sends anything.** Fill the showcase first.
+
+- **Lead L4 — a job like yours (chat)**: off until you turn it on. Ten days after the range, still no action and no conversation, one last note goes on their chat: a similar job's suburb, price and photos link, and their range page. The plan's "we can usually start within {time}" is left out, because nothing in the system knows the next free start yet.
+- **R5 — a fresh range, once a quarter (chat)**: off until you turn it on. It's for customers who declined, let a quote lapse, or left the wizard at their range, at least 90 days ago and within two years, and haven't gone ahead with anything since. At most once a quarter, on a weekday between 10 am and 3 pm, it sends the season's line, a finished job like theirs, and a link to start a fresh range. The four season lines are editable here. It's marketing, so STOP and unsubscribe stop it, and it counts toward the daily limit.
+
 ## Which logo the emails use
 Every email the platform sends (estimates, offers, reminders, reset links, campaigns, the lot) takes the **Logo for emails** from Settings → Company. Upload a version with its own solid background, not a transparent one: mail apps in dark mode invert or recolour transparent logos, which is why the logo used to come out light in some inboxes and dark in others. If no email logo is uploaded, the light-background logo is used, and failing that the main one.
 

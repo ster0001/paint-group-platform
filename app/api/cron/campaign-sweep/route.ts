@@ -18,6 +18,7 @@ import { runEstimateOverdueSweep } from "@/lib/automations/sweeps/estimateOverdu
 import { runEstimateSequenceSweep } from "@/lib/automations/sweeps/estimateSequence";
 import { runStartReminderSweep } from "@/lib/automations/sweeps/startReminders";
 import { runAftercareSweep } from "@/lib/automations/sweeps/aftercare";
+import { runColdNurtureSweep } from "@/lib/automations/sweeps/coldNurture";
 
 /**
  * The campaign sweep, on a schedule.
@@ -70,6 +71,9 @@ export async function GET(req: Request) {
     // R1, R3, R4: after the job (all ship off). `?only=aftercare` is the hand run.
     const aftercare = only == null || only === "aftercare" ? await runAftercareSweep(db, now) : null;
     if (only === "aftercare") return NextResponse.json({ ok: true, aftercare, released: await releaseDueHolds(db, now) });
+    // R5: the quarterly cold nurture (ships off). `?only=nurture` is the hand run.
+    const nurture = only == null || only === "nurture" ? await runColdNurtureSweep(db, now) : null;
+    if (only === "nurture") return NextResponse.json({ ok: true, nurture, released: await releaseDueHolds(db, now) });
     const outcomes = only === "reminders" || only === "standards" || only === "certificates" || only === "moments" || only === "status" || only === "defect" || only === "finish" || only === "office" ? [] : await runSweep(db, now);
     // Tom, 12 Oct: "Today's follow ups" email (Mon–Fri from 8am) and the 14:00
     // pre-start texts for PC Command. Each is once a day; outside its window it
@@ -134,6 +138,7 @@ export async function GET(req: Request) {
       estimates,
       startReminders,
       aftercare,
+      nurture,
       // The first few failures by name, so a run that writes nothing says why (9 Oct 2026: production had no status rows and no way to see the cause).
       status: { ran: status.ran, failed: status.failed, errors: status.outcomes.filter((o) => !o.ok).slice(0, 5).map((o) => `${o.painterId.slice(0, 8)}: ${o.error ?? "?"}`) },
       note: "Campaign steps are queued only. Held automatic messages whose time has come are sent.",
