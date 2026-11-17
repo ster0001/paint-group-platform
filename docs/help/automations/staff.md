@@ -149,6 +149,12 @@ Both point at a real finished job from **Settings → Showcase**: a published on
 ## Paint Home's own wording (17 Nov 2026)
 Every customer message has a **Paint Group / Paint Home** switch above its wording (press **Edit wording**). **Paint Group** is the wording you already edit, saved with the page. **Paint Home** has a box per field. Type Paint Home's own text there and press **Save Paint Home wording**; the preview shows it as a Paint Home customer would see it. A blank box means Paint Home customers get the Paint Group wording, and `{{brand}}` already says "Paint Home" for them, so you only need to fill a box where the words themselves should differ. This covers the lead, estimate, before-the-job and after-the-job messages (L1–L13, E2–E12, W2–W4, R1–R5). The older messages, such as invoices and sign-in links, use one wording for both.
 
+## Where each message lives (17 Nov 2026)
+- **Campaigns › Automations** has every message a customer gets on the way from their range to a finished job, in the order they meet it: Lead (L1–L13), Estimate (E1–E12), Won (W1–W4), After the job (R1–R5). Each shows the plan's code, how many went out in the last 30 days and when the last one did, its switch, timing, and wording (Paint Group and Paint Home). The steps that are cards on Today rather than messages (L8, E6) and the one not built yet (R2 referrals) are listed so the plan reads whole. The staff alert routing (who gets Help, Visit req, Call req, Chat, Overdue) sits under the Estimate group.
+- **Settings → Automations** keeps everything else: invoices and receipts, the job's customer messages, painter messages, the other staff alerts, and the sending hours and daily limit that apply to all of them. It links across.
+
+Both screens save the same settings. Save one before you edit the other.
+
 ## Which logo the emails use
 Every email the platform sends (estimates, offers, reminders, reset links, campaigns, the lot) takes the **Logo for emails** from Settings → Company. Upload a version with its own solid background, not a transparent one: mail apps in dark mode invert or recolour transparent logos, which is why the logo used to come out light in some inboxes and dark in others. If no email logo is uploaded, the light-background logo is used, and failing that the main one.
 

@@ -14,6 +14,7 @@ import {
 import StaffAlertsMatrix from "./StaffAlertsMatrix";
 import { saveBrandWording, sendTestAutomation } from "./automationActions";
 import type { BrandWording } from "@/lib/messaging/brandWording";
+import { FUNNEL_KEYS, FUNNEL_STAGES, type FunnelStat, type FunnelStats } from "@/lib/automations/funnel";
 
 /**
  * Settings → Automations (Tom, 3 Sep 2026; Session 1 of the messaging brief,
@@ -31,8 +32,16 @@ import type { BrandWording } from "@/lib/messaging/brandWording";
  * data-driven off it.
  */
 export default function AutomationsSettings({
-  initial, initialVariationRelease, initialBrandWording = {}, brandWordingError = null,
+  initial, initialVariationRelease, initialBrandWording = {}, brandWordingError = null, view = "settings", stats = {}, statsError = null,
 }: {
+  /**
+   * A‑C (17 Nov 2026): "funnel" is Campaigns › Automations — the lead, estimate,
+   * won and after-the-job messages in the plan's order, with sends; "settings"
+   * is Settings → Automations — everything else. One component, one save.
+   */
+  view?: "settings" | "funnel";
+  stats?: FunnelStats;
+  statsError?: string | null;
   initial: Partial<Msg> | null;
   /** wo_loop.variationRelease — 'auto' | 'pc'. */
   initialVariationRelease: "auto" | "pc";
@@ -88,16 +97,50 @@ export default function AutomationsSettings({
     const order: Audience[] = ["customer", "painter", "office"];
     return order
       .filter((a) => filter === "all" || filter === a)
-      .map((a) => ({ audience: a, rows: AUTOMATIONS.filter((x) => x.audience === a) }))
+      .map((a) => ({ audience: a, rows: AUTOMATIONS.filter((x) => x.audience === a && !FUNNEL_KEYS.has(x.key)) }))
       .filter((g) => g.rows.length > 0);
   }, [filter]);
+  const byKey = useMemo(() => new Map(AUTOMATIONS.map((a) => [a.key, a])), []);
 
   const offCount = AUTOMATIONS.filter((a) => a.kind === "automatic" && !a.special && !automationOn(form, a.key)).length
     + (variationRelease === "pc" ? 1 : 0);
   const approveCount = AUTOMATIONS.filter((a) => a.approvable && (form.controls?.[a.key]?.mode ?? a.defaultMode) === "approve").length;
 
+  const row = (a: Automation, code?: string, stat?: FunnelStat) => (
+    <AutomationRow
+      key={a.key}
+      a={a}
+      code={code}
+      stat={stat}
+      on={a.special === "variation_release" ? variationRelease === "auto" : automationOn(form, a.key)}
+      onToggle={(on) => {
+        if (a.special === "variation_release") { setVariationRelease(on ? "auto" : "pc"); setDirty(true); }
+        else toggle(a.key, on);
+      }}
+      editing={editing === a.key}
+      onEdit={() => setEditing((e) => (e === a.key ? null : a.key))}
+      form={form}
+      set={set}
+      control={form.controls?.[a.key] ?? {}}
+      setControl={(patch) => setControl(a.key, patch)}
+      paintHome={paintHome}
+      onPaintHomeSaved={(fields) => setPaintHome((cur) => {
+        const next = { ...cur };
+        for (const [f, body] of Object.entries(fields)) { if (body.trim()) next[f] = body; else delete next[f]; }
+        return next;
+      })}
+    />
+  );
+
   return (
     <div className="space-y-4" data-testid="automations">
+      {view === "funnel" ? (
+        <p className="text-sm text-gray-600">
+          Every message a customer gets on the way from their range to a finished job, in the order they meet it — with what has gone out in the last 30 days.
+          Switch one on, change the timing, and edit the wording for Paint Group and Paint Home here. Sending hours and the daily limit are under{" "}
+          <a href="/settings#automations" className="underline">Settings → Automations</a>, with the invoice, painter and staff messages.
+        </p>
+      ) : (<>
       <div className="flex flex-wrap items-center gap-3">
         <p className="text-sm text-gray-600">
           Every message the platform sends, in one list. <strong>Automatic</strong> ones fire on their own — switch them off, pick Text / Email / Both,
@@ -121,39 +164,50 @@ export default function AutomationsSettings({
           {approveCount > 0 ? ` · ${approveCount} approved first` : ""}
         </span>
       </div>
+      </>)}
 
       {brandWordingError && <p className="text-sm text-red-600" data-testid="brand-wording-error">{brandWordingError}</p>}
-      {groups.map((g) => (
-        <section key={g.audience}>
-          <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-gray-500">{AUDIENCE_LABEL[g.audience]}</h3>
-          <div className="overflow-hidden rounded-lg border border-gray-200 divide-y divide-gray-100">
-            {g.rows.map((a) => (
-              <AutomationRow
-                key={a.key}
-                a={a}
-                on={a.special === "variation_release" ? variationRelease === "auto" : automationOn(form, a.key)}
-                onToggle={(on) => {
-                  if (a.special === "variation_release") { setVariationRelease(on ? "auto" : "pc"); setDirty(true); }
-                  else toggle(a.key, on);
-                }}
-                editing={editing === a.key}
-                onEdit={() => setEditing((e) => (e === a.key ? null : a.key))}
-                form={form}
-                set={set}
-                control={form.controls?.[a.key] ?? {}}
-                setControl={(patch) => setControl(a.key, patch)}
-                paintHome={paintHome}
-                onPaintHomeSaved={(fields) => setPaintHome((cur) => {
-                  const next = { ...cur };
-                  for (const [f, body] of Object.entries(fields)) { if (body.trim()) next[f] = body; else delete next[f]; }
-                  return next;
+      {view === "funnel" ? (
+        <>
+          {statsError && <p className="text-sm text-amber-700" data-testid="funnel-stats-error">Send counts couldn&apos;t be loaded just now — the switches and wording below are unaffected.</p>}
+          {FUNNEL_STAGES.map((stage) => (
+            <section key={stage.id} data-testid={`funnel-${stage.id}`}>
+              <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-gray-500">{stage.title}</h3>
+              <div className="overflow-hidden rounded-lg border border-gray-200 divide-y divide-gray-100">
+                {stage.rows.map((r, i) => {
+                  const a = r.key ? byKey.get(r.key) : undefined;
+                  if (!a) {
+                    return (
+                      <div key={`${r.code}-${i}`} className="flex items-start gap-3 bg-gray-50/60 px-4 py-3 text-sm text-gray-600" data-testid={`funnel-note-${r.code}`}>
+                        <span className="rounded bg-gray-200 px-1.5 py-0.5 font-mono text-[11px] text-gray-700">{r.code}</span>
+                        <span>{r.note}</span>
+                      </div>
+                    );
+                  }
+                  return row(a, r.code, stats[a.key] ?? { sent: 0, last: null });
                 })}
-              />
-            ))}
-          </div>
-          {g.audience === "office" && <StaffAlertsMatrix />}
-        </section>
-      ))}
+              </div>
+              {stage.id === "estimate" && <StaffAlertsMatrix />}
+            </section>
+          ))}
+        </>
+      ) : (
+        <>
+          <p className="text-sm text-gray-600" data-testid="funnel-link">
+            The lead, estimate, before-the-job and after-the-job messages (L1–L13, E1–E12, W1–W4, R1–R5) are under{" "}
+            <a href="/crm/campaigns/automations" className="underline">Campaigns › Automations</a>, in the order a customer meets them.
+          </p>
+          {groups.map((g) => (
+            <section key={g.audience}>
+              <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-gray-500">{AUDIENCE_LABEL[g.audience]}</h3>
+              <div className="overflow-hidden rounded-lg border border-gray-200 divide-y divide-gray-100">
+                {g.rows.map((a) => row(a))}
+              </div>
+              {g.audience === "office" && <StaffAlertsMatrix />}
+            </section>
+          ))}
+        </>
+      )}
 
       <div className="sticky bottom-0 -mx-5 flex items-center gap-3 border-t border-gray-200 bg-white/95 px-5 py-3 backdrop-blur">
         <button
@@ -226,9 +280,12 @@ function SendingRules({ form, set }: { form: Msg; set: <K extends keyof Msg>(key
 // ---- one automation ------------------------------------------------------------
 
 function AutomationRow({
-  a, on, onToggle, editing, onEdit, form, set, control, setControl, paintHome, onPaintHomeSaved,
+  a, code, stat, on, onToggle, editing, onEdit, form, set, control, setControl, paintHome, onPaintHomeSaved,
 }: {
   a: Automation;
+  /** Campaigns › Automations: the plan's code (L1, E4…) and the last 30 days' sends. */
+  code?: string;
+  stat?: FunnelStat;
   on: boolean;
   onToggle: (on: boolean) => void;
   editing: boolean;
@@ -251,7 +308,13 @@ function AutomationRow({
       <div className="flex flex-wrap items-start gap-3">
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
+            {code && <span className="rounded bg-gray-900 px-1.5 py-0.5 font-mono text-[11px] text-white" data-testid={`code-${a.key}`}>{code}</span>}
             <span className="text-sm font-semibold text-gray-900">{a.name}</span>
+            {stat && (
+              <span className="text-[11px] text-gray-500" data-testid={`stat-${a.key}`}>
+                {stat.sent === 0 ? "none sent in 30 days" : `${stat.sent} sent in 30 days · last ${new Date(stat.last ?? "").toLocaleDateString("en-AU", { timeZone: "Australia/Melbourne", day: "numeric", month: "short" })}`}
+              </span>
+            )}
             {a.channels.map((c) => (
               <span key={c} className="rounded bg-gray-100 px-1.5 py-0.5 text-[11px] text-gray-600">{CHANNEL_LABEL[c]}</span>
             ))}
