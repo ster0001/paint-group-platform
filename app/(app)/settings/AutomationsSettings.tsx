@@ -12,7 +12,8 @@ import {
   type AutomationControl, type ChannelChoice, type QuietHours, type SendMode,
 } from "@/lib/automations/controls";
 import StaffAlertsMatrix from "./StaffAlertsMatrix";
-import { sendTestAutomation } from "./automationActions";
+import { saveBrandWording, sendTestAutomation } from "./automationActions";
+import type { BrandWording } from "@/lib/messaging/brandWording";
 
 /**
  * Settings → Automations (Tom, 3 Sep 2026; Session 1 of the messaging brief,
@@ -30,11 +31,14 @@ import { sendTestAutomation } from "./automationActions";
  * data-driven off it.
  */
 export default function AutomationsSettings({
-  initial, initialVariationRelease,
+  initial, initialVariationRelease, initialBrandWording = {}, brandWordingError = null,
 }: {
   initial: Partial<Msg> | null;
   /** wo_loop.variationRelease — 'auto' | 'pc'. */
   initialVariationRelease: "auto" | "pc";
+  /** A‑B: Paint Home's own wording, field → text (automation_brand_wording). */
+  initialBrandWording?: BrandWording;
+  brandWordingError?: string | null;
 }) {
   const [form, setForm] = useState<Msg>({ ...DEFAULT_MESSAGING, ...(initial ?? {}), quietHours: parseQuietHours(initial?.quietHours) });
   const [variationRelease, setVariationRelease] = useState<"auto" | "pc">(initialVariationRelease);
@@ -43,6 +47,8 @@ export default function AutomationsSettings({
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState("");
   const [dirty, setDirty] = useState(false);
+  // A‑B: Paint Home's saved wording (field → text). Saved per editor, not with the main Save.
+  const [paintHome, setPaintHome] = useState<Record<string, string>>(initialBrandWording.painthome ?? {});
 
   const set = <K extends keyof Msg>(key: K, value: Msg[K]) => { setForm((f) => ({ ...f, [key]: value })); setDirty(true); };
   const toggle = (key: string, on: boolean) => {
@@ -116,6 +122,7 @@ export default function AutomationsSettings({
         </span>
       </div>
 
+      {brandWordingError && <p className="text-sm text-red-600" data-testid="brand-wording-error">{brandWordingError}</p>}
       {groups.map((g) => (
         <section key={g.audience}>
           <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-gray-500">{AUDIENCE_LABEL[g.audience]}</h3>
@@ -135,6 +142,12 @@ export default function AutomationsSettings({
                 set={set}
                 control={form.controls?.[a.key] ?? {}}
                 setControl={(patch) => setControl(a.key, patch)}
+                paintHome={paintHome}
+                onPaintHomeSaved={(fields) => setPaintHome((cur) => {
+                  const next = { ...cur };
+                  for (const [f, body] of Object.entries(fields)) { if (body.trim()) next[f] = body; else delete next[f]; }
+                  return next;
+                })}
               />
             ))}
           </div>
@@ -213,7 +226,7 @@ function SendingRules({ form, set }: { form: Msg; set: <K extends keyof Msg>(key
 // ---- one automation ------------------------------------------------------------
 
 function AutomationRow({
-  a, on, onToggle, editing, onEdit, form, set, control, setControl,
+  a, on, onToggle, editing, onEdit, form, set, control, setControl, paintHome, onPaintHomeSaved,
 }: {
   a: Automation;
   on: boolean;
@@ -224,6 +237,8 @@ function AutomationRow({
   set: <K extends keyof Msg>(key: K, value: Msg[K]) => void;
   control: AutomationControl;
   setControl: (patch: Partial<AutomationControl>) => void;
+  paintHome: Record<string, string>;
+  onPaintHomeSaved: (fields: Record<string, string>) => void;
 }) {
   const switchable = a.kind === "automatic";
   const hasTemplates = (a.templates?.length ?? 0) > 0;
@@ -308,7 +323,9 @@ function AutomationRow({
         </div>
       </div>
 
-      {editing && hasTemplates && <WordingEditor a={a} form={form} set={set} />}
+      {editing && hasTemplates && (a.audience === "customer"
+        ? <BrandedWordingEditor a={a} form={form} set={set} paintHome={paintHome} onPaintHomeSaved={onPaintHomeSaved} />
+        : <WordingEditor a={a} form={form} set={set} />)}
     </div>
   );
 }
@@ -376,6 +393,67 @@ function WordingEditor({ a, form, set }: { a: Automation; form: Msg; set: <K ext
           </p>
         )}
       </div>
+    </div>
+  );
+}
+
+/**
+ * A‑B (17 Nov 2026): a customer message's wording per brand. "Paint Group" is
+ * the editor above, saved with the page. "Paint Home" is the Paint Home text
+ * for each field — blank means the Paint Group wording is used (its {{brand}}
+ * already says Paint Home) — saved here with its own button, one row per field
+ * in automation_brand_wording.
+ */
+function BrandedWordingEditor({ a, form, set, paintHome, onPaintHomeSaved }: {
+  a: Automation; form: Msg; set: <K extends keyof Msg>(key: K, value: Msg[K]) => void;
+  paintHome: Record<string, string>; onPaintHomeSaved: (fields: Record<string, string>) => void;
+}) {
+  const [brand, setBrand] = useState<"paintgroup" | "painthome">("paintgroup");
+  const fields = (a.templates ?? []).filter((t) => t.kind !== "number");
+  const [draft, setDraft] = useState<Record<string, string>>(() => Object.fromEntries(fields.map((t) => [String(t.field), paintHome[String(t.field)] ?? ""])));
+  const [said, setSaid] = useState("");
+  const [saving, startSave] = useTransition();
+  const tab = (b: "paintgroup" | "painthome", label: string) => (
+    <button type="button" onClick={() => setBrand(b)} data-testid={`brand-tab-${b}-${a.key}`}
+      className={`rounded-md px-2.5 py-1 text-xs font-medium ${brand === b ? "bg-gray-900 text-white" : "border border-gray-300 bg-white text-gray-700"}`}>{label}</button>
+  );
+  const save = () => startSave(async () => {
+    setSaid("Saving…");
+    const r = await saveBrandWording({ brand: "painthome", fields: draft });
+    setSaid(r.message);
+    if (r.ok) onPaintHomeSaved(draft);
+  });
+  const sample = { ...SAMPLE_VARS, brand: "Paint Home", company_name: "Paint Home" };
+  return (
+    <div className="mt-3 space-y-2">
+      <div className="flex items-center gap-2">{tab("paintgroup", "Paint Group")}{tab("painthome", "Paint Home")}</div>
+      {brand === "paintgroup" ? <WordingEditor a={a} form={form} set={set} /> : (
+        <div className="grid gap-3 rounded-md border border-gray-200 bg-gray-50 p-3 md:grid-cols-2" data-testid={`ph-editor-${a.key}`}>
+          <div className="space-y-3">
+            {fields.map((t) => (
+              <label key={String(t.field)} className="block text-xs text-gray-700">
+                <span className="font-medium">{t.label}</span>
+                <textarea rows={t.kind === "body" ? 6 : 2} value={draft[String(t.field)] ?? ""} placeholder={String(form[t.field] ?? "")}
+                  onChange={(e) => setDraft((d) => ({ ...d, [String(t.field)]: e.target.value }))}
+                  className="mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm leading-relaxed" data-testid={`ph-tpl-${String(t.field)}`} />
+              </label>
+            ))}
+            <div className="flex items-center gap-2">
+              <button type="button" disabled={saving} onClick={save} className="rounded-md bg-gray-900 px-3 py-1.5 text-xs font-medium text-white disabled:opacity-50" data-testid={`ph-save-${a.key}`}>Save Paint Home wording</button>
+              {said && <span className="text-[11px] text-gray-600" data-testid={`ph-said-${a.key}`}>{said}</span>}
+            </div>
+            <p className="text-[11px] text-gray-400">Leave a box blank to use the Paint Group wording — its {"{{brand}}"} already says Paint Home.</p>
+          </div>
+          <div className="space-y-2">
+            <p className="text-[11px] font-semibold uppercase tracking-wider text-gray-500">Preview · Paint Home customer</p>
+            {fields.map((t) => (
+              <p key={String(t.field)} className="whitespace-pre-wrap rounded-md border border-gray-200 bg-white p-3 text-sm text-gray-800" data-testid={`ph-preview-${String(t.field)}`}>
+                {renderTemplate((draft[String(t.field)] ?? "").trim() || String(form[t.field] ?? ""), sample)}
+              </p>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

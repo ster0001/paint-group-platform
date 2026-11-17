@@ -31,6 +31,7 @@ import { stripeConfigured } from "@/lib/invoicing/stripe";
 import CostIntakeSettings from "./CostIntakeSettings";
 import { COST_INTAKE_KEY } from "@/lib/costs/intake";
 import { MESSAGING_KEY, type MessagingSettings as MessagingValues } from "@/lib/messaging/config";
+import { brandWordingFrom, type BrandWordingRow } from "@/lib/messaging/brandWording";
 import ProductsManager, { type ProductRow } from "./ProductsManager";
 import ColoursManager, { type ColourRow } from "./ColoursManager";
 import DocumentsManager, { type CompanyDocRow } from "./DocumentsManager";
@@ -213,6 +214,10 @@ export default async function SettingsPage() {
     // absent, so the screen shows the number actually in force either way.
     holdDays: holdDaysFromSettings(allSettings.find((r) => r.key === "wizard_hold_days")?.value),
   };
+  // A‑B: Paint Home's own wording, one row per template field. A refused read is shown on the screen, never "no rows".
+  const brandWordingRes = await supabase.from("automation_brand_wording").select("brand, field, body");
+  const brandWording = brandWordingFrom((brandWordingRes.data ?? []) as BrandWordingRow[]);
+  const brandWordingError = brandWordingRes.error ? "Paint Home wording couldn't be loaded — refresh to try again." : null;
   // Settings → Automations: the one wo_loop key the office can flip here.
   const variationRelease = ((allSettings.find((r) => r.key === "wo_loop")?.value as { variationRelease?: string } | undefined)?.variationRelease === "pc") ? "pc" as const : "auto" as const;
 
@@ -370,7 +375,7 @@ export default async function SettingsPage() {
       blurb: "Every message the platform sends, and what the assistant may say.",
       folders: [
         { id: "automations", title: "Automations", subtitle: "Every email, text and calendar invite sent to customers, contractors and staff — what fires it, switch it off, change the wording; who on staff gets each alert", count: AUTOMATION_COUNT,
-          content: <AutomationsSettings initial={messaging} initialVariationRelease={variationRelease} /> },
+          content: <AutomationsSettings initial={messaging} initialVariationRelease={variationRelease} initialBrandWording={brandWording} brandWordingError={brandWordingError} /> },
         { id: "induction-languages", title: "Induction languages", subtitle: `What painters read and tick in the induction, and the six standards sections, in their own language — switch a language on once its wording has been tested. ${inductionLanguages.filter((l) => l.live).length} of ${inductionLanguages.length || 7} live`, count: inductionLanguages.filter((l) => l.live).length || undefined,
           content: <InductionLanguagesSettings initial={inductionLanguages} counts={languageCounts} loadError={langRes.error?.message ?? null} /> },
         { id: "brain", title: "Brain", subtitle: "What the assistant may say about how Paint Group works — approve each entry; unwritten ones are never served", count: brainRows.length,

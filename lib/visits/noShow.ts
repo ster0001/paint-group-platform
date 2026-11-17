@@ -21,6 +21,7 @@ import { siteUrl } from "@/lib/invoicing/pdf";
 import { toE164Au } from "@/lib/campaigns/sms";
 import { streetOf } from "@/lib/automations/leadSequence";
 import { reportError } from "@/lib/monitoring/report";
+import { forBrand, loadBrandWording } from "@/lib/messaging/brandWording";
 
 export type NoShowOutcome = "sent" | "off" | "already" | "no_link" | "no_mobile" | "not_sent" | "error";
 
@@ -53,7 +54,9 @@ export async function sendVisitNoShow(visitId: string, now = new Date(), db?: Su
       if (sErr) reportError(sErr, { where: "visits.noShow.estimator", bestEffort: true });
       estimator = ((s?.name as string | null) || "").trim().split(/\s+/)[0] || estimator;
     }
-    const body = renderTemplate(messaging.visitNoShowSms, {
+    const bw = await loadBrandWording(svc);
+    if (bw.error) reportError(new Error(`brand wording: ${bw.error}`), { where: "visits.noShow.brandWording", bestEffort: true });
+    const body = renderTemplate(forBrand(messaging, bw.wording, brand).visitNoShowSms, {
       first_name: (visit.customer_name || "").trim().split(/\s+/)[0] || "there",
       estimator_name: estimator, company_name: brandRecord(brand).name,
       address: visit.address ? streetOf(visit.address) : "your place",

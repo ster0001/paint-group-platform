@@ -27,6 +27,7 @@ import { brandRecord, messageBrandOf, publicOriginFor } from "@/lib/messaging/br
 import { siteUrl } from "@/lib/invoicing/pdf";
 import { isTestEmail } from "@/lib/accounts/identity";
 import { realOnly } from "@/lib/demo/scope";
+import { forBrand, loadBrandWording } from "@/lib/messaging/brandWording";
 import { reportError } from "@/lib/monitoring/report";
 
 export type StartRemindersResult = { jobs: number; colours: number; start: number; error?: string };
@@ -75,13 +76,16 @@ export async function runStartReminderSweep(db: SupabaseClient, now = new Date()
       }
     }
 
-    const send = async (key: "colours_tbc" | "start_reminder", job: Job, template: string): Promise<boolean> => {
+    const bw = await loadBrandWording(db);
+    if (bw.error) reportError(new Error(`brand wording: ${bw.error}`), { where: "automations.startReminders.brandWording", bestEffort: true });
+    const send = async (key: "colours_tbc" | "start_reminder", job: Job, field: "coloursTbcSms" | "startReminderSms"): Promise<boolean> => {
       const e = job.estimates;
       const c = e?.builder_state?.contact ?? {};
       const phone = c.phone ? normalisePhoneAU(c.phone) : null;
       if (!e || !phone || (c.email && isTestEmail(c.email))) return false;
       if (!(await claimRung(db, key, job.id, job.start_date))) return false;
       const brand = messageBrandOf(e.brand);
+      const template = forBrand(messaging, bw.wording, brand)[field];
       const name = (e.sent_snapshot?.contactName || c.name || "").trim();
       const painter = (job.contractors?.profiles?.name || job.contractors?.company_name || "Your painter").trim().split(/\s+/)[0] || "Your painter";
       const vars = {
@@ -93,8 +97,8 @@ export async function runStartReminderSweep(db: SupabaseClient, now = new Date()
       const word = outcomeWord(o);
       return word === "sent" || word === "not_configured" || o.outcome === "held";
     };
-    for (const job of colourDue) if (!ticked.has(job.id) && (await send("colours_tbc", job, messaging.coloursTbcSms))) out.colours += 1;
-    for (const job of startDue) if (await send("start_reminder", job, messaging.startReminderSms)) out.start += 1;
+    for (const job of colourDue) if (!ticked.has(job.id) && (await send("colours_tbc", job, "coloursTbcSms"))) out.colours += 1;
+    for (const job of startDue) if (await send("start_reminder", job, "startReminderSms")) out.start += 1;
   } catch (e) {
     out.error = e instanceof Error ? e.message : String(e);
     reportError(e, { where: "automations.startReminders" });

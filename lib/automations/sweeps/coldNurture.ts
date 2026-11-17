@@ -25,6 +25,7 @@ import { siteUrl } from "@/lib/invoicing/pdf";
 import { isTestEmail } from "@/lib/accounts/identity";
 import { parseLeadSnapshot } from "@/lib/estimate/leadSnapshot";
 import { realOnly } from "@/lib/demo/scope";
+import { forBrand, loadBrandWording } from "@/lib/messaging/brandWording";
 import { reportError } from "@/lib/monitoring/report";
 
 export type ColdNurtureResult = { cold: number; sent: number; noShowcase: number; skipped?: "off" | "hours"; error?: string };
@@ -53,6 +54,8 @@ export async function runColdNurtureSweep(db: SupabaseClient, now = new Date()):
     if (cold.length === 0) return out;
 
     const showcase = await loadShowcaseForMessages(db);
+    const bw = await loadBrandWording(db);
+    if (bw.error) reportError(new Error(`brand wording: ${bw.error}`), { where: "automations.coldNurture.brandWording", bestEffort: true });
     const quarter = quarterKey(now);
     for (const { estimate: e, customer } of cold) {
       const email = (e.contact_email || e.sent_snapshot?.contactEmail || "").trim() || null;
@@ -64,14 +67,15 @@ export async function runColdNurtureSweep(db: SupabaseClient, now = new Date()):
       if (!pick) { out.noShowcase += 1; continue; }
       if (!(await claimRung(db, "cold_nurture", customer, quarter))) continue;
       const origin = publicOriginFor(brand, siteUrl());
+      const m = forBrand(messaging, bw.wording, brand);
       const name = (e.sent_snapshot?.contactName || e.contact_name || snap?.firstName || "").trim();
       const vars = {
         first_name: name.split(/\s+/)[0] || "there", address: streetOf(address) || "your place", brand: brandRecord(brand).name,
-        seasonal_line: seasonalLine(now, messaging), link: `${origin}/wizard`, ...showcaseVars(pick, origin),
+        seasonal_line: seasonalLine(now, m), link: `${origin}/wizard`, ...showcaseVars(pick, origin),
       };
       const ok = await sendChatStep(db, {
         key: "cold_nurture", estimateId: e.id, accountId: e.account_id, email, brand, company,
-        subject: renderTemplate(messaging.coldNurtureSubject, vars), body: renderTemplate(messaging.coldNurtureBody, vars),
+        subject: renderTemplate(m.coldNurtureSubject, vars), body: renderTemplate(m.coldNurtureBody, vars),
         link: `${origin}/e/${e.share_token}`, now,
       });
       if (ok) out.sent += 1;

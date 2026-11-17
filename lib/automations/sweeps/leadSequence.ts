@@ -32,6 +32,7 @@ import { isTestEmail } from "@/lib/accounts/identity";
 import { parseLeadSnapshot, type LeadSnapshot } from "@/lib/estimate/leadSnapshot";
 import { loadEstimateStages, STAGE_DRAFT_COLUMNS, type StageDraftRow, type StageEstimateRow } from "@/lib/crm/estimateStageLoad";
 import { realOnly } from "@/lib/demo/scope";
+import { forBrand, loadBrandWording, type BrandWording } from "@/lib/messaging/brandWording";
 import { BOOKING_RULES_KEY, mergeBookingRules } from "@/lib/visits/schedule";
 import { dueWords } from "@/lib/staff/requestAlertRules";
 import { pickShowcase, suburbOf, type PickableShowcase } from "../showcasePick";
@@ -86,6 +87,9 @@ export async function runLeadSequenceSweep(db: SupabaseClient, now = new Date())
     if (rules.error) throw rules.error;
     if (requests.error) throw requests.error;
     const holidays = new Set(mergeBookingRules(rules.data?.value).publicHolidays);
+    // A‑B: Paint Home's own wording; a refused read sends the Paint Group wording (the brand name is still right).
+    const bw = await loadBrandWording(db);
+    if (bw.error) reportError(new Error(`brand wording: ${bw.error}`), { where: "automations.leadSequence.brandWording", bestEffort: true });
     // L4: the published showcase jobs and the Paint Home ceiling, read once — only when L4 is on.
     const showcase = enabled.has("lead_range_last") ? await loadShowcaseForMessages(db) : { jobs: [], paintHomeCapCents: 0 };
     const dueOf = new Map<string, string>();
@@ -122,7 +126,7 @@ export async function runLeadSequenceSweep(db: SupabaseClient, now = new Date())
         if (step.key === "lead_range_last" && !pick) { out.skipped += 1; continue; }
         // Claim BEFORE sending, so two sweeps at once never double up.
         if (!(await claimRung(db, step.key, lead.id, ""))) continue;
-        const ok = await sendStep(db, { step, lead, snap, messaging, company, now, dueAt: dueOf.get(lead.id) ?? null, showcase: pick });
+        const ok = await sendStep(db, { step, lead, snap, messaging, wording: bw.wording, company, now, dueAt: dueOf.get(lead.id) ?? null, showcase: pick });
         if (ok) out.sent[step.key] += 1; else out.skipped += 1;
       }
     }
@@ -151,14 +155,15 @@ const CHAT_TEMPLATE: Record<ChatKey, (m: MessagingSettings) => [string, string]>
 
 async function sendStep(db: SupabaseClient, i: {
   step: LeadStep; lead: LeadRow; snap: LeadSnapshot;
-  messaging: MessagingSettings; company: Awaited<ReturnType<typeof loadMessaging>>["company"]; now: Date;
+  messaging: MessagingSettings; wording: BrandWording; company: Awaited<ReturnType<typeof loadMessaging>>["company"]; now: Date;
   /** L10: the open visit request's reply-by. */
   dueAt: string | null;
   /** L4: the finished job to show. */
   showcase: PickableShowcase | null;
 }): Promise<boolean> {
-  const { step, lead, snap, messaging } = i;
+  const { step, lead, snap } = i;
   const brand = messageBrandOf(lead.brand);
+  const messaging = forBrand(i.messaging, i.wording, brand);
   const co = companyForBrand(i.company, brand);
   const estimator = (i.company.estimatorName ?? "").trim().split(/\s+/)[0] || "The team";
   const link = `${publicOriginFor(brand, siteUrl())}/e/${lead.share_token}`;
