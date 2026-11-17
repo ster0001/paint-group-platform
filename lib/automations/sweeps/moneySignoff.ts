@@ -45,6 +45,7 @@ import { emailLogoUrl } from "@/lib/messaging/logo";
 import { isOverdue } from "@/lib/invoicing/ledger";
 import type { InvoiceStatus } from "@/lib/invoicing/stateMachine";
 import { realOnly } from "@/lib/demo/scope";
+import { forBrand, loadBrandWording } from "@/lib/messaging/brandWording";
 
 const OPEN = ["issued", "sent", "viewed", "partially_paid"];
 const money = (c: number) => `$${(c / 100).toLocaleString("en-AU", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -383,6 +384,8 @@ async function depositDue(db: SupabaseClient, messaging: MessagingSettings, comp
   if (ests.error) throw ests.error;
   type Wo = { estimate_id: string; start_date: string | null; contractors: { company_name: string | null; profiles: { name: string | null } | null } | null };
   type Est = { id: string; share_token: string | null; brand: string | null; title: string | null; sent_snapshot: { jobAddress?: string } | null };
+  const bw = await loadBrandWording(db);
+  if (bw.error) reportError(new Error(`brand wording: ${bw.error}`), { where: "moneySignoff.depositDue.brandWording", bestEffort: true });
   const woOf = new Map(((wos.data ?? []) as unknown as Wo[]).map((w) => [w.estimate_id, w]));
   const estOf = new Map(((ests.data ?? []) as unknown as Est[]).map((e) => [e.id, e]));
   for (const inv of deposits) {
@@ -393,6 +396,7 @@ async function depositDue(db: SupabaseClient, messaging: MessagingSettings, comp
     if (!who.email || isTestEmail(who.email)) continue;
     if (!(await claimRung(db, a.key, inv.id, wo.start_date))) continue;
     const brandKey = messageBrandOf(est.brand);
+    const m = forBrand(messaging, bw.wording, brandKey);
     const painter = (wo.contractors?.profiles?.name || wo.contractors?.company_name || "your painter").trim().split(/\s+/)[0] || "your painter";
     const vars = {
       first_name: who.firstName, address: streetOf(est.sent_snapshot?.jobAddress || est.title || "") || "your place",
@@ -400,10 +404,10 @@ async function depositDue(db: SupabaseClient, messaging: MessagingSettings, comp
       painter, brand: brandRecord(brandKey).name,
     };
     const ctx = { accountId: inv.account_id, estimateId: inv.estimate_id, invoiceId: inv.id, kind: "deposit_reminder" };
-    if (who.phone) await sendAutomation(db, { key: a.key, to: { phone: who.phone }, sms: { body: renderTemplate(messaging.depositDueSms, vars) }, ctx, now });
+    if (who.phone) await sendAutomation(db, { key: a.key, to: { phone: who.phone }, sms: { body: renderTemplate(m.depositDueSms, vars) }, ctx, now });
     await sendChatStep(db, {
       key: a.key, estimateId: inv.estimate_id, accountId: inv.account_id, invoiceId: inv.id, email: who.email, brand: brandKey, company,
-      subject: renderTemplate(messaging.depositDueSubject, vars), body: renderTemplate(messaging.depositDueBody, vars),
+      subject: renderTemplate(m.depositDueSubject, vars), body: renderTemplate(m.depositDueBody, vars),
       link: `${publicOriginFor(brandKey, siteUrl())}/e/${est.share_token}`, now,
     });
     out.depositDue.fired += 1;

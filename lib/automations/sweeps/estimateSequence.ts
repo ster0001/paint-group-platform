@@ -27,6 +27,7 @@ import { siteUrl } from "@/lib/invoicing/pdf";
 import { isTestEmail } from "@/lib/accounts/identity";
 import { loadEstimateStages, type StageEstimateRow } from "@/lib/crm/estimateStageLoad";
 import { realOnly } from "@/lib/demo/scope";
+import { forBrand, loadBrandWording } from "@/lib/messaging/brandWording";
 import { reportError } from "@/lib/monitoring/report";
 
 export type EstimateSequenceResult = { candidates: number; due: number; sent: Record<EstimateStepKey | "estimate_expiry_warning", number>; skipped: number; error?: string };
@@ -83,6 +84,8 @@ export async function runEstimateSequenceSweep(db: SupabaseClient, now = new Dat
     const chatOf = new Map<string, { direction: string; created_at: string }[]>();
     for (const m of (chat.data ?? []) as { estimate_id: string; direction: string; created_at: string }[]) chatOf.set(m.estimate_id, [...(chatOf.get(m.estimate_id) ?? []), m]);
 
+    const bw = await loadBrandWording(db);
+    if (bw.error) reportError(new Error(`brand wording: ${bw.error}`), { where: "automations.estimateSequence.brandWording", bestEffort: true });
     const staged = await loadEstimateStages(db, rows.map((r) => ({ estimate: r, draft: null })), now);
     if (!staged.ok) throw new Error(staged.error);
 
@@ -98,12 +101,13 @@ export async function runEstimateSequenceSweep(db: SupabaseClient, now = new Dat
         : step.key === "estimate_declined_timing" ? isTimingReason(est.declined_reason)
         : true);
       const email = (est.contact_email || est.sent_snapshot?.contactEmail || "").trim() || null;
+      const m = forBrand(messaging, bw.wording, messageBrandOf(est.brand));
       // E9: a date offset, not a stage age — a text and a chat, claimed once.
       if (warnDays != null && !claimed.has("estimate_expiry_warning") && expiryWarningDue(est.valid_until, stage?.stage ?? null, now, warnDays)) {
         out.due += 1;
         if (!est.share_token || (email && isTestEmail(email))) out.skipped += 1;
         else if (await claimRung(db, "estimate_expiry_warning", est.id, "")) {
-          const ok = await sendExpiryWarning(db, { est, email, messaging, company, now });
+          const ok = await sendExpiryWarning(db, { est, email, messaging: m, company, now });
           if (ok) out.sent.estimate_expiry_warning += 1; else out.skipped += 1;
         }
       }
@@ -111,7 +115,7 @@ export async function runEstimateSequenceSweep(db: SupabaseClient, now = new Dat
         out.due += 1;
         if (!est.share_token || (email && isTestEmail(email))) { out.skipped += 1; continue; }
         if (!(await claimRung(db, step.key, est.id, ""))) continue;
-        const ok = await sendStep(db, { step, est, email, messaging, company, now });
+        const ok = await sendStep(db, { step, est, email, messaging: m, company, now });
         if (ok) out.sent[step.key] += 1; else out.skipped += 1;
       }
     }

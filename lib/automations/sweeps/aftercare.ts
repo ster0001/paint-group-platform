@@ -34,6 +34,7 @@ import { siteUrl } from "@/lib/invoicing/pdf";
 import { isTestEmail } from "@/lib/accounts/identity";
 import { hasExteriorBlock } from "@/lib/wizard/policy";
 import { realOnly } from "@/lib/demo/scope";
+import { forBrand, loadBrandWording } from "@/lib/messaging/brandWording";
 import { reportError } from "@/lib/monitoring/report";
 
 export type AftercareResult = { candidates: number; review: number; year1: number; year2: number; noReviewLink: number; error?: string };
@@ -92,6 +93,8 @@ export async function runAftercareSweep(db: SupabaseClient, now = new Date()): P
       for (const r of (rr ?? []) as { work_order_id: string }[]) asked.add(r.work_order_id);
     }
 
+    const bw = await loadBrandWording(db);
+    if (bw.error) reportError(new Error(`brand wording: ${bw.error}`), { where: "automations.aftercare.brandWording", bestEffort: true });
     for (const w of rows) {
       const e = w.estimates;
       if (!e || !w.estimate_id) continue;
@@ -99,12 +102,13 @@ export async function runAftercareSweep(db: SupabaseClient, now = new Date()): P
       const email = (c.email || e.sent_snapshot?.contactEmail || "").trim() || null;
       if (email && isTestEmail(email)) continue;
       const brand = messageBrandOf(e.brand);
+      const m = forBrand(messaging, bw.wording, brand);
       const name = (e.sent_snapshot?.contactName || c.name || "").trim();
       const link = e.share_token ? `${publicOriginFor(brand, siteUrl())}/e/${e.share_token}` : `${publicOriginFor(brand, siteUrl())}/account`;
       const vars = {
         first_name: name.split(/\s+/)[0] || "there", address: streetOf(e.sent_snapshot?.jobAddress || e.title || "") || "your place",
         brand: brandRecord(brand).name, link, warranty_end: expiryWords(w.ends_on),
-        exterior_line: hasExteriorBlock(e.builder_state?.blocks ?? []) ? messaging.anniversaryExteriorLine : "",
+        exterior_line: hasExteriorBlock(e.builder_state?.blocks ?? []) ? m.anniversaryExteriorLine : "",
       };
 
       // R1: the morning after sign-off.
@@ -114,7 +118,7 @@ export async function runAftercareSweep(db: SupabaseClient, now = new Date()): P
         if (!reviewLink) out.noReviewLink += 1;
         else if (phone && (await claimRung(db, "review_request", w.work_order_id, ""))) {
           const r1Vars = { ...vars, review_link: reviewLink };
-          const o = await sendAutomation(db, { key: "review_request", to: { phone }, sms: { body: renderTemplate(messaging.reviewRequestSms, r1Vars) }, ctx: { estimateId: w.estimate_id, accountId: e.account_id }, now });
+          const o = await sendAutomation(db, { key: "review_request", to: { phone }, sms: { body: renderTemplate(m.reviewRequestSms, r1Vars) }, ctx: { estimateId: w.estimate_id, accountId: e.account_id }, now });
           const word = outcomeWord(o);
           if (word === "sent" || word === "not_configured" || o.outcome === "held") {
             const { data: rec, error: recErr } = await db.rpc("wo_review_requested", { p_work_order_id: w.work_order_id, p_via: "automation" });
@@ -125,8 +129,8 @@ export async function runAftercareSweep(db: SupabaseClient, now = new Date()): P
       }
       // R3 / R4: the anniversaries, on the chat.
       for (const [flag, months, key, subjectT, bodyT] of [
-        [r3, 12, "anniversary_12", messaging.anniversary12Subject, messaging.anniversary12Body],
-        [r4, 24, "anniversary_24", messaging.anniversary24Subject, messaging.anniversary24Body],
+        [r3, 12, "anniversary_12", m.anniversary12Subject, m.anniversary12Body],
+        [r4, 24, "anniversary_24", m.anniversary24Subject, m.anniversary24Body],
       ] as const) {
         if (!flag || !e.share_token || !morningBeforeDue(monthsAfter(w.starts_on, months), 0, now)) continue;
         if (!(await claimRung(db, key, w.work_order_id, ""))) continue;
