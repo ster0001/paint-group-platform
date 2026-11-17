@@ -1,3 +1,4 @@
+import { countCallTap } from "@/lib/marketing/success";
 import { initialsOf } from "@/lib/wizard/estimator";
 
 /**
@@ -38,7 +39,7 @@ export default function EstimatorStrip({
           <a className="wz-btn wz-bs2" href={bookHref} data-testid="estimator-book">Book a time</a>
         ) : null}
         {phone && (
-          <a className="wz-btn wz-bs2" href={`tel:${phone.replace(/[^0-9+]/g, "")}`} data-testid="estimator-call">
+          <a onClick={countCallTap} className="wz-btn wz-bs2" href={`tel:${phone.replace(/[^0-9+]/g, "")}`} data-testid="estimator-call">
             {first ? `Call ${first}` : `Call ${phone}`}
           </a>
         )}

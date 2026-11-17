@@ -1,5 +1,6 @@
 "use client";
 
+import { countInBackground } from "@/lib/marketing/success";
 import { useEffect, useState } from "react";
 
 /**
@@ -83,7 +84,7 @@ export default function TalkSheet({ open, mode, onClose, estimateId, prefill, ha
   async function afterDetails() {
     if (!validDet) { setErr(needAddress ? "Please fill in your name, address, email and mobile number." : "Please fill in your name, email and mobile number."); return; }
     if (mode === "visit" || mode === "call") {
-      if (await post("/api/visits/request", { kind: mode, ...contact, note: det.note.trim() || undefined })) { onContact?.({ name: contact.name, email: contact.email, mobile: contact.mobile }); setStage("sent"); }
+      if (await post("/api/visits/request", { kind: mode, ...contact, note: det.note.trim() || undefined })) { onContact?.({ name: contact.name, email: contact.email, mobile: contact.mobile }); setStage("sent"); countInBackground(mode === "call" ? "call" : "visit", `${mode}:${clientId}`); }
       return;
     }
     if (mode === "details") {
@@ -96,7 +97,7 @@ export default function TalkSheet({ open, mode, onClose, estimateId, prefill, ha
     if (!msg.trim()) { setErr("Please write your message first."); return; }
     const body: Record<string, unknown> = { clientId, body: msg.trim() };
     if (!hasContact) body.contact = contact;
-    if (await post("/api/visits/message", body)) setStage("sent");
+    if (await post("/api/visits/message", body)) { setStage("sent"); countInBackground("message", clientId); }
   }
 
   const fld = (label: string, key: "name" | "address" | "email" | "mobile", type = "text", ph = "") => (

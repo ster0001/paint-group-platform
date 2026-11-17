@@ -1,5 +1,6 @@
 "use client";
 
+import { countCallTap } from "@/lib/marketing/success";
 import { useEffect, useState } from "react";
 
 /**
@@ -132,7 +133,7 @@ export default function SaveAndBookSheet({
               </button>
             </div>
             {phone && (
-              <p className="wz-chint">Or just call — <a href={`tel:${phone.replace(/\s+/g, "")}`} data-testid="sab-phone-link">{phone}</a></p>
+              <p className="wz-chint">Or just call — <a onClick={countCallTap} href={`tel:${phone.replace(/\s+/g, "")}`} data-testid="sab-phone-link">{phone}</a></p>
             )}
             <button type="button" className="wz-sheet-close" onClick={onClose} data-testid="sab-close">CLOSE</button>
           </>

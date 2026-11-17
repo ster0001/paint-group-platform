@@ -1,3 +1,5 @@
+import { countCallTap } from "@/lib/marketing/success";
+
 /**
  * C11 (v2.4, prototype `.offer`) — an inline offer at the exact moment a
  * person is genuinely easier: flagging damage, adjusting a size, the second
@@ -29,7 +31,7 @@ export default function Offer({ kind, estimator, onBook, onCall, onPhoto }: {
           <button type="button" className="wz-btn wz-bs2" onClick={onPhoto} data-testid={`offer-${kind}-photo`}>I&rsquo;ll add a photo</button>
         )}
         {kind !== "damage" && tel && (
-          <a className="wz-btn wz-bs2" href={`tel:${tel.replace(/[^0-9+]/g, "")}`} data-testid={`offer-${kind}-call`}>{first ? `Call ${first}` : "Call us"}</a>
+          <a onClick={countCallTap} className="wz-btn wz-bs2" href={`tel:${tel.replace(/[^0-9+]/g, "")}`} data-testid={`offer-${kind}-call`}>{first ? `Call ${first}` : "Call us"}</a>
         )}
       </div>
     </div>

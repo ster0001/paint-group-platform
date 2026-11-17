@@ -1,5 +1,6 @@
 "use client";
 
+import { countCallTap } from "@/lib/marketing/success";
 import { useState } from "react";
 import { handoffSteps } from "@/lib/wizard/finish-line";
 
@@ -135,7 +136,7 @@ export default function Sent({
 
       {companyPhone && (
         <p className="wz-reveal-call">
-          Something urgent? <a href={`tel:${companyPhone.replace(/[^0-9+]/g, "")}`}>Call {companyPhone}</a>
+          Something urgent? <a onClick={countCallTap} href={`tel:${companyPhone.replace(/[^0-9+]/g, "")}`}>Call {companyPhone}</a>
         </p>
       )}
     </div>

@@ -1,5 +1,6 @@
 "use client";
 
+import { countCallTap } from "@/lib/marketing/success";
 import { useEffect } from "react";
 import { initialsOf } from "@/lib/wizard/estimator";
 import type { WizardBrand } from "@/lib/wizard/brand";
@@ -63,7 +64,7 @@ export default function MobileContact({ open, onClose, brand, estimatorName, sub
           <small>{first ?? "Your estimator"} comes to you. About 40 minutes, no charge.</small>
         </button>
         {phone && (
-          <a className="wzm-srow" href={`tel:${phone.replace(/\s+/g, "")}`} data-testid="wzm-contact-call" onClick={onCall}>Call {phone}<small>Mon–Fri, 8–6</small></a>
+          <a className="wzm-srow" href={`tel:${phone.replace(/\s+/g, "")}`} data-testid="wzm-contact-call" onClick={() => { countCallTap(); onCall?.(); }}>Call {phone}<small>Mon–Fri, 8–6</small></a>
         )}
         {onMessage && <button type="button" className="wzm-srow" onClick={go(onMessage)} data-testid="wzm-contact-message">Send a message<small>We reply the same day</small></button>}
         {onSave && <button type="button" className="wzm-srow" onClick={go(onSave)} data-testid="wzm-contact-save">Save and come back later<small>We email you the link</small></button>}

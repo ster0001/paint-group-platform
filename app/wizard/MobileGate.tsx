@@ -1,5 +1,6 @@
 "use client";
 
+import { countInBackground } from "@/lib/marketing/success";
 import { useEffect, useState, type ReactNode } from "react";
 import type { CustomerPayload } from "@/lib/wizard/view";
 import { restatement, type QuickLook } from "@/lib/wizard/quick-look";
@@ -64,6 +65,8 @@ export default function MobileGate({ payload, quick, outside, brand, logo, estim
 }) {
   useEffect(() => {
     sendWizardEvent("gate_viewed", { range_low: payload.rangeLoCents, range_high: payload.rangeHiCents, bigger_job: handoff, breakpoint: breakpointNow() });
+    // Success URL (Tom, 17 Nov 2026): /thanks/range counted behind the price, once per estimate.
+    countInBackground("range", estimateId);
   }, [estimateId, payload.rangeLoCents, payload.rangeHiCents, handoff]);
   const fire = (cta: "exact" | "visit") => sendWizardEvent("gate_cta_clicked", { cta, breakpoint: breakpointNow() });
   const exact = () => { fire("exact"); onExact(); };

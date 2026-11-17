@@ -1,5 +1,6 @@
 "use client";
 
+import { countCallTap } from "@/lib/marketing/success";
 import { CHANGING_GROUPS, CONDITION_BANDS, JOB_TYPES, toggleChanging, type QuickLook } from "@/lib/wizard/quick-look";
 import {
   OPEN_CEILINGS, OPEN_HEIGHTS, OPEN_SIZES, openCount, routeTag, segmentTiles,
@@ -96,7 +97,7 @@ export function SegmentScreen({ segments, value, onPick, jobType, onJobType, onB
         <div className="wz-talk-row">
           <button type="button" className="wz-btn wz-bs2" onClick={onBook} data-testid="ql-seg-book">Book someone in</button>
           {phone && (
-            <a className="wz-btn wz-bs2" href={`tel:${phone.replace(/\s+/g, "")}`} data-testid="ql-seg-call">Call us</a>
+            <a onClick={countCallTap} className="wz-btn wz-bs2" href={`tel:${phone.replace(/\s+/g, "")}`} data-testid="ql-seg-call">Call us</a>
           )}
         </div>
       </div>
@@ -576,7 +577,7 @@ export function BookScreen({ slots, slot, onSlot, contact, onContact, phone, err
       </div>
       {error && <div className="wz-err" data-testid="book-error">{error}</div>}
       {phone && (
-        <p className="wz-chint">Something urgent? <a href={`tel:${phone.replace(/\s+/g, "")}`} data-testid="book-call">Call {phone}</a></p>
+        <p className="wz-chint">Something urgent? <a onClick={countCallTap} href={`tel:${phone.replace(/\s+/g, "")}`} data-testid="book-call">Call {phone}</a></p>
       )}
     </>
   );
@@ -623,7 +624,7 @@ export function BriefDone({ slot, emailed, booked, bookingProblem, email, phone,
         </ol>
       </section>
       <p className="wz-chint">Nothing is fixed until you say so, and nothing is owed.
-        {phone && <> Something urgent? <a href={`tel:${phone.replace(/\s+/g, "")}`}>Call {phone}</a></>}
+        {phone && <> Something urgent? <a onClick={countCallTap} href={`tel:${phone.replace(/\s+/g, "")}`}>Call {phone}</a></>}
       </p>
     </div>
   );

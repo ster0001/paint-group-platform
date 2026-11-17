@@ -1,5 +1,6 @@
 "use client";
 
+import { countCallTap } from "@/lib/marketing/success";
 import { leadMoney, type LeadSnapshot } from "@/lib/estimate/leadSnapshot";
 import { ChatPanel, useEstimateChat } from "./EstimateChat";
 import LeadDoor from "./LeadDoor";
@@ -58,7 +59,7 @@ export default function LeadRange({ snapshot, token, company }: {
               <LeadDoor token={token} biggerJob={s.biggerJob} />
               <div className="cta-row print-hide">
                 <a className="btn btn-ghost" href="#chatbox">Ask a question</a>
-                {tel && <a className="btn btn-ghost" href={`tel:${tel}`} data-testid="lead-call">Call {company.phone}</a>}
+                {tel && <a onClick={countCallTap} className="btn btn-ghost" href={`tel:${tel}`} data-testid="lead-call">Call {company.phone}</a>}
               </div>
             </div>
           </div>

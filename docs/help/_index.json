@@ -1157,6 +1157,28 @@
       ]
     },
     {
+      "feature": "success-urls",
+      "role": "customer",
+      "title": "The thank-you page after paying your deposit",
+      "summary": "After you pay your deposit by card you see a short thank-you, then you are taken back to your invoice.",
+      "path": "docs/help/success-urls/customer.md",
+      "walkthrough": null,
+      "media": [],
+      "verified_at_commit": null,
+      "sources": []
+    },
+    {
+      "feature": "success-urls",
+      "role": "staff",
+      "title": "Count paid-marketing conversions with the success pages",
+      "summary": "Every success moment — a range seen, a visit or call asked for, a call tap, a message, an estimate accepted, a deposit paid — loads its own /thanks/… page, so Google Ads and Meta can count it by URL.",
+      "path": "docs/help/success-urls/staff.md",
+      "walkthrough": null,
+      "media": [],
+      "verified_at_commit": null,
+      "sources": []
+    },
+    {
       "feature": "team",
       "role": "customer",
       "title": "Invite someone to your organisation's workspace",
