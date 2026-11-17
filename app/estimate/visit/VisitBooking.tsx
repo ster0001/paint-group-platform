@@ -1,5 +1,6 @@
 "use client";
 
+import { countInBackground } from "@/lib/marketing/success";
 import { useEffect, useState } from "react";
 import type { OfferedDay } from "@/lib/visits/schedule";
 import type { ZoneOutcome } from "@/lib/visits/zones";
@@ -119,6 +120,7 @@ export default function VisitBooking(props: {
     const r = await post("/api/visits/request", { kind: "time", name: det.name || props.known.name || "", email: det.email || props.known.email || "", mobile: det.mobile || props.known.mobile || "", preferredDays: prefs, timeOfDay: part });
     if (!r.ok) { if (r.code === "no_contact" || r.code === "invalid") { setScreen("details"); setErr(r.error); return; } setErr(r.error); return; }
     setScreen("request_sent");
+    countInBackground("visit", `request:${clientId}`);
   }
   async function sendMessage() {
     if (!message.trim()) { setErr("Please write your message first."); return; }
@@ -127,6 +129,7 @@ export default function VisitBooking(props: {
     const r = await post("/api/visits/message", body);
     if (!r.ok) { setErr(r.error); return; }
     setScreen("message_sent");
+    countInBackground("message", clientId);
   }
 
   async function book() {
@@ -156,6 +159,7 @@ export default function VisitBooking(props: {
     }
     setHold({ ...hold, slot: r.data.slot });
     setScreen("done");
+    countInBackground("visit", `booked:${hold.id}`);
   }
 
   async function resend() {

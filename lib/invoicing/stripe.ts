@@ -1,4 +1,5 @@
 import { createServiceClient } from "@/lib/supabase/service";
+import { thanksHref } from "@/lib/marketing/success";
 import { reportError } from "@/lib/monitoring/report";
 import { siteUrl } from "./pdf";
 import { surchargeCents, surchargeFromSettings } from "./surcharge";
@@ -69,11 +70,11 @@ export async function createCheckoutSession(invoiceToken: string): Promise<Check
 
   const { data } = await service
     .from("invoices")
-    .select("id, estimate_id, number, status, total_inc_cents, token")
+    .select("id, estimate_id, number, kind, status, total_inc_cents, token")
     .eq("token", invoiceToken)
     .maybeSingle();
   const inv = data as {
-    id: string; estimate_id: string; number: string | null; status: string;
+    id: string; estimate_id: string; number: string | null; kind: string; status: string;
     total_inc_cents: number; token: string;
   } | null;
   if (!inv || !["issued", "sent", "viewed", "partially_paid"].includes(inv.status)) {
@@ -108,7 +109,10 @@ export async function createCheckoutSession(invoiceToken: string): Promise<Check
       "metadata[surcharge_cents]": String(surcharge),
       "payment_intent_data[description]": `Invoice ${inv.number} — Paint Group`,
       "payment_intent_data[metadata][invoice_id]": inv.id,
-      success_url: `${siteUrl()}/i/${inv.token}?pay=success`,
+      // Success URL (Tom, 17 Nov 2026): a deposit comes back through /thanks/deposit-paid, then on to its invoice.
+      success_url: inv.kind === "deposit"
+        ? `${siteUrl()}${thanksHref("deposit-paid", `/i/${inv.token}?pay=success`)}`
+        : `${siteUrl()}/i/${inv.token}?pay=success`,
       cancel_url: `${siteUrl()}/i/${inv.token}?pay=cancelled`,
     };
     if (surcharge > 0) {

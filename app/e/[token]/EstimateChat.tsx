@@ -1,5 +1,6 @@
 "use client";
 
+import { countInBackground } from "@/lib/marketing/success";
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { reportError } from "@/lib/monitoring/report";
@@ -62,6 +63,8 @@ export function useEstimateChat(token: string | undefined, interactive: boolean)
     }
     setBusy(false);
     setDraft("");
+    // Success URL (Tom, 17 Nov 2026): the first message from this browser on this estimate, behind the chat.
+    countInBackground("message", `chat:${token}`);
     if (!officeOpenAt(new Date())) setAfterHours(true);
     await loadThread();
   }

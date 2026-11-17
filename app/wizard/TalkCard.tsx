@@ -1,5 +1,6 @@
 "use client";
 
+import { countCallTap } from "@/lib/marketing/success";
 import { initialsOf } from "@/lib/wizard/estimator";
 import type { WizardBrand } from "@/lib/wizard/brand";
 
@@ -46,7 +47,7 @@ export default function TalkCard({ estimatorName, phone, onBook, onMessage, bran
           <span className="wz-talk-lbl">{painthome ? "Request a call" : "Request a site visit"}</span>
         </button>
         {phone && (
-          <a className="wz-btn wz-bs2" href={`tel:${phone.replace(/\s+/g, "")}`} data-testid="ql-call">
+          <a onClick={countCallTap} className="wz-btn wz-bs2" href={`tel:${phone.replace(/\s+/g, "")}`} data-testid="ql-call">
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4h4l2 5-2.5 1.5a11 11 0 005 5L15 13l5 2v4a2 2 0 01-2 2A16 16 0 013 6a2 2 0 012-2z" /></svg>
             <span className="wz-talk-lbl">Call us</span>
           </a>

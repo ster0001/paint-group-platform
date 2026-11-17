@@ -1,5 +1,6 @@
 "use client";
 
+import { countInBackground } from "@/lib/marketing/success";
 import { useEffect, useState } from "react";
 import WhatWeDo from "./WhatWeDo";
 import EstimatorStrip from "./EstimatorStrip";
@@ -92,6 +93,8 @@ export default function Reveal({
   // session) and every door writes which it was — in ONE place, before the door does its job.
   useEffect(() => {
     sendWizardEvent("gate_viewed", { range_low: payload.rangeLoCents, range_high: payload.rangeHiCents, bigger_job: handoffLocked, breakpoint: breakpointNow() });
+    // Success URL (Tom, 17 Nov 2026): /thanks/range counted behind the price, once per estimate.
+    countInBackground("range", estimateId);
   }, [estimateId, payload.rangeLoCents, payload.rangeHiCents, handoffLocked]);
   const fire = (cta: "exact" | "visit" | "call" | "message" | "save") => sendWizardEvent("gate_cta_clicked", { cta, breakpoint: breakpointNow() });
   const tighten = () => { fire("exact"); onTighten(); };

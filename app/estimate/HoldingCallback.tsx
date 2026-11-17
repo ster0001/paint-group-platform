@@ -1,5 +1,6 @@
 "use client";
 
+import { countInBackground, countCallTap } from "@/lib/marketing/success";
 import { useState } from "react";
 
 /**
@@ -33,6 +34,7 @@ export default function HoldingCallback({ address, companyPhone }: { address: st
       if (!res.ok && j.error) { setError(j.error); return; }
       if (res.status === 429) { setError("That's a few requests in a row — give it a minute, or ring us."); return; }
       setSent(true);
+      countInBackground("call", `holding:${phone.trim()}`);
     } catch {
       setError("That didn't go through — check the connection and try again, or ring us.");
     } finally {
@@ -63,7 +65,7 @@ export default function HoldingCallback({ address, companyPhone }: { address: st
       </button>
       {tel && (
         <p className="wz-chint" style={{ marginTop: 12 }}>
-          Or ring us now on <a href={tel} style={{ color: "var(--text)" }}>{companyPhone}</a>.
+          Or ring us now on <a onClick={countCallTap} href={tel} style={{ color: "var(--text)" }}>{companyPhone}</a>.
         </p>
       )}
       {error && <div className="wz-err" role="alert">{error}</div>}

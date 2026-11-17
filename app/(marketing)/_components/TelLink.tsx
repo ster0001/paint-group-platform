@@ -2,6 +2,7 @@
 
 import type { AnchorHTMLAttributes, ReactNode } from "react";
 import { track } from "@/lib/analytics";
+import { afterTelTap } from "@/lib/marketing/success";
 import { useAudience } from "./Audience";
 
 /**
@@ -15,7 +16,7 @@ export default function TelLink({
 }: { where: string; children: ReactNode } & Omit<AnchorHTMLAttributes<HTMLAnchorElement>, "href">) {
   const { brand } = useAudience();
   return (
-    <a href={brand.phoneTel} data-ev="call_tap" onClick={() => track("call_tap", { where })} {...rest}>
+    <a href={brand.phoneTel} data-ev="call_tap" onClick={() => { track("call_tap", { where }); afterTelTap(); }} {...rest}>
       {children}
     </a>
   );

@@ -1,5 +1,6 @@
 "use client";
 
+import { countInBackground, countCallTap } from "@/lib/marketing/success";
 import WhatWeDo, { whatWeDoLines } from "@/app/wizard/WhatWeDo";
 import EstimatorStrip from "@/app/wizard/EstimatorStrip";
 
@@ -254,6 +255,7 @@ export default function Finish({
                 return;
               }
               setContactOpen(false);
+              countInBackground(req.how === "visit" ? "visit" : "call", `finish:${estimateId}:${req.how}`);
               setRequested(req.how === "visit"
                 ? "Thanks — we'll ring you to lock in a visit time that suits. We're available Monday to Friday."
                 : "Thanks — we'll call you back to finalise your price. We're available Monday to Friday.");
@@ -272,7 +274,7 @@ export default function Finish({
 
       {companyPhone && (
         <p className="wz-reveal-call">
-          <a href={`tel:${companyPhone.replace(/[^0-9+]/g, "")}`}>Call {companyPhone}</a>
+          <a onClick={countCallTap} href={`tel:${companyPhone.replace(/[^0-9+]/g, "")}`}>Call {companyPhone}</a>
           {" · "}
           <a href={`/estimate/book?id=${estimateId}`}>Request a call back</a>
         </p>

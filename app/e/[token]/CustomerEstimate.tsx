@@ -1,5 +1,6 @@
 "use client";
 
+import { countCallTap, countInBackground } from "@/lib/marketing/success";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { reportIfError } from "@/lib/monitoring/report";
@@ -245,6 +246,9 @@ export default function CustomerEstimate({
         body: JSON.stringify({ token }), keepalive: true,
       }).catch(() => undefined);
     } catch { /* never let the office email interfere with the accept */ }
+    // Success URL (Tom, 17 Nov 2026): /thanks/accepted, counted behind the page — leaving would lose the
+    // "download what you just signed" moment straight after signing.
+    countInBackground("accepted", token ?? "estimate");
 
     setBusy(false);
     setDone("accepted"); setPanel(null);
@@ -390,7 +394,7 @@ export default function CustomerEstimate({
         {done === "declined" && (
           <div className="resultbanner declined" style={{ marginTop: 28 }}>
             <span className="tick">—</span>
-            <span>You&apos;ve declined this estimate. Changed your mind? <a href="tel:0388409414" style={{ color: "inherit", textDecoration: "underline" }}>Call us</a> and we&apos;ll reopen it.</span>
+            <span>You&apos;ve declined this estimate. Changed your mind? <a onClick={countCallTap} href="tel:0388409414" style={{ color: "inherit", textDecoration: "underline" }}>Call us</a> and we&apos;ll reopen it.</span>
           </div>
         )}
 
@@ -725,7 +729,7 @@ export default function CustomerEstimate({
               )}
 
               <p className="tinylinks print-hide">
-                Not the right time? <a href="tel:0388409414">Ask us to hold your price</a> · <button onClick={() => setPanel(panel === "decline" ? null : "decline")}>Politely decline</button>
+                Not the right time? <a onClick={countCallTap} href="tel:0388409414">Ask us to hold your price</a> · <button onClick={() => setPanel(panel === "decline" ? null : "decline")}>Politely decline</button>
               </p>
             </div>
           </section>

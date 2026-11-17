@@ -1,5 +1,6 @@
 "use client";
 
+import { countInBackground } from "@/lib/marketing/success";
 import { useState } from "react";
 
 /**
@@ -57,6 +58,7 @@ export default function HardStop({
         return;
       }
       setDone(true);
+      countInBackground("call", `help:${phone.trim()}`);
     } catch {
       setError("That didn't send — please ring us and we'll sort it out.");
     } finally {
