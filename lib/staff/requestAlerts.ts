@@ -31,6 +31,7 @@ import { loadMessaging } from "@/lib/messaging/load";
 import { automationOn } from "@/lib/messaging/config";
 import { logCrmEvent, type CrmEventInput } from "@/lib/crm/events";
 import { notifyStaff, type StaffAlertOutcome } from "./notify";
+import type { StaffNotifyChannel } from "./notifyEvents";
 import { dueWords, requestAlertKey, requestAlertRoute } from "./requestAlertRules";
 
 export { REQUEST_ALERT_TYPES, dueWords, requestAlertKey, requestAlertRoute } from "./requestAlertRules";
@@ -41,6 +42,16 @@ export async function logRequestEvent(db: Parameters<typeof logCrmEvent>[0], inp
   // Once per event id: a repeat dedupe key returns the same id, and notifyStaff's guard row is keyed on it.
   if (id && requestAlertKey(input.type, input.payload)) await alertStaffForRequest(id, input);
   return id;
+}
+
+/**
+ * R4's switch for any staff alert, now: the Settings holidays read here. A
+ * refused read is reported and the weekday rule stands — an alert is never lost to it.
+ */
+export async function alertRouteNow(svc: SupabaseClient, now = new Date()): Promise<{ inHours: boolean; channels: StaffNotifyChannel[] }> {
+  const { data, error } = await svc.from("settings").select("value").eq("key", BOOKING_RULES_KEY).maybeSingle();
+  if (error) reportError(new Error(`holidays: ${error.message}`), { where: "staff.alertRouteNow", bestEffort: true });
+  return requestAlertRoute(now, new Set(error ? [] : mergeBookingRules(data?.value).publicHolidays));
 }
 
 const str = (v: unknown): string => (typeof v === "string" ? v.trim() : "");

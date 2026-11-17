@@ -231,7 +231,7 @@ export const SAMPLE_VARS: Record<string, string> = {
   customer: "Sarah Chen", message: "Is the ceiling included in the price?", hours_tag: "", valid_until: "Fri 2 Oct",
   decision: "approved", kind_word: "leave", version: "1", day: "Thu, 15 Oct", what: "paint on the lounge window glass",
   finish_date: "Fri 9 Oct",
-  step: "the rooms page", zone: "Thornbury, Zone 2", due: "Tue 18 Nov, 5:00 pm", phone: "0412 345 678", window: "10:00 am and 11:00 am",
+  step: "the rooms page", zone: "Thornbury, Zone 2", due: "Tue 18 Nov, 5:00 pm", phone: "0412 345 678", window: "10:00 am and 11:00 am", days: "3",
   review_link: "https://g.page/r/example", agency_name: "Northcote Property Co", agency_line: " for Northcote Property Co", who_asked: "Northcote Property Co has asked us",
 };
 

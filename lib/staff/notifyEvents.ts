@@ -22,7 +22,8 @@ export const STAFF_EVENTS = [
   /** Session 3 (16 Sep 2026): walkthrough done, pack sent, no signature after N hours. */
   { key: "office_signoff_overdue",     label: "Sign-off overdue",         short: "Sign-off" },
   /** Tom, 20 Sep 2026: a customer wrote on their estimate's chat. */
-  { key: "office_estimate_chat",       label: "Customer chat message",    short: "Chat" },
+  /** E8 (R4, 17 Nov 2026): routed by the office hours like the three below — Text is the after-hours text. */
+  { key: "office_estimate_chat",       label: "Customer chat message (E8)", short: "Chat", byHours: true },
   /**
    * Lead L9 / L10 / L13 (R4, 17 Nov 2026): a customer asked for help, a visit or a call. Routed by
    * the office hours (lib/staff/requestAlerts.ts): in hours, Email is the email (and the chat pop-up
@@ -31,6 +32,8 @@ export const STAFF_EVENTS = [
   { key: "office_lead_help",           label: "Customer needs help (L9)",  short: "Help", byHours: true },
   { key: "office_visit_request",       label: "Visit request (L10)",       short: "Visit req", byHours: true },
   { key: "office_call_request",        label: "Call request (L13)",        short: "Call req", byHours: true },
+  /** E1 (17 Nov 2026): a visit done two days ago and no estimate sent. Sent in office hours only, by each person's ticks. */
+  { key: "office_estimate_overdue",    label: "Estimate overdue after a visit (E1)", short: "Overdue" },
   /** Tom, 9 Oct 2026: a painter wrote in a project's Messages box (PC Command). Optional — the PC work item is the record. */
   { key: "office_painter_message",     label: "Painter message",          short: "Painter msg" },
   /** Tom, 1 Oct 2026: a customer declines their estimate; a sent estimate lapses past its valid-until. */

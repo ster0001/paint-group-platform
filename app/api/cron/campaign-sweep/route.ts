@@ -14,6 +14,7 @@ import { sendFollowupDigest, sendPrestartReminders } from "@/lib/automations/swe
 import { reportError } from "@/lib/monitoring/report";
 import { runLeadSequenceSweep } from "@/lib/automations/sweeps/leadSequence";
 import { sendTwoHourVisitReminders } from "@/lib/visits/notify";
+import { runEstimateOverdueSweep } from "@/lib/automations/sweeps/estimateOverdue";
 
 /**
  * The campaign sweep, on a schedule.
@@ -54,6 +55,9 @@ export async function GET(req: Request) {
       ? await sendTwoHourVisitReminders(db, now).catch((e: unknown) => { reportError(e, { where: "campaign-sweep.visitReminder2h" }); return { sent: 0, skipped: 0, error: e instanceof Error ? e.message : String(e) }; })
       : null;
     if (only === "visits") return NextResponse.json({ ok: true, visits2h });
+    // E1: an estimate overdue after a visit, to staff in office hours (ships off). `?only=overdue` is the hand run.
+    const overdue = only == null || only === "overdue" ? await runEstimateOverdueSweep(db, now) : null;
+    if (only === "overdue") return NextResponse.json({ ok: true, overdue });
     const outcomes = only === "reminders" || only === "standards" || only === "certificates" || only === "moments" || only === "status" || only === "defect" || only === "finish" || only === "office" ? [] : await runSweep(db, now);
     // Tom, 12 Oct: "Today's follow ups" email (Mon–Fri from 8am) and the 14:00
     // pre-start texts for PC Command. Each is once a day; outside its window it
@@ -114,6 +118,7 @@ export async function GET(req: Request) {
       certificates,
       leads,
       visits2h,
+      overdue,
       // The first few failures by name, so a run that writes nothing says why (9 Oct 2026: production had no status rows and no way to see the cause).
       status: { ran: status.ran, failed: status.failed, errors: status.outcomes.filter((o) => !o.ok).slice(0, 5).map((o) => `${o.painterId.slice(0, 8)}: ${o.error ?? "?"}`) },
       note: "Campaign steps are queued only. Held automatic messages whose time has come are sent.",

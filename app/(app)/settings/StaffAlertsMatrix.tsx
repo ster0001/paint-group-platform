@@ -59,7 +59,7 @@ export default function StaffAlertsMatrix() {
         <div className="text-sm font-semibold text-gray-900">Who gets each staff alert</div>
         <p className="mt-0.5 text-xs text-gray-600">
           Tick Email and/or Text per person. {isOwner ? "You can set everyone's." : "You can change your own row; the master user sets the rest."} Text needs a mobile on the login (Company → Staff logins).
-          For Help, Visit req and Call req the Text box is the after-hours text: in office hours those come by email and the chat pop-up only.
+          For Chat, Help, Visit req and Call req the Text box is the after-hours text: in office hours those come by email and the chat pop-up only.
         </p>
       </div>
       {loadMsg && <p className="px-4 py-3 text-sm text-red-600">{loadMsg}</p>}
