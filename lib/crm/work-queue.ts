@@ -1073,6 +1073,39 @@ export function buildEstimateAfterVisitItems(rows: readonly VisitDoneRow[], esti
   return items;
 }
 
+/**
+ * The facts behind the after-visit card, read once — the work queue and the E1
+ * alert (lib/automations/sweeps/estimateOverdue.ts) read the same. A failed
+ * estimates read drops the source: it must never turn every visit into "not sent".
+ */
+export async function loadAfterVisitFacts(supabase: SupabaseClient, now: Date): Promise<{ rows: VisitDoneRow[]; estimates: AccountEstimateRow[]; error: string | null }> {
+  const since30d = new Date(now.getTime() - 30 * 86_400_000).toISOString();
+  const doneVisitsRes = await supabase.from("visits").select("id, account_id, estimate_id, starts_at, outcome_at, customer_name, address")
+    .eq("status", "done").gte("starts_at", since30d).order("starts_at", { ascending: true }).limit(200);
+  if (doneVisitsRes.error) return { rows: [], estimates: [], error: "visits done: read failed" };
+  const doneVisits = (doneVisitsRes.data ?? []) as VisitDoneRow[];
+  const doneAccountIds = [...new Set(doneVisits.map((v) => v.account_id).filter((x): x is string => Boolean(x)))];
+  const doneEstimateIds = [...new Set(doneVisits.map((v) => v.estimate_id).filter((x): x is string => Boolean(x)))];
+  const [byAccount, byEstimate] = await Promise.all([
+    sliceRead<AccountEstimateRow>(doneAccountIds, (ids) => supabase.from("estimates").select("id, account_id, sent_at, total_cents").in("account_id", ids).limit(ids.length * 10)),
+    sliceRead<AccountEstimateRow>(doneEstimateIds, (ids) => supabase.from("estimates").select("id, account_id, sent_at, total_cents").in("id", ids)),
+  ]);
+  if (byAccount.error || byEstimate.error) return { rows: [], estimates: [], error: "estimates after visits: read failed" };
+  return { rows: doneVisits, estimates: [...byAccount.rows, ...byEstimate.rows], error: null };
+}
+
+/** E1 (17 Nov 2026): the after-visit cards that are past due — one alert each, with what Appendix A's line needs. */
+export function overdueAfterVisit(rows: readonly VisitDoneRow[], estimates: readonly AccountEstimateRow[], now: Date): Array<{ visit: VisitDoneRow; item: WorkItem; days: number }> {
+  const items = new Map(buildEstimateAfterVisitItems(rows, estimates, now).map((i) => [i.key, i]));
+  const out: Array<{ visit: VisitDoneRow; item: WorkItem; days: number }> = [];
+  for (const v of rows) {
+    const item = items.get(itemKey("estimate_after_visit", "visit", v.id, "send"));
+    if (!item || new Date(item.dueAt ?? 0).getTime() > now.getTime()) continue;
+    out.push({ visit: v, item, days: Math.floor((now.getTime() - new Date(v.starts_at).getTime()) / 86_400_000) });
+  }
+  return out;
+}
+
 // ---- source: wizard buckets A / B / C+ (buckets brief §4) -------------------
 
 export type WizardQueueRow = {
@@ -3379,19 +3412,8 @@ export async function buildWorkQueue(supabase: SupabaseClient, now = new Date())
   const rebookRows = (rebookRes.error ? [] : (rebookRes.data ?? [])) as RebookVisitRow[];
   const laterBooked = (laterRes.error ? [] : (laterRes.data ?? [])) as Array<{ account_id: string | null; starts_at: string; created_at: string }>;
   // Estimates tab session 2 (C1): visits done in the last 30 days, and the estimates their customers have been sent since.
-  const doneVisitsRes = await supabase.from("visits").select("id, account_id, estimate_id, starts_at, outcome_at, customer_name, address")
-    .eq("status", "done").gte("starts_at", since30d).order("starts_at", { ascending: true }).limit(CAP.rebook);
-  if (doneVisitsRes.error) truncated.push("visits done: read failed");
-  const doneVisits = (doneVisitsRes.error ? [] : (doneVisitsRes.data ?? [])) as VisitDoneRow[];
-  const doneAccountIds = [...new Set(doneVisits.map((v) => v.account_id).filter((x): x is string => Boolean(x)))];
-  const doneEstimateIds = [...new Set(doneVisits.map((v) => v.estimate_id).filter((x): x is string => Boolean(x)))];
-  const [byAccount, byEstimate] = await Promise.all([
-    sliceRead<AccountEstimateRow>(doneAccountIds, (ids) => supabase.from("estimates").select("id, account_id, sent_at, total_cents").in("account_id", ids).limit(ids.length * 10)),
-    sliceRead<AccountEstimateRow>(doneEstimateIds, (ids) => supabase.from("estimates").select("id, account_id, sent_at, total_cents").in("id", ids)),
-  ]);
-  if (byAccount.error || byEstimate.error) truncated.push("estimates after visits: read failed");
-  // A failed estimates read must not turn every done visit into "not sent": drop the source instead.
-  const afterVisitRows = byAccount.error || byEstimate.error ? [] : doneVisits;
+  const afterVisit = await loadAfterVisitFacts(supabase, now);
+  if (afterVisit.error) truncated.push(afterVisit.error);
   const inboundRows = (inboundMsgs.error ? [] : (inboundMsgs.data ?? [])) as unknown as InboundMessageRow[];
   const inboundAccountIds = [...new Set(inboundRows.map((m) => m.account_id).filter((x): x is string => Boolean(x)))];
   const [outboundTouches, inboundAttempts, inboundAccounts] = await Promise.all([
@@ -3505,7 +3527,7 @@ export async function buildWorkQueue(supabase: SupabaseClient, now = new Date())
     ...buildMessageItems(inboundRows, outboundTouches as OutboundTouchRow[], inboundAttempts as ContactEventRow[], inboundNames, now, thresholds.messageOverdueHours),
     ...buildDelayEndedItems(delayedRows, now),
     ...buildRebookItems(rebookRows, laterBooked, now),
-    ...buildEstimateAfterVisitItems(afterVisitRows, [...byAccount.rows, ...byEstimate.rows], now),
+    ...buildEstimateAfterVisitItems(afterVisit.rows, afterVisit.estimates, now),
     ...buildPhotoReviewItems(photoRows, now),
     ...buildDeskCheckItems(deskRows, deskPolicy, now, deskTurnaround, deskSends.sends),
   ];

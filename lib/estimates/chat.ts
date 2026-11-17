@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { notifyStaff } from "@/lib/staff/notify";
+import { alertRouteNow } from "@/lib/staff/requestAlerts";
 import { loadMessaging } from "@/lib/messaging/load";
 import { automationOn, renderTemplate } from "@/lib/messaging/config";
 import { buildEstimateEmailHtml, emailConfigured, sendEmail } from "@/lib/messaging/send";
@@ -20,6 +21,8 @@ import { emailLogoUrl } from "@/lib/messaging/logo";
  * 2. The office is told through the staff-alert path (`office_estimate_chat`
  *    in the registry, per-person routing under Staff logins). With nobody
  *    routed, the office address is emailed, so a message is never silent.
+ *    Since 17 Nov 2026 (E8, R4) routed by the office hours: in hours the Email
+ *    box (the dock pops up regardless), out of hours the Text box as well.
  * Best-effort after step 1: an alert failure never loses the message.
  */
 export type CustomerChatOutcome = { status: "ok" | "not_found" | "empty"; afterHours: boolean };
@@ -45,13 +48,16 @@ export async function postCustomerChatMessage(service: SupabaseClient, input: { 
     const customer = (est.sent_snapshot?.contactName || est.builder_state?.contact?.name || "A customer").trim();
     const job = (est.sent_snapshot?.jobAddress || est.title || "their estimate").trim();
     const link = `${siteUrl()}/quote?id=${est.id}`;
+    // E8 (R4, 17 Nov 2026): in office hours email (and the dock pop-up); out of hours the routed text as
+    // well. The office's clock counts the Settings holidays; the customer's note above keeps the weekday one.
+    const route = await alertRouteNow(service, now);
     const vars = {
       customer, job, message: msg.body,
-      hours_tag: afterHours ? " (after hours)" : "",
-      hours_line: afterHours ? `\n\nSent outside office hours (${OFFICE_HOURS_LINE}); they have been told we will reply when open.` : "",
+      hours_tag: !route.inHours ? " (after hours)" : "",
+      hours_line: !route.inHours ? `\n\nSent outside office hours (${OFFICE_HOURS_LINE}); they have been told we will reply when open.` : "",
     };
     const outcome = await notifyStaff(service, {
-      key: "office_estimate_chat", entityId: msg.id,
+      key: "office_estimate_chat", entityId: msg.id, channels: route.channels,
       subject: renderTemplate("Chat from {{customer}} — {{job}}{{hours_tag}}", vars),
       message: renderTemplate("{{customer}} wrote on the chat for {{job}}:\n\n“{{message}}”\n\nReply from the chat pop-up on any staff page, or open the estimate.{{hours_line}}", vars),
       link,

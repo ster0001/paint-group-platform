@@ -252,6 +252,9 @@ export type MessagingSettings = {
   officeVisitRequestBody: string;
   officeCallRequestSubject: string;
   officeCallRequestBody: string;
+  /** E1 (17 Nov 2026): a visit done and no estimate sent after two days. */
+  officeEstimateOverdueSubject: string;
+  officeEstimateOverdueBody: string;
   /** Office: an estimate was accepted (Tom, 4 Sep). */
   officeEmail: string;
   acceptedOfficeSubject: string;
@@ -630,6 +633,8 @@ export const DEFAULT_MESSAGING: MessagingSettings = {
   officeVisitRequestBody: "Visit request from {{first_name}}, {{address}}, {{zone}}. Reply by {{due}}.",
   officeCallRequestSubject: "Call request — {{first_name}}, {{address}}{{hours_tag}}",
   officeCallRequestBody: "{{first_name}} asked for a call about {{address}} ({{range}}). Phone {{phone}}. Log the call: {{link}}",
+  officeEstimateOverdueSubject: "Estimate overdue — {{address}}",
+  officeEstimateOverdueBody: "{{address}} visited {{days}} days ago, estimate not sent. Open: {{link}}",
   wizardResumeSubject: "Pick up where you left off — your estimate is saved",
   wizardResumeBody:
     "You were part-way through your {{company_name}} estimate for {{where}} — your answers are saved.\n\n" +

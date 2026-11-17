@@ -41,6 +41,6 @@ describe("request alerts (L9 / L10 / L13)", () => {
       expect(byHoursEvent(k)).toBe(true);
       expect(automationByKey(k)).toMatchObject({ audience: "office", defaultOff: true, quietExempt: true, channels: ["email", "sms"] });
     }
-    expect(byHoursEvent("office_estimate_chat")).toBe(false);
+    expect(byHoursEvent("office_invoice_paid")).toBe(false);
   });
 });

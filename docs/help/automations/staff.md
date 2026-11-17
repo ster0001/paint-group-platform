@@ -102,6 +102,10 @@ When a customer asks for a person, staff hear about it straight away. The three 
 ## The no-show text, L12 (17 Nov 2026)
 **Lead L12 — we missed each other (text)** is off until you turn it on. When a visit is marked **No show**, the customer gets one text with the link to their range page, where **Book a visit** rebooks. Quiet hours hold it until sending hours open. The Today card to rebook stays as it was.
 
+## Estimate alerts: E1 overdue, E8 the chat by office hours (17 Nov 2026)
+- **E1 — estimate overdue after a visit (staff alert)** is off until you turn it on. When a visit was marked done two days ago and no estimate has gone to that customer since, everyone ticked **Overdue** under Staff logins is told once: "{address} visited {days} days ago, estimate not sent." It uses the same rule as the Today card. It goes in office hours only; one that falls due overnight comes in the morning.
+- **E8 — Customer wrote on the estimate chat** now follows the office hours like the help, visit and call alerts. In office hours, whoever is ticked **Email** is emailed and the chat corner pops up; the **Text** box no longer texts in office hours. Out of hours, whoever is ticked **Text after hours** is texted too. The public holidays from Booking rules count as out of hours.
+
 ## Which logo the emails use
 Every email the platform sends (estimates, offers, reminders, reset links, campaigns, the lot) takes the **Logo for emails** from Settings → Company. Upload a version with its own solid background, not a transparent one: mail apps in dark mode invert or recolour transparent logos, which is why the logo used to come out light in some inboxes and dark in others. If no email logo is uploaded, the light-background logo is used, and failing that the main one.
 

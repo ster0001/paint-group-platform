@@ -785,7 +785,7 @@ export const AUTOMATIONS: Automation[] = [
   {
     key: "office_estimate_chat", name: "Customer wrote on the estimate chat", audience: "office", channels: ["email", "sms"], kind: "automatic",
     defaultChannel: "both", sendKind: "office_alert", quietExempt: true, capExempt: true,
-    trigger: "A customer sends a message from the chat on their estimate (Ask a question / Chat with us / Message us). Who is told, and how, is each person's routing under Settings → Staff logins; with nobody routed, the office address is emailed. Out of hours the subject carries an (after hours) tag.",
+    trigger: "A customer sends a message from the chat on their estimate (Ask a question / Chat with us / Message us). Who is told is each person's routing under Settings → Staff logins; with nobody routed, the office address is emailed. E8 (17 Nov 2026): in office hours (Mon–Fri 8–5, the Settings holidays out) by email and the chat pop-up; out of hours the Text box as well, and the subject carries an (after hours) tag.",
     templates: [
       { field: "officeEstimateChatSubject", label: "Email subject", kind: "subject", placeholders: ["{{customer}}", "{{job}}", "{{message}}", "{{hours_tag}}", "{{hours_line}}", "{{link}}"] },
       { field: "officeEstimateChatBody", label: "Message", kind: "body", placeholders: ["{{customer}}", "{{job}}", "{{message}}", "{{hours_tag}}", "{{hours_line}}", "{{link}}"] },
@@ -824,6 +824,16 @@ export const AUTOMATIONS: Automation[] = [
       { field: "officeCallRequestBody", label: "Message (also the after-hours text)", kind: "body", placeholders: ["{{first_name}}", "{{address}}", "{{range}}", "{{phone}}", "{{hours_tag}}", "{{link}}"] },
     ],
     guard: "Once per request (staff_notifications, keyed on the CRM event).",
+  },
+  {
+    key: "office_estimate_overdue", name: "E1 — estimate overdue after a visit (staff alert)", audience: "office", channels: ["email", "sms"], kind: "automatic",
+    defaultOff: true, defaultChannel: "both", sendKind: "office_alert", quietExempt: true, capExempt: true,
+    trigger: "A visit was marked done two days ago and no estimate has gone to that customer since (the same rule as the Today card). Sent in office hours only — an overdue estimate waits for the morning — to everyone ticked under Staff logins.",
+    templates: [
+      { field: "officeEstimateOverdueSubject", label: "Email subject", kind: "subject", placeholders: ["{{address}}", "{{days}}", "{{link}}"] },
+      { field: "officeEstimateOverdueBody", label: "Message (also the text)", kind: "body", placeholders: ["{{address}}", "{{days}}", "{{link}}"] },
+    ],
+    guard: "Once per visit (staff_notifications).",
   },
   // Tom, 1 Oct 2026: "staff to receive email if an offered estimate is
   // rejected / expires". Same path as the other office alerts: the master

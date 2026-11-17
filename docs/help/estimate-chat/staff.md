@@ -28,7 +28,7 @@ Customers write on the chat on their estimate (Ask a question, Chat with us in t
 - **Estimate chat ·** before the last line — this row is an estimate thread (the others are website assistant chats).
 
 ## If something goes wrong
-- **No email or text arrived.** Check the person's ticks under Staff logins, and that the automation is on. With nobody ticked, only the office address is emailed. Every send is on the customer's CRM record and in Messages.
+- **No email or text arrived.** Check the person's ticks under Staff logins, and that the automation is on. Since 17 Nov 2026 the text only goes out of office hours (and on Settings holidays); in office hours it is the email and the pop-up. With nobody ticked, only the office address is emailed. Every send is on the customer's CRM record and in Messages.
 - **The row does not show.** The dock lists threads with a customer line in the last three days; older threads are on the estimate and in the CRM record.
 - **An emailed reply did not reach the chat.** The reply domain must be configured (an outgoing alert without a `reply+…` Reply-To cannot be matched), and the reply must come from a staff login's email address. Post it from the dock instead.
 
