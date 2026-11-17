@@ -14,6 +14,10 @@ import { DEFAULT_TURNAROUND_SETTING, isOverdue, turnaroundFromSettings, type Tur
 import { CLOSE_HOUR, addBusinessHours, melbourneInstant, melbourneParts, nextBusinessMorning } from "@/lib/time/businessHours";
 import { melbourneDatePlus, nextYearHolidaysMissing } from "@/lib/time/workingDays";
 import { mergeBookingRules } from "@/lib/visits/schedule";
+import { ZONE_WORDS } from "@/lib/visits/zoneWords";
+import { loadEstimateStages, STAGE_DRAFT_COLUMNS, STAGE_ESTIMATE_COLUMNS, type StageDraftRow, type StageEstimateRow } from "./estimateStageLoad";
+import { parseLeadSnapshot } from "@/lib/estimate/leadSnapshot";
+import { leadRangeWords, streetOf } from "@/lib/automations/leadSequence";
 import { customerCheckins, dayLabel, jobDays } from "@/lib/workorder/jobRhythm";
 import { melbourneDayStartUtc } from "@/lib/workorder/console";
 import { openHolds } from "@/lib/scheduling/holds";
@@ -110,6 +114,8 @@ export const WORK_ITEM_KINDS = [
    * price" wrote a prep pack and raised nothing anyone would ever see.
    */
   "desk_check",
+  /** Lead L8 (17 Nov 2026): a lead tightened their range and booked nothing — the estimator calls; a phone-closable job closes on the call. */
+  "lead_tightened_call",
   /** Session 1 (16 Sep): automatic job messages the office chose to approve first. */
   "message_approval",
   /** Airtable handover (16 Sep): a signed PaintScout job arrived through the Zap with its price but no per-area hours — type them from the PaintScout work order. */
@@ -372,6 +378,7 @@ export const KIND_WEIGHT: Record<WorkItemKind, number> = {
   // A customer was promised a fixed price by the next working day and is
   // waiting on it. Ranks with the other promised-to-customer work.
   desk_check: 26,
+  lead_tightened_call: 22,
   wizard_priced: 12,
   estimate_lapsed: 18,
   delay_ended: 20,
@@ -526,6 +533,7 @@ export const GROUP_OF_KIND: Record<WorkItemKind, Exclude<FilterGroup, "all">> = 
   photo_review: "approvals",
   // It is a price to approve and send, not a follow-up to chase.
   desk_check: "approvals",
+  lead_tightened_call: "followups",
   estimate_lapsed: "followups",
   delay_ended: "followups",
   message_approval: "approvals",
@@ -1084,9 +1092,11 @@ const money = (c: number) => `$${Math.round(c / 100).toLocaleString("en-AU")}`;
  * hours in Melbourne: 4 for a call or visit request, 2 for help, the next
  * business morning for "priced, no request".
  */
-export function buildWizardItems(rows: WizardQueueRow[], attempts: ContactEventRow[], now: Date, acceptedAt: Map<string, string> = new Map()): WorkItem[] {
+export function buildWizardItems(rows: WizardQueueRow[], attempts: ContactEventRow[], now: Date, acceptedAt: Map<string, string> = new Map(), tightenedDrafts: ReadonlySet<string> = new Set()): WorkItem[] {
   const items: WorkItem[] = [];
   for (const r of rows) {
+    // L8: a session that tightened its range is the tightened-call card instead (buildTightenedCallItems).
+    if (tightenedDrafts.has(r.id)) continue;
     const bucket = r.bucket as WizardBucket;
     const since = r.outcome_at ?? r.dropped_at ?? r.last_seen_at;
     if (r.account_id && attempts.some((a) => a.account_id === r.account_id && a.occurred_at > since)) continue;
@@ -1134,6 +1144,56 @@ export function buildWizardItems(rows: WizardQueueRow[], attempts: ContactEventR
         action: { label: "Follow up", href },
       }, { valueCents: r.est_value_cents, promisedToCustomer: false }, now));
     }
+  }
+  return items;
+}
+
+// ---- source: lead_tightened_call (Lead L8, 17 Nov 2026) --------------------
+
+/** A wizard lead whose derived stage is "Tightened, no action" (lib/crm/estimateStage.ts). */
+export type TightenedLeadRow = {
+  draftId: string; estimateId: string; accountId: string | null; since: string;
+  firstName: string; phone: string | null; address: string; loCents: number; hiCents: number;
+  jobType: "interior" | "exterior" | "both" | null; biggerJob: boolean; brand: string | null;
+};
+
+/** How long after the closer range the call is due (Appendix A: B5 + 1 day). */
+export const TIGHTENED_CALL_DAYS = 1;
+
+/**
+ * Phone-closable: the job may be confirmed on the call, no visit. Paint Home's
+ * own ceiling for a Paint Home lead; otherwise ⚑7's remote-confirmation rule
+ * (interior only, under the cap) — the same verdict the desk check reads. A
+ * bigger job (the hand-off) never is.
+ */
+export function phoneClosable(r: Pick<TightenedLeadRow, "hiCents" | "jobType" | "biggerJob" | "brand">, policy: WizardPolicySettings): boolean {
+  if (r.biggerJob) return false;
+  if (r.brand === "painthome") return r.hiCents <= policy.paintHomeCapCents;
+  return remoteConfirmVerdict(r.hiCents, r.jobType !== "interior", policy).eligible;
+}
+
+/**
+ * One call per lead at "Tightened, no action" — Appendix A's L8 line. It
+ * replaces that session's "Follow up" card, and goes the way that card does:
+ * a call logged on the account after the closer range, the stage moving on
+ * (a visit or call asked for, an estimate sent), or a dismissal.
+ */
+export function buildTightenedCallItems(rows: readonly TightenedLeadRow[], attempts: readonly ContactEventRow[], policy: WizardPolicySettings, now: Date): WorkItem[] {
+  const items: WorkItem[] = [];
+  for (const r of rows) {
+    if (r.accountId && attempts.some((a) => a.account_id === r.accountId && a.occurred_at > r.since)) continue;
+    const phone = r.phone || "no mobile";
+    items.push(finish({
+      key: itemKey("lead_tightened_call", "estimate", r.estimateId, "call"),
+      kind: "lead_tightened_call",
+      accountId: r.accountId,
+      subjectRef: { type: "estimate", id: r.estimateId },
+      since: r.since,
+      title: `Call ${r.firstName} (${phone}) — tightened ${r.address} to ${leadRangeWords(r.loCents, r.hiCents)}, no booking yet`,
+      detail: `Phone-closable: ${phoneClosable(r, policy) ? "yes" : "no"}`,
+      dueAt: new Date(new Date(r.since).getTime() + TIGHTENED_CALL_DAYS * 86_400_000).toISOString(),
+      action: { label: "Call", href: `/quote?id=${r.estimateId}` },
+    }, { valueCents: r.hiCents, promisedToCustomer: false }, now));
   }
   return items;
 }
@@ -1437,7 +1497,6 @@ export type VisitRequestRow = {
 };
 
 const DAY3 = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-const ZONE_WORDS: Record<string, string> = { zone_1: "Zone 1", zone_2: "Zone 2", zone_3: "Zone 3", zone_4: "Zone 4", zone_5: "Zone 5", pre_arranged: "pre-arranged area", out_of_area: "out of area", unmapped: "unmapped suburb" };
 
 /**
  * One item per open request, due at the row's `due_at` — the end of the next
@@ -3359,6 +3418,9 @@ export async function buildWorkQueue(supabase: SupabaseClient, now = new Date())
   const wzAccountIds = [...new Set(wzRows.map((r) => r.account_id).filter((x): x is string => Boolean(x)))];
   const wzAttempts = await inSlices(wzAccountIds, (ids) => realOnly(supabase.from("crm_events").select("account_id, occurred_at"))
     .in("type", ["call_connected", "call_no_answer", "message_left"]).in("account_id", ids).gte("occurred_at", since30d).limit(ids.length * 5));
+  // L8: the "priced" sessions whose lead has tightened — their stage, from the one stage engine.
+  const tightened = await loadTightenedLeads(supabase, wzRows, now);
+  if (tightened.error) truncated.push(`tightened leads: ${tightened.error}`);
   // A change request is answered by a staff reply in that estimate's thread.
   const crRows = ((changeReqs.error ? [] : changeReqs.data) ?? []) as unknown as ChangeRequestRow[];
   const crEstimateIds = [...new Set(crRows.map((r) => r.estimate_id))];
@@ -3419,7 +3481,8 @@ export async function buildWorkQueue(supabase: SupabaseClient, now = new Date())
     ...buildMessageApprovalItem(pendingHolds.error ? 0 : pendingHolds.count ?? 0, now),
     ...buildChangeRequestItems(crRows, staffReplies as StaffReplyRow[], now),
     ...buildHandoffItems(((handoffs.error ? [] : handoffs.data) ?? []) as unknown as HandoffQueueRow[], now),
-    ...buildWizardItems(wzRows, wzAttempts as ContactEventRow[], now, acceptedAt),
+    ...buildWizardItems(wzRows, wzAttempts as ContactEventRow[], now, acceptedAt, new Set(tightened.rows.map((r) => r.draftId))),
+    ...buildTightenedCallItems(tightened.rows, wzAttempts as ContactEventRow[], deskPolicy, now),
     ...buildLapsedItems(lapsedRows, lapsedAttempts as ContactEventRow[], lapsedNames, now),
     ...buildQuietQuoteItems(quoteRows, quoteAttempts as ContactEventRow[], quoteNames, thresholds, now, quoteTemps, acceptedAt),
     ...buildHoursPendingItems(hoursRows, now),
@@ -3491,4 +3554,46 @@ export function estimatesPageItems(items: readonly WorkItem[]): WorkItem[] {
  */
 export function estimatesWorkQueueItems(items: readonly WorkItem[]): WorkItem[] {
   return items.filter((i) => i.subjectRef.type === "estimate" || i.subjectRef.type === "wizard_session" || i.kind === "estimate_after_visit");
+}
+
+/**
+ * L8's reads: of the "priced, nothing asked" sessions with an estimate, the
+ * ones whose estimate is a wizard lead (an unsent draft with a lead snapshot)
+ * at "Tightened, no action". Two reads by id plus the stage loader's — never
+ * one per session. A refused read is returned, never treated as "none".
+ */
+async function loadTightenedLeads(supabase: SupabaseClient, wzRows: readonly WizardQueueRow[], now: Date): Promise<{ rows: TightenedLeadRow[]; error: string | null }> {
+  const priced = wzRows.filter((r) => r.bucket === "priced_no_request" && r.estimate_id);
+  if (priced.length === 0) return { rows: [], error: null };
+  const estIds = [...new Set(priced.map((r) => r.estimate_id as string))];
+  const draftIds = priced.map((r) => r.id);
+  const [ests, drafts] = await Promise.all([
+    sliceRead(estIds, (ids) => realOnly(supabase.from("estimates")
+      .select(`${STAGE_ESTIMATE_COLUMNS}, brand, lead_snapshot, contact_phone:builder_state->contact->>phone`))
+      .in("id", ids).eq("status", "draft").is("sent_at", null).not("lead_snapshot", "is", null)),
+    sliceRead(draftIds, (ids) => supabase.from("wizard_drafts").select(STAGE_DRAFT_COLUMNS).in("id", ids)),
+  ]);
+  const failed = ests.error ?? drafts.error;
+  if (failed) return { rows: [], error: failed.message ?? "read failed" };
+  type E = StageEstimateRow & { brand: string | null; lead_snapshot: unknown; contact_phone: string | null };
+  const estOf = new Map((ests.rows as unknown as E[]).map((e) => [e.id, e]));
+  const draftOf = new Map((drafts.rows as unknown as StageDraftRow[]).map((d) => [d.id, d]));
+  const subjects = priced.filter((r) => estOf.has(r.estimate_id as string))
+    .map((r) => ({ session: r, estimate: estOf.get(r.estimate_id as string)!, draft: draftOf.get(r.id) ?? null }));
+  if (subjects.length === 0) return { rows: [], error: null };
+  const staged = await loadEstimateStages(supabase, subjects.map((s) => ({ estimate: s.estimate, draft: s.draft })), now);
+  if (!staged.ok) return { rows: [], error: staged.error };
+  const rows: TightenedLeadRow[] = [];
+  for (const s of subjects) {
+    const st = staged.stages.get(s.estimate.id)?.result;
+    const snap = parseLeadSnapshot(s.estimate.lead_snapshot);
+    if (st?.stage !== "tightened_no_action" || !snap) continue;
+    rows.push({
+      draftId: s.session.id, estimateId: s.estimate.id, accountId: s.estimate.account_id ?? s.session.account_id, since: st.since,
+      firstName: snap.firstName || journeyWho(s.session), phone: s.estimate.contact_phone || s.session.phone,
+      address: streetOf(snap.address) || s.session.address || s.session.suburb || "their place",
+      loCents: snap.rangeLoCents, hiCents: snap.rangeHiCents, jobType: snap.jobType, biggerJob: snap.biggerJob, brand: s.estimate.brand,
+    });
+  }
+  return { rows, error: null };
 }

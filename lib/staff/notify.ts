@@ -38,6 +38,10 @@ export type StaffAlert = {
   vars?: Record<string, string>;
   /** Tom, 20 Sep: the estimate this alert is about. Recorded on the send, so an email REPLY to it can be routed back into that estimate's chat (app/api/inbound/messages). */
   estimateId?: string | null;
+  /** R4 (17 Nov 2026): only these channels go — in office hours an hours-routed alert is email only. Absent = both. */
+  channels?: StaffNotifyChannel[];
+  /** The text is the message itself (Appendix A's staff-alert line), with the link added when it does not carry one. */
+  smsFromMessage?: boolean;
 };
 
 export type StaffAlertOutcome = "sent" | "off" | "already" | "nobody" | "error";
@@ -50,15 +54,16 @@ export function recipientsFor(
   staff: Array<StaffProfile & { email: string | null }>,
   key: StaffEventKey,
   skipEmails: string[] = [],
+  channels: readonly StaffNotifyChannel[] = ["email", "sms"],
 ): Recipient[] {
   const skip = new Set(skipEmails.map((e) => e.trim().toLowerCase()).filter(Boolean));
   const out: Recipient[] = [];
   for (const p of staff) {
     const map = parseStaffNotify(p.staff_notify);
-    if (wantsChannel(map, key, "email") && p.email && !skip.has(p.email.trim().toLowerCase())) {
+    if (channels.includes("email") && wantsChannel(map, key, "email") && p.email && !skip.has(p.email.trim().toLowerCase())) {
       out.push({ profileId: p.id, channel: "email", to: p.email.trim() });
     }
-    if (wantsChannel(map, key, "sms") && p.phone) {
+    if (channels.includes("sms") && wantsChannel(map, key, "sms") && p.phone) {
       const phone = normalisePhoneAU(p.phone);
       if (phone) out.push({ profileId: p.id, channel: "sms", to: phone });
     }
@@ -104,7 +109,7 @@ export async function notifyStaff(service: SupabaseClient, alert: StaffAlert): P
     const claimId = (claim.data as { id: string }[] | null)?.[0]?.id;
     if (!claimId) return "already";
 
-    const recipients = recipientsFor(await loadStaffForEvent(service, alert.key), alert.key, alert.skipEmails);
+    const recipients = recipientsFor(await loadStaffForEvent(service, alert.key), alert.key, alert.skipEmails, alert.channels);
     if (recipients.length === 0) {
       await service.from("staff_notifications").update({ recipients: [] }).eq("id", claimId);
       return "nobody";
@@ -115,7 +120,9 @@ export async function notifyStaff(service: SupabaseClient, alert: StaffAlert): P
       intro: alert.message, link: alert.link, companyName,
       logoUrl: emailLogoUrl(company), buttonLabel: "Open it",
     });
-    const smsBody = `${companyName}: ${alert.subject}\n${alert.link}`;
+    const smsBody = alert.smsFromMessage
+      ? (alert.message.includes(alert.link) ? alert.message : `${alert.message}\n${alert.link}`)
+      : `${companyName}: ${alert.subject}\n${alert.link}`;
     const ctx = { kind: "staff_alert", estimateId: alert.estimateId ?? null };
 
     const results = await Promise.all(recipients.map(async (r) => {

@@ -23,6 +23,7 @@ import { ensureAccountAndProperty } from "@/lib/accounts/link";
 import { SupabaseAgentStore } from "@/lib/agent/store-supabase";
 import { sendAutomation } from "@/lib/automations/dispatch";
 import { logCrmEvent } from "@/lib/crm/events";
+import { logRequestEvent } from "@/lib/staff/requestAlerts";
 import { postCustomerChatMessage } from "@/lib/estimates/chat";
 import { readGoogleBusyForStaff } from "@/lib/gcal/read";
 import { reconcileForVisit } from "@/lib/gcal/staff";
@@ -125,7 +126,7 @@ export async function createVisitRequest(svc: SupabaseClient, input: RequestInpu
     }).eq(draftFilter.col, draftFilter.val);
     if (dErr) reportError(dErr, { where: "visits.requests.draft", bestEffort: true });
   }
-  await logCrmEvent(svc, {
+  await logRequestEvent(svc, {
     type: "visit_request_made", source: "customer", accountId: linked.accountId ?? null, estimateId: input.est?.id ?? null,
     payload: { requestId, kind: input.kind, zone: zone?.outcome ?? "unmapped", note: input.note?.trim().slice(0, 600) || undefined }, dedupeKey: `visit_request:${requestId}`,
   });

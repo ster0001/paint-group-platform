@@ -1,5 +1,5 @@
 /**
- * The lead sequence sweep, L1–L3 and L5–L7 (automations brief §4). SERVER ONLY, service
+ * The lead sequence sweep, L1–L3, L5–L7 and L10's customer chat (automations brief §4). SERVER ONLY, service
  * client, off the half-hour campaign sweep (`?only=leads` is the hand run).
  *
  * Candidates are wizard leads with a range page (A‑F: an unsent draft holding
@@ -32,6 +32,8 @@ import { isTestEmail } from "@/lib/accounts/identity";
 import { parseLeadSnapshot, type LeadSnapshot } from "@/lib/estimate/leadSnapshot";
 import { loadEstimateStages, STAGE_DRAFT_COLUMNS, type StageDraftRow, type StageEstimateRow } from "@/lib/crm/estimateStageLoad";
 import { realOnly } from "@/lib/demo/scope";
+import { BOOKING_RULES_KEY, mergeBookingRules } from "@/lib/visits/schedule";
+import { dueWords } from "@/lib/staff/requestAlertRules";
 import { reportError } from "@/lib/monitoring/report";
 
 export type LeadSequenceResult = { candidates: number; due: number; sent: Record<LeadStepKey, number>; skipped: number; error?: string };
@@ -66,16 +68,24 @@ export async function runLeadSequenceSweep(db: SupabaseClient, now = new Date())
     if (leads.length === 0) return out;
 
     const ids = leads.map((l) => l.id);
-    const [drafts, claims, chat] = await Promise.all([
+    const [drafts, claims, chat, rules, requests] = await Promise.all([
       // wizard_drafts carries no demo flag; the estimates read above is already realOnly.
       db.from("wizard_drafts").select(STAGE_DRAFT_COLUMNS).in("estimate_id", ids),
       // Every lead key's claims, switched on or not: an L2 sent before L2 was switched off still marks its own chat row.
       db.from("automation_claims").select("automation_key, entity_id, claimed_at").in("automation_key", LEAD_STEPS.map((s) => s.key)).in("entity_id", ids),
       db.from("estimate_messages").select("estimate_id, direction, created_at").in("estimate_id", ids).order("created_at"),
+      // L10: office days skip the Settings holidays, and {{due}} is the open request's reply-by.
+      db.from("settings").select("value").eq("key", BOOKING_RULES_KEY).maybeSingle(),
+      db.from("visit_requests").select("estimate_id, due_at, created_at").in("estimate_id", ids).is("answered_at", null).order("created_at", { ascending: false }),
     ]);
     if (drafts.error) throw drafts.error;
     if (claims.error) throw claims.error;
     if (chat.error) throw chat.error;
+    if (rules.error) throw rules.error;
+    if (requests.error) throw requests.error;
+    const holidays = new Set(mergeBookingRules(rules.data?.value).publicHolidays);
+    const dueOf = new Map<string, string>();
+    for (const r of (requests.data ?? []) as { estimate_id: string; due_at: string }[]) if (!dueOf.has(r.estimate_id)) dueOf.set(r.estimate_id, r.due_at);
     const draftOf = new Map<string, StageDraftRow>();
     for (const d of (drafts.data ?? []) as unknown as StageDraftRow[]) if (d.estimate_id && !draftOf.has(d.estimate_id)) draftOf.set(d.estimate_id, d);
     const claimedOf = new Map<string, Set<string>>();
@@ -96,14 +106,14 @@ export async function runLeadSequenceSweep(db: SupabaseClient, now = new Date())
       const due = leadStepsDue({
         stage: stage?.stage ?? null, since: stageSince, claimed: claimedOf.get(lead.id) ?? new Set(),
         conversationAt: conversationAt(chatOf.get(lead.id) ?? [], stageSince, claimTimesOf.get(lead.id) ?? []),
-      }, now, enabled);
+      }, now, enabled, holidays);
       const snap = parseLeadSnapshot(lead.lead_snapshot);
       for (const step of due) {
         out.due += 1;
         if (!snap || !lead.share_token || (lead.contact_email && isTestEmail(lead.contact_email))) { out.skipped += 1; continue; }
         // Claim BEFORE sending, so two sweeps at once never double up.
         if (!(await claimRung(db, step.key, lead.id, ""))) continue;
-        const ok = await sendStep(db, { step, lead, snap, messaging, company, now });
+        const ok = await sendStep(db, { step, lead, snap, messaging, company, now, dueAt: dueOf.get(lead.id) ?? null });
         if (ok) out.sent[step.key] += 1; else out.skipped += 1;
       }
     }
@@ -126,11 +136,14 @@ const CHAT_TEMPLATE: Record<ChatKey, (m: MessagingSettings) => [string, string]>
   lead_range_nudge: (m) => [m.leadRangeNudgeSubject, m.leadRangeNudgeBody],
   lead_range_human: (m) => [m.leadRangeHumanSubject, m.leadRangeHumanBody],
   lead_tighten_help: (m) => [m.leadTightenHelpSubject, m.leadTightenHelpBody],
+  lead_visit_request_ack: (m) => [m.leadVisitAckSubject, m.leadVisitAckBody],
 };
 
 async function sendStep(db: SupabaseClient, i: {
   step: LeadStep; lead: LeadRow; snap: LeadSnapshot;
   messaging: MessagingSettings; company: Awaited<ReturnType<typeof loadMessaging>>["company"]; now: Date;
+  /** L10: the open visit request's reply-by. */
+  dueAt: string | null;
 }): Promise<boolean> {
   const { step, lead, snap, messaging } = i;
   const brand = messageBrandOf(lead.brand);
@@ -144,6 +157,7 @@ async function sendStep(db: SupabaseClient, i: {
     address: streetOf(snap.address) || "your place",
     range: leadRangeWords(snap.rangeLoCents, snap.rangeHiCents),
     link,
+    due: i.dueAt ? dueWords(i.dueAt) : "the end of the next working day",
   };
   const ctx = { estimateId: lead.id, accountId: lead.account_id };
 

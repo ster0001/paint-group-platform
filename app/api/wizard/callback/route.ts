@@ -3,7 +3,7 @@ import { z } from "zod";
 import { createServiceClient } from "@/lib/supabase/service";
 import { allowPublicPlaces } from "@/lib/places/publicLimit";
 import { ensureAccount } from "@/lib/accounts/link";
-import { logCrmEvent } from "@/lib/crm/events";
+import { logRequestEvent } from "@/lib/staff/requestAlerts";
 import { reportError } from "@/lib/monitoring/report";
 
 /**
@@ -53,7 +53,7 @@ export async function POST(request: Request) {
       "Asked for a call from the online-estimates holding page",
       address ? `for ${address}` : null,
     ].filter(Boolean).join(" ");
-    await logCrmEvent(db, {
+    await logRequestEvent(db, {
       type: "callback_requested",
       source: "customer",
       accountId,

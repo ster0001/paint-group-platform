@@ -27,3 +27,9 @@ test("recipientsFor: an event nobody asked for reaches nobody; a bad phone shape
   assert.deepEqual(recipientsFor(staff, "office_contractor_invoice"), []);
   assert.deepEqual(recipientsFor(staff, "office_job_declined"), []); // Ben wants a text but has no phone
 });
+
+test("recipientsFor: R4 — an hours-routed alert in office hours goes by email only; out of hours both", () => {
+  const help = [{ id: "a", name: "Ava", phone: "0412 345 678", email: "ava@x.com", staff_notify: { office_lead_help: ["email", "sms"] } }];
+  assert.deepEqual(recipientsFor(help, "office_lead_help", [], ["email"]).map((x) => x.channel), ["email"]);
+  assert.deepEqual(recipientsFor(help, "office_lead_help", [], ["email", "sms"]).map((x) => x.channel), ["email", "sms"]);
+});

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { agentActor, agentDb, displayText } from "@/lib/agent/session";
 import { SupabaseAgentStore } from "@/lib/agent/store-supabase";
+import { reportError } from "@/lib/monitoring/report";
 
 /**
  * GET /api/agent/inbox — every chat waiting for, or live with, a person
@@ -32,7 +33,10 @@ export async function GET() {
   // read (a transcript read per chat timed out on the test project).
   const since = new Date(Date.now() - 3 * 86_400_000).toISOString();
   const handoffs = (await store.listHandoffs(["requested", "claimed", "active"])).filter((h) => h.requestedAt >= since).slice(-60);
-  const estimateRows = await estimateChatRows(db, since, actor.userId);
+  const chatRows = await estimateChatRows(db, since, actor.userId);
+  // A failed alert read is reported and leaves the chats standing — it never blanks the dock.
+  const alertRows = await requestAlertRows(db, chatRows).catch((e: unknown) => { reportError(e, { where: "agent.inbox.requestAlerts" }); return [] as InboxRow[]; });
+  const estimateRows = [...chatRows, ...alertRows];
   if (handoffs.length === 0) return NextResponse.json({ rows: estimateRows });
   const ids = handoffs.map((h) => h.conversationId);
   const { data: recent } = await db.from("agent_messages").select("id, conversation_id, role, content, created_at")
@@ -107,4 +111,71 @@ async function estimateChatRows(db: NonNullable<ReturnType<typeof agentDb>>, sin
     });
   }
   return rows.sort((a, b) => b.lastAt.localeCompare(a.lastAt));
+}
+
+/**
+ * R4 (17 Nov 2026): the staff chat pop-up for help, visit and call requests
+ * (Lead L9 / L10 / L13). Each alert lib/staff/requestAlerts.ts fired in the
+ * last day is a row on its estimate's thread — the dock pops and chimes on a
+ * row it has not seen, and opening it is the estimate chat, where "reply in
+ * thread" happens. A thread already in the inbox keeps its own row. The row
+ * goes once a person answers after it: a staff chat line, a call logged, a
+ * time offered or a visit booked.
+ */
+const ALERT_KEYS = ["office_lead_help", "office_visit_request", "office_call_request"] as const;
+const ALERT_WORDS: Record<(typeof ALERT_KEYS)[number], string> = { office_lead_help: "Needs help", office_visit_request: "Visit request", office_call_request: "Call request" };
+const ANSWERS = ["message_out", "call_connected", "visit_request_answered", "visit_booked"];
+
+async function requestAlertRows(db: NonNullable<ReturnType<typeof agentDb>>, already: InboxRow[]): Promise<InboxRow[]> {
+  const since = new Date(Date.now() - 86_400_000).toISOString();
+  const { data: fired, error: fErr } = await db.from("staff_notifications").select("id, event_key, entity_id, created_at")
+    .in("event_key", [...ALERT_KEYS]).gte("created_at", since).order("created_at", { ascending: false }).limit(60);
+  if (fErr) throw fErr;
+  type F = { id: string; event_key: (typeof ALERT_KEYS)[number]; entity_id: string; created_at: string };
+  const alerts = (fired ?? []) as F[];
+  if (alerts.length === 0) return [];
+  const { data: evs, error: vErr } = await db.from("crm_events").select("id, estimate_id, payload").in("id", alerts.map((a) => a.entity_id));
+  if (vErr) throw vErr;
+  type V = { id: string; estimate_id: string | null; payload: { note?: string; page?: string } | null };
+  const eventOf = new Map(((evs ?? []) as V[]).map((v) => [v.id, v]));
+  const inInbox = new Set(already.map((r) => r.estimateId));
+  // Newest alert per estimate, for estimates not already in the inbox.
+  const newest = new Map<string, { alert: F; event: V }>();
+  for (const a of alerts) {
+    const v = eventOf.get(a.entity_id);
+    if (!v?.estimate_id || inInbox.has(v.estimate_id) || newest.has(v.estimate_id)) continue;
+    newest.set(v.estimate_id, { alert: a, event: v });
+  }
+  const ids = [...newest.keys()];
+  if (ids.length === 0) return [];
+  const [ests, replies, answers] = await Promise.all([
+    db.from("estimates").select("id, title, account_id, builder_state, lead_snapshot, accounts(name, phone)").in("id", ids),
+    db.from("estimate_messages").select("estimate_id, created_at").eq("direction", "staff").in("estimate_id", ids).gte("created_at", since),
+    db.from("crm_events").select("estimate_id, occurred_at").in("type", ANSWERS).in("estimate_id", ids).gte("occurred_at", since),
+  ]);
+  if (ests.error) throw ests.error;
+  if (replies.error) throw replies.error;
+  if (answers.error) throw answers.error;
+  const answeredAt = new Map<string, string>();
+  for (const r of [...((replies.data ?? []) as { estimate_id: string; created_at: string }[]).map((x) => ({ id: x.estimate_id, at: x.created_at })),
+    ...((answers.data ?? []) as { estimate_id: string; occurred_at: string }[]).map((x) => ({ id: x.estimate_id, at: x.occurred_at }))]) {
+    if ((answeredAt.get(r.id) ?? "") < r.at) answeredAt.set(r.id, r.at);
+  }
+  type E = { id: string; title: string | null; account_id: string | null; builder_state: { contact?: { name?: string | null; phone?: string | null } } | null; lead_snapshot: { firstName?: string; address?: string } | null; accounts?: { name: string | null; phone: string | null } | null };
+  const rows: InboxRow[] = [];
+  for (const e of (ests.data ?? []) as unknown as E[]) {
+    const hit = newest.get(e.id)!;
+    if ((answeredAt.get(e.id) ?? "") > hit.alert.created_at) continue;
+    const name = (e.builder_state?.contact?.name || e.lead_snapshot?.firstName || e.accounts?.name || "Customer").trim();
+    const job = (e.lead_snapshot?.address?.split(",")[0] || e.title || "").trim();
+    const note = hit.event.payload?.note?.trim();
+    rows.push({
+      kind: "estimate",
+      conversationId: `est:${e.id}`, handoffId: "", status: "requested", reason: "lead_alert", requestedAt: hit.alert.created_at,
+      claimedBy: null, mine: false,
+      who: [name, job].filter(Boolean).join(" · "), phone: e.builder_state?.contact?.phone ?? e.accounts?.phone ?? null, accountId: e.account_id, estimateId: e.id,
+      lastText: `${ALERT_WORDS[hit.alert.event_key]}${note ? `: ${note}` : ""}`.slice(0, 160), lastRole: "user", lastAt: hit.alert.created_at, lastId: hit.alert.id, lastCustomerAt: hit.alert.created_at,
+    });
+  }
+  return rows;
 }

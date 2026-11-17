@@ -37,7 +37,7 @@ const KIND_TAG: Record<WorkItem["kind"], string> = {
   handoff_requested: "Live chat",
   wizard_ready: "Ready", wizard_help: "Needs help", wizard_priced: "Priced",
   photo_review: "Photos",
-  desk_check: "Desk check",
+  desk_check: "Desk check", lead_tightened_call: "Tightened — call",
   message_approval: "Approve",
   hours_to_confirm: "Hours to confirm",
   employee_reassign: "Reassign",

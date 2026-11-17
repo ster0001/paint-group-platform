@@ -32,7 +32,7 @@ async function seedLead(tag: string, rangeHoursAgo: number): Promise<Seeded> {
   const snapshot = { version: 1, kind: "lead", rangeLoCents: 640_000, rangeHiCents: 790_000, parts: null, jobType: "interior", firstName: `Seq${tag}`, address: `${tag} Sequence Street, Fairfield VIC 3078`, biggerJob: false, pricedAt: hours(rangeHoursAgo) };
   const est = await db!.from("estimates").insert({
     title: `${tag} Sequence Street`, status: "draft", source: "customer_intake", level_of_finish: 3, share_token: token, lead_snapshot: snapshot,
-    builder_state: { blocks: [], modSel: {}, materials: {}, contact: { name: `Seq${tag} Tester`, email: `pg.e2e.seq${tag}.${run}@example.com`, phone } },
+    builder_state: { blocks: [], modSel: {}, materials: {}, contact: { name: `Seq${tag} Tester`, email: `seq${tag}.${run}@lead-sequence.invalid`, phone } },
   }).select("id").single();
   if (est.error) throw new Error(est.error.message);
   const draft = await db!.from("wizard_drafts").insert({

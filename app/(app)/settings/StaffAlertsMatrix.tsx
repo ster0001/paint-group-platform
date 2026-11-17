@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { STAFF_EVENTS, emailOnlyEvent, type StaffEventKey, type StaffNotifyChannel, type StaffNotifyMap } from "@/lib/staff/notifyEvents";
+import { STAFF_EVENTS, byHoursEvent, emailOnlyEvent, type StaffEventKey, type StaffNotifyChannel, type StaffNotifyMap } from "@/lib/staff/notifyEvents";
 import { listStaffAction, updateStaffNotifyAction, type StaffRow } from "./staffActions";
 
 /**
@@ -59,6 +59,7 @@ export default function StaffAlertsMatrix() {
         <div className="text-sm font-semibold text-gray-900">Who gets each staff alert</div>
         <p className="mt-0.5 text-xs text-gray-600">
           Tick Email and/or Text per person. {isOwner ? "You can set everyone's." : "You can change your own row; the master user sets the rest."} Text needs a mobile on the login (Company → Staff logins).
+          For Help, Visit req and Call req the Text box is the after-hours text: in office hours those come by email and the chat pop-up only.
         </p>
       </div>
       {loadMsg && <p className="px-4 py-3 text-sm text-red-600">{loadMsg}</p>}
@@ -91,7 +92,7 @@ export default function StaffAlertsMatrix() {
                                 checked={has(row.notify, e.key, c)} onChange={(ev) => tick(row, e.key, c, ev.target.checked)}
                                 data-testid={`alert-${row.email}-${e.key}-${c}`}
                               />
-                              {c === "email" ? "Email" : "Text"}
+                              {c === "email" ? "Email" : byHoursEvent(e.key) ? "Text after hours" : "Text"}
                             </label>
                           );
                         })}

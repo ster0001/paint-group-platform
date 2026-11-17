@@ -2,6 +2,7 @@ import { refreshLeadRange } from "@/lib/estimate/leadRecord";
 import { gstRateFromSettings } from "@/lib/pricing/gst";
 import { NextResponse } from "next/server";
 import { logCrmEvent } from "@/lib/crm/events";
+import { logRequestEvent } from "@/lib/staff/requestAlerts";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/service";
@@ -1096,7 +1097,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       }
       // … and the CRM event that puts it on Today and the account timeline
       // (a booking never wrote one, so the office was never told).
-      await logCrmEvent(db, {
+      await logRequestEvent(db, {
         type: "callback_requested", source: "customer",
         accountId: contactAccountId,
         estimateId: id,

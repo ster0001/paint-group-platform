@@ -238,6 +238,16 @@ export type MessagingSettings = {
   leadTightenHelpSubject: string;
   leadTightenHelpBody: string;
   leadTightenedCloseSms: string;
+  /** Lead L10 (17 Nov 2026): the customer's "we're on it" chat a working day after a visit request nobody has answered. Ships off. */
+  leadVisitAckSubject: string;
+  leadVisitAckBody: string;
+  /** Lead L9 / L10 / L13 staff alerts (R4, 17 Nov 2026): a help request, a visit request, a call request. */
+  officeLeadHelpSubject: string;
+  officeLeadHelpBody: string;
+  officeVisitRequestSubject: string;
+  officeVisitRequestBody: string;
+  officeCallRequestSubject: string;
+  officeCallRequestBody: string;
   /** Office: an estimate was accepted (Tom, 4 Sep). */
   officeEmail: string;
   acceptedOfficeSubject: string;
@@ -604,6 +614,15 @@ export const DEFAULT_MESSAGING: MessagingSettings = {
     "Hi {{first_name}}, measuring is the fiddly part. If you don't have a tape, one big step is about a metre — walk the long wall then the short wall and type those in. " +
     "Or skip it entirely and I'll measure on a visit: {{link}}",
   leadTightenedCloseSms: "Hi {{first_name}}, your closer range for {{address}} is ready: {{range}}. Book a time for us to confirm it: {{link}} — {{estimator}}, {{brand}}",
+  // L10's customer chat and the R4 staff alerts, Appendix A word for word ({{due}} is the request's reply-by).
+  leadVisitAckSubject: "Your visit request for {{address}}",
+  leadVisitAckBody: "Hi {{first_name}}, thanks for the visit request for {{address}}. I'm sorting a time and will come back to you by {{due}}. — {{estimator}}",
+  officeLeadHelpSubject: "{{first_name}} needs help — {{address}}{{hours_tag}}",
+  officeLeadHelpBody: "{{first_name}} needs help on {{address}} (step: {{step}}). “{{message}}”. Reply in thread: {{link}}",
+  officeVisitRequestSubject: "Visit request — {{first_name}}, {{address}}{{hours_tag}}",
+  officeVisitRequestBody: "Visit request from {{first_name}}, {{address}}, {{zone}}. Reply by {{due}}.",
+  officeCallRequestSubject: "Call request — {{first_name}}, {{address}}{{hours_tag}}",
+  officeCallRequestBody: "{{first_name}} asked for a call about {{address}} ({{range}}). Phone {{phone}}. Log the call: {{link}}",
   wizardResumeSubject: "Pick up where you left off — your estimate is saved",
   wizardResumeBody:
     "You were part-way through your {{company_name}} estimate for {{where}} — your answers are saved.\n\n" +
