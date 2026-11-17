@@ -282,6 +282,14 @@ export const AUTOMATIONS: Automation[] = [
     note: "Rides the evening sweep (18:00 Melbourne).",
   },
   {
+    key: "visit_reminder_2h", name: "Lead L11 — visit reminder two hours before (text)", audience: "customer", channels: ["sms"], kind: "automatic",
+    defaultOff: true, defaultChannel: "sms", sendKind: "visit_reminder", quietExempt: true, capExempt: true,
+    trigger: "Two hours before an estimator visit, to the customer's mobile: who is coming and the visit's time window. Sent from two hours before until one hour before, never closer; inside quiet hours it is skipped (an early visit's customer already had the evening-before text).",
+    templates: [{ field: "visitReminder2hSms", label: "Text", kind: "sms", placeholders: ["{{first_name}}", "{{estimator_name}}", "{{window}}", "{{address}}", "{{company_name}}"] }],
+    guard: "Once per visit start time (automation_claims); a visit moved to another time is reminded again.",
+    note: "Rides the half-hour campaign sweep. The evening-before text is Visit reminder text above.",
+  },
+  {
     key: "walkthrough_invite", name: "Final walkthrough calendar invite", audience: "customer", channels: ["email", "ics"], kind: "automatic",
     defaultChannel: "email", sendKind: "walkthrough_invite", quietExempt: true,
     trigger: "The final walkthrough is booked, moved or cancelled. The customer AND the painter each get a calendar invite that updates itself.",

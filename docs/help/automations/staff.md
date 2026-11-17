@@ -96,6 +96,9 @@ When a customer asks for a person, staff hear about it straight away. The three 
 
 **L8 is a card, not a message.** When a lead tightens their range and books nothing, their **Follow up** card on Today becomes **Call {name} ({mobile}) — tightened {address} to {range}, no booking yet**, due a day later. The card's second line says **Phone-closable: yes** or **no**. Yes means the job can be confirmed on the call with no visit: interior and under the remote-confirmation cap, or for Paint Home, under the Paint Home ceiling. A call logged on the customer clears it, and so does them booking or asking for something. It is on for everyone (it is a card on Today, it sends nothing).
 
+## The visit reminder two hours before, L11 (17 Nov 2026)
+**Lead L11 — visit reminder two hours before (text)** is off until you turn it on. Two hours before an estimator visit, the customer is texted who is coming and the visit's window. It goes from two hours before until one hour before, never closer, and is skipped when that falls in the quiet hours. Each visit gets it once; a visit moved to another time gets it again. The evening-before text is still **Visit reminder text**, unchanged.
+
 ## Which logo the emails use
 Every email the platform sends (estimates, offers, reminders, reset links, campaigns, the lot) takes the **Logo for emails** from Settings → Company. Upload a version with its own solid background, not a transparent one: mail apps in dark mode invert or recolour transparent logos, which is why the logo used to come out light in some inboxes and dark in others. If no email logo is uploaded, the light-background logo is used, and failing that the main one.
 
