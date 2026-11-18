@@ -339,7 +339,8 @@ export function buildBookedJob(
     materials: {}, materialColours: {}, sheens: {}, colourMatches: {},
     depositPct: IMPORT_DEPOSIT_PCT, inclusions: [] as string[], exclusions: [] as string[],
     discountPct: 0 as const, discountMode: "pct" as const, discountFixedCents: 0 as const,
-    hourlyRateOverride: null, contractorRateOverride: null, preparationOverrideCents: 0 as const,
+    // Go-live brief §3.3: an import carries PaintScout's own figures — never the job-size scale (explicit zeros).
+    hourlyRateOverride: null, contractorRateOverride: null, preparationOverrideCents: 0 as const, preparationHours: 0 as const, cleaningHours: 0 as const,
     sizeUpliftDisabled: true as const,
     aiDeferred: [], idealPainters: job.number_of_workers > 0 ? job.number_of_workers : null, photoReview: null, extraPaints: [],
     imported: { source: "paintscout" as const, quoteNo: job.quote_no, hoursPrepByArea },

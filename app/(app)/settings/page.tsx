@@ -18,6 +18,8 @@ import type { LanguageRow } from "@/lib/induction/languages";
 import OnlineEstimatesSettings from "./OnlineEstimatesSettings";
 import AccessAllowancesSettings from "./AccessAllowancesSettings";
 import { EXTERIOR_ALLOWANCES_KEY, exteriorAllowancesFrom } from "@/lib/wizard/exterior-allowances";
+import SiteAllowancesSettings from "./SiteAllowancesSettings";
+import { SITE_ALLOWANCES_KEY, siteAllowancesFrom } from "@/lib/pricing/allowances";
 import { SITE_ACCESS_HOURS_KEY, hourAllowancesFrom } from "@/lib/wizard/site-access";
 import TiersSettings from "./TiersSettings";
 import { holdDaysFromSettings } from "@/lib/wizard/confirmation-actions";
@@ -203,6 +205,8 @@ export default async function SettingsPage() {
   const messaging = (allSettings.find((r) => r.key === MESSAGING_KEY)?.value as Partial<MessagingValues> | undefined) ?? null;
   const onlineEstimates = onlineEstimatesFrom(allSettings.find((r) => r.key === WIZARD_PUBLIC_KEY)?.value);
   const exteriorAccess = exteriorAllowancesFrom(allSettings.find((r) => r.key === EXTERIOR_ALLOWANCES_KEY)?.value);
+  // Go-live brief §3: the job-size scale for set-up, cleaning and sundries (one row; §3.1 until saved).
+  const siteAllowances = siteAllowancesFrom(allSettings.find((r) => r.key === SITE_ALLOWANCES_KEY)?.value);
   const interiorAccess = hourAllowancesFrom(allSettings.find((r) => r.key === SITE_ACCESS_HOURS_KEY)?.value);
   const paintSystems = paintSystemsFrom(allSettings.find((r) => r.key === PAINT_SYSTEMS_KEY)?.value);
   // C1 (audit 9.2): the thresholds and caps were SQL-only until now, and a
@@ -413,7 +417,7 @@ export default async function SettingsPage() {
       id: "pricing", title: "Pricing", icon: "💲",
       blurb: "The numbers behind every price: rates, multipliers, products, overheads.",
       folders: [
-        { id: "pricing-numbers", title: "Pricing & job numbers", subtitle: "Markup, GST, sundries, contractor rate, window sizes, overheads", count: pricingRows.length,
+        { id: "pricing-numbers", title: "Pricing & job numbers", subtitle: "Markup, GST, contractor rate, window sizes, overheads (sundries moved to Site allowances)", count: pricingRows.length,
           content: (
             <>
               {supersededWindowItems.length > 0 && (
@@ -426,6 +430,8 @@ export default async function SettingsPage() {
               <PricingSettings initial={pricingRows} />
             </>
           ) },
+        { id: "site-allowances", title: "Site allowances by job size", subtitle: "Set-up and prep hours, cleaning hours and sundries, banded by painting hours; the cleaning rate",
+          content: <SiteAllowancesSettings initial={siteAllowances} /> },
         { id: "substrates", title: "Substrates & production rates", subtitle: "Hours per unit and charge-out rate for every surface", count: rateItems.length,
           content: cardId ? (
             <EditableTable
