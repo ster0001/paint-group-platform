@@ -1,5 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
-import { MONEY_RANGE, openQuickLook, fillQuickAddress, quickNext, passGateIfShown, lookAtEverySide, tightenToScope } from "./drive";
+import { MONEY_RANGE, openQuickLook, fillQuickAddress, quickNext, passGateIfShown, lookAtEverySide, tightenToScope, setParts } from "./drive";
 
 /**
  * The EXTERIOR quick look — rewritten to the drawn house (Exterior wizard v2,
@@ -54,10 +54,12 @@ test("nothing pre-ticked, the questions follow the ticks, no storeys question, a
   await toPaint(page);
   await expect(page.getByRole("heading", { name: /Tap everything we.re painting/ })).toBeVisible();
   await expect(page.getByText(/bedrooms/i)).toHaveCount(0);
-  // Nothing pre-ticked on the parts or the things around the house.
+  // Go-live S4 (H2): the usual parts come pre-ticked (walls, fascias, gutters, eaves, windows, doors) — cleared here so the
+  // "nothing ticked" rules below still run; the things around the house are never pre-ticked.
   for (const p of ["walls", "windows", "doors", "fascias", "gutters", "eaves"]) {
-    await expect(page.getByTestId(`ext-part-${p}`)).toHaveAttribute("aria-pressed", "false");
+    await expect(page.getByTestId(`ext-part-${p}`)).toHaveAttribute("aria-pressed", "true");
   }
+  await setParts(page, []);
   for (const e of ["paling_fence", "picket_fence", "deck", "pergola", "shed", "wall"]) {
     await expect(page.getByTestId(`ext-extra-${e}`)).toHaveAttribute("aria-pressed", "false");
   }
@@ -88,8 +90,7 @@ test("nothing pre-ticked, the questions follow the ticks, no storeys question, a
   await expect(page.locator("[data-quick-step='paint']")).toBeVisible();
   await page.getByTestId("ext-extra-pergola").click(); // untick — the question goes with it
   // Tick the walls → the material card appears on About it, nothing pre-ticked; windows → the type.
-  await page.getByTestId("ext-part-walls").click();
-  await page.getByTestId("ext-part-windows").click();
+  await setParts(page, ["fascias", "walls", "windows"]); // go-live S4 (H2): set, not tapped — the usual parts come pre-ticked
   await quickNext(page);
   await expect(page.getByTestId("ext-walls-q")).toBeVisible();
   for (const m of ["weatherboards", "brick", "render", "stucco", "cement_sheet", "colorbond", "vertical_timber", "concrete"]) {
@@ -114,10 +115,7 @@ let casement: { lo: number; hi: number } | null = null;
 
 async function walkTypical(page: Page, windowType: "casement" | "colonial", walls = true) {
   await toPaint(page, "wb");
-  if (walls) await page.getByTestId("ext-part-walls").click();
-  await page.getByTestId("ext-part-windows").click();
-  await page.getByTestId("ext-part-doors").click();
-  await page.getByTestId("ext-part-fascias").click();
+  await setParts(page, [...(walls ? ["walls"] : []), "windows", "doors", "fascias"]); // go-live S4 (H2)
   await quickNext(page);
   await expect(page.locator("[data-quick-step='about']")).toBeVisible();
   if (walls) await page.getByTestId("ext-mat-weatherboards").click();

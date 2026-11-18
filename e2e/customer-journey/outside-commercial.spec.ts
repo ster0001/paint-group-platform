@@ -77,9 +77,14 @@ test("home + inside reaches screen 3 of the quick look", async ({ page }) => {
 test("home + outside reaches the outside screen, and there are only three", async ({ page }) => {
   test.setTimeout(120_000);
   await startAt(page, "exterior");
-  await toPlace(page);
-  await page.getByTestId("ql-kind-house").click();
   await page.getByTestId("ql-next").click();
+  // Go-live S4 (M5): the one-press screens skip "What kind of place?" on an outside job; the grouped desktop still asks it.
+  const place = page.locator("[data-quick-step='place']");
+  await expect(place.or(page.locator("[data-quick-step='home'], [data-quick-step='outside']").first())).toBeVisible({ timeout: 30_000 });
+  if (await place.count()) {
+    await page.getByTestId("ql-kind-house").click();
+    await page.getByTestId("ql-next").click();
+  }
   // Exterior wizard v2: the first outside screen is Your home when the flag is on, the old outside screen when it is off.
   await expect(page.locator("[data-quick-step='home'], [data-quick-step='outside']").first()).toBeVisible({ timeout: 30_000 });
 });

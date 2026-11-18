@@ -3010,3 +3010,14 @@
 /* Go-live brief C2 (18 Nov 2026): the laptop range card wears the phone's small print and tiles. */
 .wz .wz-rv-card .wz-rv-fine { font-size: 12.5px; color: var(--muted); line-height: 1.5; margin: 14px 0 0; }
 .wz .wz-rv-card .wz-rv-tiles { margin: 18px 0 0; }
+
+/* Go-live S4, C3: the size confirm — the reason, then Yes / fix, in the bar's own place */
+.wz .wzq-confirm { display: flex; flex-direction: column; }
+.wz .wzq-confirm .wzm-why { margin-bottom: 10px; }
+.wz .wzq-meas + .wz-err { margin: 2px 0 10px; }
+
+/* Go-live S4 (M1): the suggestions overlay the cards, and the suburb / postcode row has its room from the start — the cards never move */
+.wz .wzm-addrfield { position: relative; z-index: 5; min-height: 128px; }
+.wz .wzm-addrfield .wz-suggest { z-index: 30; }
+/* M5: the shape screen's commercial door */
+.wz .wzm-hint--left { text-align: left; margin: 10px 0 0; }

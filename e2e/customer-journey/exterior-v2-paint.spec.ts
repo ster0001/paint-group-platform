@@ -1,6 +1,6 @@
 import { test, expect, type Page } from "@playwright/test";
 import { EXTERIOR_PARTS, EXTERIOR_EXTRAS } from "../../lib/wizard/state";
-import { fillQuickAddress, openQuickLook, quickNext } from "./drive";
+import { fillQuickAddress, openQuickLook, quickNext, setParts } from "./drive";
 
 /**
  * Exterior wizard v2 — S3: "Tap everything we're painting" (brief §7.2;
@@ -41,6 +41,10 @@ test("the groups, nothing ticked, no materials, no price — and Continue refuse
   await toPaint(page);
   await expect(page.getByRole("heading", { name: /Tap everything we.re painting/ })).toBeVisible();
   for (const g of ["house", "roof", "open", "verandah"]) await expect(page.getByTestId(`ext-group-${g}`)).toBeVisible();
+  // go-live S4 (H2): the usual parts come pre-ticked (a bungalow's walls are painted); the rest not — then cleared for the toggle rules below
+  for (const p of ["walls", "fascias", "gutters", "eaves", "windows", "doors"]) await expect(page.getByTestId(`ext-part-${p}`)).toHaveAttribute("aria-pressed", "true");
+  for (const p of ["gable", "downpipes", "garage", "shutters", "verandah"]) await expect(page.getByTestId(`ext-part-${p}`)).toHaveAttribute("aria-pressed", "false");
+  await setParts(page, []);
   for (const p of EXTERIOR_PARTS.filter((k) => k !== "posts" && k !== "ceiling" && k !== "handrail")) {
     await expect(page.getByTestId(`ext-part-${p}`)).toHaveAttribute("aria-pressed", "false");
   }
@@ -126,8 +130,6 @@ test.describe("on a phone: Painting is four screens (exterior mobile v5, session
     await fillQuickAddress(page);
     await expect(page.getByTestId("wzm")).toBeVisible({ timeout: 20_000 });
     await page.getByTestId("ql-jobtype-exterior").tap();
-    await at(page, "property");
-    await page.getByTestId("ql-kind-house").tap();
     await at(page, "shape");
     await page.getByTestId(`ql-ext-type-${shape}`).tap();
     await at(page, "size");
@@ -135,14 +137,18 @@ test.describe("on a phone: Painting is four screens (exterior mobile v5, session
     await at(page, "p-house");
   };
 
-  test("5a–5d: one group a screen under the Painting stage, nothing pre-ticked, Continue on each, the last one waiting for something ticked", async ({ page }) => {
+  test("5a–5d: one group a screen under the Painting stage, the usual parts pre-ticked (go-live S4), Continue on each, the last one waiting for something ticked", async ({ page }) => {
     test.setTimeout(150_000);
     await toPainting(page);
     await expect(page.locator("[data-quick-step='paint']")).toBeVisible();
     await expect(page.getByTestId("wzm-stage")).toHaveText("Painting");
     await expect(page.getByTestId("wzm-h1")).toHaveText("Tap everything we're painting");
     await expect(page.getByTestId("wzm-sub")).toContainText("Walls and roofline");
-    for (const p of ["walls", "gable", "fascias", "gutters", "downpipes", "eaves"]) await expect(page.getByTestId(`ext-part-${p}`)).toHaveAttribute("aria-pressed", "false");
+    // go-live S4 (H2): walls, fascias, gutters and eaves come ticked; the gable and downpipes do not — then cleared to prove the empty-house rules
+    for (const p of ["walls", "fascias", "gutters", "eaves"]) await expect(page.getByTestId(`ext-part-${p}`)).toHaveAttribute("aria-pressed", "true");
+    for (const p of ["gable", "downpipes"]) await expect(page.getByTestId(`ext-part-${p}`)).toHaveAttribute("aria-pressed", "false");
+    await setParts(page, []);
+    await expect(page.getByTestId("ql-why")).toContainText(/Nothing ticked yet/); // H2: the reason, on the first screen, without blocking it
     await expect(page.getByTestId("ext-part-windows")).toHaveCount(0);
     await expect(page.getByTestId("ext-brick-hint")).toHaveCount(0);
     await expect(page.locator("[data-mobile-screen='p-house'] .wzm-note")).toHaveCount(0); // one grey line (R8)
@@ -155,6 +161,8 @@ test.describe("on a phone: Painting is four screens (exterior mobile v5, session
     await page.getByTestId("ql-next").tap();
     await at(page, "p-win");
     await expect(page.getByTestId("wzm-h1")).toHaveText("Windows and doors");
+    for (const p of ["windows", "doors"]) await expect(page.getByTestId(`ext-part-${p}`)).toHaveAttribute("aria-pressed", "true"); // pre-ticked (H2)
+    await setParts(page, []);
     for (const p of ["windows", "doors", "garage", "shutters"]) await expect(page.getByTestId(`ext-part-${p}`)).toHaveAttribute("aria-pressed", "false");
     // 5c — the verandah: a bungalow has one, so no "tick it if there is one"; its family appears with it and leaves with it
     await page.getByTestId("ql-next").tap();
@@ -176,6 +184,7 @@ test.describe("on a phone: Painting is four screens (exterior mobile v5, session
     await expect(page.getByTestId("wzm-h1")).toHaveText("Around the house");
     for (const e of EXTERIOR_EXTRAS) await expect(page.getByTestId(`ext-extra-${e}`)).toHaveAttribute("aria-pressed", "false");
     await expect(page.getByTestId("ql-next")).toBeDisabled();
+    await expect(page.getByTestId("ql-why")).toContainText(/Tick at least one part/); // H2: every disabled Continue says why
     await page.getByTestId("ext-extra-deck").tap();
     await expect(page.getByTestId("ql-next")).toBeEnabled();
     await page.getByTestId("ext-extra-deck").tap();

@@ -5,6 +5,8 @@ import {
 } from "./exterior-model";
 import { typicalFor } from "./exterior-typicals";
 import { houseOfShape } from "@/app/wizard/ExteriorHome";
+/** Go-live S4 (H2): a fresh house now pre-ticks the usual parts and its usual wall material — these tests tick their own, so they start blank. */
+const blank = (shape: Parameters<typeof houseOfShape>[0]) => ({ ...houseOfShape(shape, null, []), parts: [], wall: { down: null, up: null, brickPainted: null, timberPainted: null } });
 import { sideTileState } from "@/app/wizard/ExteriorSides";
 import { notInThisNumber } from "@/app/wizard/ExteriorRangeRows";
 import type { ExteriorV2 } from "./state";
@@ -17,7 +19,7 @@ import type { ExteriorV2 } from "./state";
  */
 
 function bungalow(): ExteriorV2 {
-  let v2: ExteriorV2 = { ...houseOfShape("cal", null, []), sizeBand: "md" };
+  let v2: ExteriorV2 = { ...blank("cal"), sizeBand: "md" };
   v2 = { ...v2, sides: defaultSides(v2) };
   v2 = ["walls", "gable", "fascias", "gutters", "eaves", "windows", "doors", "verandah", "posts"].reduce<ExteriorV2>((acc, p) => togglePart(acc, p as never), v2);
   return { ...v2, wall: { ...v2.wall, down: "weatherboards" }, gableFill: "stucco" };

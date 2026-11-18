@@ -90,7 +90,8 @@ describe("the round trip", () => {
     expect(back.colour).toBe("new");
     expect(back.access).toEqual(["steep"]);
     expect(back.storeys).toBe("single");
-    expect(exteriorRestatement(back)).toMatch(/^Based on the walls, windows, doors, fascias, gutters & downpipes, eaves and paling fence \(weatherboard\)/);
+    // go-live S4 (M7): the basis names the TICKED parts in the house's own words and order
+    expect(exteriorRestatement(back)).toMatch(/^Based on the walls, [^.]*eaves[^.]* and paling fence \(weatherboard\)/);
   });
   it("a townhouse is double storey with two sides; the worst condition becomes the v1 condition", () => {
     const sides = defaultSides({ propertyType: "th", sizeBand: "md", rowPosition: "mid" });

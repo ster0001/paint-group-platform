@@ -1,7 +1,7 @@
 import { expect, type Page } from "@playwright/test";
 import { mkdirSync } from "node:fs";
 import { test } from "./helpers";
-import { fillQuickAddress, openQuickLook, passGateIfShown, quickNext } from "./customer-journey/drive";
+import { fillQuickAddress, openQuickLook, passGateIfShown, quickNext, setParts } from "./customer-journey/drive";
 
 /**
  * Diagnostic, not a gate — wizard mobile v5's scope guard (build plan: "every
@@ -74,7 +74,7 @@ test.describe("wizard desktop screenshots (scope guard)", () => {
     await shot("09-home-townhouse");
     await quickNext(page);
     await step("paint");
-    for (const p of ["walls", "fascias", "gutters", "windows"]) await page.getByTestId(`ext-part-${p}`).click();
+    await setParts(page, ["walls", "fascias", "gutters", "windows"]); // go-live S4 (H2): the usual parts come pre-ticked
     await shot("10-paint");
     await quickNext(page);
     await step("about");

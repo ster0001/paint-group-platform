@@ -1,5 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
-import { quickNext } from "./drive";
+import { quickNext, setParts } from "./drive";
 import { toSides } from "./exterior-v2-drive";
 
 /**
@@ -158,22 +158,20 @@ test.describe("on a phone: Each side is one screen per side, the house turned to
     await fillQuickAddress(page);
     await expect(page.getByTestId("wzm")).toBeVisible({ timeout: 20_000 });
     await page.getByTestId("ql-jobtype-exterior").tap();
-    await at(page, "property");
-    await page.getByTestId("ql-kind-house").tap();
     await at(page, "shape");
     await page.getByTestId(`ql-ext-type-${shape}`).tap();
     await at(page, "size");
     await page.getByTestId("ql-ext-size-md").tap();
     if (row) { await at(page, "row"); await page.getByTestId(`ql-ext-row-${row}`).tap(); }
     await at(page, "p-house");
-    const tick = async (p: string) => { if (parts.includes(p)) await page.getByTestId(`ext-part-${p}`).tap(); };
-    for (const p of ["walls", "gable", "fascias", "gutters", "downpipes", "eaves"]) await tick(p);
+    // go-live S4 (H2): the usual parts come pre-ticked — each Painting screen is SET to this spec's list
+    await setParts(page, parts);
     await page.getByTestId("ql-next").tap();
     await at(page, "p-win");
-    for (const p of ["windows", "doors", "garage", "shutters"]) await tick(p);
+    await setParts(page, parts);
     await page.getByTestId("ql-next").tap();
     await at(page, "p-ver");
-    for (const p of ["verandah", "posts", "ceiling", "handrail"]) await tick(p);
+    await setParts(page, parts);
     await page.getByTestId("ql-next").tap();
     await at(page, "p-around");
     await page.getByTestId("ql-next").tap();

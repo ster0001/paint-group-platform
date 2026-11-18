@@ -3,7 +3,7 @@ import { randomBytes } from "node:crypto";
 import { test } from "../helpers";
 import { serviceClient } from "../fixtures/woLoop";
 import { readFileSync } from "node:fs";
-import { MONEY_RANGE, driveMobileQuickLook, driveNoPlanWizard, openQuickLook, fillQuickAddress, passOtpIfShown } from "./drive";
+import { MONEY_RANGE, driveMobileQuickLook, driveNoPlanWizard, openQuickLook, fillQuickAddress, passOtpIfShown, gateDoor } from "./drive";
 /** D-Q5: `lib/wizard/spotPhoto.ts SPOT_PHOTO_MAX_BYTES` (not imported — that module loads the browser client). */
 const SPOT_PHOTO_MAX_BYTES = 25 * 1024 * 1024; // Tom, 5 Nov: any phone-sized photo — the adapter's own limit
 
@@ -100,10 +100,10 @@ test.describe("quote stage v10 — session 1: the cards on a phone", () => {
     if (await bounced.count()) throw new Error(`submit failed: ${await bounced.first().innerText()}`);
     // R1 / D-Q2: the door's words
     await expect(page.getByTestId("gate-exact")).toContainText("Get my quote range");
-    await expect(page.getByTestId("gate-bar-exact")).toHaveText("Get my quote range");
+    await expect(gateDoor(page)).toContainText("Get my quote range"); // M4: whichever door is the visible one
     await shot(page, "phone-00-gate");
     await expect(gate).not.toContainText(/exact/i);
-    await page.getByTestId("gate-bar-exact").tap();
+    await gateDoor(page).tap();
     await expect(page).toHaveURL(/\/estimate\/quote\?id=/, { timeout: 30_000 });
     const stage = page.getByTestId("quote-stage");
     await expect(stage).toBeVisible({ timeout: 30_000 });

@@ -1,5 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
-import { MONEY_RANGE, driveNoPlanWizard, passOtpIfShown } from "./drive";
+import { MONEY_RANGE, driveNoPlanWizard, passOtpIfShown, setParts, gateDoor } from "./drive";
 
 /**
  * Batch 4 — "Both" jobs get the STACKED editor (Tom's ruling on the parity
@@ -97,11 +97,11 @@ test.describe("on a phone: a both job is inside then outside, one gate (exterior
     await expect(page.getByTestId("wzm-ribbon-1")).toContainText("Weatherboard home");
     await page.getByTestId("ql-ext-size-md").tap();
     await at(page, "p-house");
-    await page.getByTestId("ext-part-walls").tap();
-    await page.getByTestId("ext-part-fascias").tap();
-    await expect(page.getByTestId("wzm-ribbon-2")).toHaveText("2 parts ticked · tap to see");
+    await setParts(page, ["walls", "fascias"]); // go-live S4 (H2): the usual parts come pre-ticked — set the exact two
     await page.getByTestId("ql-next").tap();
     await at(page, "p-win");
+    await setParts(page, ["walls", "fascias"]);
+    await expect(page.getByTestId("wzm-ribbon-2")).toHaveText("2 parts ticked · tap to see");
     await page.getByTestId("ql-next").tap();
     await at(page, "p-ver");
     await page.getByTestId("ql-next").tap();
@@ -141,7 +141,7 @@ test.describe("on a phone: a both job is inside then outside, one gate (exterior
     await expect(page.getByTestId("gate-included-outside")).toBeVisible();
     await expect(page.getByTestId("ext-range-front")).toBeVisible();
     // Get my exact price on a both job: the stacked editor — rooms, then the sides
-    await page.getByTestId("gate-bar-exact").tap();
+    await gateDoor(page).tap();
     await expect(page).toHaveURL(/\/estimate\/scope\?id=/, { timeout: 30_000 });
     await expect(page.locator("[data-ready='1']")).toBeAttached({ timeout: 30_000 });
     expect(await page.locator(".sc-rc[data-room]").count()).toBeGreaterThan(2);

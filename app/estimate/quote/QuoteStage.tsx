@@ -18,6 +18,7 @@ import { assertCustomerShape } from "@/lib/wizard/contract";
 import { breakpointNow, sendWizardEvent } from "@/lib/wizard/wizardEvents";
 import { countInBackground } from "@/lib/marketing/success";
 import { quoteCards, quoteProgress, quoteRoomsFrom, quoteSidesFrom, typicalRoomNames, type AttentionCard, type GeneralAnswers, type GeneralCard, type JobKind, type MeasureCard, type QuoteRoom, type RobeCard, type RoomsCard, type SideAttentionCard, type SideOnCard, type SideSizeCard, type SurfacesCard } from "@/lib/quote/cards";
+import { checkRoomSize, checkSideSize, parseMetres, type RoomDims, type SizeCheck } from "@/lib/quote/sizeCheck";
 import type { SidesView } from "@/lib/wizard/sides";
 import type { ExteriorV2 } from "@/lib/wizard/state";
 import type { ExteriorTypicalRow } from "@/lib/wizard/exterior-typicals";
@@ -480,21 +481,27 @@ export default function QuoteStage({ brand, estimateId, initial, jobKind, initia
   );
 }
 
-/** §3 B1 — "How big is {room}?": typed numbers over greyed typicals (R2); the typical stands unless something is typed. */
+/** §3 B1 — "How big is {room}?": typed numbers over greyed typicals (R2); the typical stands unless something is typed.
+ *  Go-live S4, C3 (D8): what is typed is CHECKED before it is saved (`lib/quote/sizeCheck.ts`) — letters are refused with a
+ *  message, a side over 10 m (6 m in a bedroom, bathroom, laundry or WC), under 1 m or a high ceiling asks first. No clamp. */
 function MeasureScreen({ card, busy, estimateId, onSize }: { card: MeasureCard; busy: boolean; estimateId: string; onSize: (dims: { lengthM: number; widthM: number; heightM: number | null } | null) => void }) {
   const [draft, setDraft] = useState<{ w: string; l: string; h: string }>({ w: "", l: "", h: "" });
+  const [check, setCheck] = useState<SizeCheck<RoomDims> | null>(null);
   const photo = useRoomPhotos(estimateId, card.areaId, card.name, "room", false);
   const typed = draft.w.trim() !== "" || draft.l.trim() !== "" || draft.h.trim() !== "";
-  const num = (v: string, fallback: number) => { const n = parseFloat(v.replace(/[^0-9.]/g, "")); return isNaN(n) || n <= 0 ? fallback : n; };
   const submit = () => {
     if (!typed) { onSize(null); return; }
-    onSize({ widthM: num(draft.w, card.widthM), lengthM: num(draft.l, card.lengthM), heightM: draft.h.trim() ? Math.min(6, Math.max(2, num(draft.h, card.heightM))) : null });
+    const c = checkRoomSize(draft, card, card.name);
+    if (c.kind === "ok") { setCheck(null); onSize(c.dims); return; }
+    setCheck(c);
   };
+  const edit = (key: "w" | "l" | "h", value: string) => { setDraft({ ...draft, [key]: value }); if (check) setCheck(null); };
   const field = (key: "w" | "l" | "h", label: string, typical: number) => (
     <label className={`wzq-field ${draft[key].trim() ? "" : "typ"}`}>
       <span>{label}</span>
       <input inputMode="decimal" placeholder={String(typical)} value={draft[key]} data-testid={`q-measure-${key}`} autoFocus={key === "w"}
-        onChange={(e) => setDraft({ ...draft, [key]: e.target.value })} onKeyDown={(e) => { if (e.key === "Enter") submit(); }} />
+        aria-invalid={check?.kind === "invalid" && Number.isNaN(parseMetres(draft[key])) ? true : undefined}
+        onChange={(e) => edit(key, e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") submit(); }} />
       <em>m</em>
     </label>
   );
@@ -505,6 +512,7 @@ function MeasureScreen({ card, busy, estimateId, onSize }: { card: MeasureCard; 
       <div className="wzq-meas" data-testid="q-measure" data-measured={card.measured ? "1" : "0"}>
         {field("w", "Width", card.widthM)}{field("l", "Length", card.lengthM)}{field("h", "Ceiling", card.heightM)}
       </div>
+      {check?.kind === "invalid" && <p className="wz-err" role="alert" data-testid="q-size-error">{check.message}</p>}
       {!typed && <p className="wzm-note" data-testid="q-typical-note">{card.measured ? "Your numbers — type over them to change them." : "The grey numbers are typical for this room — type yours over them."}</p>}
       {/* B1: an optional photo of the room (D-Q5: three per room, 5 MB each, the one upload path) */}
       <div className="wzq-photo">
@@ -512,8 +520,18 @@ function MeasureScreen({ card, busy, estimateId, onSize }: { card: MeasureCard; 
         {photo.error && <p className="wz-err" data-testid="q-photo-error">{photo.error}</p>}
       </div>
       <div className="wzm-foot" data-testid="wzm-foot">
-        <button type="button" className="wzm-cta" disabled={busy} onClick={submit} data-testid="q-size-ok">{busy ? "Saving…" : "That's the size"}</button>
-        <p className="wzm-hint"><button type="button" className="wzm-linkish" disabled={busy} onClick={() => onSize(null)} data-testid="q-size-typical">Not sure — use the typical size for now</button></p>
+        {check?.kind === "confirm" ? (
+          <div className="wzq-confirm" role="group" aria-label={check.message} data-testid="q-size-confirm">
+            <p className="wzm-why" role="status">{check.message}</p>
+            <button type="button" className="wzm-cta" disabled={busy} onClick={() => { const d = check.dims; setCheck(null); onSize(d); }} data-testid="q-size-yes">{busy ? "Saving…" : "Yes, that's right"}</button>
+            <p className="wzm-hint"><button type="button" className="wzm-linkish" disabled={busy} onClick={() => setCheck(null)} data-testid="q-size-fix">Let me fix it</button></p>
+          </div>
+        ) : (
+          <>
+            <button type="button" className="wzm-cta" disabled={busy} onClick={submit} data-testid="q-size-ok">{busy ? "Saving…" : "That's the size"}</button>
+            <p className="wzm-hint"><button type="button" className="wzm-linkish" disabled={busy} onClick={() => onSize(null)} data-testid="q-size-typical">Not sure — use the typical size for now</button></p>
+          </>
+        )}
       </div>
     </>
   );
@@ -942,22 +960,27 @@ function ExtrasScreen({ offer, state, busy, act, onNext }: { offer: JobExtra[]; 
   );
 }
 
-/** §3 C1 — "How big is the {side}?": across · high over greyed typicals (R2); "That's the size" → `side_dims`, "Not sure" → `side_size_ok`. */
+/** §3 C1 — "How big is the {side}?": across · high over greyed typicals (R2); "That's the size" → `side_dims`, "Not sure" → `side_size_ok`.
+ *  Go-live S4, C3: letters or a size outside the model's bounds (1–60 m across, 1–12 m high) are refused with a message — never clamped. */
 function SideSizeScreen({ card, busy, v2, walk, onDone }: { card: SideSizeCard; busy: boolean; v2: ExteriorV2; walk: (next: ExteriorV2) => Promise<Payload | null>; onDone: (measured: boolean) => void }) {
   const [draft, setDraft] = useState({ w: "", h: "" });
+  const [error, setError] = useState<string | null>(null);
   const typed = draft.w.trim() !== "" || draft.h.trim() !== "";
-  const num = (v: string, fallback: number) => { const n = parseFloat(v.replace(/[^0-9.]/g, "")); return isNaN(n) || n <= 0 ? fallback : n; };
   const submit = async () => {
-    // the walk-around's own answers: adjusted with the numbers (clamped by the model), or "not sure" = the typical stands
-    const j = typed
-      ? await walk(setSideSize(v2, card.sideKey, "adj", { w: Math.min(60, Math.max(0.5, num(draft.w, card.side.lengthM))), h: Math.min(12, Math.max(1, num(draft.h, card.side.widthM))) }))
-      : await walk(setSideSize(v2, card.sideKey, "ns"));
-    if (j) onDone(typed);
+    // the walk-around's own answers: adjusted with the numbers as typed, or "not sure" = the typical stands
+    if (!typed) { const j = await walk(setSideSize(v2, card.sideKey, "ns")); if (j) onDone(false); return; }
+    const c = checkSideSize(draft, { w: card.side.lengthM, h: card.side.widthM });
+    if (c.kind !== "ok") { setError(c.message); return; }
+    setError(null);
+    const j = await walk(setSideSize(v2, card.sideKey, "adj", c.dims));
+    if (j) onDone(true);
   };
   const field = (key: "w" | "h", label: string, typical: number) => (
     <label className={`wzq-field ${draft[key].trim() ? "" : "typ"}`}>
       <span>{label}</span>
-      <input inputMode="decimal" placeholder={String(typical)} value={draft[key]} data-testid={`q-side-${key}`} autoFocus={key === "w"} onChange={(e) => setDraft({ ...draft, [key]: e.target.value })} />
+      <input inputMode="decimal" placeholder={String(typical)} value={draft[key]} data-testid={`q-side-${key}`} autoFocus={key === "w"}
+        aria-invalid={error && Number.isNaN(parseMetres(draft[key])) ? true : undefined}
+        onChange={(e) => { setDraft({ ...draft, [key]: e.target.value }); if (error) setError(null); }} />
       <em>m</em>
     </label>
   );
@@ -968,6 +991,7 @@ function SideSizeScreen({ card, busy, v2, walk, onDone }: { card: SideSizeCard; 
       <div className="wzq-meas wzq-meas--two" data-testid="q-side-measure" data-measured={card.side.size === "adjusted" ? "1" : "0"}>
         {field("w", "Across", card.side.lengthM)}{field("h", "High", card.side.widthM)}
       </div>
+      {error && <p className="wz-err" role="alert" data-testid="q-size-error">{error}</p>}
       {!typed && <p className="wzm-note" data-testid="q-typical-note">{card.side.size === "adjusted" ? "Your numbers — type over them to change them." : "The grey numbers are typical for a side like this — type yours over them."}</p>}
       <div className="wzm-foot" data-testid="wzm-foot">
         <button type="button" className="wzm-cta" disabled={busy} onClick={() => void submit()} data-testid="q-size-ok">{busy ? "Saving…" : "That's the size"}</button>

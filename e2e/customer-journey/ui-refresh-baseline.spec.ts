@@ -2,7 +2,7 @@ import { test, expect, type Browser, type Page } from "@playwright/test";
 import { mkdirSync } from "node:fs";
 import path from "node:path";
 import { createClient } from "@supabase/supabase-js";
-import { driveNoPlanWizard, fillQuickAddress, openQuickLook, openScopeEditor, passGateIfShown, quickNext, MONEY_RANGE, openTalk, lookAtEverySide, tightenToScope } from "./drive";
+import { driveNoPlanWizard, fillQuickAddress, openQuickLook, openScopeEditor, passGateIfShown, quickNext, MONEY_RANGE, openTalk, lookAtEverySide, tightenToScope, setParts } from "./drive";
 
 /**
  * Wizard UI refresh, S0 — the "before" set.
@@ -222,7 +222,7 @@ test.describe("ui refresh baseline screenshots", () => {
         await page.getByTestId("ql-ext-size-md").click();
         await shot(page, width, "31-ext-home");
         await quickNext(page);
-        for (const p of ["walls", "gable", "fascias", "gutters", "windows", "doors", "verandah", "posts"]) await page.getByTestId(`ext-part-${p}`).click();
+        await setParts(page, ["walls", "gable", "fascias", "gutters", "windows", "doors", "verandah", "posts"]); // go-live S4 (H2)
         await shot(page, width, "32-ext-paint");
         await quickNext(page);
         await page.getByTestId("ext-mat-weatherboards").click();

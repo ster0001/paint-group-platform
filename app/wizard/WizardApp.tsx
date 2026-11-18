@@ -1964,7 +1964,7 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
   // Reveals route straight to /estimate/scope now (Tom, 28 Aug) — this
   // screen only renders the guardrail outcomes.
   if (screen === "editor" && isCustomer && outcome) {
-    return <CustomerResult outcome={outcome} reveal={null} roomTypes={roomTypes} logoUrl={logoUrl} companyPhone={companyPhone} />;
+    return <CustomerResult outcome={outcome} reveal={null} roomTypes={roomTypes} logoUrl={logoUrl} companyPhone={companyPhone} knownPhone={state.contact.phone} />;
   }
 
   /**

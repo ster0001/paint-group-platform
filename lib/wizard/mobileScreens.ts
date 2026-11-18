@@ -90,6 +90,9 @@ export function mobileScreensFor(
         out.push(screen("what", step, "auto"));
         break;
       case "place":
+        // Go-live S4 (M5): an outside job's home-type screen says what kind of place it is — "What kind of place?" is not
+        // asked again. A commercial building is reached from the shape screen's own link (`ql-ext-commercial`).
+        if (!interior && quick.propertyKind !== "commercial") break;
         out.push(screen("property", step, "auto"));
         if (interior && quick.propertyKind !== "commercial") {
           out.push(screen("beds", step, "auto"));
@@ -287,6 +290,28 @@ export function fullNameGiven(name: string): boolean {
 }
 export function detailsReady(c: { name: string; email: string; phone: string }): boolean {
   return fullNameGiven(c.name) && c.phone.replace(/\D/g, "").length >= 10 && /.+@.+\..+/.test(c.email.trim());
+}
+
+/**
+ * Go-live S4 (M2): WHY the details screen's Continue waits — the first thing wrong among the fields the customer has
+ * started, in plain words. Null while nothing is typed (no nagging an empty form) and once everything is right.
+ * A landline (an Australian number that does not start 04 / +614) is named: the code is texted.
+ */
+export function detailsWhy(c: { name: string; email: string; phone: string }): string | null {
+  if (c.name.trim() && !fullNameGiven(c.name)) return "We need your first and last name.";
+  const digits = c.phone.replace(/\D/g, "");
+  if (digits.length >= 8) {
+    const local = digits.startsWith("61") ? `0${digits.slice(2)}` : digits;
+    if (local.length === 10 && /^0[2378]/.test(local)) return "That looks like a landline — we need a mobile to text your code.";
+    if (local.length < 10 || !local.startsWith("04")) return "We need a mobile to text your code — like 0412 345 678.";
+  } else if (digits.length > 0) {
+    return "We need a mobile to text your code — like 0412 345 678.";
+  }
+  if (c.email.trim() && !/.+@.+\..+/.test(c.email.trim())) return "That email doesn't look right — check it for us.";
+  if (!fullNameGiven(c.name)) return c.name.trim() ? null : (digits.length || c.email.trim() ? "Your full name, please." : null);
+  if (digits.length === 0) return "Your mobile, please — we text your code to it.";
+  if (!c.email.trim()) return "Your email, please — your quote goes there.";
+  return null;
 }
 
 /** Where the phone's screen id is kept between reloads, beside the resume record. */

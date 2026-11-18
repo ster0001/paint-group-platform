@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import { aboutMissing, anyBrick, anyVerticalTimber, exteriorV2Answered, paintedSides, partsOnSide, setSidePaint, toggleExtra, togglePart, PART_GROUPS, VERANDAH_PARTS } from "./exterior-model";
 import { EXTERIOR_PARTS, EXTERIOR_EXTRAS, type ExteriorV2 } from "./state";
 import { houseOfShape } from "@/app/wizard/ExteriorHome";
+/** Go-live S4 (H2): a fresh house now pre-ticks the usual parts and its usual wall material — these tests tick their own, so they start blank. */
+const blank = (shape: Parameters<typeof houseOfShape>[0]) => ({ ...houseOfShape(shape, null, []), parts: [], wall: { down: null, up: null, brickPainted: null, timberPainted: null } });
 import { defaultSides } from "./exterior-model";
 import { typicalFor } from "./exterior-typicals";
 import { applyExteriorQuickLook, DEFAULT_EXTERIOR_QUICK_LOOK, exteriorQuickLookFromState, exteriorRestatement } from "./exterior-quick-look";
@@ -17,7 +19,7 @@ import { defaultWizardState, wizardStateSchema } from "./state";
  */
 
 function house(shape: Parameters<typeof houseOfShape>[0] = "cal"): ExteriorV2 {
-  const v2 = { ...houseOfShape(shape, null, []), sizeBand: "md" as const };
+  const v2 = { ...blank(shape), sizeBand: "md" as const };
   return { ...v2, sides: defaultSides(v2) };
 }
 
@@ -107,7 +109,7 @@ describe("once Painting is answered, the drawn house is the job", () => {
     const back = exteriorQuickLookFromState(ext);
     expect(back.v2).toEqual(v2);
     expect(back.elements).toEqual(["body", "windows", "doors", "fascias"]);
-    expect(exteriorRestatement(back)).toMatch(/^Based on the walls, windows, doors, fascias and paling fence \(render and weatherboard\), \d+ colonial windows, \d+ doors, the front, back and left side, going much lighter, the paintwork priced from good to peeling, double storey\./);
+    expect(exteriorRestatement(back)).toMatch(/^Based on the walls, fascias, windows, doors and paling fence \(render and weatherboard\), \d+ colonial windows, \d+ doors, the front, back and left side, going much lighter, the paintwork priced from good to peeling, double storey\./);
   });
   it("the tree is the model's: one node per painted side with the ticked parts, the extras node, no 12 × 14 scaffold", () => {
     let v2 = ["walls", "fascias", "gable"].reduce((acc, p) => togglePart(acc, p as never), house("cal"));

@@ -5,7 +5,7 @@ import { test } from "../helpers";
 /** Quote stage v10 (S7 switch-over): with the flag on, the gate's door reads "detailed" and opens /estimate/quote. */
 const V10 = process.env.NEXT_PUBLIC_QUOTE_STAGE_V10 !== "0";
 import { serviceClient } from "../fixtures/woLoop";
-import { MONEY_RANGE, passOtpIfShown } from "./drive";
+import { MONEY_RANGE, passOtpIfShown, gateDoor } from "./drive";
 
 /**
  * Wizard mobile v5 — session 4 (brief §4, acceptance §9 items 7, 10, 11),
@@ -155,12 +155,14 @@ test.describe("Wizard mobile v5 — the gate on a phone (session 4)", () => {
     const bar = page.getByTestId("gate-bar");
     await expect(bar.locator("button")).toHaveCount(1);
     await expect(bar.getByTestId("gate-bar-exact")).toHaveText(V10 ? "Get my quote range" : "Get my exact price");
-    const b = (await bar.boundingBox())!;
-    expect(Math.round(b.y + b.height)).toBe(780);
+    // go-live S4 (M4): the bar stands in for the inline door only while that door is off the screen — one door visible at a time
+    await expect(page.locator('[data-testid="gate-exact"]:visible, [data-testid="gate-bar-exact"]:visible')).toHaveCount(1);
+    const b = await bar.boundingBox();
+    if (b) expect(Math.round(b.y + b.height)).toBe(780);
     if (SHOTS) { await page.waitForTimeout(700); await page.screenshot({ path: `${SHOTS}/12-gate.png`, animations: "disabled" }); await page.screenshot({ path: `${SHOTS}/12-gate-full.png`, fullPage: true, animations: "disabled" }); }
     await expect.poll(() => events.some((e) => e.type === "gate_viewed" && e.payload.breakpoint === "mobile" && e.payload.bigger_job === false), { timeout: 10_000 }).toBe(true);
     // the door writes its event, then the scope
-    await bar.getByTestId("gate-bar-exact").tap();
+    await gateDoor(page).tap();
     await expect(page).toHaveURL(V10 ? /\/estimate\/quote\?id=/ : /\/estimate\/scope\?id=/, { timeout: 30_000 });
     expect(events.some((e) => e.type === "gate_cta_clicked" && e.payload.cta === "exact" && e.payload.breakpoint === "mobile")).toBe(true);
   });

@@ -79,6 +79,16 @@ On a phone (any screen narrower than about 770px) the same questions come one at
 - estimator/commercial — an office, warehouse, shop or building
 - estimator/trade — agencies and building managers with a trade account
 
+## Changes on 18 Nov 2026
+- **Outside, the usual parts come ticked.** Walls (where a home like yours usually has painted walls — bare brick stays unticked), fascias, gutters, eaves, windows and doors start ticked on the Painting screens; untick what we are not doing. The first screen says so if you clear everything, and the last Painting screen's Continue tells you why it waits ("Tick at least one part").
+- **Outside skips "What kind of place?"** — the home-type screen says it. Painting a commercial building? The line under the shapes takes you to the commercial questions.
+- **The wall material is pre-selected** from the home type (weatherboards for a weatherboard home, render for a double-storey, brick for brick veneer); change it if we have it wrong.
+- **The outside promise reads "Side by side, about two minutes."** and the range screen's basis line names only the parts you ticked.
+- **The details screen says what is wrong** as you type — a first name alone, a landline ("That looks like a landline — we need a mobile to text your code"), a short mobile, an email that doesn't look right — and the consent line sits above the button, never under it.
+- **Typing your address never moves the job cards**; the suggestions drop over them.
+- **A small job** (under our minimum call-out) shows one sentence and the mobile you already gave — tap **Request a call back**, or **Different number?** to change it. An address outside our area gets the out-of-area screen first, whatever the size.
+- **Option cards are named for screen readers** by the question above them.
+
 ## Changes on 5 Nov 2026
 - **One question at a time on a laptop.** Where the shopfront has it switched on, the laptop asks the phone's twelve screens one at a time inside its two-column layout, with the keys 1–5 / Enter / ← and small key numbers on the cards; the range screen asks **Want the detailed number?** with **Get my detailed price** as the first door. See *Steps*, step 2.
 - **A texted code before the price.** After your name, mobile and email, we text a six-digit code to the mobile and the range shows only once it is entered — on a phone and on a laptop. Send it again waits a minute; Wrong number? Change it goes back to the details. See *On a phone*, step 12a.

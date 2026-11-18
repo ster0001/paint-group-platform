@@ -1,5 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
-import { lookAtEverySide, passGateIfShown, quickNext, MONEY_RANGE, passOtpIfShown, tightenToScope } from "./drive";
+import { lookAtEverySide, passGateIfShown, quickNext, MONEY_RANGE, passOtpIfShown, tightenToScope, setParts, gateDoor } from "./drive";
 import { toSides } from "./exterior-v2-drive";
 
 /**
@@ -133,17 +133,15 @@ test.describe("on a phone: Tighten is the walk-around, one screen per side (exte
     await fillQuickAddress(page, { suburb: `E2E S6 Walk ${run}` });
     await expect(page.getByTestId("wzm")).toBeVisible({ timeout: 20_000 });
     await page.getByTestId("ql-jobtype-exterior").tap();
-    await at(page, "property");
-    await page.getByTestId("ql-kind-house").tap();
     await at(page, "shape");
     await page.getByTestId("ql-ext-type-cal").tap();
     await at(page, "size");
     await page.getByTestId("ql-ext-size-md").tap();
     await at(page, "p-house");
-    for (const p of ["walls", "gable", "fascias", "eaves"]) await page.getByTestId(`ext-part-${p}`).tap();
+    await setParts(page, ["walls", "gable", "fascias", "eaves", "windows", "doors"]); // go-live S4 (H2): set, not tapped — the usual parts come pre-ticked
     await page.getByTestId("ql-next").tap();
     await at(page, "p-win");
-    for (const p of ["windows", "doors"]) await page.getByTestId(`ext-part-${p}`).tap();
+    await setParts(page, ["walls", "gable", "fascias", "eaves", "windows", "doors"]);
     await page.getByTestId("ql-next").tap();
     await at(page, "p-ver");
     await page.getByTestId("ql-next").tap();
@@ -179,7 +177,7 @@ test.describe("on a phone: Tighten is the walk-around, one screen per side (exte
     test.setTimeout(240_000);
     await toGate(page);
     const thumb = page.getByTestId("wzm-thumb").locator("svg.wz-elev");
-    await page.getByTestId("gate-bar-exact").tap();
+    await gateDoor(page).tap();
     // the front: the house turned to it, the tabs, the counts, the size question, the condition; the bar waits for the size
     await at(page, "w-front");
     await expect(page.getByTestId("ext-walk")).toBeVisible();
@@ -236,7 +234,7 @@ test.describe("on a phone: Tighten is the walk-around, one screen per side (exte
     await at(page, "w-back");
     for (let i = 0; i < 3; i++) await page.getByTestId("wzm-back").tap();
     await expect(page.getByTestId("wzm-gate")).toHaveAttribute("data-variant", "exact");
-    await page.getByTestId("gate-bar-exact").tap();
+    await gateDoor(page).tap();
     await at(page, "w-front");
     await page.getByTestId("ext-check-side").tap();
     await at(page, "w-done");

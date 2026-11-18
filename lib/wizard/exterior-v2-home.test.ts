@@ -2,10 +2,12 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { stepsFor } from "./quick-look";
 import { exteriorV2On } from "./ui-flags";
 import { EXTERIOR_SHAPE_KEYS, EXTERIOR_SIDE_KEYS, typicalFor } from "./exterior-typicals";
-import { defaultSides, exteriorV2Answered, partExists, reseedSides } from "./exterior-model";
+import { defaultSides, exteriorV2Answered, partExists, reseedSides, usualParts } from "./exterior-model";
 import { exteriorV2Schema, type ExteriorV2 } from "./state";
 import { elevationMarkup, typeThumbMarkup } from "@/app/wizard/pictures/Elevation";
 import { houseOfShape } from "@/app/wizard/ExteriorHome";
+/** Go-live S4 (H2): a fresh house now pre-ticks the usual parts and its usual wall material — these tests tick their own, so they start blank. */
+const blank = (shape: Parameters<typeof houseOfShape>[0]) => ({ ...houseOfShape(shape, null, []), parts: [], wall: { down: null, up: null, brickPainted: null, timberPainted: null } });
 import { applyExteriorQuickLook, DEFAULT_EXTERIOR_QUICK_LOOK, exteriorQuickLookFromState } from "./exterior-quick-look";
 import { applyExteriorAnswers, type MergedBundle } from "./exteriorAnswers";
 import { DEFAULT_QUICK_LOOK, quickLookToState } from "./quick-look";
@@ -48,8 +50,12 @@ describe("a fresh house per shape", () => {
       expect(v2.propertyType).toBe(k);
       expect(v2.sizeBand).toBeNull();
       expect(v2.rowPosition).toBe(t.sharedSides.length ? "mid" : null);
-      expect(v2.parts).toEqual([]);
-      expect(exteriorV2Answered(v2)).toBe(false);
+      // Go-live S4 (H2, M5): the usual parts ticked (walls only where the shape's walls are usually painted), the usual wall material set
+      expect(v2.parts).toEqual(usualParts(t));
+      expect(v2.parts.includes("walls")).toBe(t.wallsPainted);
+      expect(v2.parts).toEqual(expect.arrayContaining(["fascias", "gutters", "eaves", "windows", "doors"]));
+      expect(v2.wall.down).toBe(t.usualWalls);
+      expect(exteriorV2Answered(v2)).toBe(true);
       for (const side of EXTERIOR_SIDE_KEYS) {
         const s = v2.sides[side]!;
         expect(s.shared).toBe(t.sharedSides.includes(side));
@@ -59,11 +65,11 @@ describe("a fresh house per shape", () => {
       expect(() => exteriorV2Schema.parse(v2)).not.toThrow();
     }
     // A size already picked rides to the next shape.
-    const sized = houseOfShape("th", { ...houseOfShape("wb", null, []), sizeBand: "lg" }, []);
+    const sized = houseOfShape("th", { ...blank("wb"), sizeBand: "lg" }, []);
     expect(sized.sizeBand).toBe("lg");
   });
   it("re-seeding on a size change keeps a hand-adjusted side and everything said about it; the row answer re-opens a side", () => {
-    const v2: ExteriorV2 = { ...houseOfShape("th", null, []), sizeBand: "md" };
+    const v2: ExteriorV2 = { ...blank("th"), sizeBand: "md" };
     v2.sides = defaultSides(v2);
     v2.sides.front = { ...v2.sides.front!, w: 9, adjusted: true, off: ["eaves"], material: "render", cond: "weathered" };
     const bigger = reseedSides({ ...v2, sizeBand: "xl" });
@@ -85,7 +91,7 @@ describe("a fresh house per shape", () => {
 describe("the picture", () => {
   it("every shape draws every side: the parts as data-e groups, all grey, the neighbours on the shared sides, the shape's roof", () => {
     for (const k of EXTERIOR_SHAPE_KEYS) {
-      const v2 = { ...houseOfShape(k, null, []), sizeBand: "md" as const };
+      const v2 = { ...blank(k), sizeBand: "md" as const };
       v2.sides = defaultSides(v2);
       const t = typicalFor(k);
       for (const side of EXTERIOR_SIDE_KEYS) {
@@ -109,7 +115,7 @@ describe("the picture", () => {
     }
   });
   it("a ticked part lights up; a bigger house draws wider walls", () => {
-    const v2 = { ...houseOfShape("cal", null, []), sizeBand: "md" as const };
+    const v2 = { ...blank("cal"), sizeBand: "md" as const };
     v2.sides = defaultSides(v2);
     const grey = elevationMarkup(v2, "front");
     const lit = elevationMarkup({ ...v2, parts: ["walls", "gable"] }, "front");
@@ -128,7 +134,7 @@ describe("the picture", () => {
 describe("until the Painting step ships, the drawn house sizes the old scaffold", () => {
   const base = () => quickLookToState({ ...DEFAULT_QUICK_LOOK, jobType: "exterior" }, { ...defaultWizardState(), mode: "customer" as const });
   it("a house with no parts rides along untouched, reads back for resume, and the v1 screen's own answers stay", () => {
-    const v2 = { ...houseOfShape("th", null, []), sizeBand: "sm" as const };
+    const v2 = { ...blank("th"), sizeBand: "sm" as const };
     v2.sides = defaultSides(v2);
     const s1 = applyExteriorQuickLook({ ...DEFAULT_EXTERIOR_QUICK_LOOK, v2 }, base());
     expect(s1.exterior?.v2).toEqual(v2);
@@ -142,7 +148,7 @@ describe("until the Painting step ships, the drawn house sizes the old scaffold"
     expect(back.elements).toEqual(["body", "fascias"]);
   });
   it("the v1 scaffold's sides take the drawn house's widths and height instead of 12 / 14 × 2.6", () => {
-    const v2 = { ...houseOfShape("th", null, []), sizeBand: "sm" as const };
+    const v2 = { ...blank("th"), sizeBand: "sm" as const };
     v2.sides = defaultSides(v2);
     const s = applyExteriorQuickLook({ ...DEFAULT_EXTERIOR_QUICK_LOOK, elements: ["body", "fascias"], materials: ["render"], v2 }, base());
     const merged: MergedBundle = { areas: [], skipped: [], deferred: [], assumedCount: 0 };

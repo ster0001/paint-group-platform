@@ -2,7 +2,7 @@
 
 import { exteriorV2Schema, type ExteriorV2 } from "@/lib/wizard/state";
 import { EXTERIOR_SHAPE_KEYS, typicalFor, type ExteriorShapeKey, type ExteriorTypicalRow, type SizeBand } from "@/lib/wizard/exterior-typicals";
-import { defaultSides, reseedSides } from "@/lib/wizard/exterior-model";
+import { defaultSides, reseedSides, usualParts } from "@/lib/wizard/exterior-model";
 import { TypeThumb } from "./pictures/Elevation";
 
 /**
@@ -48,6 +48,9 @@ export function houseOfShape(shape: ExteriorShapeKey, prev: ExteriorV2 | null | 
     sizeBand: prev?.sizeBand ?? null,
     rowPosition: t.sharedSides.length ? "mid" : null,
     postKind: t.verandah === "lace" ? "lace" : t.verandah === "columns" ? "columns" : null,
+    // Go-live S4 (H2, M5): the usual parts ticked, the wall material the shape usually has — the customer changes either
+    parts: usualParts(t),
+    wall: { down: t.usualWalls, up: null, brickPainted: null, timberPainted: null },
     sides: {},
   });
   return { ...base, sides: defaultSides(base, rows) };

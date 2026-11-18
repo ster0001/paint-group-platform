@@ -1,7 +1,7 @@
 import { test, expect, devices, type Page } from "@playwright/test";
 import { stepsFor, type QuickLook } from "../../lib/wizard/quick-look";
 import { STEP_LABELS } from "../../app/wizard/stepRail";
-import { driveNoPlanWizard, fillQuickAddress, openQuickLook, openScopeEditor, passGateIfShown, quickNext, MONEY_RANGE, answerOutsideQuick, openTalk, lookAtEverySide, onMobileShell, tightenToScope } from "./drive";
+import { driveNoPlanWizard, fillQuickAddress, openQuickLook, openScopeEditor, passGateIfShown, quickNext, MONEY_RANGE, answerOutsideQuick, openTalk, lookAtEverySide, onMobileShell, tightenToScope, setParts, gateDoor } from "./drive";
 
 /**
  * Wizard UI refresh, S1 — the shell, on every path (brief §7.1, §7.7, §10).
@@ -493,7 +493,7 @@ test.describe("UI refresh S3 · the range screen, every path", () => {
     expect(w.sw).toBeLessThanOrEqual(390);
     expect(w.vw).toBeLessThanOrEqual(390);
     // Wizard mobile v5 (S4): on a phone the range is the gate, its one door on the sticky bar.
-    await expect(page.getByTestId("gate-bar-exact")).toBeVisible();
+    await expect(gateDoor(page)).toBeVisible();
     await ctx.close();
   });
 });
@@ -619,7 +619,8 @@ test.describe("UI refresh S5 · home outside", () => {
     test.skip(await onMobileShell(page), "desktop one-press: the laptop's exterior screens are addendum session 2");
     const pic = page.getByTestId("ql-picture").getByTestId("pic-outside");
     await expect(pic).toBeVisible();
-    // Nothing pre-ticked: the walls and frames are grey.
+    // go-live S4 (H2): the usual parts come pre-ticked — cleared so the picture starts grey
+    await setParts(page, []);
     await expect(pic.locator(".e[data-e='walls']")).toHaveAttribute("data-on", "0");
     await page.getByTestId("ext-part-walls").click();
     await expect(pic.locator(".e[data-e='walls']")).toHaveAttribute("data-on", "1");
@@ -683,7 +684,7 @@ test.describe("UI refresh S5 · home outside", () => {
     await toPaint(page);
     await fits();
     // Exterior on mobile v5 (S2–S4): Painting is four screens; the deck is on the last; About it and Each side are their own screens.
-    await page.getByTestId("ext-part-walls").click();
+    await setParts(page, ["walls"]); // go-live S4 (H2): the usual parts come pre-ticked
     for (const id of ["p-win", "p-ver", "p-around"]) { await page.getByTestId("ql-next").click(); await expect(page.locator(`[data-mobile-screen='${id}']`)).toBeVisible({ timeout: 10_000 }); }
     await page.getByTestId("ext-extra-deck").click();
     await fits();
@@ -705,7 +706,7 @@ test.describe("UI refresh S5 · home outside", () => {
     // Exterior on mobile v5 (S5, S6): the phone's gate, and Get my exact price is the walk around the house.
     await expect(page.getByTestId("gate-range")).toHaveText(MONEY_RANGE, { timeout: 90_000 });
     await fits();
-    await page.getByTestId("gate-bar-exact").click();
+    await gateDoor(page).click();
     await expect(page.getByTestId("ext-walk")).toBeVisible({ timeout: 20_000 });
     await fits();
     await ctx.close();
