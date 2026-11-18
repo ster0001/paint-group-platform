@@ -1041,8 +1041,8 @@ export type VisitDoneRow = {
 export type AccountEstimateRow = { id: string; account_id: string | null; sent_at: string | null; total_cents: number | null };
 
 /**
- * A visit marked done, with no estimate sent to that customer at or after the
- * visit. Due two days after it; the value is the visit's own estimate when it
+ * A visit marked done whose estimate has not been sent since — the visit's own
+ * estimate when it has one, otherwise any estimate to that customer. Due two days after it; the value is the visit's own estimate when it
  * has one. The subject is that estimate when there is one (so the Estimates
  * tab's queue carries it), the visit otherwise — the key is the visit's
  * either way, so a dismissal survives the estimate being linked later.
@@ -1050,8 +1050,12 @@ export type AccountEstimateRow = { id: string; account_id: string | null; sent_a
 export function buildEstimateAfterVisitItems(rows: readonly VisitDoneRow[], estimates: readonly AccountEstimateRow[], now: Date): WorkItem[] {
   const items: WorkItem[] = [];
   for (const v of rows) {
-    const sent = estimates.some((e) => e.sent_at && e.sent_at >= v.starts_at
-      && ((v.account_id && e.account_id === v.account_id) || (v.estimate_id && e.id === v.estimate_id)));
+    // The visit's own estimate, when it has one, is what the office owes: a different quote
+    // sent to the same customer does not settle it (19 Nov 2026). Without one, any estimate
+    // sent to the customer since the visit does.
+    const sent = v.estimate_id
+      ? estimates.some((e) => e.id === v.estimate_id && e.sent_at && e.sent_at >= v.starts_at)
+      : estimates.some((e) => e.sent_at && e.sent_at >= v.starts_at && Boolean(v.account_id) && e.account_id === v.account_id);
     if (sent) continue;
     const since = v.outcome_at ?? v.starts_at;
     const own = v.estimate_id ? estimates.find((e) => e.id === v.estimate_id) : undefined;

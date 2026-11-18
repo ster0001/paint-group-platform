@@ -28,8 +28,10 @@ describe("Online now & dropped (brief §4.3)", () => {
     const dropped = view.find((s) => s.section === "dropped")!;
     expect(dropped.rows.map((r) => r.who)).toEqual(["Fairfield"]);
   });
-  it("a converted session is on none of them, and sections come in the brief's order", () => {
-    expect(sectionOf(j({ converted_at: ago(1) }), now)).toBeNull();
+  it("a converted session (it saw its range) is live while live, Priced while it has asked for nothing, else nowhere; sections in the brief's order", () => {
+    expect(sectionOf(j({ converted_at: ago(1), last_seen_at: ago(1) }), now)).toBe("online");
+    expect(sectionOf(j({ converted_at: ago(30), last_seen_at: ago(20), bucket: "priced_no_request" }), now)).toBe("priced");
+    expect(sectionOf(j({ converted_at: ago(30), last_seen_at: ago(20), bucket: "ready_visit", visits: 2 }), now)).toBeNull();
     expect(buildOnlineNow([], now).map((s) => s.label)).toEqual(["Online now", "Needs help", "Came back after dropping out", "Priced, no request", "Dropped today"]);
   });
 });

@@ -101,13 +101,20 @@ test.describe("Estimate stage, session 2 — the stage on real rows", () => {
   });
 
   test("a done visit with nothing sent reads Visit / call done, and is on Today as an estimate to send", async ({ page }) => {
+    test.setTimeout(150_000);
     await signIn(page, staff!, /\/(home|estimates)/);
     await page.goto(`/estimates/stage/${draftId}`);
     await expect(page.getByTestId("estimate-stage")).toHaveAttribute("data-stage", "visit_done");
 
+    // Today shows 50 cards a page, overdue first; on the shared test project this one can
+    // sit a few pages in, so look through them (the Estimates queue, one list, is checked in s4).
     await expect.poll(async () => {
-      await page.goto("/crm/today?f=followups");
-      return page.getByText(`${NAME} — visit done, estimate not sent`).count();
-    }, { timeout: 60_000, intervals: [2_000, 5_000, 10_000] }).toBeGreaterThan(0);
+      for (let p = 1; p <= 10; p++) {
+        await page.goto(`/crm/today?f=followups&page=${p}`);
+        if (await page.getByText(`${NAME} — visit done, estimate not sent`).count()) return 1;
+        if (!(await page.getByRole("link", { name: /Older/ }).count())) break;
+      }
+      return 0;
+    }, { timeout: 90_000, intervals: [2_000, 5_000, 10_000] }).toBeGreaterThan(0);
   });
 });
