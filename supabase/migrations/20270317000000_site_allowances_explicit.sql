@@ -11,7 +11,8 @@
 -- Three places hold a pricing state: estimates.builder_state, and for an accepted job with a work order
 -- wo_working_scopes.accepted_state and .working_state (the revisions). All three are pinned.
 -- Accepted estimates are frozen by estimate_frozen_guard; estimates.options = on is its own bypass for
--- a change that moves nothing, set for this session and reset at the end.
+-- a change that moves nothing, set for this session and reset at the end. The working scopes have their
+-- own guard (wo_working_scope_guard, no bypass): its trigger is disabled for the one update and re-enabled.
 -- Converges: a state that already carries cleaningHours is left alone. Templates (settings.estimate_templates)
 -- are left alone on purpose — a new estimate from a template takes the scale.
 -- Paste with the engine change deployed AFTER it, never before. The before/after report
@@ -54,6 +55,10 @@ set builder_state = pg_temp.pin_site_allowances(builder_state,
       pg_temp.flat_sundries_dollars('Sundries per job — interior'), pg_temp.flat_sundries_dollars('Sundries per job — exterior'))
 where builder_state is not null and jsonb_typeof(builder_state) = 'object' and not (builder_state ? 'cleaningHours');
 
+-- wo_working_scope_guard freezes accepted_state for everyone but service_role and has no setting to bypass;
+-- the SQL editor runs as postgres, so the trigger is switched off for this one update and back on after.
+alter table public.wo_working_scopes disable trigger wo_working_scopes_baseline;
+
 update public.wo_working_scopes
 set accepted_state = pg_temp.pin_site_allowances(accepted_state,
       pg_temp.flat_sundries_dollars('Sundries per job — interior'), pg_temp.flat_sundries_dollars('Sundries per job — exterior')),
@@ -62,6 +67,7 @@ set accepted_state = pg_temp.pin_site_allowances(accepted_state,
 where (accepted_state is not null and jsonb_typeof(accepted_state) = 'object' and not (accepted_state ? 'cleaningHours'))
    or (working_state is not null and jsonb_typeof(working_state) = 'object' and not (working_state ? 'cleaningHours'));
 
+alter table public.wo_working_scopes enable trigger wo_working_scopes_baseline;
 reset estimates.options;
 
 -- ---- read-back: ONE row, every column equals its _expect_ -----------------------------
@@ -73,6 +79,7 @@ select
   (select count(*) from public.wo_working_scopes where working_state is not null and jsonb_typeof(working_state) = 'object') as scopes_with_state,
   (select count(*) from public.wo_working_scopes where working_state is not null and jsonb_typeof(working_state) = 'object'
      and (working_state ? 'cleaningHours') and (accepted_state is null or (accepted_state ? 'cleaningHours'))) as scopes_pinned,
+  (select tgenabled from pg_trigger where tgrelid = 'public.wo_working_scopes'::regclass and tgname = 'wo_working_scopes_baseline') as scope_guard_enabled, 'O' as _expect_scope_guard_enabled,
   'estimates_pinned must equal estimates_with_state, and scopes_pinned must equal scopes_with_state' as _expect_equal_pairs;
 
 insert into public._prod_migrations(name) values ('20270317000000_site_allowances_explicit.sql') on conflict (name) do nothing;
