@@ -41,6 +41,15 @@ export default defineConfig({
    * a quiet machine is a real race and should be looked at, not re-rolled.
    */
   retries: process.env.CI ? 1 : 0,
+  /**
+   * FAIL FAST, in CI (18 Nov 2026). A broken change rarely breaks one test: a
+   * cap tripping or a screen moving fails dozens, each sitting out its 1–5
+   * minute timeout and then its retry. That kept main's e2e job — and with it
+   * the one test project every other run queues for — busy for hours, four
+   * runs in a row. Past 25 failures the run stops and reports what it has;
+   * the first failures are the ones that say why. Locally 0: run everything.
+   */
+  maxFailures: process.env.CI ? 25 : 0,
   workers: 1,
   reporter: [["list"]],
   timeout: 60_000,
