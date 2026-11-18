@@ -1,6 +1,6 @@
 import { test, expect, type Page } from "@playwright/test";
 import { createClient } from "@supabase/supabase-js";
-import { MONEY_RANGE, quickNext, passGateIfShown, lookAtEverySide, tightenToScope } from "./drive";
+import { MONEY_RANGE, quickNext, passGateIfShown, lookAtEverySide, tightenToScope, DESKTOP_ONE_PRESS, GROUPED_LAPTOP_ONLY } from "./drive";
 import { toSides } from "./exterior-v2-drive";
 
 /**
@@ -51,6 +51,7 @@ async function toEditor(page: Page, shape: "wb" | "ds", dropSides: Array<"front"
 
 
 test("a side not painting is off the estimate altogether; the editor's sides open with the which-side question already answered", async ({ page }) => {
+  test.skip(DESKTOP_ONE_PRESS, GROUPED_LAPTOP_ONLY);
   test.setTimeout(300_000);
   const id = await toEditor(page, "wb", ["right"]);
 

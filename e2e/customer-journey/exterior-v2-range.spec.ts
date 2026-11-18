@@ -1,5 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
-import { passGateIfShown, quickNext, MONEY_RANGE, lookAtEverySide, passOtpIfShown, tightenToScope, setParts, gateDoor } from "./drive";
+import { passGateIfShown, quickNext, MONEY_RANGE, lookAtEverySide, passOtpIfShown, tightenToScope, setParts, gateDoor, DESKTOP_ONE_PRESS, GROUPED_LAPTOP_ONLY } from "./drive";
 import { toSides } from "./exterior-v2-drive";
 /** Quote stage v10 (S7 switch-over): with the flag on, the gate's door reads "detailed". */
 const V10 = process.env.NEXT_PUBLIC_QUOTE_STAGE_V10 !== "0";
@@ -22,6 +22,7 @@ const FLAG_ON = process.env.NEXT_PUBLIC_EXTERIOR_V2 !== "0"; // on by default si
 test.skip(!FLAG_ON, "exteriorV2 is switched off in this environment (NEXT_PUBLIC_EXTERIOR_V2=0)");
 
 test("the guide range on a bungalow: the pill, one row per side with the gable on the right only, around the house, not in this number, the doors in order", async ({ page }) => {
+  test.skip(DESKTOP_ONE_PRESS, GROUPED_LAPTOP_ONLY);
   test.setTimeout(240_000);
   await toSides(page, "cal", ["walls", "gable", "fascias", "gutters", "eaves", "windows", "doors", "verandah", "posts"]);
   // The right side gets a gable; the left side is not painting (5a, 5b).
@@ -71,6 +72,7 @@ test("the guide range on a bungalow: the pill, one row per side with the gable o
 });
 
 test("a townhouse in the middle of the row prices two sides; the extras get their own row; no price before the gate", async ({ page }) => {
+  test.skip(DESKTOP_ONE_PRESS, GROUPED_LAPTOP_ONLY);
   test.setTimeout(240_000);
   await toSides(page, "th", ["walls", "fascias", "windows"], "mid");
   // No dollar figure on the Each-side step (8).

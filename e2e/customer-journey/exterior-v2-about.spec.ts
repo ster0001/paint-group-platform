@@ -1,5 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
-import { fillQuickAddress, openQuickLook, passGateIfShown, quickNext, MONEY_RANGE, lookAtEverySide, tightenToScope, setParts } from "./drive";
+import { fillQuickAddress, openQuickLook, passGateIfShown, quickNext, MONEY_RANGE, lookAtEverySide, tightenToScope, setParts, DESKTOP_ONE_PRESS, GROUPED_LAPTOP_ONLY } from "./drive";
 
 /**
  * Exterior wizard v2 — S3: "Tell us about what you ticked" (brief §7.3;
@@ -41,6 +41,7 @@ const picture = (page: Page) => page.getByTestId("ql-picture").getByTestId("pic-
 const wallFill = (page: Page) => picture(page).locator(".e[data-e='walls'] rect").nth(1).getAttribute("fill");
 
 test("cards only for what was ticked; one material on a single storey; the picture's texture follows; Continue needs the material", async ({ page }) => {
+  test.skip(DESKTOP_ONE_PRESS, GROUPED_LAPTOP_ONLY);
   test.setTimeout(180_000);
   await toAbout(page, "cal", ["walls", "fascias", "gutters"]);
   await expect(page.getByRole("heading", { name: "Tell us about what you ticked" })).toBeVisible();
@@ -80,6 +81,7 @@ test("cards only for what was ticked; one material on a single storey; the pictu
 });
 
 test("a double storey asks downstairs and upstairs, Same as downstairs first; the window type changes the drawing; the gable, garage and posts cards", async ({ page }) => {
+  test.skip(DESKTOP_ONE_PRESS, GROUPED_LAPTOP_ONLY);
   test.setTimeout(180_000);
   await toAbout(page, "ds", ["walls", "windows", "garage", "verandah", "posts"]);
   await expect(page.getByTestId("ext-mat-up")).toBeVisible();
@@ -108,6 +110,7 @@ test("a double storey asks downstairs and upstairs, Same as downstairs first; th
 });
 
 test("the extras ask their sizes; a ticked pergola needs its top; then the range reads the drawn house and the sides editor opens", async ({ page }) => {
+  test.skip(DESKTOP_ONE_PRESS, GROUPED_LAPTOP_ONLY);
   test.setTimeout(240_000);
   await toAbout(page, "wb", ["walls", "fascias", "windows", "doors"]);
   // Back to Painting for the extras, then on again.
@@ -153,6 +156,7 @@ test("the extras ask their sizes; a ticked pergola needs its top; then the range
 });
 
 test("Which sides are we painting? is asked on About it: all four ticked on a bungalow, untick one and it is not on Each side; none ticked is refused", async ({ page }) => {
+  test.skip(DESKTOP_ONE_PRESS, GROUPED_LAPTOP_ONLY);
   test.setTimeout(180_000);
   await toAbout(page, "wb", ["walls", "fascias"]);
   await page.getByTestId("ext-mat-weatherboards").click();

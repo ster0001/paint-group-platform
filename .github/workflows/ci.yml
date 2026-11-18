@@ -214,6 +214,14 @@ jobs:
     concurrency:
       group: e2e-test-project
       cancel-in-progress: false
+    # A CEILING ON HOLDING THE TEST PROJECT (18 Nov 2026). With no limit a job
+    # gets GitHub's 6 hours, and the group above makes every other run wait it
+    # out: four main runs in a row ran 3–6 h (a cascading 429 at the texted
+    # code, then ~25 tests timing out twice each) and were cancelled by hand
+    # while every PR queued behind them. A whole healthy suite is well under
+    # this; a run still going at 3 hours is broken, and ending it releases
+    # the lock (global-setup clears a CI holder GitHub reports as completed).
+    timeout-minutes: 180
     env:
       # WHAT IS PRODUCTION — supplied, never inferred and never defaulted.
       # A project ref is not a secret (it is in every public URL the app

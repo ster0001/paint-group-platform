@@ -19,8 +19,8 @@ export const ESTIMATE_VIEW_LABEL: Record<EstimateView, string> = {
   automations: "Campaigns › Automations",
 };
 
-/** Until the Automations sub-tab exists (next brief) the chip opens Campaigns. */
-export const AUTOMATIONS_HREF = "/crm/campaigns";
+/** The chip opens Campaigns › Automations (A‑C, 17 Nov 2026). */
+export const AUTOMATIONS_HREF = "/crm/campaigns/automations";
 
 /** `?view=` → the view shown. Anything unknown, and the link-out, read as All estimates. */
 export function parseEstimateView(raw: string | undefined): Exclude<EstimateView, "automations"> {

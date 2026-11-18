@@ -3,7 +3,7 @@ import { mkdirSync } from "node:fs";
 import { serviceClient } from "../fixtures/woLoop";
 import { stepsFor } from "../../lib/wizard/quick-look";
 import { EXTERIOR_SHAPE_KEYS, scaledLengths, typicalFor } from "../../lib/wizard/exterior-typicals";
-import { fillQuickAddress, openQuickLook, passGateIfShown, quickNext, MONEY_RANGE, lookAtEverySide, tightenToScope, setParts } from "./drive";
+import { fillQuickAddress, openQuickLook, passGateIfShown, quickNext, MONEY_RANGE, lookAtEverySide, tightenToScope, setParts, DESKTOP_ONE_PRESS, GROUPED_LAPTOP_ONLY } from "./drive";
 
 /**
  * Exterior wizard v2 — S2: "What kind of home is it?" and the drawn house
@@ -53,6 +53,7 @@ test("the home step is on the rail, between the place and the outside questions"
 });
 
 test("Continue needs a shape and a size, said in words", async ({ page }) => {
+  test.skip(DESKTOP_ONE_PRESS, GROUPED_LAPTOP_ONLY);
   test.setTimeout(120_000);
   await toHome(page);
   await page.getByTestId("ql-next").click();
@@ -92,6 +93,7 @@ test("every shape draws: the picture carries the shape, its parts in grey, and t
 });
 
 test("the size scales the caption and the picture: Small is narrower than Very large, Not sure is Medium", async ({ page }) => {
+  test.skip(DESKTOP_ONE_PRESS, GROUPED_LAPTOP_ONLY);
   test.setTimeout(120_000);
   await toHome(page);
   await page.getByTestId("ql-ext-type-cal").click();
@@ -117,6 +119,7 @@ test("the size scales the caption and the picture: Small is narrower than Very l
 });
 
 test("a shared-wall shape asks where it is in the row; next door is drawn on each shared side; an end of the row opens one", async ({ page }) => {
+  test.skip(DESKTOP_ONE_PRESS, GROUPED_LAPTOP_ONLY);
   test.setTimeout(120_000);
   await toHome(page);
   await page.getByTestId("ql-ext-type-wb").click();
@@ -139,6 +142,7 @@ test("a shared-wall shape asks where it is in the row; next door is drawn on eac
 });
 
 test("the answers survive a reload, and Your job so far names the home", async ({ page }) => {
+  test.skip(DESKTOP_ONE_PRESS, GROUPED_LAPTOP_ONLY);
   test.setTimeout(120_000);
   await toHome(page);
   await page.getByTestId("ql-ext-type-terrace").click();
@@ -155,6 +159,7 @@ test("the answers survive a reload, and Your job so far names the home", async (
 });
 
 test("the rest of the outside path still reaches a range, and the sides editor's typical size is the drawn house's", async ({ page }) => {
+  test.skip(DESKTOP_ONE_PRESS, GROUPED_LAPTOP_ONLY);
   test.setTimeout(240_000);
   await toHome(page);
   await page.getByTestId("ql-ext-type-th").click();

@@ -14,6 +14,6 @@ describe("the estimates views (brief §4, R11)", () => {
   it("All estimates is plain /estimates, so the list's old links still land on it", () => {
     expect(estimateViewHref("all")).toBe("/estimates");
     expect(estimateViewHref("pipeline")).toBe("/estimates?view=pipeline");
-    expect(estimateViewHref("automations")).toBe("/crm/campaigns");
+    expect(estimateViewHref("automations")).toBe("/crm/campaigns/automations");
   });
 });
