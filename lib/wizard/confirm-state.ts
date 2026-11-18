@@ -16,13 +16,29 @@ import { defaultInteriorLoop, type InteriorLoopMeta } from "./rooms-loop";
  * report the same number. (R1.4's rule: one confidence function, one input.)
  */
 
-export type ConfirmState = "pending" | "confirmed";
+/**
+ * Go-live brief C1 (18 Nov 2026): the quote stage settles a room on its MEASURE card, not a
+ * "Confirm" button — "Looks right" / "Not sure" takes the typical size (`customer.size = "yes"`),
+ * typing a size measures it (`"adjusted"`). Both count as settled for the accuracy score and the
+ * range; a measured room is the tighter of the two (envelope.ts sizeResidualPct: 15 → 12 → 8).
+ */
+export type ConfirmState = "pending" | "confirmed" | "measured";
 
 type LooseBlock = Record<string, unknown> & {
   id?: number; kind?: string; name?: string; type?: string;
   areaType?: string; isOption?: boolean;
-  customer?: { confirmed?: boolean };
+  customer?: { confirmed?: boolean; size?: "yes" | "adjusted" | null };
 };
+
+/** Where one loop area sits: measured (a typed size), confirmed (settled at the typical, or the old Confirm), else pending. */
+export function confirmStateOf(b: LooseBlock): ConfirmState {
+  if (b.customer?.size === "adjusted") return "measured";
+  if (b.customer?.confirmed === true || b.customer?.size === "yes") return "confirmed";
+  return "pending";
+}
+
+/** Settled = confirmed or measured — what the strip's "N of N" and the residual count. */
+export const isSettled = (s: ConfirmState | undefined): boolean => s === "confirmed" || s === "measured";
 
 /** An interior room card — the loop confirms these one at a time. */
 function isLoopRoom(b: LooseBlock): boolean {
@@ -60,7 +76,7 @@ export function loopConfirmState(
     // An excluded side ("we're not painting that one") sits outside the
     // total, so it is settled, not pending.
     if (b.isOption === true) continue;
-    states.set(Number(b.id) || 0, b.customer?.confirmed === true ? "confirmed" : "pending");
+    states.set(Number(b.id) || 0, confirmStateOf(b));
   }
 
   let checksDone = 0;
@@ -88,7 +104,7 @@ export function loopProgress(builderState: unknown): { confirmed: number; total:
   const { states } = loopConfirmState(blocks, st.interiorLoop ?? defaultInteriorLoop(), st.sidesLoop ?? defaultSidesLoop());
   if (states.size === 0) return null;
   let confirmed = 0;
-  for (const v of states.values()) if (v === "confirmed") confirmed++;
+  for (const v of states.values()) if (isSettled(v)) confirmed++;
   const hasRooms = (blocks as LooseBlock[]).some((b) => states.has(Number(b.id) || 0) && isLoopRoom(b));
   return { confirmed, total: states.size, unit: hasRooms ? "rooms" : "sides" };
 }

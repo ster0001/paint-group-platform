@@ -134,14 +134,27 @@ describe("the envelope", () => {
     const none = envelopeFor({ blocks: answeredCup, state: all, ctx, adj, bands: BANDS, confirmed: new Map() });
     const half = envelopeFor({ blocks: answeredCup, state: all, ctx, adj, bands: BANDS, confirmed: new Map([[1, "confirmed"]]) });
     const full = envelopeFor({ blocks: answeredCup, state: all, ctx, adj, bands: BANDS, confirmed: new Map([[1, "confirmed"], [2, "confirmed"]]) });
+    // D1 (18 Nov 2026): settled at the typical → the MID band; measured → the TIGHT band; never under it
     expect(sizeResidualPct(0, DEFAULT_BANDS)).toBe(DEFAULT_BANDS.widePct);
-    expect(sizeResidualPct(1, DEFAULT_BANDS)).toBe(DEFAULT_BANDS.tightPct);
-    expect(sizeResidualPct(0.5, DEFAULT_BANDS)).toBeCloseTo((DEFAULT_BANDS.widePct + DEFAULT_BANDS.tightPct) / 2);
+    expect(sizeResidualPct(1, DEFAULT_BANDS)).toBe(DEFAULT_BANDS.midPct);
+    expect(sizeResidualPct(0.5, DEFAULT_BANDS)).toBeCloseTo((DEFAULT_BANDS.widePct + DEFAULT_BANDS.midPct) / 2);
+    expect(sizeResidualPct({ settled: 1, measured: 1 }, DEFAULT_BANDS)).toBe(DEFAULT_BANDS.tightPct);
+    expect(sizeResidualPct({ settled: 1, measured: 0.5 }, DEFAULT_BANDS)).toBeCloseTo((DEFAULT_BANDS.midPct + DEFAULT_BANDS.tightPct) / 2);
+    expect(sizeResidualPct({ settled: 0.2, measured: 0.9 }, DEFAULT_BANDS), "measured never exceeds settled").toBeCloseTo(DEFAULT_BANDS.widePct - (DEFAULT_BANDS.widePct - DEFAULT_BANDS.midPct) * 0.2 - (DEFAULT_BANDS.midPct - DEFAULT_BANDS.tightPct) * 0.2);
+    expect(sizeResidualPct({ settled: 1, measured: 1 }, { ...DEFAULT_BANDS, tightPct: 9, midPct: 8 }), "the floor is the tight band").toBe(9);
     expect(half.loCents).toBeGreaterThanOrEqual(none.loCents);
     expect(half.hiCents).toBeLessThanOrEqual(none.hiCents);
     expect(full.loCents).toBeGreaterThanOrEqual(half.loCents);
     expect(full.hiCents).toBeLessThanOrEqual(half.hiCents);
-    expect(full.bandPct).toBe(DEFAULT_BANDS.tightPct);
+    expect(full.bandPct).toBe(DEFAULT_BANDS.midPct);
+    // D1: every room MEASURED (a typed size) → the tight band, the floor
+    const measured = envelopeFor({ blocks: answeredCup, state: all, ctx, adj, bands: BANDS, confirmed: new Map([[1, "measured"], [2, "measured"]]) });
+    expect(measured.measuredShare).toBe(1);
+    expect(measured.bandPct).toBe(DEFAULT_BANDS.tightPct);
+    expect(measured.hiCents).toBeLessThanOrEqual(full.hiCents);
+    const mixed = envelopeFor({ blocks: answeredCup, state: all, ctx, adj, bands: BANDS, confirmed: new Map([[1, "measured"], [2, "confirmed"]]) });
+    expect(mixed.bandPct).toBeGreaterThan(measured.bandPct);
+    expect(mixed.bandPct).toBeLessThan(full.bandPct);
   });
   it("Tom, 14 Sep (items 25/30): whole-job blocks the loop never counts do not hold the residual open", () => {
     const allDetails = state({ doorStyle: "flat", windowStyle: "casement", ceilingHeight: "2.4" });
@@ -154,7 +167,7 @@ describe("the envelope", () => {
     ];
     const both = envelopeFor({ blocks: [...rooms, ...pseudo], state: all, ctx, adj, bands: BANDS, confirmed: new Map([[1, "confirmed"], [2, "confirmed"]]) });
     expect(both.confirmedShare).toBe(1);
-    expect(both.bandPct).toBe(DEFAULT_BANDS.tightPct);
+    expect(both.bandPct).toBe(DEFAULT_BANDS.midPct);
   });
   it("the commercial widening lands on both ends", () => {
     const e = envelopeFor({ blocks: tree(), state: state(), ctx, adj, bands: BANDS, confirmed: null });

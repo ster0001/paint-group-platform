@@ -26,7 +26,7 @@ export type ScoredArea = {
    * the area is not part of a loop at all (staff estimates, pre-loop drafts)
    * — those score exactly as they always did.
    */
-  confirmState?: "pending" | "confirmed";
+  confirmState?: "pending" | "confirmed" | "measured";
 };
 
 /**
@@ -65,7 +65,7 @@ function credit(a: ScoredArea): number {
     default: c = 1.0; // absent origin reads as human work (pre-AI estimates)
   }
   if (a.confirmState === "pending") c = Math.min(c, PENDING_CAP);
-  else if (a.confirmState === "confirmed") c = Math.max(c, CONFIRMED_CREDIT);
+  else if (a.confirmState === "confirmed" || a.confirmState === "measured") c = Math.max(c, CONFIRMED_CREDIT);
   if (a.assumedFields.includes("H")) c -= 0.15;
   if (a.assumedFields.includes("L") || a.assumedFields.includes("W")) c = Math.min(c, 0.5);
   return Math.max(0.2, c);

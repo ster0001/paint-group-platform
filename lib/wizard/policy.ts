@@ -90,8 +90,14 @@ export type BandSettings = {
   guideMaxSpreadPct: number;
 };
 
-/** Phase plan W4: >=90 → ±4% · 70–89 → ±8% · <70 → ±15%. Guide spread capped at +40% over the low end (Tom, 25 Oct 2026). */
-export const DEFAULT_BANDS: BandSettings = { tightMin: 90, tightPct: 4, midMin: 70, midPct: 8, widePct: 15, guideMaxSpreadPct: 40 };
+/**
+ * D1 (Tom, 18 Nov 2026 — go-live brief §4): the range's half-width is 15% with nothing settled, 12% with
+ * every room settled at its typical size, 8% with every room measured, and never under 8% — only 14 of
+ * 31 guide ranges held, so nothing tighter is defensible until 50 wizard jobs have real hours. The same
+ * three numbers band the accuracy score where that path still runs (>=90 → tight, 70–89 → mid, else wide).
+ * Guide spread capped at +40% over the low end (Tom, 25 Oct 2026). All of it edits under Settings → Tiers.
+ */
+export const DEFAULT_BANDS: BandSettings = { tightMin: 90, tightPct: 8, midMin: 70, midPct: 12, widePct: 15, guideMaxSpreadPct: 40 };
 
 const num = (v: unknown, fallback: number): number =>
   typeof v === "number" && Number.isFinite(v) && v >= 0 ? v : fallback;

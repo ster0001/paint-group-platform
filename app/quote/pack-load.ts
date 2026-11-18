@@ -2,7 +2,10 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { loadScopeRules } from "@/lib/extract/scope-cache";
 import { adjustmentsFrom, loadPricingContext } from "@/lib/pricing/context";
 import { editorPayload, type WizardDeferred, type WizardEditorPayload } from "@/lib/wizard/view";
-import { bandsFromSettings, policyFromSettings, rangeBandPct, rangeFromTotal, settingValue, type WizardPolicySettings } from "@/lib/wizard/policy";
+import { bandsFromSettings, policyFromSettings, settingValue, underPctFor, type WizardPolicySettings } from "@/lib/wizard/policy";
+import { envelopeFor } from "@/lib/wizard/envelope";
+import { commercialWidenFor } from "@/lib/wizard/commercial";
+import { DEFAULT_SEGMENTS, loadSegments } from "@/lib/wizard/segments";
 import { wizardStateSchema } from "@/lib/wizard/state";
 import { PAINT_SYSTEMS_KEY, paintSystemsFrom } from "@/lib/pricing/systems";
 import { deskCheckPack, recommendedOutcome, type DeskCheckOutcome, type DeskCheckPack } from "@/lib/wizard/desk-check";
@@ -135,9 +138,17 @@ export async function loadPackBundle(supabase: SupabaseClient, id: string | unde
   const drift = packDrift({ promisedCents: request?.pack?.totalCents ?? null, liveCents: pack.totalCents });
   // §2.6: the range and its band, not just the midpoint — an estimator fixing
   // a price should see how wide the honest answer still is.
+  // H4 (go-live brief, 18 Nov 2026): the strip reads the LIVE range the customer sees — the same envelope the
+  // quote stage prices (open questions, settled and measured rooms) — never the submit-time accuracy band.
   const bands = bandsFromSettings(settingValue(ctx.settings, "wizard_bands"));
-  const bandPct = rangeBandPct(payload.accuracyPct, bands);
-  const range = rangeFromTotal(pack.totalCents, bandPct);
+  const segments = snap.data.commercial ? await loadSegments(supabase) : DEFAULT_SEGMENTS;
+  const widen = commercialWidenFor(snap.data, ctx.settings, segments);
+  const envelope = envelopeFor({
+    blocks: blocks as Parameters<typeof envelopeFor>[0]["blocks"], state: snap.data, ctx, adj: adjustmentsFrom(state), bands,
+    widenPct: widen.widenPct, underPct: underPctFor(blocks, policy), confirmed: loopState.states,
+  });
+  const bandPct = envelope.bandPct;
+  const range = { loCents: envelope.loCents, hiCents: envelope.hiCents };
 
   return {
     kind: "pack",

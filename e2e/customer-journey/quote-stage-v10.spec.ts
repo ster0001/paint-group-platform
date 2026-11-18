@@ -147,8 +147,11 @@ test.describe("quote stage v10 — session 1: the cards on a phone", () => {
     await expect(page.getByTestId("q-panel")).toHaveAttribute("data-open", "0");
     await page.getByTestId("q-opt-cornices-standard").tap();
     await card(page, "g:height");
+    // D2 (go-live brief, 18 Nov 2026): the top of the range is priced at 3 m until a height is picked — the tap lowers it
+    const hiBeforeHeight = Number(await page.getByTestId("q-band").getAttribute("data-hi"));
     await page.getByTestId("q-opt-height-2.7").tap();
     await card(page, "g:doors");
+    await expect.poll(async () => Number(await page.getByTestId("q-band").getAttribute("data-hi")), { timeout: 30_000 }).toBeLessThan(hiBeforeHeight);
     await expect(page.getByTestId("q-card-doors").locator("button")).toHaveCount(2);
     await expect(page.getByTestId("q-opt-doors-panel").locator("svg")).toHaveCount(1);
     await page.getByTestId("q-opt-doors-panel").tap();
@@ -177,6 +180,10 @@ test.describe("quote stage v10 — session 1: the cards on a phone", () => {
     await expect(stage).toHaveAttribute("data-quote-card", /^measure:/, { timeout: 15_000 });
     await expect(page.getByTestId("q-stage")).toContainText(/· 1 of \d+/);
     await expect(page.getByTestId("wzm-h1")).toContainText(/^How big is /);
+    // D1: every whole-house question answered, no room settled → the half-width is the wide band (15%)
+    const halfWidth = async () => { const lo = Number(await page.getByTestId("q-band").getAttribute("data-lo")); const hi = Number(await page.getByTestId("q-band").getAttribute("data-hi")); return ((hi - lo) / 2) / ((hi + lo) / 2) * 100; };
+    await expect.poll(halfWidth, { timeout: 30_000 }).toBeGreaterThanOrEqual(14);
+    expect(await halfWidth()).toBeLessThanOrEqual(16.5);
     const w = page.getByTestId("q-measure-w");
     const typicalW = await w.getAttribute("placeholder");
     expect(Number(typicalW)).toBeGreaterThan(0);
@@ -335,6 +342,11 @@ test.describe("quote stage v10 — session 1: the cards on a phone", () => {
     await expect(doneDoc.getByTestId("q-doc-total")).toContainText(MONEY_RANGE);
     await expect(doneDoc.locator("[data-testid^='q-line-'][data-state='todo']")).toHaveCount(0);
     expect(await stage.innerText()).not.toMatch(/exact|±|within \d+%/i);
+    // D1: one room measured, the rest at their typical size → between the mid band (12%) and the floor (8%), never one number
+    const rangeWidth = async () => { const m = ((await page.getByTestId("gate-range").textContent()) ?? "").match(/\$([\d,]+)/g) ?? []; const [lo, hi] = m.map((x) => Number(x.replace(/[$,]/g, ""))); return ((hi - lo) / 2) / ((hi + lo) / 2) * 100; };
+    const widthDone = await rangeWidth();
+    expect(widthDone).toBeLessThanOrEqual(12.5);
+    expect(widthDone).toBeGreaterThanOrEqual(7.5);
     // F (S3): a typical line taps back to that room's size card; measure it and come back through its cards
     const typicalLine = doneDoc.locator("[data-testid^='q-line-'][data-state='typical']").first();
     const typicalArea = (await typicalLine.getAttribute("data-testid"))!.replace("q-line-", "");
@@ -346,6 +358,8 @@ test.describe("quote stage v10 — session 1: the cards on a phone", () => {
     await expect(stage).not.toHaveAttribute("data-quote-card", `measure:${typicalArea}`, { timeout: 30_000 });
     await passUntil(page, (id) => id === "done");
     await expect(page.getByTestId("q-done-doc").getByTestId(`q-line-${typicalArea}`)).toHaveAttribute("data-state", "measured");
+    // D1: measuring another room closes the range further
+    await expect.poll(rangeWidth, { timeout: 30_000 }).toBeLessThan(widthDone);
     expect(await page.getByTestId("wzm-bar").evaluate((el) => parseFloat((el as HTMLElement).style.width))).toBe(100);
     await expect(page.getByTestId("q-book")).toContainText(/Book .+ to confirm it/);
     // Contact from a card

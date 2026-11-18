@@ -4,6 +4,7 @@ import {
 } from "@/lib/wizard/journey";
 import { rangeBandPct, rangeFromTotal, type BandSettings } from "@/lib/wizard/policy";
 import { isPhotoKind } from "@/lib/wizard/documents";
+import { parseLeadSnapshot } from "@/lib/estimate/leadSnapshot";
 
 /**
  * C7b — one estimates-list row, assembled on the server from the records
@@ -31,6 +32,8 @@ export type RawListRow = {
   wizard_job: string | null;
   /** `builder_state->wizard->snapshot` — the submit-time baseline (proving). */
   snapshot: { accuracyPct?: number } | null;
+  /** H4: the lead snapshot — the last range the customer was shown, refreshed on every quote-stage answer (lib/estimate/leadRecord.ts). */
+  lead_snapshot?: unknown;
   requests: Array<{ kind: string; status: string; requested_at: string; suggested_action: string | null; fixed_price_cents: number | null }> | null;
   views: Array<{ updated_at: string }> | null;
   work_orders: Array<{ id: string }> | { id: string } | null;
@@ -110,9 +113,14 @@ export function buildListRow(
   const wo = Array.isArray(raw.work_orders) ? raw.work_orders[0] ?? null : raw.work_orders;
   const photos = (raw.sources ?? []).filter((s) => isPhotoKind(s.kind)).length;
   const acc = raw.snapshot?.accuracyPct;
-  // The submit-time band: the list does not price, so it cannot know the
-  // live one. The strip on the estimate does, and says so.
-  const bandPct = hasWizard && typeof acc === "number" ? rangeBandPct(acc, deps.bands) : null;
+  // H4 (go-live brief, 18 Nov 2026): the list does not price, but the lead snapshot holds the LAST RANGE THE
+  // CUSTOMER WAS SHOWN (refreshed on every quote-stage answer), so the list reads that — to the dollar the
+  // customer's — and its half-width is the band. The submit-time accuracy band stands in only for a row from
+  // before the snapshot existed.
+  const lead = hasWizard ? parseLeadSnapshot(raw.lead_snapshot) : null;
+  const live = lead && lead.rangeHiCents > 0 && lead.rangeHiCents >= lead.rangeLoCents ? { loCents: lead.rangeLoCents, hiCents: lead.rangeHiCents } : null;
+  const liveBand = live ? Math.round(((live.hiCents - live.loCents) / 2) / ((live.hiCents + live.loCents) / 2) * 100) : null;
+  const bandPct = liveBand ?? (hasWizard && typeof acc === "number" ? rangeBandPct(acc, deps.bands) : null);
 
   const pill = estimatePill({
     status: raw.status,
@@ -130,7 +138,7 @@ export function buildListRow(
     now: deps.now,
   });
   const action = estimateAction({ pill: pill.state, request, estimateId: raw.id, accountId: raw.account_id, workOrderId: wo?.id ?? null });
-  const value = estimateValue({ totalCents: raw.total_cents, status: raw.status, hasWizard, bandPct, request, range: rangeFromTotal });
+  const value = estimateValue({ totalCents: raw.total_cents, status: raw.status, hasWizard, bandPct, request, range: rangeFromTotal, live });
   const customer = [raw.contact_first, raw.contact_last].map((x) => (x ?? "").trim()).filter(Boolean).join(" ") || null;
   const address = [raw.job_street, raw.job_city].map((x) => (x ?? "").trim()).filter(Boolean).join(", ") || null;
   return {
@@ -149,7 +157,7 @@ export function buildListRow(
  * rather than the whole tree.
  */
 export const LIST_SELECT =
-  "id, number, title, status, total_cents, created_at, viewed_at, accepted_at, valid_until, source, account_id, brand, "
+  "id, number, title, status, total_cents, created_at, viewed_at, accepted_at, valid_until, source, account_id, brand, lead_snapshot, "
   + "wizard_job:builder_state->wizard->state->>jobType, snapshot:builder_state->wizard->snapshot, "
   + "requests:confirmation_requests(kind, status, requested_at, suggested_action, fixed_price_cents), "
   + "views:estimate_views(updated_at), work_orders(id), sources:estimate_sources(kind), "
