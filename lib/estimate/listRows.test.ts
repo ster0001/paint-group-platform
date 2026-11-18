@@ -28,6 +28,22 @@ describe("the Pack → link (brief 2.4): wizard estimates and no others", () => 
   });
 });
 
+describe("H4 (go-live brief, 18 Nov 2026): the list shows the range the customer was last shown", () => {
+  it("the lead snapshot's range wins over the submit-time band, to the dollar, and its half-width is the band", () => {
+    const lead = { version: 1, kind: "lead", jobType: "interior", biggerJob: false, firstName: "Ava", address: "14 Acacia St", rangeLoCents: 900_000, rangeHiCents: 1_100_000, parts: null, pricedAt: "2026-09-12T01:00:00Z" };
+    const row = buildListRow(raw({ lead_snapshot: lead }), deps);
+    expect(row.value).toEqual({ kind: "range", loCents: 900_000, hiCents: 1_100_000 });
+    const old = buildListRow(raw(), deps);
+    expect(old.value.kind).toBe("range");
+    expect(old.value).not.toEqual(row.value);
+    expect(LIST_SELECT).toContain("lead_snapshot");
+  });
+  it("a fixed or accepted estimate is never a range, whatever the snapshot says", () => {
+    const lead = { version: 1, kind: "lead", jobType: "interior", biggerJob: false, firstName: "Ava", address: "14 Acacia St", rangeLoCents: 900_000, rangeHiCents: 1_100_000, parts: null, pricedAt: "2026-09-12T01:00:00Z" };
+    expect(buildListRow(raw({ lead_snapshot: lead, status: "accepted", accepted_at: "2026-09-08T01:00:00Z" }), deps).value).toEqual({ kind: "fixed", cents: 1_013_000 });
+  });
+});
+
 describe("a row is assembled from records, not from a stored status", () => {
   it("the newest request wins, photos are counted the pack's way, the band is the snapshot's", () => {
     const row = buildListRow(raw({

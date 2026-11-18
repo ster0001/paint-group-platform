@@ -75,8 +75,10 @@ export type Envelope = {
   bandPct: number;
   /** The questions still holding the envelope open. */
   open: OpenQuestion[];
-  /** How much of the tree the customer has confirmed, 0–1 (sizes residual). */
+  /** How much of the tree the customer has SETTLED (typical taken or measured), 0–1 — the size residual's first slope. */
   confirmedShare: number;
+  /** How much they have MEASURED (a typed size), 0–1 — the second slope, down to the floor (D1). */
+  measuredShare: number;
   /** What answering each open question closes, in cents (the dear end for
    * doors/windows; both ends for height, priced at 3 m until answered). */
   closesCents: Partial<Record<OpenQuestion, number>>;
@@ -152,10 +154,17 @@ export function dearestTree(state: WizardState | null, blocks: LooseBlock[], ope
   });
 }
 
-/** The size residual: the wide band with nothing confirmed, the tight band with everything, a straight line between. */
-export function sizeResidualPct(confirmedShare: number, bands: BandSettings): number {
-  const share = Math.max(0, Math.min(1, confirmedShare));
-  return bands.widePct - (bands.widePct - bands.tightPct) * share;
+/**
+ * The size residual (D1, Tom 18 Nov 2026): the WIDE band with nothing settled, the MID band once every
+ * room is settled at its typical size, the TIGHT band once every room is measured — straight lines
+ * between, never under the tight band. A plain number is the settled share with nothing measured.
+ */
+export function sizeResidualPct(share: number | { settled: number; measured: number }, bands: BandSettings): number {
+  const clamp = (x: number) => Math.max(0, Math.min(1, Number.isFinite(x) ? x : 0));
+  const settled = clamp(typeof share === "number" ? share : share.settled);
+  const measured = Math.min(settled, clamp(typeof share === "number" ? 0 : share.measured));
+  const pct = bands.widePct - (bands.widePct - bands.midPct) * settled - (bands.midPct - bands.tightPct) * measured;
+  return Math.max(bands.tightPct, pct);
 }
 
 const roundLo = (cents: number) => Math.floor(cents / 1000) * 1000;
@@ -171,8 +180,8 @@ export function envelopeFor(input: {
   widenPct?: number;
   /** Tom, 25 Oct 2026: the extra reach UNDER the price for an exterior envelope (policy.exteriorUnderPct); the top end never moves for it. */
   underPct?: number;
-  /** areaId → confirmed, from the confirm loop; null = nothing confirmed yet. */
-  confirmed: Map<number, "pending" | "confirmed"> | null;
+  /** areaId → pending / confirmed (settled at the typical) / measured (a typed size), from the confirm loop; null = nothing settled yet. */
+  confirmed: Map<number, "pending" | "confirmed" | "measured"> | null;
 }): Envelope {
   const rateCodes = new Set(input.ctx.rateItems.map((r) => r.code));
   const priced = input.blocks.filter((b) => b.kind === "area" && b.isOption !== true);
@@ -215,14 +224,16 @@ export function envelopeFor(input: {
   // blocks, which are priced areas but can never be confirmed, so the residual
   // used to stall at ~±6% however much the customer answered.
   const areas = input.confirmed && input.confirmed.size > 0 ? input.confirmed.size : priced.length;
-  const confirmedCount = input.confirmed ? [...input.confirmed.values()].filter((s) => s === "confirmed").length : 0;
-  const confirmedShare = areas ? Math.min(1, confirmedCount / areas) : 0;
-  const residual = (sizeResidualPct(confirmedShare, input.bands) + (input.widenPct ?? 0)) / 100;
+  const settledCount = input.confirmed ? [...input.confirmed.values()].filter((s) => s === "confirmed" || s === "measured").length : 0;
+  const measuredCount = input.confirmed ? [...input.confirmed.values()].filter((s) => s === "measured").length : 0;
+  const confirmedShare = areas ? Math.min(1, settledCount / areas) : 0;
+  const measuredShare = areas ? Math.min(1, measuredCount / areas) : 0;
+  const residual = (sizeResidualPct({ settled: confirmedShare, measured: measuredShare }, input.bands) + (input.widenPct ?? 0)) / 100;
   const loCents = roundLo(Math.min(cheap, dear) * (1 - residual - (input.underPct ?? 0) / 100));
   const hiCents = capSpread(loCents, roundHi(Math.max(cheap, dear) * (1 + residual)), input.bands);
   const mid = (loCents + hiCents) / 2;
   const bandPct = mid > 0 ? Math.round(((hiCents - loCents) / 2 / mid) * 100) : 0;
-  return { loCents, hiCents, bandPct, open, confirmedShare, closesCents };
+  return { loCents, hiCents, bandPct, open, confirmedShare, measuredShare, closesCents };
 }
 
 /**
@@ -249,8 +260,9 @@ export function sumEnvelopes(parts: Envelope[]): Envelope {
   const open = [...new Set(parts.flatMap((e) => e.open))];
   const areas = parts.length;
   const confirmedShare = areas ? parts.reduce((n, e) => n + e.confirmedShare, 0) / areas : 0;
+  const measuredShare = areas ? parts.reduce((n, e) => n + e.measuredShare, 0) / areas : 0;
   const closesCents: Partial<Record<OpenQuestion, number>> = {};
   for (const e of parts) for (const [k, v] of Object.entries(e.closesCents)) closesCents[k as OpenQuestion] = (closesCents[k as OpenQuestion] ?? 0) + (v ?? 0);
-  return { loCents, hiCents, bandPct: mid > 0 ? Math.round(((hiCents - loCents) / 2 / mid) * 100) : 0, open, confirmedShare, closesCents };
+  return { loCents, hiCents, bandPct: mid > 0 ? Math.round(((hiCents - loCents) / 2 / mid) * 100) : 0, open, confirmedShare, measuredShare, closesCents };
 }
 

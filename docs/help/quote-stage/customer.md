@@ -8,6 +8,9 @@ summary: After your range, your quote range asks one question per screen — the
 ## What this is for
 After **Your range today**, **Get my quote range** takes you through the questions that turn your range into a quote range, one at a time, on your phone. The price stays a range (repairs are confirmed on the day); it narrows as you answer.
 
+## How the range closes
+Your range is a band around the price, never one number. With every whole-house question answered and no room settled it is 15% either side. Each room you settle at its typical size (**Looks right** or **Not sure**) narrows it towards 12%; each room you measure (type the width and length) narrows it towards 8%, the tightest it goes online. Picking a ceiling height lowers the top of the range on that tap, because until then the top is priced at 3 m. The **closing in · N% settled** bar and the numbers above it move together.
+
 ## Before you start
 You have your range and have given your name, mobile and email. Nothing you answer here commits you to anything.
 

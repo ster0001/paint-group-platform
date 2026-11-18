@@ -418,10 +418,13 @@ export function estimateValue(i: {
   request: EstimateRequestView | null;
   /** lib/wizard/policy's `rangeFromTotal`, injected so this module stays pure. */
   range: (totalCents: number, pct: number) => { loCents: number; hiCents: number };
+  /** H4 (go-live brief, 18 Nov 2026): the LIVE range the customer was last shown (the lead snapshot, refreshed on every quote-stage answer) — it beats the submit-time band. */
+  live?: { loCents: number; hiCents: number } | null;
 }): RowValue {
   if (i.request?.status === "fixed" && i.request.fixedPriceCents != null) return { kind: "fixed", cents: i.request.fixedPriceCents };
   if (i.totalCents == null) return { kind: "none" };
   if (i.status === "accepted") return { kind: "fixed", cents: i.totalCents };
+  if (i.hasWizard && i.live && i.live.hiCents > 0 && i.live.hiCents >= i.live.loCents) return { kind: "range", loCents: i.live.loCents, hiCents: i.live.hiCents };
   if (i.hasWizard && i.bandPct != null) return { kind: "range", ...i.range(i.totalCents, i.bandPct) };
   return { kind: "figure", cents: i.totalCents };
 }

@@ -139,7 +139,10 @@ export default function QuoteStage({ brand, estimateId, initial, jobKind, initia
   const summary = quoteSummary(rooms, generalToGo);
   // The band's "N% settled" is the QUOTE's share — lines settled over lines (the S1 proof on C1: the engine's
   // `confirmedShare` is the tree's confirm-loop share and does not move when a room is sized).
-  const settled = summary.settledShare;
+  // Go-live brief C1 (18 Nov 2026): the bar reads the ENVELOPE's settled share — the same quantity that sets the
+  // range's width on the server — so the bar and the numbers can never disagree; the quote's own count stands in
+  // only for a payload from before the share rode along.
+  const settled = payload.confirmedShare ?? summary.settledShare;
   const currentAreaId = "areaId" in current ? current.areaId : null;
   // §4 (R5): the room tile — the one picture, drawn from the one room model, redrawn with every answer.
   const currentRoom = currentAreaId != null ? rooms.find((r) => r.areaId === currentAreaId) ?? null : null;

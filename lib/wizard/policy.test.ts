@@ -22,11 +22,11 @@ const clean = (over: Partial<GuardrailAnswers> = {}): GuardrailAnswers => ({
 });
 
 describe("range bands", () => {
-  it("follows the W4 spec bands", () => {
-    expect(rangeBandPct(95)).toBe(4);
-    expect(rangeBandPct(90)).toBe(4);
-    expect(rangeBandPct(89)).toBe(8);
-    expect(rangeBandPct(70)).toBe(8);
+  it("follows the W4 spec thresholds with D1's bands (18 Nov 2026: 8 / 12 / 15, never under 8)", () => {
+    expect(rangeBandPct(95)).toBe(8);
+    expect(rangeBandPct(90)).toBe(8);
+    expect(rangeBandPct(89)).toBe(12);
+    expect(rangeBandPct(70)).toBe(12);
     expect(rangeBandPct(69)).toBe(15);
     expect(rangeBandPct(0)).toBe(15);
   });
