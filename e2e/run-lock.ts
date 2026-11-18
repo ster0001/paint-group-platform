@@ -48,6 +48,14 @@ export const E2E_RUN_LOCK_KEY = 0x70676532;
  *  sweep's slice (~20 s of deleting), not for another run. */
 export const ACQUIRE_RETRY_MS = 45_000;
 
+/** How long a CI run waits its turn behind a held lock (18 Nov 2026). CI's own
+ *  e2e jobs never overlap (the constant e2e-test-project group), so a holder
+ *  met in CI is a session's local run or the sweep — minutes, not hours. A CI
+ *  refusal is a red main run nobody re-runs: #2369 (bdaebd8) failed in 8 min
+ *  because a session's local run had taken the project 5 minutes earlier, and
+ *  main's proof for that merge was lost. Sessions keep the 45 s and come back. */
+export const CI_ACQUIRE_WAIT_MS = 30 * 60_000;
+
 let client: pg.Client | null = null;
 /** Who the last refusal found holding the project, for the message. */
 let busyHolder = "";
@@ -97,7 +105,13 @@ export async function acquireRunLock(): Promise<"held" | "busy" | "skipped"> {
     // this changes nothing: it still refuses, with the same explanation. The
     // window it closes is seconds wide, and a run that waits minutes for
     // another run is worse than one that tells you to come back.
-    const deadline = Date.now() + ACQUIRE_RETRY_MS;
+    //
+    // CI is the exception: it waits its turn, up to CI_ACQUIRE_WAIT_MS, saying
+    // who it is waiting for once a minute. Still bounded — and inside the job's
+    // own timeout-minutes — so it can never become the queue nobody can see.
+    const ci = Boolean(process.env.CI || process.env.GITHUB_ACTIONS);
+    const giveUpAt = Date.now() + (ci ? CI_ACQUIRE_WAIT_MS : ACQUIRE_RETRY_MS);
+    let deadline = Date.now() + ACQUIRE_RETRY_MS;
     for (;;) {
       const r = await c.query<{ ok: boolean }>("select pg_try_advisory_lock($1) as ok", [E2E_RUN_LOCK_KEY]);
       if (r.rows[0]?.ok) {
@@ -123,6 +137,11 @@ export async function acquireRunLock(): Promise<"held" | "busy" | "skipped"> {
             return "held";
           }
           busyHolder = (await readLockHolderRow(c)).description;
+        }
+        if (Date.now() < giveUpAt) {
+          console.log(`e2e run lock: held by ${busyHolder} — CI waits its turn (${Math.ceil((giveUpAt - Date.now()) / 60_000)} min left before it refuses).`);
+          deadline = Date.now() + 60_000;
+          continue;
         }
         await c.end();
         return "busy";
