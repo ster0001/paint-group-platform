@@ -107,7 +107,7 @@ test.describe("Estimates shell, session 3 — chips, view count, came back", () 
     await expect(page.getByTestId("estimates-view-funnel")).toHaveAttribute("aria-current", "page");
     await expect(page.getByTestId("funnel-view")).toBeVisible();
     await expect(page.getByTestId("estimates-tab-all")).toHaveCount(0);
-    // Campaigns › Automations opens Campaigns until its sub-tab exists (§4.7).
-    await expect(page.getByTestId("estimates-view-automations")).toHaveAttribute("href", "/crm/campaigns");
+    // Campaigns › Automations opens its own page (A‑C, 17 Nov 2026).
+    await expect(page.getByTestId("estimates-view-automations")).toHaveAttribute("href", "/crm/campaigns/automations");
   });
 });

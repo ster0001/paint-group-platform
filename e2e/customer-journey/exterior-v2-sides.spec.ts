@@ -1,5 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
-import { quickNext } from "./drive";
+import { quickNext, DESKTOP_ONE_PRESS, GROUPED_LAPTOP_ONLY } from "./drive";
 import { toSides } from "./exterior-v2-drive";
 
 /**
@@ -26,6 +26,7 @@ const picture = (page: Page) => page.getByTestId("ql-picture").getByTestId("pic-
 const tile = (page: Page, k: string) => page.getByTestId(`ql-ext-side-${k}`);
 
 test("four tiles, the picture turned to the side, the compass; each side starts with the parts that land there", async ({ page }) => {
+  test.skip(DESKTOP_ONE_PRESS, GROUPED_LAPTOP_ONLY);
   test.setTimeout(180_000);
   await toSides(page);
   await expect(page.getByRole("heading", { name: "Check each side of the house" })).toBeVisible();
@@ -52,6 +53,7 @@ test("four tiles, the picture turned to the side, the compass; each side starts 
 });
 
 test("a gable added on the right side appears on the picture; a side's own material is tagged Different from the rest; a part taken off goes grey", async ({ page }) => {
+  test.skip(DESKTOP_ONE_PRESS, GROUPED_LAPTOP_ONLY);
   test.setTimeout(180_000);
   await toSides(page);
   await tile(page, "right").click();
@@ -80,6 +82,7 @@ test("a gable added on the right side appears on the picture; a side's own mater
 });
 
 test("no Looks right tap: a side ticks once you have looked at it, the counts have + and − here, and Continue needs every ticked side seen", async ({ page }) => {
+  test.skip(DESKTOP_ONE_PRESS, GROUPED_LAPTOP_ONLY);
   test.setTimeout(180_000);
   await toSides(page);
   // 4 · the window / door counts live here now, and the picture follows them.
@@ -109,6 +112,7 @@ test("no Looks right tap: a side ticks once you have looked at it, the counts ha
 });
 
 test("a townhouse's shared sides are not on Each side at all; Not painting takes a side off the tiles; a side added back on About it comes back", async ({ page }) => {
+  test.skip(DESKTOP_ONE_PRESS, GROUPED_LAPTOP_ONLY);
   test.setTimeout(180_000);
   await toSides(page, "th", ["walls", "fascias"], "mid");
   // 6 · only the ticked sides have a tile: the front and the back.

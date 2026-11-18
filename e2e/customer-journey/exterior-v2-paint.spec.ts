@@ -1,6 +1,6 @@
 import { test, expect, type Page } from "@playwright/test";
 import { EXTERIOR_PARTS, EXTERIOR_EXTRAS } from "../../lib/wizard/state";
-import { fillQuickAddress, openQuickLook, quickNext } from "./drive";
+import { fillQuickAddress, openQuickLook, quickNext, DESKTOP_ONE_PRESS, GROUPED_LAPTOP_ONLY } from "./drive";
 
 /**
  * Exterior wizard v2 — S3: "Tap everything we're painting" (brief §7.2;
@@ -37,6 +37,7 @@ const picture = (page: Page) => page.getByTestId("ql-picture").getByTestId("pic-
 const partOn = (page: Page, part: string) => picture(page).locator(`.e[data-e='${part}']`);
 
 test("the groups, nothing ticked, no materials, no price — and Continue refused in words", async ({ page }) => {
+  test.skip(DESKTOP_ONE_PRESS, GROUPED_LAPTOP_ONLY);
   test.setTimeout(120_000);
   await toPaint(page);
   await expect(page.getByRole("heading", { name: /Tap everything we.re painting/ })).toBeVisible();
@@ -81,6 +82,7 @@ test("a chip lights its part on the picture; a tap on the picture ticks the chip
 });
 
 test("the verandah family appears with the verandah and leaves with it; the gable is on a gable-roof home", async ({ page }) => {
+  test.skip(DESKTOP_ONE_PRESS, GROUPED_LAPTOP_ONLY);
   test.setTimeout(120_000);
   await toPaint(page, "cal");
   for (const p of ["posts", "ceiling", "handrail"]) await expect(page.getByTestId(`ext-part-${p}`)).toHaveCount(0);
@@ -100,6 +102,7 @@ test("the verandah family appears with the verandah and leaves with it; the gabl
 });
 
 test("a brick veneer home says tick the walls only if the brick is painted; Continue with one extra alone is allowed", async ({ page }) => {
+  test.skip(DESKTOP_ONE_PRESS, GROUPED_LAPTOP_ONLY);
   test.setTimeout(120_000);
   await toPaint(page, "brick");
   await expect(page.getByTestId("ext-brick-hint")).toContainText(/left bare/i);

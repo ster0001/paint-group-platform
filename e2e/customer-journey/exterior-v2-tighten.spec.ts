@@ -1,5 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
-import { lookAtEverySide, passGateIfShown, quickNext, MONEY_RANGE, passOtpIfShown, tightenToScope } from "./drive";
+import { lookAtEverySide, passGateIfShown, quickNext, MONEY_RANGE, passOtpIfShown, tightenToScope, DESKTOP_ONE_PRESS, GROUPED_LAPTOP_ONLY } from "./drive";
 import { toSides } from "./exterior-v2-drive";
 
 /**
@@ -54,6 +54,7 @@ async function answerQuestions(page: Page) {
 }
 
 test("Tighten opens the customer editor; A few questions first glows, shows what each paintwork answer looks like, and asks the paintwork, the rot AND the access", async ({ page }) => {
+  test.skip(DESKTOP_ONE_PRESS, GROUPED_LAPTOP_ONLY);
   test.setTimeout(240_000);
   await toEditor(page);
   await expect(page.getByTestId("ext-walk")).toHaveCount(0);
@@ -72,6 +73,7 @@ test("Tighten opens the customer editor; A few questions first glows, shows what
 });
 
 test("every side's size confirmed closes the range to within a few percent; the width flows to the trims; the window sizes in words and a visible way to add a different size", async ({ page }) => {
+  test.skip(DESKTOP_ONE_PRESS, GROUPED_LAPTOP_ONLY);
   test.setTimeout(300_000);
   await toEditor(page);
   const wide = await bandPct(page);

@@ -1,5 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
-import { MONEY_RANGE, openQuickLook, fillQuickAddress, quickNext, passGateIfShown, lookAtEverySide, tightenToScope } from "./drive";
+import { MONEY_RANGE, openQuickLook, fillQuickAddress, quickNext, passGateIfShown, lookAtEverySide, tightenToScope, DESKTOP_ONE_PRESS, GROUPED_LAPTOP_ONLY } from "./drive";
 
 /**
  * The EXTERIOR quick look — rewritten to the drawn house (Exterior wizard v2,
@@ -50,6 +50,7 @@ const range = async (page: Page) => {
 };
 
 test("nothing pre-ticked, the questions follow the ticks, no storeys question, and no bedrooms anywhere", async ({ page }) => {
+  test.skip(DESKTOP_ONE_PRESS, GROUPED_LAPTOP_ONLY);
   test.setTimeout(240_000);
   await toPaint(page);
   await expect(page.getByRole("heading", { name: /Tap everything we.re painting/ })).toBeVisible();
@@ -136,6 +137,7 @@ async function walkTypical(page: Page, windowType: "casement" | "colonial", wall
 }
 
 test("Tom's check 1: walls + windows + doors + fascias, casement, new colours → a range with exterior words", async ({ page }) => {
+  test.skip(DESKTOP_ONE_PRESS, GROUPED_LAPTOP_ONLY);
   test.setTimeout(240_000);
   await walkTypical(page, "casement");
   casement = await range(page);
@@ -154,6 +156,7 @@ test("Tom's check 1: walls + windows + doors + fascias, casement, new colours �
 });
 
 test("Tom's check 2: colonial windows price higher than casements — the rate row, not a multiplier", async ({ page }) => {
+  test.skip(DESKTOP_ONE_PRESS, GROUPED_LAPTOP_ONLY);
   test.setTimeout(240_000);
   expect(casement, "the casement walk must have run first").not.toBeNull();
   await walkTypical(page, "colonial");
@@ -163,6 +166,7 @@ test("Tom's check 2: colonial windows price higher than casements — the rate r
 });
 
 test("Tom's check 3: unticking the walls removes them everywhere — the question, What we'll do, the editor", async ({ page }) => {
+  test.skip(DESKTOP_ONE_PRESS, GROUPED_LAPTOP_ONLY);
   test.setTimeout(240_000);
   await walkTypical(page, "casement", false);
   await expect(page.getByTestId("what-we-do")).not.toContainText(/Walls/);
