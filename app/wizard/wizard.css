@@ -2555,7 +2555,7 @@
 .wz .wzm-strip .txt b { display: block; font-size: 13px; color: var(--heading); font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .wz .wzm-strip .chev { color: var(--muted); font-size: 20px; padding-right: 2px; }
 .wz .wzm-main { flex: 1; padding: 18px 20px 40px; }
-.wz .wzm-main.has-bar { padding-bottom: calc(130px + env(safe-area-inset-bottom)); }
+.wz .wzm-main.has-bar { padding-bottom: calc(max(130px, var(--wzm-foot-h, 0px) + 16px) + env(safe-area-inset-bottom)); }
 .wz .wzm-screen { animation: wzmin .28s ease both; }
 @keyframes wzmin { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
 .wz .wzm h1 { font-size: 28px; line-height: 1.15; letter-spacing: -.015em; margin: 10px 0 6px; font-weight: 700; color: var(--heading); }
@@ -3017,7 +3017,7 @@
 .wz .wzq-meas + .wz-err { margin: 2px 0 10px; }
 
 /* Go-live S4 (M1): the suggestions overlay the cards, and the suburb / postcode row has its room from the start — the cards never move */
-.wz .wzm-addrfield { position: relative; z-index: 5; min-height: 128px; }
+.wz .wzm-addrfield { position: relative; z-index: 5; min-height: 136px; }
 .wz .wzm-addrfield .wz-suggest { z-index: 30; }
 /* M5: the shape screen's commercial door */
 .wz .wzm-hint--left { text-align: left; margin: 10px 0 0; }

@@ -34,15 +34,25 @@ async function toPainting(page: Page) {
   await at(page, "p-house");
 }
 
+/** Go-live S4 (H2): the usual parts come pre-ticked across two Painting screens — untick them all and come back to the first. */
+async function clearHouse(page: Page) {
+  await setParts(page, []);
+  await page.getByTestId("ql-next").tap();
+  await at(page, "p-win");
+  await setParts(page, []);
+  await page.getByTestId("wzm-back").tap();
+  await at(page, "p-house");
+  await page.waitForTimeout(1_200);
+}
+
+
 test("a part chip sweeps its paint in on the thumbnail without the sheet, the glyph rides the edge, unticking wipes it back, reduced motion snaps", async ({ page }) => {
   test.setTimeout(150_000);
   await toPainting(page);
   const thumb = page.getByTestId("wzm-thumb").locator("svg.wz-elev");
   await expect(thumb).toHaveAttribute("data-shape", "cal");
-  // go-live S4 (H2): the usual parts come pre-ticked — cleared here so the sweeps start from an empty house
-  await setParts(page, []);
-  await expect.poll(() => width(page, "wzm-thumb", "walls"), { timeout: 3_000 }).toBe(0);
-  await page.waitForTimeout(1_200);
+  // go-live S4 (H2): the usual parts come pre-ticked — cleared here (this screen's, then windows and doors) so the sweeps start from an empty house
+  await clearHouse(page);
   // every layer out. (A gable-roof front has no gutters drawn — they run along the sides — so they are not in this list.)
   for (const p of ["walls", "gable", "fascias", "eaves", "windows", "doors"]) expect(await width(page, "wzm-thumb", p)).toBe(0);
   await expect(thumb.locator(".e-walls")).toHaveAttribute("data-on", "0");
@@ -84,8 +94,7 @@ test("a part chip sweeps its paint in on the thumbnail without the sheet, the gl
 test("the sheet: the same house full width; a tap on a part there ticks the chip; a sheet chip ticks a part; both pictures stay in step", async ({ page }) => {
   test.setTimeout(150_000);
   await toPainting(page);
-  await setParts(page, []); // go-live S4 (H2): start from an empty house
-  await page.waitForTimeout(1_200);
+  await clearHouse(page); // go-live S4 (H2): start from an empty house
   await page.getByTestId("ext-part-walls").tap();
   await expect.poll(() => width(page, "wzm-thumb", "walls"), { timeout: 3_000 }).toBe(400);
   await page.getByTestId("wzm-strip").tap();

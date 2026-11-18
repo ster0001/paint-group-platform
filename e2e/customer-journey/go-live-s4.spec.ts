@@ -42,6 +42,7 @@ test.describe("Go-live S4 — inputs and dead ends, on a phone", () => {
     const id = (await cardId(page))!;
     if (id.startsWith("measure:")) await page.getByTestId("q-size-typical").tap();
     else if (id.startsWith("robe:")) await page.getByTestId("q-robe-none").tap();
+    else if (id.startsWith("g:")) await page.locator('[data-testid^="q-opt-"]').first().tap(); // a whole-house question: the first answer, it advances itself
     else await page.getByTestId("q-next").tap();
     await expect.poll(() => cardId(page), { timeout: 30_000 }).not.toBe(id);
   };
@@ -61,10 +62,12 @@ test.describe("Go-live S4 — inputs and dead ends, on a phone", () => {
     await expect(page.getByTestId("wzm")).toBeVisible({ timeout: 20_000 });
     // M1 — the job cards stay put while the address (and the suburb / postcode boxes under it) is typed
     const cards = page.getByTestId("ql-jobtype");
+    await page.waitForTimeout(500); // the screen's entry slide (.28s) must be over before the first measure
     const before = (await cards.boundingBox())!;
     await fillQuickAddress(page, { suburb });
+    await page.waitForTimeout(500);
     const after = (await cards.boundingBox())!;
-    expect(Math.abs(after.y - before.y), "the suburb / postcode boxes must not push the cards").toBeLessThanOrEqual(1);
+    expect(Math.abs(after.y - before.y), "the suburb / postcode boxes must not push the cards").toBeLessThanOrEqual(2); // sub-pixel rounding only
     // M13 — the option group is named by its question
     await expect(cards).toHaveAttribute("role", "group");
     await expect(cards).toHaveAttribute("aria-labelledby", "wzm-h1");
@@ -91,6 +94,12 @@ test.describe("Go-live S4 — inputs and dead ends, on a phone", () => {
     const cb = (await consent.boundingBox())!;
     const bb = (await page.getByTestId("ql-next").boundingBox())!;
     expect(cb.y + cb.height, "the consent sits above the button").toBeLessThanOrEqual(bb.y + 1);
+    // and the taller bar covers nothing: scrolled to the end, the email box clears the bar
+    await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
+    await page.waitForTimeout(300);
+    const eb = (await page.getByTestId("gate-email").boundingBox())!;
+    const fb = (await page.getByTestId("wzm-foot").boundingBox())!;
+    expect(eb.y + eb.height, "the email box sits clear of the bar").toBeLessThanOrEqual(fb.y + 1);
     await shot(page, "03-details");
     await expect(page.getByTestId("ql-next")).toBeEnabled({ timeout: 30_000 });
     await page.getByTestId("ql-next").tap();

@@ -255,7 +255,7 @@ export default function MobileQuickLook({
   // Painting screen names a blank house without blocking it (windows and doors are on the next screen).
   const localWhy: string | null =
     current.id === "p-around" && outside.v2 && !exteriorV2Answered(outside.v2) ? "Tick at least one part — go back if it's on an earlier screen."
-    : current.id === "p-house" && outside.v2 && outside.v2.parts.length === 0 && outside.v2.extras.length === 0 ? "Nothing ticked yet — tap the parts we're painting, or carry on to windows and doors."
+    : current.id === "p-house" && outside.v2 && !paintScreenParts("p-house", outside.v2).some((p) => outside.v2!.parts.includes(p)) ? "Nothing ticked here yet — tap the parts we're painting, or carry on to windows and doors."
     : current.id === "details" && contact && !detailsReady(contact) ? detailsWhy(contact)
     : null;
   // S4 (plan §2 screen 9): the side screens' bar — "Looks right — next side" on a painted side, "Next side" on one not painting; the
@@ -670,8 +670,20 @@ export default function MobileQuickLook({
         </section>
   );
 
+  // Go-live S4 (M3): the bar's height follows its contents (a reason line, the consent, the button) — the page's bottom
+  // padding follows the bar, so nothing on the screen ever sits under it.
+  const footRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    const el = footRef.current, root = rootRef.current;
+    if (!el || !root || typeof ResizeObserver === "undefined") return;
+    const write = () => root.style.setProperty("--wzm-foot-h", `${Math.ceil(el.getBoundingClientRect().height)}px`);
+    write();
+    const ro = new ResizeObserver(write);
+    ro.observe(el);
+    return () => { ro.disconnect(); root.style.removeProperty("--wzm-foot-h"); };
+  }, [showBar, current.id]);
   const foot = showBar && (
-        <div className="wzm-foot" data-testid="wzm-foot">
+        <div className="wzm-foot" data-testid="wzm-foot" ref={footRef}>
           {whyNot && (!canContinue || busy) && <p className="wzm-why" data-testid="ql-why" role="status">{whyNot}</p>}
           {localWhy && !(whyNot && (!canContinue || busy)) && <p className="wzm-why" data-testid="ql-why" role="status">{localWhy}</p>}
           {/* Go-live S4 (M3): the consent line sits ABOVE the button, in the bar, so the button never covers it */}

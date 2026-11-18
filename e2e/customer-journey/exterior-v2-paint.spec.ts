@@ -150,7 +150,7 @@ test.describe("on a phone: Painting is four screens (exterior mobile v5, session
     for (const p of ["walls", "fascias", "gutters", "eaves"]) await expect(page.getByTestId(`ext-part-${p}`)).toHaveAttribute("aria-pressed", "true");
     for (const p of ["gable", "downpipes"]) await expect(page.getByTestId(`ext-part-${p}`)).toHaveAttribute("aria-pressed", "false");
     await setParts(page, []);
-    await expect(page.getByTestId("ql-why")).toContainText(/Nothing ticked yet/); // H2: the reason, on the first screen, without blocking it
+    await expect(page.getByTestId("ql-why")).toContainText(/Nothing ticked here yet/); // H2: the reason, on the first screen, without blocking it
     await expect(page.getByTestId("ext-part-windows")).toHaveCount(0);
     await expect(page.getByTestId("ext-brick-hint")).toHaveCount(0);
     await expect(page.locator("[data-mobile-screen='p-house'] .wzm-note")).toHaveCount(0); // one grey line (R8)
