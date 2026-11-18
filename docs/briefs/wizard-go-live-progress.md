@@ -1,0 +1,37 @@
+# Wizard go-live fixes — progress ledger
+
+Brief: `claude-code-brief-wizard-go-live-fixes.md` (18 Nov 2026). Rulings so far: D6 (the §3.1 scale), D9 (cleaning $65/hr), D11 (no exterior cleaning) — Tom, 18 Nov. Open: D1, D2, D3, D4, D5, D7, D8.
+
+| Session | Status | Date | Branch / SHA | Migrations | Notes |
+|---|---|---|---|---|---|
+| S0 — orientation | DONE, with two files missing | 18 Nov 2026 | `feat/wizard-go-live-s1` | none | See §S0 below. **Missing from the repo, Downloads and this Mac:** `wizard-go-live-audit-18nov.md` (the findings; brief §2 reproduces every item C1–M14, so the fix list is complete without it) and `wizard-project-allowances-spec.md` (superseded by brief §3 for set-up, clean-up and sundries). The brief says a missing read-first file is a stop-and-report. |
+
+## S0 — where §3.2 lands, and what each later session reuses
+
+**The engine today** (`lib/pricing/estimate.ts`, 716 lines; `priceEstimateTotals` at line 539):
+- Surfaces are priced per block; `contractorHours += paintingHr + prepHr` per surface (prep here = the rate card's per-surface prep hours, NOT the job allowance).
+- `anyInt` / `anyExt` are set by block type — the per-side painting hours the scale needs are not yet summed per side; the new function needs `paintingHrInt` / `paintingHrExt` collected in the same loop.
+- Sundries: `adj.preparationOverrideCents` (null = `Settings "Sundries per job — interior/exterior"`, summed when both sides exist) → `subtotal`.
+- Prep hours: `adj.preparationHours` (null/0 = none) × charge-out (interior when any interior block, else exterior) → `subtotal` and `contractorHours`.
+- Then size uplift, discount, GST, `contractorOfferCents = contractorHours × contractor rate × offerPct`. Allowances already sit after the multiplier chain, as §3.2 requires.
+- `Adjustments` are read from `builder_state` by `lib/pricing/context.ts adjustmentsFrom` (lines 67–85): `preparationHours` is dropped unless `> 0`, so **0 and null are indistinguishable today** — the migration must write explicit values AND `adjustmentsFrom` must start carrying 0 through (null = scale, 0 = none).
+- Settings are plain `settings` rows (`settingsLookup`, keys like `"Sundries per job — interior"`), edited in `app/(app)/settings/PricingSettings.tsx` (a key/value table, dollars for sundries). Pricing context is cached 20 s. The rate card is versioned (`rate_cards.is_active`, `rate_card_version` written on the estimate by the builder); settings rows are not versioned per se — "versioned with the rate card" means the new table lives as settings keys read at price time and the estimate records `rate_card_version`, as sundries do today.
+
+**Callers of `priceEstimateTotals`** (every one moves with the scale, no new maths): `app/quote/QuoteBuilder.tsx` (builder), `lib/wizard/view.ts` (customer payload: range, `quoteTotals`), `lib/wizard/envelope.ts` (the range envelope), `lib/wizard/describeFinish.ts`, `app/api/estimates/[id]/rooms/route.ts`, `lib/workorder/lineArea.ts` + `materialsBudget.ts`, `lib/revision/diff.ts` + `contractorRate.ts`, `lib/import/draft/build.ts` (PaintScout → draft), `lib/agent/propose.ts` + `scope-tools.ts`, `lib/reporting/load.ts` (dashboard hours / sales rate), `app/(app)/proving/page.tsx`.
+
+**Session 1 file map (§3.2):**
+| Where | Change |
+|---|---|
+| `lib/pricing/allowances.ts` (new) | `siteAllowances({ paintingHrInt, paintingHrExt }, scale) → { prepHours, cleaningHours, sundriesCents }`; bands by painting hours per side; a "both" job = interior row for inside hours + exterior row for outside hours. Unit test on every band edge (11.99 / 12 / 35 / 60 / 100 / 180), both sides, both. |
+| `lib/pricing/estimate.ts` | Collect painting hours per side in the loop; `preparationHours` null → scale (number = override, 0 = none); `preparationOverrideCents` null → scale sundries; new `cleaningHours` (null → scale, number → override) × cleaning rate → subtotal + contractorHours; new totals fields `cleaningHours`, `cleaningHoursCents`, `allowanceDefaults`. Scale + cleaning rate read from settings keys with the §3.1 values as the code defaults. |
+| `lib/pricing/context.ts` | `adjustmentsFrom` carries `cleaningHours` and keeps explicit 0s. |
+| `lib/pricing/golden.test.ts` + a new `allowances.golden.test.ts` | The audit's 3-bed: 65.55 painting hours, areas $7,257.45 → $8,522.45 ex GST, $9,374.70 inc, 77.55 h, offer $4,653.00. The existing 6 golden cases carry explicit values (as the migration will give every estimate) and must not move. |
+| Settings → Pricing | "Site allowances" rows: 6 bands × (interior prep, clean, sundries) + 6 × (exterior prep, clean, sundries) + "Cleaning rate"; the two "Sundries per job" rows retire into it (kept readable for old rows). |
+| `app/quote/QuoteBuilder.tsx` | Preparation row shows the scale's hours + sundries as the default with "from the job-size scale"; new Cleaning row; typing overrides, clearing returns to the scale (lines 496–499 hold the state; 1664 the panel). |
+| `lib/wizard/view.ts` | Customer payload gains the two lines (`quoteTotals` already there) — the quote document's lines are Session 5 (H1). |
+| Work order | `lib/workorder/lineArea.ts` already rides a Preparation area from `preparationHours`; Cleaning becomes its own area the same way; `contractorHours` already feeds the offer and `types.ts:111` already names cleaning in it. |
+| `lib/import/booked/build.ts` + `lib/import/draft/build.ts` | Set `preparationHours`, `preparationOverrideCents`, `cleaningHours` explicitly (0 / the PaintScout figure / 0) so imports never take the scale. No preparation handling exists there today. |
+| Migration `2027xxxx_site_allowances_explicit.sql` | Writes explicit values into every `estimates.builder_state`: `preparationHours` = current or 0, `preparationOverrideCents` = today's priced sundries figure, `cleaningHours` = 0. Converges on re-run; registers itself. Runs BEFORE the engine change deploys. |
+| Before/after report | `scripts/pricing/allowances-before-after.ts`: reads every estimate read-only (`IMPORT_DATABASE_URL`, present in the main checkout's `.env.local`), prices each with the current engine and with the new engine over the migrated state, prints every cent of difference; committed as `docs/testing/allowances-before-after-<date>.md`. Zero differences is the gate. Fixture pattern: `scripts/capture-pricing-fixtures.ts`. |
+
+**Later sessions, reuse map:** S2 (C1, H4) — `lib/wizard/accuracy.ts`, `envelope.ts`, `policy.ts` bands, `lib/quote/cards.ts` measure cards, `lib/estimate/listRows.ts` (`rangeBandPct`). S3 (C2) — `app/wizard/Reveal.tsx` (the "within N%" pill `reveal-tier` and the `.wz-ladder` block), the laptop door already lands on `/estimate/quote` since PR #478 (18 Nov), one-press flag `NEXT_PUBLIC_WIZARD_DESKTOP_ONEPRESS`. S4 — `app/estimate/quote/QuoteStage.tsx` size fields, `ExteriorPaint.tsx` pre-ticks, `HardStop.tsx`, `AddressField.tsx`, `MobileQuickLook.tsx`. S5 — `lib/quote/quote.ts quoteLines` (rooms only today; Set-up and preparation + Cleaning lines to add), the "What we'll do" copy, staging loadings in `lib/pricing/commercial.ts hourLoadingFor` / modifiers "Staging". S6 — `e2e/customer-journey/wizard-mobile-v5-full.spec.ts` as the base.
