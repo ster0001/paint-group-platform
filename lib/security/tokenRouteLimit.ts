@@ -49,6 +49,14 @@ export function allowTokenRoute(ip: string, now = Date.now()): boolean {
   return true;
 }
 
+/** Next stamps x-forwarded-for with the socket's address when no proxy set one, so a
+ * local or CI run arrives as loopback. That is not a visitor: an e2e run's every walk
+ * shared it, and the per-address code caps refused the gate after the 30th (18 Nov 2026).
+ * Production's edge always sends the real address, never one of these. */
+export function isLoopbackIp(ip: string): boolean {
+  return ip === "127.0.0.1" || ip === "::1" || ip === "::ffff:127.0.0.1";
+}
+
 export function clientIpFromHeaders(get: (name: string) => string | null): string {
   return get("x-forwarded-for")?.split(",")[0]?.trim() || get("x-real-ip")?.trim() || "unknown";
 }

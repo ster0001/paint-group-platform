@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { _resetTokenRouteLimit, allowTokenRoute, clientIpFromHeaders, isTokenRoutePath, TOKEN_ROUTE_LIMIT } from "./tokenRouteLimit";
+import { _resetTokenRouteLimit, allowTokenRoute, clientIpFromHeaders, isLoopbackIp, isTokenRoutePath, TOKEN_ROUTE_LIMIT } from "./tokenRouteLimit";
 
 describe("isTokenRoutePath", () => {
   it("matches every public token door", () => {
@@ -38,5 +38,12 @@ describe("clientIpFromHeaders", () => {
     expect(clientIpFromHeaders((n) => (n === "x-forwarded-for" ? "5.5.5.5, 10.0.0.1" : null))).toBe("5.5.5.5");
     expect(clientIpFromHeaders((n) => (n === "x-real-ip" ? "6.6.6.6" : null))).toBe("6.6.6.6");
     expect(clientIpFromHeaders(() => null)).toBe("unknown");
+  });
+});
+
+describe("isLoopbackIp", () => {
+  it("is true for the addresses Next stamps on a local run, false for a visitor", () => {
+    for (const ip of ["127.0.0.1", "::1", "::ffff:127.0.0.1"]) expect(isLoopbackIp(ip)).toBe(true);
+    for (const ip of ["203.0.113.9", "10.0.0.1", "unknown", ""]) expect(isLoopbackIp(ip)).toBe(false);
   });
 });

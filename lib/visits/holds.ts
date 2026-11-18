@@ -27,6 +27,7 @@ import { normalisePhoneAU, renderTemplate } from "@/lib/messaging/config";
 import { sendSms } from "@/lib/messaging/send";
 import { sendAutomation } from "@/lib/automations/dispatch";
 import { reportError } from "@/lib/monitoring/report";
+import { isLoopbackIp } from "@/lib/security/tokenRouteLimit";
 import { logCrmEvent } from "@/lib/crm/events";
 import { availability, timeWords, type BookingRules, type OfferedDay, type OfferedSlot, type ScheduleBooking, type ScheduleBusy, type ScheduleHold } from "./schedule";
 import { loadBookingRules, loadWeek } from "./scheduleDb";
@@ -253,7 +254,8 @@ export async function markGateCompleted(svc: SupabaseClient, estimateId: string)
 const SALT = () => process.env.VISIT_CODE_SALT ?? process.env.WIZARD_IP_SALT ?? "";
 export const newCode = () => String(randomInt(0, 1_000_000)).padStart(6, "0");
 export const hashCode = (estimateId: string, mobile: string, code: string) => createHash("sha256").update(`${estimateId}:${mobile}:${code}:${SALT()}`).digest("hex");
-export const hashIp = (ip: string | null) => (ip ? createHash("sha256").update(`${ip}:${SALT()}`).digest("hex") : null);
+/** Null for no address and for loopback (a local or CI run, never a visitor), so neither counts against the cap. */
+export const hashIp = (ip: string | null) => (ip && !isLoopbackIp(ip) ? createHash("sha256").update(`${ip}:${SALT()}`).digest("hex") : null);
 
 /** Section 8, test 11: codes to one mobile, and from one address, over ten minutes. */
 const LIMIT_WINDOW_MS = 10 * 60_000;

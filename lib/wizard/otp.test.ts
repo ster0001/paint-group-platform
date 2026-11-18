@@ -33,6 +33,8 @@ describe("the gate's one-time code — the pure parts", () => {
   });
   it("the IP hash is null when no proxy names an address (a loopback run), and a 32-hex key otherwise", () => {
     expect(otpIpHash(() => null)).toBeNull();
+    // Loopback is Next's stand-in for "no proxy", not a visitor: never counted against the cap.
+    for (const ip of ["127.0.0.1", "::1", "::ffff:127.0.0.1"]) expect(otpIpHash((n) => (n === "x-forwarded-for" ? ip : null))).toBeNull();
     expect(otpIpHash((n) => (n === "x-forwarded-for" ? "203.0.113.9, 10.0.0.1" : null))).toMatch(/^[0-9a-f]{32}$/);
     expect(otpIpHash((n) => (n === "x-forwarded-for" ? "203.0.113.9" : null))).toBe(otpIpHash((n) => (n === "x-forwarded-for" ? "203.0.113.9, 10.0.0.1" : null)));
   });

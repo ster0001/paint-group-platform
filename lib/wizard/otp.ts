@@ -20,6 +20,7 @@ import { sendSms } from "@/lib/messaging/send";
 import { normalisePhoneAU } from "@/lib/messaging/config";
 import { brandFor } from "@/lib/marketing/brand";
 import { reportError } from "@/lib/monitoring/report";
+import { isLoopbackIp } from "@/lib/security/tokenRouteLimit";
 import type { WizardBrand } from "./brand";
 
 export { OTP_LENGTH, OTP_TTL_MINUTES, OTP_MAX_ATTEMPTS, OTP_SENDS_PER_HOUR, OTP_RESEND_GAP_S, maskMobile, normaliseMobile, otpSmsBody } from "./otpFormat";
@@ -32,10 +33,10 @@ const SALT = () => process.env.VISIT_CODE_SALT ?? process.env.WIZARD_IP_SALT ?? 
 export const hashOtp = (userId: string, mobile: string, code: string, salt = SALT()) =>
   createHash("sha256").update(`otp:${userId}:${mobile}:${code}:${salt}`).digest("hex");
 
-/** The same recipe as /api/wizard/submit's ipHash; null when the address is unknown (a loopback run has no proxy header). */
+/** The same recipe as /api/wizard/submit's ipHash; null when the address is unknown or loopback. */
 export function otpIpHash(get: (name: string) => string | null): string | null {
   const ip = get("x-forwarded-for")?.split(",")[0]?.trim() || get("x-real-ip")?.trim() || "";
-  if (!ip) return null;
+  if (!ip || isLoopbackIp(ip)) return null;
   return createHash("sha256").update(`${ip}::${process.env.WIZARD_IP_SALT ?? "pg-wizard"}`).digest("hex").slice(0, 32);
 }
 
