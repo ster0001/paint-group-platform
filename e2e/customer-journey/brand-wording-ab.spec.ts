@@ -109,8 +109,11 @@ test.describe("Paint Home wording (A‑B)", () => {
     // Clearing the box removes the row: Paint Home is back on the Paint Group wording.
     await page.getByTestId(`ph-tpl-${FIELD}`).fill("");
     await page.getByTestId("ph-save-lead_range_reminder").click();
-    await expect(page.getByTestId("ph-said-lead_range_reminder")).toContainText("saved", { timeout: 20_000 });
-    const gone = await db!.from("automation_brand_wording").select("body").eq("brand", "painthome").eq("field", FIELD).maybeSingle();
-    expect(gone.data).toBeNull();
+    // The status still reads "saved" from the first save, so wait on the row itself.
+    await expect.poll(async () => {
+      const gone = await db!.from("automation_brand_wording").select("body").eq("brand", "painthome").eq("field", FIELD).maybeSingle();
+      if (gone.error) throw new Error(gone.error.message);
+      return gone.data;
+    }, { timeout: 20_000, message: "clearing the box removes the Paint Home row" }).toBeNull();
   });
 });

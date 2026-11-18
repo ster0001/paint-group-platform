@@ -71,7 +71,7 @@ test.describe("Visit no-show text (L12)", () => {
     if (visit.error) throw new Error(visit.error.message);
     made.visitId = visit.data.id as string;
 
-    await signIn(page, staff!, /\/(dashboard|crm|estimates|pc)/);
+    await signIn(page, staff!, /\/(home|dashboard|crm|estimates|pc)/);
     await page.goto(`/crm/customers/${made.accountId}`);
     const card = page.getByTestId(`record-visit-${made.visitId}`);
     await expect(card).toBeVisible({ timeout: 30_000 });
