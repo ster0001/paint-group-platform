@@ -106,6 +106,7 @@ export default async function QuoteStagePage({ searchParams }: { searchParams: P
         preparedFor={preparedFor}
         quoteNo={quoteNumber(bundle.estimateId, brand)}
         quoteDate={quoteDate}
+        holdDays={bundle.holdDays}
       />
     </div>
   );

@@ -8,6 +8,7 @@
  * is what they told us on the job screen and the details screen. One "tell
  * us" link for anything that reads wrong.
  */
+import { topcoatsOf } from "@/lib/pricing/systems";
 export type WhatWeDoLine = {
   group: string;
   title: string;
@@ -38,7 +39,9 @@ export default function WhatWeDo({ lines, tellUsHref, compact = false }: {
         {lines.map((l, i) => (
           <li key={`${l.group}-${i}`} data-testid={`what-we-do-${l.group}`} data-coats={l.coats} data-undercoat={l.undercoat ? "1" : "0"}>
             <b>{l.title}</b>
-            {l.coats > 0 && <span className="wz-do-coats">{l.coats} coat{l.coats === 1 ? "" : "s"}{l.undercoat ? " + undercoat" : ""}</span>}
+            {/* Go-live H3 (18 Nov 2026): the badge counts the TOPCOATS and names the undercoat beside them — the same
+                arithmetic as the sentence ("an undercoat and two coats"), never "3 coats + undercoat" over words that say two. */}
+            {l.coats > 0 && <span className="wz-do-coats" data-topcoats={topcoatsOf(l.coats, l.undercoat)}>{topcoatsOf(l.coats, l.undercoat)} coat{topcoatsOf(l.coats, l.undercoat) === 1 ? "" : "s"}{l.undercoat ? " + undercoat" : ""}</span>}
             <p>{l.sentence}</p>
             {l.review && <em>A person confirms this one before your price is fixed.</em>}
             {!l.review && l.note && <span className="wz-do-note" data-testid={`what-we-do-note-${l.group}`}>{l.note}</span>}

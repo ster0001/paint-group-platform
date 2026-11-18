@@ -74,7 +74,7 @@ const DRAWING: Record<NonNullable<GeneralCard["options"][number]["drawing"]>, Re
   "win-casement": WINDOW_DRAWINGS.casement, "win-sash": WINDOW_DRAWINGS.sash, "win-colonial": WINDOW_DRAWINGS.colonial, "win-winder": WINDOW_DRAWINGS.winder,
 };
 
-export default function QuoteStage({ brand, estimateId, initial, jobKind, initialScopeRooms, initialLoop, catalogue, initialRoomExtras, initialExtras, roomTypes, plan, initialSides, v2, typicalRows, initialCornices, initialAccess, logoUrl, estimator, companyPhone, customerSuburb, preparedFor, quoteNo, quoteDate }: {
+export default function QuoteStage({ brand, estimateId, initial, jobKind, initialScopeRooms, initialLoop, catalogue, initialRoomExtras, initialExtras, roomTypes, plan, initialSides, v2, typicalRows, initialCornices, initialAccess, logoUrl, estimator, companyPhone, customerSuburb, preparedFor, quoteNo, quoteDate, holdDays }: {
   brand: WizardBrand;
   estimateId: string;
   initial: CustomerPayload;
@@ -104,6 +104,8 @@ export default function QuoteStage({ brand, estimateId, initial, jobKind, initia
   preparedFor: PreparedFor;
   quoteNo: string;
   quoteDate: string;
+  /** Go-live D5: how long the quote stands — Settings `wizard_hold_days`. */
+  holdDays: number;
 }) {
   const router = useRouter();
   const [quoteOpen, setQuoteOpen] = useState(false);
@@ -136,7 +138,7 @@ export default function QuoteStage({ brand, estimateId, initial, jobKind, initia
   const who = estimator.name?.trim().split(/\s+/)[0] ?? "your estimator";
   // §5 (R4): the quote writes itself — the document, the tile's words and the band's share, all from the server's payload.
   const generalToGo = cards.filter((c) => c.kind === "general" && c.value == null).length;
-  const doc = quoteDocument({ payload, rooms, preparedFor, number: quoteNo, date: quoteDate, generalToGo });
+  const doc = quoteDocument({ payload, rooms, preparedFor, number: quoteNo, date: quoteDate, generalToGo, validDays: holdDays });
   const summary = quoteSummary(rooms, generalToGo);
   // The band's "N% settled" is the QUOTE's share — lines settled over lines (the S1 proof on C1: the engine's
   // `confirmedShare` is the tree's confirm-loop share and does not move when a room is sized).
@@ -322,9 +324,28 @@ export default function QuoteStage({ brand, estimateId, initial, jobKind, initia
             <button type="button" className="wzq-rail-plan" onClick={() => setPlanOpen(true)} data-testid="q-rail-plan" aria-label="Your floorplan. Tap a room to jump to it."><img src={plan.url} alt="" /></button>
           </>
         )}
+        {/* Go-live S5 (M11): the room grid — every line of the quote at a glance, its state, a tap to its size card */}
+        {rooms.length > 0 && (
+          <>
+            <p className="wzq-rl-h">{jobKind === "exterior" ? "Your sides" : "Your rooms"}</p>
+            <ul className="wzq-rail-rooms" data-testid="q-rail-rooms" aria-label={jobKind === "exterior" ? "Your sides" : "Your rooms"}>
+              {rooms.map((r) => {
+                const st = lineState(r);
+                return (
+                  <li key={r.areaId}>
+                    <button type="button" className={`wzq-rr ${st} ${r.areaId === currentAreaId ? "now" : ""}`} data-testid={`q-rail-room-${r.areaId}`} data-state={st}
+                      onClick={() => jumpTo(`measure:${r.areaId}`)}>
+                      <b>{r.name}</b><span>{st === "measured" ? "Measured" : st === "typical" ? "Typical size" : "To measure"}</span>
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          </>
+        )}
         {current.kind !== "done" && <PriceBand lo={payload.rangeLoCents} hi={payload.rangeHiCents} settled={settled} testId="q-rail-band" />}
         <button type="button" className={`wzq-rail-qh ${railQuoteOpen ? "open" : ""}`} aria-expanded={railQuoteOpen} onClick={() => setRailQuoteOpen((o) => !o)} data-testid="q-rail-quote-toggle">
-          <b>{doc.title} · {doc.number}</b><span>{summary.toGo === 0 ? "every line settled" : `${summary.toGo} to go`}</span><span className="chev" aria-hidden="true">{railQuoteOpen ? "▴" : "▾"}</span>
+          <b>{doc.title} · {doc.number}</b><span>{summary.toGo === 0 ? "All settled" : `${summary.toGo} to go`}</span><span className="chev" aria-hidden="true">{railQuoteOpen ? "▴" : "▾"}</span>
         </button>
         <div className={`wzq-rail-quote ${railQuoteOpen ? "open" : ""}`} data-testid="q-rail-quote" data-open={railQuoteOpen ? "1" : "0"}>
           <QuoteDoc doc={doc} brand={brand} currentAreaId={currentAreaId} />
@@ -411,7 +432,8 @@ export default function QuoteStage({ brand, estimateId, initial, jobKind, initia
               <p className="wzm-gate-label" data-testid="gate-label">{firstName ? `${firstName}, your quote range` : "Your quote range"}</p>
               <p className="wzm-gate-price" data-testid="gate-range">{fmt(payload.rangeLoCents)} – {fmt(payload.rangeHiCents)}</p>
               <p className="wzm-gate-fine" data-testid="gate-fine">
-                {typicalRoomNames(rooms).length > 0 ? `${typicalRoomNames(rooms).join(", ")} ${typicalRoomNames(rooms).length === 1 ? "is" : "are"} at the typical size — tap it below to measure it. ` : "Every room measured. "}
+                {/* Go-live S5 (M12): the instruction first, then only the rooms left unmeasured */}
+                {typicalRoomNames(rooms).length > 0 ? `Tap a room to measure it — ${typicalRoomNames(rooms).join(", ")} ${typicalRoomNames(rooms).length === 1 ? "is" : "are"} still at the typical size. ` : "Every room measured. "}
                 {prepRooms > 0 ? `Repairs in ${prepRooms} ${prepRooms === 1 ? "room are" : "rooms are"} allowed for and confirmed on the day. ` : "Repairs are allowed for and confirmed on the day. "}
                 Price is subject to change based on the information provided. {who} confirms it with you before anything is fixed. Includes GST.
               </p>
@@ -558,9 +580,16 @@ function QuoteDoc({ doc, brand, currentAreaId, onLineTap }: { doc: QuoteDocument
           <div className="amt" data-testid={`q-line-${l.areaId}-amount`}>{l.amount}</div>
         </div>
       ))}
-      <div className="ql sum"><div>{doc.repairsLine.split(" — ")[0]}<small>{doc.repairsLine.split(" — ")[1]}</small></div><div className="amt">—</div></div>
-      {doc.subtotal && <div className="ql sum" data-testid="q-doc-subtotal"><div>Subtotal</div><div className="amt">{doc.subtotal}</div></div>}
-      {doc.gst && <div className="ql sum" data-testid="q-doc-gst"><div>GST</div><div className="amt">{doc.gst}</div></div>}
+      {/* Go-live H1: every dollar outside the rooms has a line — set-up and preparation (repairs allowed for), cleaning… */}
+      {doc.extras.map((l) => (
+        <div key={l.key} className="ql extra" data-testid={`q-xline-${l.key}`} data-lo={l.loCents} data-hi={l.hiCents}>
+          <div>{l.label}{l.detail && <small>{l.detail}</small>}</div>
+          <div className="amt" data-testid={`q-xline-${l.key}-amount`}>{l.amount}</div>
+        </div>
+      ))}
+      {doc.extras.length === 0 && <div className="ql sum"><div>{doc.repairsLine.split(" — ")[0]}<small>{doc.repairsLine.split(" — ")[1]}</small></div><div className="amt">—</div></div>}
+      {doc.subtotal && <div className="ql sum" data-testid="q-doc-subtotal"><div>{doc.subtotalLabel}</div><div className="amt">{doc.subtotal}</div></div>}
+      {doc.gst && <div className="ql sum" data-testid="q-doc-gst"><div>{doc.gstLabel}</div><div className="amt">{doc.gst}</div></div>}
       <div className="ql total" data-testid="q-doc-total"><div>{doc.totalLabel}</div><div className="amt">{doc.total}</div></div>
     </div>
   );
@@ -620,7 +649,7 @@ function PriceBand({ lo, hi, settled, testId = "q-band" }: { lo: number; hi: num
     <div className="wzq-band" data-testid={testId} data-lo={lo} data-hi={hi} data-settled={pctSettled}>
       <div className="row">
         <span className="p" data-testid={`${testId}-range`}>{fmt(shown.lo)} – {fmt(shown.hi)}</span>
-        <span className="l" data-testid={`${testId}-settled`}>{pctSettled >= 100 ? "settled" : `closing in · ${pctSettled}% settled`}</span>
+        <span className="l" data-testid={`${testId}-settled`}>{pctSettled >= 100 ? "All settled" : `closing in · ${pctSettled}% settled`}</span>
       </div>
       <div className="track" aria-hidden="true"><i style={{ width: `${Math.max(6, open * 100)}%`, marginLeft: `${(1 - Math.max(0.06, open)) * 50}%`, background: mix([47, 211, 223], [52, 199, 123], pctSettled / 100) }} /></div>
     </div>

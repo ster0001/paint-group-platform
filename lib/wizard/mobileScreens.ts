@@ -24,7 +24,7 @@ import { VERANDAH_PARTS, anyBrick, anyVerticalTimber } from "./exterior-model";
  * The answers themselves are the quick look's (`QuickLook`), untouched:
  * the data model is unchanged (§2.6). Nothing here renders or prices.
  */
-export const MOBILE_SCREEN_IDS = ["what", "property", "beds", "storeys", "job", "surfaces", "rooms", "colours", "condition", "living", "shape", "size", "row", "p-house", "p-win", "p-ver", "p-around",
+export const MOBILE_SCREEN_IDS = ["what", "property", "beds", "storeys", "job", "surfaces", "rooms", "colours", "bold", "condition", "living", "shape", "size", "row", "p-house", "p-win", "p-ver", "p-around",
   "a-walls", "a-wallsUp", "a-brick", "a-timber", "a-gable", "a-win", "a-garage", "a-posts", "a-extras", "a-colours", "a-access",
   "s-front", "s-right", "s-back", "s-left", "details", "code"] as const;
 export type MobileScreenId = (typeof MOBILE_SCREEN_IDS)[number];
@@ -54,6 +54,8 @@ const WORDS: Record<WordedScreenId, { heading: string; sub: string }> = {
   surfaces: { heading: "What's being painted?", sub: "Tap a surface and watch it paint in." },
   rooms: { heading: "We're painting these rooms", sub: "We've guessed from the bedrooms. Untick any, add any." },
   colours: { heading: "Colours?", sub: "Still deciding is fine." },
+  // Go-live S5 (M8, ⚑ D7): the laptop's bold question, on the phone too — a big change in colour earns the undercoat.
+  bold: { heading: "Going much lighter, or a bold colour?", sub: "A big change in colour needs an undercoat — we allow for it." },
   condition: { heading: "How are the walls looking?", sub: "Honest is best — it sets the prep." },
   living: { heading: "Anyone living there while we paint?", sub: "We work room by room and pack down each day." },
   // Exterior on mobile v5, session 1 (plan §2 screens 2–4; the prototype's words): the Your home step, one question a screen.
@@ -109,6 +111,8 @@ export function mobileScreensFor(
         break;
       case "condition":
         out.push(screen("colours", step, "auto"));
+        // M8: asked only when something is changing colour — "Same colours" has nothing to go bold.
+        if (colourChoiceOf(quick) !== "same") out.push(screen("bold", step, "auto"));
         out.push(screen("condition", step, "auto"));
         out.push(screen("living", step, "auto"));
         break;

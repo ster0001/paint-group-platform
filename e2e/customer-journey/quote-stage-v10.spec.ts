@@ -127,7 +127,7 @@ test.describe("quote stage v10 — session 1: the cards on a phone", () => {
     const doc = page.getByTestId("q-panel").getByTestId("q-doc"); // the desktop rail holds a second copy, hidden on a phone
     await expect(doc).toHaveAttribute("data-title", "Draft quote");
     await expect(doc.getByTestId("q-doc-title")).toHaveText(/^Draft quote · PG-[0-9A-F]{6}$/);
-    await expect(doc).toContainText("Valid 30 days · Includes GST");
+    await expect(doc).toContainText(/Valid \d+ days · Includes GST/); // go-live D5: the number is Settings' (wizard_hold_days)
     await expect(doc.getByTestId("q-doc-for")).toContainText("Quote Tester");
     await expect(doc.getByTestId("q-doc-for")).toContainText(`q10.${run}@example.com`);
     const lines = doc.locator("[data-testid^='q-line-']:not([data-testid$='-amount'])");

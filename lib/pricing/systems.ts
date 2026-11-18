@@ -171,7 +171,7 @@ export type SystemRule = {
  * it has to move whenever `ceilingsMarkedCoats` lifts the coats.
  */
 export const MARKED_CEILINGS_SENTENCE =
-  "White again, over the marks. We block the water marks and stains first so they can't ghost through, then two coats of flat ceiling white.";
+  "White again, over the marks. We block the water marks and stains first so they can't ghost through, then {coats} of flat ceiling white.";
 
 /**
  * A PER-SURFACE condition flag (Tom, 9 Sep: "what if the doors need 3 coats
@@ -323,7 +323,9 @@ export const DEFAULT_PAINT_SYSTEMS: PaintSystems = {
   },
   ceilings: {
     same: rule(1, false, "White again. One fresh coat of flat ceiling white over a sound surface."),
-    new: rule(1, false, "White again. One fresh coat of flat ceiling white over a sound surface. Two if we're covering marks or a colour."),
+    // The cell serves both a white-again ceiling on a new-colour job (one coat) and a ceiling getting a colour (the
+    // coverage guard lifts it to two) — so the sentence is written from the coats, not the other way round (H3).
+    new: rule(1, false, "Flat ceiling paint, {coats}, over a sound surface — one when it stays white, two over marks or for a colour."),
     bold: rule(2, false, "A new ceiling colour. Two coats of flat ceiling paint."),
   },
   trims: {
@@ -612,6 +614,35 @@ export function fillCoatsPhrase(sentence: string, coats: number, undercoat: bool
   return sentence.replace(/\{coats\}/g, phrase).replace(/\{enamel\}/g, enamel);
 }
 
+/**
+ * Go-live brief H3 (18 Nov 2026): the words never contradict the badge. A
+ * sentence cell written for the plain system ("One fresh coat…") can be used
+ * on a line whose coats were lifted afterwards — the coverage guard on a
+ * ceiling getting a colour, a flag's floor, Settings edited to a different
+ * number — and a flag's own sentence ("…then two full coats") can sit on a
+ * line that climbed higher still. So the last step of every derivation
+ * rewrites the coat words to the TOPCOATS the badge shows: "one coat", "two
+ * coats", "two full coats", "One fresh coat"… become the derived count, with
+ * the undercoat (said separately in those sentences) taken off it.
+ */
+const COAT_WORDS_RE = /\b(one|two|three|four|five)( fresh| full)? coats?\b/gi;
+export function topcoatsOf(coats: number, undercoat: boolean): number {
+  return undercoat ? Math.max(1, coats - 1) : coats;
+}
+export function reconcileCoatWords(sentence: string, coats: number, undercoat: boolean): string {
+  const top = topcoatsOf(coats, undercoat);
+  const want = COUNT_WORDS[top] ?? String(top);
+  return sentence.replace(COAT_WORDS_RE, (_m, w: string, adj: string | undefined) => {
+    const word = w[0] === w[0].toUpperCase() ? want[0].toUpperCase() + want.slice(1) : want;
+    return `${word}${adj ?? ""} coat${top === 1 ? "" : "s"}`;
+  });
+}
+/** True when every coat count the sentence states is the badge's topcoat count (H3's table test). */
+export function coatWordsAgree(sentence: string, coats: number, undercoat: boolean): boolean {
+  const top = topcoatsOf(coats, undercoat);
+  return [...sentence.matchAll(COAT_WORDS_RE)].every((m) => COUNT_WORDS.indexOf(m[1].toLowerCase()) === top);
+}
+
 export function deriveSystem(
   group: SystemGroup,
   answers: SystemAnswers,
@@ -743,7 +774,7 @@ export function deriveSystem(
     coats,
     undercoat,
     prepHrPerUnit: systems.prepHrPerUnit[answers.condition],
-    sentence: fillCoatsPhrase(sentence, coats, undercoat, answers.trimsBase),
+    sentence: reconcileCoatWords(fillCoatsPhrase(sentence, coats, undercoat, answers.trimsBase), coats, undercoat),
     crewNote,
     review,
     reason,

@@ -74,6 +74,7 @@ test.describe("Wizard mobile v5 — the gate on a phone (session 4)", () => {
     await page.getByTestId("ql-next").tap();
     await at(page, "colours");
     await page.getByTestId("ql-colours-new").tap();
+    await page.getByTestId("ql-bold-no").tap(); // S5 M8: a colour change asks the bold question first
     await at(page, "condition");
     await page.getByTestId("ql-condition-wear").tap();
     await at(page, "living");

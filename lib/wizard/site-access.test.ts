@@ -5,18 +5,20 @@ import {
 } from "./site-access";
 
 const seeded = (...codes: string[]) => codes.map((code) => ({ code, multiplier: 1.02 }));
-const allSeeded = seeded(...Object.values(OCCUPANCY_MODIFIERS).map((o) => o.code));
+const allSeeded = seeded(...Object.values(OCCUPANCY_MODIFIERS).flatMap((o) => (o ? [o.code] : [])), "STG-EMPTY");
 
 describe("occupancy is a percentage — it scales with the job (Tom, 9 Sep)", () => {
-  it("prices empty and mostly empty at 2%, furnished at 4%", () => {
-    expect(OCCUPANCY_MODIFIERS.yes.pct).toBe(2);
-    expect(OCCUPANCY_MODIFIERS.some.pct).toBe(2);
-    expect(OCCUPANCY_MODIFIERS.no.pct).toBe(4);
+  it("prices empty at nothing (go-live H5), mostly empty at 2%, furnished at 4%", () => {
+    expect(OCCUPANCY_MODIFIERS.yes).toBeNull();
+    expect(OCCUPANCY_MODIFIERS.some?.pct).toBe(2);
+    expect(OCCUPANCY_MODIFIERS.no?.pct).toBe(4);
   });
 
   it("selects the occupancy modifier once Tom has seeded it", () => {
     expect(applySiteAccess({ cleared: "no" }, allSeeded).modSel).toEqual({ Staging: "STG-FURNISHED" });
-    expect(applySiteAccess({ cleared: "yes" }, allSeeded).modSel).toEqual({ Staging: "STG-EMPTY" });
+    // Go-live H5 (18 Nov 2026): rooms cleared / empty applies NO loading — the plain answer never pushes the price up.
+    expect(applySiteAccess({ cleared: "yes" }, allSeeded).modSel).toEqual({});
+    expect(applySiteAccess({ cleared: "yes" }, allSeeded).deferred).toEqual([]);
   });
 
   /**

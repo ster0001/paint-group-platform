@@ -356,6 +356,7 @@ test.describe("UI refresh · on a real phone (iPhone 13 emulation) no screen is 
     await quickNext(page);
     await at("colours");
     await page.getByTestId("ql-colours-new").click();
+    await page.getByTestId("ql-bold-no").click(); // S5 M8: a colour change asks the bold question first
     await at("condition");
     await page.getByTestId("ql-condition-wear").click();
     await at("living");

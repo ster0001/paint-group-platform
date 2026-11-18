@@ -1,5 +1,5 @@
 import { expect, type Page } from "@playwright/test";
-import { setParts } from "./drive";
+import { setParts, boldNoIfAsked } from "./drive";
 import { randomBytes } from "node:crypto";
 import { mkdirSync } from "node:fs";
 import { test } from "../helpers";
@@ -113,6 +113,7 @@ test.describe("Wizard mobile v5 — the live strip, thumbnail and roller (sessio
     await at(page, "colours");
     await expect(page.getByTestId("wzm-ribbon-1")).toHaveText(/^Inside · House · 3 bed · Two storeys · Whole interior · \d+ rooms$/);
     await page.getByTestId("ql-colours-new").tap();
+    await page.getByTestId("ql-bold-no").tap(); // S5 M8: a colour change asks the bold question first
     await at(page, "condition");
     await page.getByTestId("ql-condition-wear").tap();
     await at(page, "living");
@@ -221,6 +222,7 @@ test.describe("Wizard mobile v5 — the live strip, thumbnail and roller (sessio
     await at(page, "colours");
     for (const c of ["new", "same", "deciding"] as const) {
       await page.getByTestId(`ql-colours-${c}`).tap();
+      await boldNoIfAsked(page); // S5 M8: a colour change asks the bold question first
       await at(page, "condition");
       await expect(thumb(page)).toHaveAttribute("data-colour", c);
       await shot(page, `colour-${c}`);
@@ -228,6 +230,7 @@ test.describe("Wizard mobile v5 — the live strip, thumbnail and roller (sessio
       await at(page, "colours");
     }
     await page.getByTestId("ql-colours-new").tap();
+    await page.getByTestId("ql-bold-no").tap(); // S5 M8: a colour change asks the bold question first
     await at(page, "condition");
     for (const c of ["wear", "needs_work", "good"] as const) {
       await page.getByTestId(`ql-condition-${c}`).tap();

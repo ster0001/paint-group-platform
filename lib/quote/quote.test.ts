@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { lineState, quoteDocument, quoteLines, quoteNumber, quoteSummary } from "./quote";
+import { quoteBreakdown } from "@/lib/pricing/quoteBreakdown";
 import type { QuoteRoom } from "./cards";
 
 const bare = { tiles: [], windows: [], cupboard: null, cupboardInterior: null, spots: [], extras: { featureWalls: 0, wallpaper: false, other: "" }, garagePending: false };
@@ -28,7 +29,7 @@ describe("quote stage v10 — the quote document as data (§5)", () => {
   });
   it("the summary: lines to go, the minutes, the settled share, and the document's title and total label follow it", () => {
     expect(quoteSummary(rooms, 2)).toEqual({ toGo: 3, minutes: 1, settledShare: 2 / 3, allSettled: false });
-    const draft = quoteDocument({ payload, rooms, preparedFor: { name: "Tom", address: "15 Westgarth St", mobile: "0400", email: "t@x.com" }, number: "PH-ABC123", date: "2 Nov 2026", generalToGo: 2 });
+    const draft = quoteDocument({ payload, rooms, preparedFor: { name: "Tom", address: "15 Westgarth St", mobile: "0400", email: "t@x.com" }, number: "PH-ABC123", date: "2 Nov 2026", generalToGo: 2, validDays: 30 });
     expect(draft.title).toBe("Draft quote");
     expect(draft.totalLabel).toBe("Your range");
     expect(draft.total).toBe("$4,100 – $5,050");
@@ -36,11 +37,44 @@ describe("quote stage v10 — the quote document as data (§5)", () => {
     expect(draft.gst).toBe("$373 – $459");
     expect(draft.validity).toBe("Valid 30 days · Includes GST");
     const settledRooms = rooms.map((r) => ({ ...r, size: r.size ?? "yes" }));
-    const done = quoteDocument({ payload, rooms: settledRooms, preparedFor: draft.preparedFor, number: "PH-ABC123", date: "2 Nov 2026", generalToGo: 0 });
+    const done = quoteDocument({ payload, rooms: settledRooms, preparedFor: draft.preparedFor, number: "PH-ABC123", date: "2 Nov 2026", generalToGo: 0, validDays: 30 });
     expect(done.title).toBe("Quote");
     expect(done.totalLabel).toBe("Your price");
     expect(done.total).toBe("$4,100 – $5,050"); // still a range (R1)
   });
+  it("go-live D5: the validity line reads the Settings number, never a typed 30", () => {
+    const d = quoteDocument({ payload, rooms, preparedFor: { name: null, address: null, mobile: null, email: null }, number: "PG-1", date: "18 Nov 2026", generalToGo: 0, validDays: 60 });
+    expect(d.validity).toBe("Valid 60 days · Includes GST");
+  });
+
+  it("go-live H1: with the breakdown, every room line is its share of the Subtotal, the extras have lines, and the lines add to the Subtotal (low and high, to the dollar)", () => {
+    const breakdown = quoteBreakdown(
+      [{ key: "room:1", cents: 120_000 }, { key: "room:2", cents: 200_000 }, { key: "room:3", cents: 90_000 }, { key: "prep", cents: 38_250 }, { key: "cleaning", cents: 19_500 }, { key: "specialist", cents: 0 }, { key: "size", cents: 0 }, { key: "discount", cents: 0 }],
+      410_000, 505_000,
+    );
+    const settledRooms = rooms.map((r) => ({ ...r, size: r.size ?? "yes" }));
+    const d = quoteDocument({ payload: { ...payload, quoteBreakdown: breakdown }, rooms: settledRooms, preparedFor: { name: null, address: null, mobile: null, email: null }, number: "PG-1", date: "18 Nov 2026", generalToGo: 0, validDays: 60 });
+    expect(d.extras.map((x) => x.label)).toEqual(["Set-up and preparation", "Cleaning"]); // the zero parts have no line
+    expect(d.extras[0].detail).toMatch(/repairs allowed for/i);
+    expect(d.subtotalLabel).toBe("Subtotal · ex GST");
+    const money = (s: string) => s.replace(/[^\d–]/g, "").split("–").map(Number);
+    const lines = [...d.lines.map((l) => l.amount), ...d.extras.map((x) => x.amount)].map(money);
+    const [subLo, subHi] = money(d.subtotal!);
+    expect(lines.reduce((a, [lo]) => a + lo, 0)).toBe(subLo);
+    expect(lines.reduce((a, [, hi]) => a + hi, 0)).toBe(subHi);
+    const [gstLo, gstHi] = money(d.gst!);
+    const [totLo, totHi] = money(d.total);
+    expect(subLo + gstLo).toBe(totLo);
+    expect(subHi + gstHi).toBe(totHi);
+    expect(d.total).toBe("$4,100 – $5,050");
+    // an open line still shows no amount, and a payload from before the breakdown keeps the room's own range
+    const open = quoteDocument({ payload: { ...payload, quoteBreakdown: breakdown }, rooms, preparedFor: d.preparedFor, number: "PG-1", date: "18 Nov 2026", generalToGo: 0, validDays: 60 });
+    expect(open.lines[2].amount).toBe("—");
+    const legacy = quoteDocument({ payload, rooms: settledRooms, preparedFor: d.preparedFor, number: "PG-1", date: "18 Nov 2026", generalToGo: 0, validDays: 60 });
+    expect(legacy.extras).toEqual([]);
+    expect(legacy.lines[0].amount).toBe("$1,200 – $1,480");
+  });
+
   it("the quote number is the shopfront's prefix and the estimate's first six hex", () => {
     expect(quoteNumber("3fa85f64-5717-4562-b3fc-2c963f66afa6", "painthome")).toBe("PH-3FA85F");
     expect(quoteNumber("3fa85f64-5717-4562-b3fc-2c963f66afa6", "paintgroup")).toBe("PG-3FA85F");
