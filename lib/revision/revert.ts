@@ -25,6 +25,7 @@ export const ADJUSTMENT_KEYS = [
   "contractorRateOverride",
   "preparationOverrideCents",
   "preparationHours",
+  "cleaningHours",
   "hourLoading",
   "sizeUpliftDisabled",
 ] as const;

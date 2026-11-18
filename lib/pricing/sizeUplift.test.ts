@@ -35,8 +35,10 @@ test("an imported, override-only scope opts out of the uplift entirely (sizeUpli
     ],
   };
   const blocks = [{ kind: "line" as const, type: "Interior" as const, mode: "custom" as const, hours: 0, rate: 0, qty: 1, unitPrice: 0, custom: 15000, cost: 0, woHours: 0 }];
-  const withUplift = priceEstimateTotals(blocks, ctx, { modSel: {}, materials: {} });
-  const without = priceEstimateTotals(blocks, ctx, { modSel: {}, materials: {}, sizeUpliftDisabled: true });
+  // brief §3.3: an import carries explicit zeros, never the job-size scale
+  const none = { preparationHours: 0, preparationOverrideCents: 0, cleaningHours: 0 };
+  const withUplift = priceEstimateTotals(blocks, ctx, { modSel: {}, materials: {}, ...none });
+  const without = priceEstimateTotals(blocks, ctx, { modSel: {}, materials: {}, sizeUpliftDisabled: true, ...none });
   assert.equal(withUplift.sizeUpliftCents, 25_000);
   assert.equal(without.sizeUpliftCents, 0);
   assert.equal(without.subtotalCents, 1_500_000);

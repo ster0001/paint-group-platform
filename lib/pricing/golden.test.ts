@@ -90,7 +90,8 @@ test("every amount returned is an integer number of cents", () => {
     const { blocks, ...adj } = c.input;
     const t = priceEstimateTotals(blocks, ctx, adj as Adjustments);
     for (const [k, v] of Object.entries(t)) {
-      if (k === "contractorHours") continue; // hours are legitimately fractional
+      if (k === "contractorHours" || k === "preparationHours" || k === "cleaningHours") continue; // hours are legitimately fractional
+      if (k === "allowanceDefaults") continue; // the scale's figures, an object
       assert.ok(Number.isInteger(v), `${c.ref}: ${k} = ${v} is not an integer`);
     }
   }

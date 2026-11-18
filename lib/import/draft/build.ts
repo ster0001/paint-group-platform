@@ -176,6 +176,8 @@ export function buildDraftFromWorkOrder(
     contact, jobAddress,
     materials, materialColours: {}, sheens: {}, colourMatches: {},
     exclusions: quote.exclusions,
+    // Go-live brief §3.3: an import carries PaintScout's own figures — never the job-size scale.
+    preparationHours: 0, preparationOverrideCents: 0, cleaningHours: 0,
     adminNotes: `Imported from PaintScout quote ${quote.quoteNo ?? wo.quoteNo ?? "?"} and priced by this system's rate card.${quote.totalCents != null ? ` PaintScout's total was $${(quote.totalCents / 100).toFixed(2)} inc GST.` : ""}${opts.quoteUrl ? ` Quote: ${opts.quoteUrl}` : ""}${opts.workOrderUrl ? ` · Work order: ${opts.workOrderUrl}` : ""}`,
   };
   const totals = priceEstimateTotals(blocks as unknown as BlockInput[], ctx, adjustmentsFrom(builderState));

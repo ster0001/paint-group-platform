@@ -18,6 +18,7 @@
  */
 
 import { hoursPerUnit } from "./engine.ts";
+import { siteAllowances, siteAllowancesFrom, SITE_ALLOWANCES_KEY, type SiteAllowances, type SiteAllowanceSettings } from "./allowances.ts";
 import type { Product, RateItem } from "./types.ts";
 
 // ---------------------------------------------------------------------------
@@ -156,8 +157,11 @@ export type Adjustments = {
    * The "Preparation" line (Tom, 15 Sep 2026): the per-job allowance for site
    * set-up, fillers and consumables — what Settings calls "Sundries per job".
    * It was always inside the subtotal but never shown, so customers' parts
-   * didn't add up. null/absent = the Settings default for the job's
-   * interior/exterior mix; a number (cents) is the estimator's own figure.
+   * didn't add up. Since the go-live brief (18 Nov 2026, §3): null/absent =
+   * the job-size SCALE's sundries for the job's interior/exterior mix
+   * (lib/pricing/allowances.ts); a number (cents) is the estimator's own
+   * figure. Every estimate saved before that day carries an explicit number
+   * (migration 20270317), so nothing already priced moves.
    */
   preparationOverrideCents?: number | null;
   /**
@@ -166,9 +170,18 @@ export type Adjustments = {
    * job's charge-out rate (interior when the job has any interior area,
    * exterior otherwise). It rides the work order as its own "Preparation"
    * area so the painter's hours, the offer's hours and the pay all carry it.
-   * Absent, null or 0 = no time on the line, priced exactly as before.
+   * Since 18 Nov 2026: null/absent = the job-size scale's set-up hours; a
+   * number is the estimator's own (0 = none). Explicit on every older estimate.
    */
   preparationHours?: number | null;
+  /**
+   * Go-live brief §3 (18 Nov 2026): CLEANING hours — the painter's end-of-job
+   * clean, charged at the cleaning rate (Settings, $65/hr to start — D9), added
+   * to the subtotal and the contractor's hours, riding the work order as its
+   * own Cleaning area. null/absent = the job-size scale; a number is the
+   * estimator's own (0 = none). Exterior scale rows carry 0 (D11).
+   */
+  cleaningHours?: number | null;
   /**
    * C12 (addendum §4.14): the commercial LOADING — after hours, weekends,
    * staged, occupied — as one multiplier on PRODUCTION hours. Applied after
@@ -200,6 +213,8 @@ export type SurfaceResult = {
   chargeCents: number;
   paintingHr: number;
   prepHr: number;
+  /** The job-SIZE hours the allowance scale reads: production at the card's two coats, before the job modifier and any loading (lib/pricing/allowances.ts). */
+  sizeHr: number;
   labourCents: number;
   volume: number;
   unitPriceCents: number;
@@ -219,13 +234,19 @@ export type LineResult = {
 
 export type EstimateTotals = {
   subtotalCents: number;
-  /** The Preparation line as priced (override or Settings default). */
+  /** The Preparation line as priced (override or the job-size scale). */
   sundriesCents: number;
-  /** What Settings would give for this job's interior/exterior mix. */
+  /** What the job-size scale gives for this job (also `allowanceDefaults.sundriesCents`). */
   sundriesDefaultCents: number;
   /** Tom, 17 Sep: contractor time on the Preparation line — hours, and what they add at the charge-out rate. */
   preparationHours: number;
   preparationHoursCents: number;
+  /** Go-live brief §3: cleaning hours (override or the scale) and what they add at the cleaning rate. */
+  cleaningHours: number;
+  cleaningHoursCents: number;
+  /** What the job-size scale gives this job — the builder shows these as the defaults. */
+  allowanceDefaults: SiteAllowances;
+  cleaningRateCents: number;
   /** Extra margin on bigger jobs (Settings "Margin uplift — tier …"); 0 until set. */
   sizeUpliftCents: number;
   discountCents: number;
@@ -266,8 +287,8 @@ export function resolveRates(ctx: PricingContext, adj: Adjustments) {
   return {
     markup: sNum("Materials markup") ?? 0.1,
     gstRate: sNum("GST") ?? 0.1,
-    sundriesIntCents: Math.round((sNum("Sundries per job — interior") ?? 0) * 100),
-    sundriesExtCents: Math.round((sNum("Sundries per job — exterior") ?? 0) * 100),
+    // Go-live brief §3: the two "Sundries per job" rows retired into the job-size scale (one settings row).
+    siteAllowances: siteAllowancesFrom(ctx.settings.find((s) => normKey(s.key) === normKey(SITE_ALLOWANCES_KEY))?.value) as SiteAllowanceSettings,
     contractorHourlyCents: Math.round((sNum("Contractor rate") ?? 60) * 100),
     offerPct: sNum("Contractor offer — % of estimated hours") ?? 1,
     hourlyRateOverride: adj.hourlyRateOverride ?? null,
@@ -435,7 +456,7 @@ export function priceSurface(
     const labour = Math.round(s.prepHr * chargeBase);
     return {
       qty: 0, rate: 0, isItem: false, chargeCents: chargeBase,
-      paintingHr: 0, prepHr: s.prepHr, labourCents: labour,
+      paintingHr: 0, prepHr: s.prepHr, sizeHr: 0, labourCents: labour,
       volume: 0, unitPriceCents: 0, matCostCents: 0, matPriceCents: 0, totalCents: labour,
     };
   }
@@ -452,6 +473,11 @@ export function priceSurface(
   // hours they meant.
   const loading = adj.hourLoading != null && adj.hourLoading > 0 ? adj.hourLoading : 1;
   const paintingHr = s.paintingHrOverride ?? baseHours * jobMod * sizeMul * uplift * loading;
+  // The allowance scale's measure of the job (lib/pricing/allowances.ts): the same quantity at the card's
+  // two coats, before the job modifier and the loading — typed hours are taken as typed.
+  const sizeHpu = hoursPerUnit(item, 2);
+  const sizeRate = s.rateOverride ?? (isItem ? sizeHpu : 1 / sizeHpu);
+  const sizeHr = s.paintingHrOverride ?? (isItem ? sizeRate * qty : sizeRate > 0 ? qty / sizeRate : 0) * sizeMul * uplift;
   const labourCents = Math.round((paintingHr + s.prepHr) * chargeBase);
 
   const prodName = productNameFor(area.type, s, adj.materials, items);
@@ -484,7 +510,7 @@ export function priceSurface(
 
   return {
     qty, rate: dispRate, isItem, chargeCents: chargeBase,
-    paintingHr, prepHr: s.prepHr, labourCents: finalLabour,
+    paintingHr, prepHr: s.prepHr, sizeHr, labourCents: finalLabour,
     volume, unitPriceCents, matCostCents, matPriceCents, totalCents,
   };
 }
@@ -553,11 +579,16 @@ export function priceEstimateTotals(
   let thirdPartyCost = 0;
   let anyInt = false;
   let anyExt = false;
+  // Go-live brief §3: the job's size per side, for the allowance scale.
+  let sizeHrInt = 0;
+  let sizeHrExt = 0;
 
   for (const b of blocks) {
     if (b.isOption) continue; // options sit outside the total until accepted
-    if (b.type === "Interior") anyInt = true;
+    const interior = b.type === "Interior";
+    if (interior) anyInt = true;
     else anyExt = true;
+    const addSize = (h: number) => { if (interior) sizeHrInt += h; else sizeHrExt += h; };
 
     if (b.kind === "area") {
       for (const s of b.surfaces) {
@@ -565,12 +596,14 @@ export function priceEstimateTotals(
         const c = priceSurface(b, s, ctx, adj, rates, items, productsByName, jobMod);
         subtotal += c.totalCents;
         contractorHours += c.paintingHr + c.prepHr;
+        addSize(c.sizeHr + c.prepHr);
         materialsCost += c.matCostCents;
       }
     } else {
       const c = priceLine(b, { productsByName, markup: rates.markup });
       subtotal += c.priceCents;
       contractorHours += c.hours;
+      addSize(c.hours);
       // A 3rd-party line is a pass-through: its cost is NOT a gross-margin
       // cost, and its charge is netted back out of the margin below.
       if (b.subcontractorExpense) {
@@ -582,7 +615,12 @@ export function priceEstimateTotals(
     }
   }
 
-  const sundriesDefaultCents = (anyInt ? rates.sundriesIntCents : 0) + (anyExt ? rates.sundriesExtCents : 0);
+  // Go-live brief §3 (18 Nov 2026): set-up hours, cleaning hours and sundries from the job-size scale
+  // — added AFTER the multiplier chain and never multiplied. An estimator's own figure (a number, 0
+  // included) wins over the scale; null is the scale. Every estimate saved before the scale carries
+  // explicit figures (migration 20270317), so nothing already priced moves.
+  const allowanceDefaults = siteAllowances({ interiorHours: anyInt ? sizeHrInt : null, exteriorHours: anyExt ? sizeHrExt : null }, rates.siteAllowances);
+  const sundriesDefaultCents = allowanceDefaults.sundriesCents;
   const sundriesCents =
     adj.preparationOverrideCents != null && Number.isFinite(adj.preparationOverrideCents)
       ? Math.max(0, Math.round(adj.preparationOverrideCents))
@@ -592,12 +630,20 @@ export function priceEstimateTotals(
   // The Preparation line's contractor time (Tom, 17 Sep): hours at the
   // charge-out rate, straight into the subtotal and the contractor's hours.
   const preparationHours =
-    adj.preparationHours != null && Number.isFinite(adj.preparationHours) ? Math.max(0, adj.preparationHours) : 0;
+    adj.preparationHours != null && Number.isFinite(adj.preparationHours) ? Math.max(0, adj.preparationHours) : allowanceDefaults.prepHours;
   const preparationHoursCents = preparationHours > 0
     ? Math.round(preparationHours * chargeOutCents(anyInt || !anyExt ? "Interior" : "Exterior", ctx.rateItems, rates.hourlyRateOverride))
     : 0;
   subtotal += preparationHoursCents;
   contractorHours += preparationHours;
+
+  // Cleaning (D9): its own rate, below the painting rate; into the subtotal and the painter's hours.
+  const cleaningRateCents = rates.siteAllowances.cleaningRateCents;
+  const cleaningHours =
+    adj.cleaningHours != null && Number.isFinite(adj.cleaningHours) ? Math.max(0, adj.cleaningHours) : allowanceDefaults.cleaningHours;
+  const cleaningHoursCents = cleaningHours > 0 ? Math.round(cleaningHours * cleaningRateCents) : 0;
+  subtotal += cleaningHoursCents;
+  contractorHours += cleaningHours;
 
   // Size uplift — before discount and GST, inside the subtotal, so the
   // wizard range, the builder, the margin report and the work order agree.
@@ -627,6 +673,10 @@ export function priceEstimateTotals(
     sundriesDefaultCents,
     preparationHours,
     preparationHoursCents,
+    cleaningHours,
+    cleaningHoursCents,
+    allowanceDefaults,
+    cleaningRateCents,
     sizeUpliftCents: sizeUplift,
     discountCents,
     netSubtotalCents,

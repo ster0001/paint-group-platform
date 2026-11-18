@@ -895,7 +895,7 @@
         "wastage_pct": 10
       },
       {
-        "name": "Cabot's Cabothane Clear — Interior",
+        "name": "Cabot's Cabothane Clear \u2014 Interior",
         "coverage": 16,
         "price_per_litre": 3000,
         "wastage_pct": 10
@@ -991,7 +991,7 @@
         "wastage_pct": 10
       },
       {
-        "name": "Cabot's Cabothane Clear — Exterior grade",
+        "name": "Cabot's Cabothane Clear \u2014 Exterior grade",
         "coverage": 16,
         "price_per_litre": 3000,
         "wastage_pct": null
@@ -1002,12 +1002,12 @@
         "key": "Contractor rate",
         "value": {
           "unit": "$ / hour",
-          "notes": "Your figure — flat, both interior and exterior",
+          "notes": "Your figure \u2014 flat, both interior and exterior",
           "value": 60
         }
       },
       {
-        "key": "Contractor offer — % of estimated hours",
+        "key": "Contractor offer \u2014 % of estimated hours",
         "value": {
           "unit": "%",
           "notes": "Separate lever. Drop below 100% only if efficiency gains prove real and contractors still accept",
@@ -1031,7 +1031,7 @@
         }
       },
       {
-        "key": "Sundries per job — interior",
+        "key": "Sundries per job \u2014 interior",
         "value": {
           "unit": "$",
           "notes": "Sum of the itemised Sundries tab",
@@ -1039,10 +1039,10 @@
         }
       },
       {
-        "key": "Sundries per job — exterior",
+        "key": "Sundries per job \u2014 exterior",
         "value": {
           "unit": "$",
-          "notes": "PROPOSED — itemised total less drop sheets. Confirm against your supplier dockets",
+          "notes": "PROPOSED \u2014 itemised total less drop sheets. Confirm against your supplier dockets",
           "value": 175
         }
       }
@@ -1091,7 +1091,10 @@
         "discountMode": "pct",
         "discountFixedCents": 0,
         "hourlyRateOverride": null,
-        "contractorRateOverride": null
+        "contractorRateOverride": null,
+        "preparationOverrideCents": 27500,
+        "preparationHours": 0,
+        "cleaningHours": 0
       }
     },
     {
@@ -1135,7 +1138,10 @@
         "discountMode": "pct",
         "discountFixedCents": 0,
         "hourlyRateOverride": null,
-        "contractorRateOverride": null
+        "contractorRateOverride": null,
+        "preparationOverrideCents": 27500,
+        "preparationHours": 0,
+        "cleaningHours": 0
       }
     },
     {
@@ -1179,7 +1185,10 @@
         "discountMode": "pct",
         "discountFixedCents": 0,
         "hourlyRateOverride": null,
-        "contractorRateOverride": null
+        "contractorRateOverride": null,
+        "preparationOverrideCents": 27500,
+        "preparationHours": 0,
+        "cleaningHours": 0
       }
     },
     {
@@ -1230,7 +1239,10 @@
         "discountMode": "pct",
         "discountFixedCents": 0,
         "hourlyRateOverride": null,
-        "contractorRateOverride": null
+        "contractorRateOverride": null,
+        "preparationOverrideCents": 17500,
+        "preparationHours": 0,
+        "cleaningHours": 0
       }
     },
     {
@@ -1506,7 +1518,10 @@
         "discountMode": "pct",
         "discountFixedCents": 0,
         "hourlyRateOverride": null,
-        "contractorRateOverride": null
+        "contractorRateOverride": null,
+        "preparationOverrideCents": 45000,
+        "preparationHours": 0,
+        "cleaningHours": 0
       }
     },
     {
@@ -1833,8 +1848,12 @@
         "discountMode": "pct",
         "discountFixedCents": 0,
         "hourlyRateOverride": 100,
-        "contractorRateOverride": 60
+        "contractorRateOverride": 60,
+        "preparationOverrideCents": 17500,
+        "preparationHours": 0,
+        "cleaningHours": 0
       }
     }
-  ]
+  ],
+  "allowancesExplicitAt": "2026-11-18: every case carries explicit preparationOverrideCents / preparationHours / cleaningHours \u2014 what migration 20270317 writes on every saved estimate, so the stored totals stay the expectation under the job-size scale (go-live brief \u00a73.3)."
 }

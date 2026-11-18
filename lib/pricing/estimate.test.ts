@@ -66,7 +66,9 @@ const ctx: PricingContext = {
   ],
 };
 
-const adj: Adjustments = { modSel: { "Level of Finish": "FIN-3" }, materials: {} };
+// Go-live brief §3 (18 Nov 2026): explicit 0 hours = "none", as migration 20270317 writes on every saved estimate;
+// the sundries line is left null here, so it reads the job-size scale (§3.1 defaults — the ctx has no site_allowances row).
+const adj: Adjustments = { modSel: { "Level of Finish": "FIN-3" }, materials: {}, preparationHours: 0, cleaningHours: 0 };
 const rates = resolveRates(ctx, adj);
 
 const area = (over: Partial<AreaInput> = {}): AreaInput => ({
@@ -194,22 +196,25 @@ test("GST rounds half away from zero (JavaScript Math.round), not banker's round
   assert.ok(Number.isInteger(t.gstCents));
 });
 
-test("sundries are added once per job, per interior/exterior, not per area", () => {
+test("sundries are added once per job, per interior/exterior, not per area — from the job-size scale (brief §3)", () => {
+  // a small job: both sides sit in the "under 12 h" band — $105 interior, $140 exterior (§3.1)
   const two = [area({ surfaces: [surface()] }), area({ surfaces: [surface()] })];
-  assert.equal(priceEstimateTotals(two, ctx, adj).sundriesCents, 5000, "interior sundries once");
+  assert.equal(priceEstimateTotals(two, ctx, adj).sundriesCents, 10500, "interior sundries once");
   const mixed = [area({ surfaces: [surface()] }), area({ type: "Exterior", surfaces: [] })];
-  assert.equal(priceEstimateTotals(mixed, ctx, adj).sundriesCents, 13000, "interior + exterior");
+  assert.equal(priceEstimateTotals(mixed, ctx, adj).sundriesCents, 10500 + 14000, "interior + exterior");
+  // the retired flat rows are not read any more
+  assert.equal(priceEstimateTotals(two, { ...ctx, settings: ctx.settings.filter((s) => !/Sundries/.test(s.key)) }, adj).sundriesCents, 10500);
 });
 
-test("the Preparation line: an estimator override replaces the Settings sundries, blank restores it", () => {
+test("the Preparation line: an estimator override replaces the scale's sundries, blank restores it", () => {
   const base = priceEstimateTotals(oneWall, ctx, adj);
-  assert.equal(base.sundriesDefaultCents, 5000);
-  assert.equal(base.sundriesCents, 5000);
+  assert.equal(base.sundriesDefaultCents, 10500);
+  assert.equal(base.sundriesCents, 10500);
   const over = priceEstimateTotals(oneWall, ctx, { ...adj, preparationOverrideCents: 12345 });
   assert.equal(over.sundriesCents, 12345, "override is the line");
-  assert.equal(over.sundriesDefaultCents, 5000, "default still reported for the hint");
-  assert.equal(over.subtotalCents - base.subtotalCents, 7345, "subtotal moves by the difference");
-  assert.equal(priceEstimateTotals(oneWall, ctx, { ...adj, preparationOverrideCents: null }).sundriesCents, 5000, "null = default");
+  assert.equal(over.sundriesDefaultCents, 10500, "default still reported for the hint");
+  assert.equal(over.subtotalCents - base.subtotalCents, 1845, "subtotal moves by the difference");
+  assert.equal(priceEstimateTotals(oneWall, ctx, { ...adj, preparationOverrideCents: null }).sundriesCents, 10500, "null = the scale");
   assert.equal(priceEstimateTotals(oneWall, ctx, { ...adj, preparationOverrideCents: -5 }).sundriesCents, 0, "never negative");
 });
 
@@ -409,7 +414,59 @@ test("the Preparation line's contractor time (Tom, 17 Sep): hours at the charge-
   // the allowance and the time land on the same line.
   const shown = timed.subtotalCents - (timed.subtotalCents - timed.sundriesCents - timed.preparationHoursCents - timed.sizeUpliftCents);
   assert.equal(shown, timed.sundriesCents + timed.preparationHoursCents + timed.sizeUpliftCents);
-  assert.equal(priceEstimateTotals(oneWall, ctx, { ...adj, preparationHours: null }).preparationHoursCents, 0, "null = none");
+  // Go-live brief §3: null is the SCALE now — a job under 12 h gets 2 set-up hours; an explicit 0 is none.
+  assert.equal(priceEstimateTotals(oneWall, ctx, { ...adj, preparationHours: null }).preparationHours, 2, "null = the scale");
+  assert.equal(priceEstimateTotals(oneWall, ctx, { ...adj, preparationHours: null }).preparationHoursCents, Math.round(2 * chargeOut), "scale hours at the charge-out rate");
+  assert.equal(priceEstimateTotals(oneWall, ctx, { ...adj, preparationHours: 0 }).preparationHoursCents, 0, "0 = none");
   assert.equal(priceEstimateTotals(oneWall, ctx, { ...adj, preparationHours: -3 }).preparationHoursCents, 0, "never negative");
   assert.equal(priceEstimateTotals(oneWall, ctx, { ...adj, preparationHours: 1, hourlyRateOverride: 120 }).preparationHoursCents, 12000, "follows the $/hr override");
+});
+
+// ---- go-live brief §3 — site allowances by job size (18 Nov 2026) ---------------------------
+
+test("golden (brief §5 S1): the audit's 3-bed — 65.55 painting hours, areas $7,257.45 → $8,522.45 ex GST, $9,374.70 inc, 77.55 h, offer $4,653.00", () => {
+  // The job as one priced line: $7,257.45 of areas carrying 65.55 crew hours, at a $95 charge-out.
+  const job = [{ kind: "line" as const, type: "Interior" as const, mode: "custom" as const, hours: 0, rate: 0, qty: 1, unitPrice: 0, custom: 7257.45, cost: 0, woHours: 65.55 }];
+  const noUplift = { ...ctx, settings: [...ctx.settings, { key: "Margin uplift — tier 1 %", value: { value: 0 } }, { key: "Margin uplift — tier 2 %", value: { value: 0 } }] };
+  const t = priceEstimateTotals(job, noUplift, { modSel: {}, materials: {}, hourlyRateOverride: 95 });
+  assert.deepEqual(t.allowanceDefaults, { ...t.allowanceDefaults, prepHours: 8, cleaningHours: 4, sundriesCents: 24500 });
+  assert.equal(t.sundriesCents, 24500, "sundries $245");
+  assert.equal(t.preparationHoursCents, 8 * 9500, "8 h × $95");
+  assert.equal(t.cleaningHoursCents, 4 * 6500, "4 h × $65 (D9)");
+  assert.equal(t.subtotalCents, 852245, "$8,522.45 ex GST");
+  assert.equal(t.totalCents, 937470, "$9,374.70 inc GST");
+  assert.equal(Math.round(t.contractorHours * 100) / 100, 77.55, "65.55 + 8 + 4 hours");
+  assert.equal(t.contractorOfferCents, 465300, "77.55 h × $60");
+});
+
+test("allowance hours are identical for a 2-coat and a 3-coat version of the same job, and under any job modifier (brief §5 S1)", () => {
+  const two = [area({ L: 6, W: 5, H: 2.7, surfaces: [surface({ coats: 2 }), surface({ code: "DOOR", coats: 2, count: 3 })] })];
+  const three = [area({ L: 6, W: 5, H: 2.7, surfaces: [surface({ coats: 3 }), surface({ code: "DOOR", coats: 3, count: 3 })] })];
+  const open: Adjustments = { modSel: { "Level of Finish": "FIN-3" }, materials: {} };
+  const a = priceEstimateTotals(two, ctx, open), b = priceEstimateTotals(three, ctx, open);
+  const c = priceEstimateTotals(two, ctx, { ...open, modSel: { ...open.modSel, Condition: "COND-POOR" } });
+  const d = priceEstimateTotals(two, ctx, { ...open, hourLoading: 1.5 });
+  assert.ok(b.contractorHours > a.contractorHours && c.contractorHours > a.contractorHours && d.contractorHours > a.contractorHours, "the coats, the modifier and the loading all add painting hours");
+  for (const t of [b, c, d]) {
+    assert.deepEqual(t.allowanceDefaults, a.allowanceDefaults, "the allowances read the job's size, not its coats or modifier");
+    assert.equal(t.preparationHours, a.preparationHours);
+    assert.equal(t.cleaningHours, a.cleaningHours);
+    assert.equal(t.sundriesCents, a.sundriesCents);
+  }
+  // and the allowances are added after the chain, never multiplied by it
+  assert.equal(c.preparationHoursCents, a.preparationHoursCents);
+  assert.equal(c.cleaningHoursCents, a.cleaningHoursCents);
+});
+
+test("the estimator's own figures beat the scale; an explicit 0 is none, not the scale (brief §3.3)", () => {
+  const scale = priceEstimateTotals(oneWall, ctx, { modSel: {}, materials: {} });
+  assert.deepEqual([scale.preparationHours, scale.cleaningHours, scale.sundriesCents], [2, 1.5, 10500]);
+  const none = priceEstimateTotals(oneWall, ctx, { modSel: {}, materials: {}, preparationHours: 0, cleaningHours: 0, preparationOverrideCents: 0 });
+  assert.deepEqual([none.preparationHours, none.cleaningHours, none.sundriesCents, none.preparationHoursCents, none.cleaningHoursCents], [0, 0, 0, 0, 0]);
+  const own = priceEstimateTotals(oneWall, ctx, { modSel: {}, materials: {}, cleaningHours: 3 });
+  assert.equal(own.cleaningHoursCents, 3 * 6500);
+  assert.equal(Math.round((own.contractorHours - none.contractorHours) * 100) / 100, 2 + 3, "the scale's 2 h set-up and the typed 3 h cleaning ride the painter's hours");
+  // the cleaning rate is the scale's, Settings-editable
+  const dearer = { ...ctx, settings: [...ctx.settings, { key: "site_allowances", value: { cleaningRateCents: 8000 } }] };
+  assert.equal(priceEstimateTotals(oneWall, dearer, { modSel: {}, materials: {}, cleaningHours: 1 }).cleaningHoursCents, 8000);
 });

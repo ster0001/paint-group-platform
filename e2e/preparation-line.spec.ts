@@ -46,10 +46,6 @@ test.describe("the Preparation line", () => {
   let interiorDefaultCents = 0;
 
   test.beforeAll(async () => {
-    const { data: s } = await db!.from("settings").select("value").eq("key", "Sundries per job — interior").single();
-    const v = (s?.value as { value?: number } | number | null);
-    interiorDefaultCents = Math.round(((typeof v === "number" ? v : v?.value) ?? 0) * 100);
-    expect(interiorDefaultCents, "the test project needs a non-zero interior sundries setting").toBeGreaterThan(0);
 
     builtToken = `prep${run}built`;
     const est = await db!.from("estimates").insert({
@@ -58,6 +54,8 @@ test.describe("the Preparation line", () => {
         blocks: [{ id: 1, kind: "area", name: "Living room", type: "Interior", areaType: "room", L: 4, W: 3, H: 2.4, isOption: false, description: "", open: false, media: [],
           surfaces: [{ id: 11, code: "WALL", coats: 2, count: 0, prepHr: 1, internalLabel: "Walls", clientLabel: "Walls" }] }],
         modSel: { "Level of Finish": "FIN-3" }, materials: {},
+        // go-live brief §3 (18 Nov 2026): explicit 0 hours = none, as every saved estimate carries; the sundries line stays on the job-size scale
+        preparationHours: 0, cleaningHours: 0,
       },
     }).select("id").single();
     if (est.error) throw new Error(est.error.message);
@@ -98,7 +96,10 @@ test.describe("the Preparation line", () => {
     await expect(card).toBeVisible();
     await expect(card).toContainText("Preparation");
     await expect(card).toContainText(PREPARATION_DESCRIPTION);
-    await expect(card).toContainText(`Settings default for this job (${money(interiorDefaultCents)})`);
+    // 18 Nov 2026: the default is the job-size scale's sundries for this job (lib/pricing/allowances.ts), read off the card
+    interiorDefaultCents = Math.round(Number(await page.getByTestId("preparation-amount").getAttribute("placeholder")) * 100);
+    expect(interiorDefaultCents).toBeGreaterThan(0);
+    await expect(card).toContainText(`From the job-size scale for this job (${money(interiorDefaultCents)} sundries)`);
     // It sits ABOVE the first area.
     const cardBox = await card.boundingBox();
     const areaBox = await page.getByText("Living room", { exact: true }).first().boundingBox();

@@ -57,6 +57,10 @@ export const PREPARATION_TITLE = "Preparation";
 // Tom, 17 Sep 2026: "time/ materials" — the line now carries the contractor's set-up hours too.
 export const PREPARATION_DESCRIPTION = "Allowance for time/ materials for job site set up, fillers and consumables.";
 export const PREPARATION_ID = "preparation";
+/** Go-live brief §3 (18 Nov 2026): the Cleaning area on the work order; the customer's own Cleaning line is Session 5 (H1) — until then its dollars ride the Preparation line so the parts add up. */
+export const CLEANING_TITLE = "Cleaning";
+export const CLEANING_DESCRIPTION = "End-of-job clean of the work areas.";
+export const CLEANING_ID = "cleaning";
 
 export type CustomerSnapshot = {
   version: 1;

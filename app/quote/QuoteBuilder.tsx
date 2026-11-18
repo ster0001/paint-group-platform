@@ -37,7 +37,7 @@ import CustomerEstimate from "@/app/e/[token]/CustomerEstimate";
 import { toEstimateSignature } from "@/lib/estimate/signature";
 import { renderProgressPreviewAction, type ProgressPreviewRender } from "./progressPreviewAction";
 import ProgressPhone from "@/app/e/[token]/ProgressPhone";
-import { DEFAULT_PROOF, ESTIMATE_DOCS_BUCKET, PREPARATION_DESCRIPTION, PREPARATION_ID, PREPARATION_TITLE, estimateDocUrl, type CustomerSnapshot, type SnapshotArea, type SnapshotLine, type SnapshotPaint, type SnapshotSurface } from "@/lib/customer/snapshot";
+import { DEFAULT_PROOF, ESTIMATE_DOCS_BUCKET, CLEANING_ID, CLEANING_TITLE, PREPARATION_DESCRIPTION, PREPARATION_ID, PREPARATION_TITLE, estimateDocUrl, type CustomerSnapshot, type SnapshotArea, type SnapshotLine, type SnapshotPaint, type SnapshotSurface } from "@/lib/customer/snapshot";
 import { lineSurfaceKey, lineWorkOrderArea } from "@/lib/workorder/lineArea";
 import { type InclusionTemplate } from "@/lib/estimate/inclusionTemplates";
 import WorkOrderDoc, { type WOEdit } from "@/app/w/WorkOrderDoc";
@@ -374,7 +374,7 @@ export default function QuoteBuilder({
     return g;
   }, [modifiers]);
 
-  const loaded = (initial?.builder_state ?? null) as { blocks?: Block[]; modSel?: Record<string, string>; contact?: Contact; jobAddress?: JobAddress; materials?: Record<string, string>; materialColours?: Record<string, { name: string; hex: string }>; sheens?: Record<string, string>; depositPct?: number; inclusions?: string[]; exclusions?: string[]; discountPct?: number; discountMode?: "pct" | "fixed"; discountFixedCents?: number; hourlyRateOverride?: number | null; contractorRateOverride?: number | null; preparationOverrideCents?: number | null; preparationHours?: number | null; adminNotes?: string; internalMaterials?: string[]; swms?: { path: string; name: string } | null; aiDeferred?: AiDeferred[]; idealPainters?: number | null; colourMatches?: Record<string, ColourMatch>; photoReview?: PhotoReview | null; extraPaints?: ExtraPaint[] } | null;
+  const loaded = (initial?.builder_state ?? null) as { blocks?: Block[]; modSel?: Record<string, string>; contact?: Contact; jobAddress?: JobAddress; materials?: Record<string, string>; materialColours?: Record<string, { name: string; hex: string }>; sheens?: Record<string, string>; depositPct?: number; inclusions?: string[]; exclusions?: string[]; discountPct?: number; discountMode?: "pct" | "fixed"; discountFixedCents?: number; hourlyRateOverride?: number | null; contractorRateOverride?: number | null; preparationOverrideCents?: number | null; preparationHours?: number | null; cleaningHours?: number | null; adminNotes?: string; internalMaterials?: string[]; swms?: { path: string; name: string } | null; aiDeferred?: AiDeferred[]; idealPainters?: number | null; colourMatches?: Record<string, ColourMatch>; photoReview?: PhotoReview | null; extraPaints?: ExtraPaint[] } | null;
   // Deferred plan-reader decisions ride builder_state so the review gate can
   // price them; the builder carries them through saves — and, since 7 Sep,
   // RESOLVES one of them: the estimator's sign-off on the customer's photos.
@@ -497,6 +497,8 @@ export default function QuoteBuilder({
   const [preparationOverrideCents, setPreparationOverrideCents] = useState<number | null>(() => loaded?.preparationOverrideCents ?? null);
   // Tom, 17 Sep: contractor time on the Preparation line (hours; null = none).
   const [preparationHours, setPreparationHours] = useState<number | null>(() => loaded?.preparationHours ?? null);
+  // Go-live brief §3 (18 Nov 2026): cleaning hours — null = the job-size scale, a number = the estimator's own (0 = none).
+  const [cleaningHours, setCleaningHours] = useState<number | null>(() => loaded?.cleaningHours ?? null);
   // Tom, 17 Sep: admin notes for the estimator — staff only, never on the
   // customer's copy or the work order. Lives in builder_state.
   const [adminNotes, setAdminNotes] = useState<string>(() => loaded?.adminNotes ?? "");
@@ -925,8 +927,8 @@ export default function QuoteBuilder({
     [rateItems, products, modifiers, settings],
   );
   const adjustments: Adjustments = useMemo(
-    () => ({ modSel, materials, discountPct, discountMode, discountFixedCents, hourlyRateOverride, contractorRateOverride, preparationOverrideCents, preparationHours }),
-    [modSel, materials, discountPct, discountMode, discountFixedCents, hourlyRateOverride, contractorRateOverride, preparationOverrideCents, preparationHours],
+    () => ({ modSel, materials, discountPct, discountMode, discountFixedCents, hourlyRateOverride, contractorRateOverride, preparationOverrideCents, preparationHours, cleaningHours }),
+    [modSel, materials, discountPct, discountMode, discountFixedCents, hourlyRateOverride, contractorRateOverride, preparationOverrideCents, preparationHours, cleaningHours],
   );
   const rates = useMemo(() => resolveRates(pricingCtx, adjustments), [pricingCtx, adjustments]);
   // What is still assumed on this estimate, priced and ordered - the $150 gate.
@@ -966,6 +968,10 @@ export default function QuoteBuilder({
       sundriesDefault: t.sundriesDefaultCents,
       preparationHours: t.preparationHours,
       preparationHoursCents: t.preparationHoursCents,
+      cleaningHours: t.cleaningHours,
+      cleaningHoursCents: t.cleaningHoursCents,
+      allowanceDefaults: t.allowanceDefaults,
+      cleaningRateCents: t.cleaningRateCents,
       discountCents: t.discountCents,
       netSubtotal: t.netSubtotalCents,
       gst: t.gstCents,
@@ -1031,6 +1037,7 @@ export default function QuoteBuilder({
       setContractorRateOverride((next.contractorRateOverride as number | null | undefined) ?? null);
       setPreparationOverrideCents((next.preparationOverrideCents as number | null | undefined) ?? null);
       setPreparationHours((next.preparationHours as number | null | undefined) ?? null);
+      setCleaningHours((next.cleaningHours as number | null | undefined) ?? null);
     } else {
       setBlocks((next.blocks as Block[] | undefined) ?? []);
       goView(null);
@@ -1072,7 +1079,7 @@ export default function QuoteBuilder({
   // presentationId is part of the fingerprint (3 Sep): ticking a presentation
   // used to leave the builder "Saved ✓", so nothing wrote it and the Estimate
   // tab kept showing the last published copy — without the presentation.
-  const builderFingerprint = JSON.stringify({ blocks, modSel, contact, jobAddress, materials, materialColours, sheens, colourMatches, depositPct, inclusions, exclusions, discountPct, discountMode, discountFixedCents, hourlyRateOverride, contractorRateOverride, preparationOverrideCents, preparationHours, adminNotes, internalMaterials, swms, aiDeferred, idealPainters, presentationId, leadSource, photoReview, extraPaints });
+  const builderFingerprint = JSON.stringify({ blocks, modSel, contact, jobAddress, materials, materialColours, sheens, colourMatches, depositPct, inclusions, exclusions, discountPct, discountMode, discountFixedCents, hourlyRateOverride, contractorRateOverride, preparationOverrideCents, preparationHours, cleaningHours, adminNotes, internalMaterials, swms, aiDeferred, idealPainters, presentationId, leadSource, photoReview, extraPaints });
 
   useEffect(() => { if (!savedStateRef.current) savedStateRef.current = builderFingerprint; }, [builderFingerprint]);
   // A new estimate (no row yet) with edits is unsaved work too (29 Sep) — the
@@ -1149,7 +1156,7 @@ export default function QuoteBuilder({
           // (`woDoc`, the shape acceptance freezes) so the server can fold
           // the COLOURS chosen here into the live job — the customer's
           // colour card and the painter's sheet read the snapshot, not this.
-          state: { ...(loaded ?? {}), blocks, modSel, contact, jobAddress, materials, materialColours, sheens, colourMatches, depositPct, inclusions, exclusions, discountPct, discountMode, discountFixedCents, hourlyRateOverride, contractorRateOverride, preparationOverrideCents, preparationHours, adminNotes, internalMaterials, swms, aiDeferred, idealPainters, photoReview, woDoc: computeWorkOrderDoc() },
+          state: { ...(loaded ?? {}), blocks, modSel, contact, jobAddress, materials, materialColours, sheens, colourMatches, depositPct, inclusions, exclusions, discountPct, discountMode, discountFixedCents, hourlyRateOverride, contractorRateOverride, preparationOverrideCents, preparationHours, cleaningHours, adminNotes, internalMaterials, swms, aiDeferred, idealPainters, photoReview, woDoc: computeWorkOrderDoc() },
         });
         // Tom, 24 Sep: the painter's price follows the working scope's contractor rate until the job is sent out.
         const payNote = !result.ok ? "" : PAY_NOTE[result.pay ?? ""] ?? "";
@@ -1198,7 +1205,7 @@ export default function QuoteBuilder({
       // keys — the old fixed key list silently dropped builder_state.wizard
       // (the answers + proving snapshot), prepPack, sidesLoop and interiorLoop
       // on every staff save. Keys the builder owns still overwrite.
-      builder_state: { ...(loaded ?? {}), blocks, modSel, contact, jobAddress, materials, materialColours, sheens, colourMatches, depositPct, inclusions, exclusions, discountPct, discountMode, discountFixedCents, hourlyRateOverride, contractorRateOverride, preparationOverrideCents, preparationHours, adminNotes, internalMaterials, swms, aiDeferred, idealPainters, photoReview, extraPaints, woDoc: computeWorkOrderDoc(), woOptions: computeWorkOrderOptions() },
+      builder_state: { ...(loaded ?? {}), blocks, modSel, contact, jobAddress, materials, materialColours, sheens, colourMatches, depositPct, inclusions, exclusions, discountPct, discountMode, discountFixedCents, hourlyRateOverride, contractorRateOverride, preparationOverrideCents, preparationHours, cleaningHours, adminNotes, internalMaterials, swms, aiDeferred, idealPainters, photoReview, extraPaints, woDoc: computeWorkOrderDoc(), woOptions: computeWorkOrderOptions() },
       share_token: token,
       presentation_id: presentationId,
       lead_source: leadSource,
@@ -1661,8 +1668,9 @@ export default function QuoteBuilder({
       depositPct,
       baseSubtotalCents: totals.subtotal,
       // The allowance PLUS the contractor's set-up time (Tom, 17 Sep) — one line.
-      preparation: totals.sundries + totals.preparationHoursCents > 0
-        ? { id: PREPARATION_ID, title: PREPARATION_TITLE, descriptionHtml: `<p>${PREPARATION_DESCRIPTION}</p>`, priceCents: totals.sundries + totals.preparationHoursCents }
+      // Go-live brief §3: the cleaning hours ride this line too until Session 5 gives Cleaning its own (H1), so the parts add up.
+      preparation: totals.sundries + totals.preparationHoursCents + totals.cleaningHoursCents > 0
+        ? { id: PREPARATION_ID, title: PREPARATION_TITLE, descriptionHtml: `<p>${PREPARATION_DESCRIPTION}</p>`, priceCents: totals.sundries + totals.preparationHoursCents + totals.cleaningHoursCents }
         : null,
       areas, lineItems: lineItemsDoc, options,
       paints: computePaints(),
@@ -1803,7 +1811,9 @@ export default function QuoteBuilder({
     // Tom, 17 Sep: the Preparation line's contractor time rides the work order
     // as its own area, FIRST, so the painter's sheet, the offer's hours sum and
     // the pay all carry it without a special case anywhere downstream.
-    const prepHours = preparationHours != null && preparationHours > 0 ? preparationHours : 0;
+    // Since 18 Nov 2026 the hours are the engine's: the estimator's figure, or the job-size scale.
+    const prepHours = totals.preparationHours > 0 ? totals.preparationHours : 0;
+    const cleanHours = totals.cleaningHours > 0 ? totals.cleaningHours : 0;
     const prepArea: WOArea[] = prepHours > 0 ? [{
       id: PREPARATION_ID,
       title: PREPARATION_TITLE,
@@ -1813,6 +1823,23 @@ export default function QuoteBuilder({
         coats: 0, product: "", prep: "",
         hours: woHours[`${PREPARATION_ID}:setup`] ?? Number(prepHours.toFixed(2)),
         paintingHours: 0, prepHours: Number(prepHours.toFixed(2)), conditionHours: 0,
+        status: "not_started",
+      }],
+      photos: [],
+      finishCode: null,
+      finishOverridden: false,
+    }] : [];
+    // Go-live brief §3: cleaning rides the work order as its own area, after Preparation, so the painter's
+    // sheet, the offer's hours and the pay carry it.
+    const cleanArea: WOArea[] = cleanHours > 0 ? [{
+      id: CLEANING_ID,
+      title: CLEANING_TITLE,
+      surfaces: [{
+        key: `${CLEANING_ID}:clean`,
+        label: "End-of-job clean of the work areas",
+        coats: 0, product: "", prep: "",
+        hours: woHours[`${CLEANING_ID}:clean`] ?? Number(cleanHours.toFixed(2)),
+        paintingHours: 0, prepHours: Number(cleanHours.toFixed(2)), conditionHours: 0,
         status: "not_started",
       }],
       photos: [],
@@ -1849,7 +1876,7 @@ export default function QuoteBuilder({
         : null,
       contractorName: contractors.find((c) => c.id === woContractorId)?.name ?? "",
       contractorPaymentCents: totals.contractorOffer,
-      materials, areas: [...prepArea, ...areasDoc, ...lineAreas],
+      materials, areas: [...prepArea, ...cleanArea, ...areasDoc, ...lineAreas],
       exclusions: exclusions.map((t) => t.trim()).filter(Boolean),
       inclusions: inclusions.map((t) => t.trim()).filter(Boolean),
       company: { name: company.name, phone: company.phone, logoUrl: company.logoUrl },
@@ -3024,10 +3051,23 @@ export default function QuoteBuilder({
                   defaultCents={totals.sundriesDefault}
                   overrideCents={preparationOverrideCents}
                   hours={preparationHours}
+                  defaultHours={totals.allowanceDefaults.prepHours}
+                  effectiveHours={totals.preparationHours}
                   hoursCents={totals.preparationHoursCents}
                   customerView={customerView}
                   onCommit={setPreparationOverrideCents}
                   onCommitHours={setPreparationHours}
+                />
+              )}
+              {/* Go-live brief §3 (18 Nov 2026): the Cleaning line — hours from the job-size scale, at the cleaning rate. */}
+              {!customerView && (
+                <CleaningCard
+                  hours={cleaningHours}
+                  defaultHours={totals.allowanceDefaults.cleaningHours}
+                  effectiveHours={totals.cleaningHours}
+                  priceCents={totals.cleaningHoursCents}
+                  rateCents={totals.cleaningRateCents}
+                  onCommitHours={setCleaningHours}
                 />
               )}
               {mainBlocks.filter(visibleToCustomer).map((b) => (customerView ? renderSummary(b) : renderDraggable(b)))}
@@ -3195,6 +3235,7 @@ export default function QuoteBuilder({
             <h2 className="text-sm font-semibold">Quote</h2>
             <dl className="mt-3 space-y-1.5 text-sm">
               <Row label="Preparation" value={fmt(totals.sundries + totals.preparationHoursCents)} muted />
+              <Row label="Cleaning" value={fmt(totals.cleaningHoursCents)} muted />
               <Row label="Subtotal" value={fmt(totals.subtotal)} />
               <Row label={`GST (${Math.round(gstRate * 100)}%)`} value={fmt(totals.gst)} muted />
               <div className="flex justify-between border-t border-gray-200 pt-2 text-base font-semibold">
@@ -4156,13 +4197,17 @@ function SwmsAttachment({ value, onChange, estimateId, disabled }: {
   );
 }
 
-function PreparationCard({ priceCents, defaultCents, overrideCents, hours, hoursCents, customerView, onCommit, onCommitHours }: {
+function PreparationCard({ priceCents, defaultCents, overrideCents, hours, defaultHours, effectiveHours, hoursCents, customerView, onCommit, onCommitHours }: {
   /** The whole line as the customer sees it: the allowance PLUS the contractor time. */
   priceCents: number;
   defaultCents: number;
   overrideCents: number | null;
-  /** Tom, 17 Sep: contractor time on the line (hours; null = none). */
+  /** Tom, 17 Sep: contractor time on the line (hours). Since 18 Nov 2026 null = the job-size scale, 0 = none. */
   hours: number | null;
+  /** What the job-size scale gives this job (go-live brief §3). */
+  defaultHours: number;
+  /** The hours the engine priced — the estimator's, or the scale's. */
+  effectiveHours: number;
   hoursCents: number;
   customerView: boolean;
   onCommit: (cents: number | null) => void;
@@ -4195,8 +4240,8 @@ function PreparationCard({ priceCents, defaultCents, overrideCents, hours, hours
       {!customerView && (
         <div className="mt-2 flex items-center gap-2 text-xs text-gray-500">
           {overrideCents == null
-            ? <span>Settings default for this job ({fmt(defaultCents)}). Type an amount to change it for this estimate only.</span>
-            : <><span>Your figure — the Settings default is {fmt(defaultCents)}.</span><button type="button" onClick={() => onCommit(null)} className="underline hover:text-gray-800" data-testid="preparation-reset">Use default</button></>}
+            ? <span data-testid="preparation-default-note">From the job-size scale for this job ({fmt(defaultCents)} sundries). Type an amount to change it for this estimate only.</span>
+            : <><span>Your figure — the job-size scale gives {fmt(defaultCents)}.</span><button type="button" onClick={() => onCommit(null)} className="underline hover:text-gray-800" data-testid="preparation-reset">Use default</button></>}
         </div>
       )}
       {!customerView && (
@@ -4208,21 +4253,71 @@ function PreparationCard({ priceCents, defaultCents, overrideCents, hours, hours
             <NumInput
               min={0} step={0.5}
               value={hours}
-              placeholder="0"
-              onCommit={(n) => onCommitHours(n == null || n <= 0 ? null : n)}
+              placeholder={String(defaultHours)}
+              onCommit={(n) => onCommitHours(n == null ? null : Math.max(0, n))}
               className="w-20 rounded-md border border-gray-300 px-2 py-1 text-right tabular-nums"
               aria-label="Preparation contractor time (hours)"
               data-testid="preparation-hours"
             />
             <span className="text-gray-500">hr</span>
+            {hours != null && (
+              <button type="button" onClick={() => onCommitHours(null)} className="text-xs underline hover:text-gray-800" data-testid="preparation-hours-reset">Back to the scale ({defaultHours} h)</button>
+            )}
           </label>
           <span className="text-xs text-gray-500" data-testid="preparation-hours-hint">
-            {hours && hours > 0
-              ? <>Adds {hours} h to the contractor&rsquo;s work order and {fmt(hoursCents)} to this line at the charge-out rate.</>
-              : <>Hours for site set-up. They appear on the contractor&rsquo;s work order as a Preparation area and are charged at the charge-out rate.</>}
+            {hours == null
+              ? <>{defaultHours} h from the job-size scale — {fmt(hoursCents)} on this line at the charge-out rate, and on the contractor&rsquo;s work order as a Preparation area. Type hours to change it for this estimate only.</>
+              : effectiveHours > 0
+                ? <>Your figure: {effectiveHours} h on the contractor&rsquo;s work order and {fmt(hoursCents)} on this line at the charge-out rate.</>
+                : <>Your figure: no set-up time on this job.</>}
           </span>
         </div>
       )}
+    </section>
+  );
+}
+
+/** Go-live brief §3 (18 Nov 2026): the Cleaning line — the scale's hours at the cleaning rate (Settings → Site allowances), the estimator's own when typed. Staff view only; the customer's line is Session 5 (H1). */
+function CleaningCard({ hours, defaultHours, effectiveHours, priceCents, rateCents, onCommitHours }: {
+  hours: number | null;
+  defaultHours: number;
+  effectiveHours: number;
+  priceCents: number;
+  rateCents: number;
+  onCommitHours: (hours: number | null) => void;
+}) {
+  return (
+    <section className="rounded-xl border border-gray-200 bg-white p-4" data-testid="cleaning-line">
+      <div className="flex items-start justify-between gap-4">
+        <div className="min-w-0 flex-1">
+          <div className="font-medium">{CLEANING_TITLE}</div>
+          <div className="mt-1 text-sm text-gray-600">End-of-job clean of the work areas, at the cleaning rate ({fmt(rateCents)}/h).</div>
+        </div>
+        <div className="whitespace-nowrap text-right text-base font-semibold tabular-nums" data-testid="cleaning-amount">{fmt(priceCents)}</div>
+      </div>
+      <div className="mt-3 flex flex-wrap items-center gap-3 border-t border-gray-100 pt-3 text-sm">
+        <label className="flex items-center gap-2">
+          <span className="text-gray-600">Contractor time</span>
+          <NumInput
+            min={0} step={0.5}
+            value={hours}
+            placeholder={String(defaultHours)}
+            onCommit={(n) => onCommitHours(n == null ? null : Math.max(0, n))}
+            className="w-20 rounded-md border border-gray-300 px-2 py-1 text-right tabular-nums"
+            aria-label="Cleaning contractor time (hours)"
+            data-testid="cleaning-hours"
+          />
+          <span className="text-gray-500">hr</span>
+          {hours != null && (
+            <button type="button" onClick={() => onCommitHours(null)} className="text-xs underline hover:text-gray-800" data-testid="cleaning-hours-reset">Back to the scale ({defaultHours} h)</button>
+          )}
+        </label>
+        <span className="text-xs text-gray-500" data-testid="cleaning-hours-hint">
+          {hours == null
+            ? <>{defaultHours} h from the job-size scale. It rides the contractor&rsquo;s work order as a Cleaning area and the offer&rsquo;s hours.</>
+            : effectiveHours > 0 ? <>Your figure: {effectiveHours} h.</> : <>Your figure: no cleaning on this job.</>}
+        </span>
+      </div>
     </section>
   );
 }

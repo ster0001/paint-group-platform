@@ -73,15 +73,21 @@ export function adjustmentsFrom(state: Record<string, unknown>): Adjustments {
     discountFixedCents: (state.discountFixedCents as number) ?? 0,
     hourlyRateOverride: (state.hourlyRateOverride as number | null) ?? null,
     contractorRateOverride: (state.contractorRateOverride as number | null) ?? null,
-    // The Preparation line's estimator-set amount (cents); absent = Settings default.
+    // The Preparation line's estimator-set amount (cents); absent = the job-size scale (brief §3, 18 Nov 2026).
     preparationOverrideCents:
       typeof state.preparationOverrideCents === "number" && Number.isFinite(state.preparationOverrideCents)
         ? state.preparationOverrideCents
         : null,
-    // Tom, 17 Sep: contractor time on the Preparation line (hours); absent = none.
+    // Tom, 17 Sep: contractor time on the Preparation line (hours). Since 18 Nov 2026 an explicit 0 is
+    // "none" and absent is the job-size scale — the migration wrote 0 on every estimate that had none.
     preparationHours:
-      typeof state.preparationHours === "number" && Number.isFinite(state.preparationHours) && state.preparationHours > 0
+      typeof state.preparationHours === "number" && Number.isFinite(state.preparationHours) && state.preparationHours >= 0
         ? state.preparationHours
+        : null,
+    // Go-live brief §3: cleaning hours — the same rule (0 = none, absent = the scale).
+    cleaningHours:
+      typeof state.cleaningHours === "number" && Number.isFinite(state.cleaningHours) && state.cleaningHours >= 0
+        ? state.cleaningHours
         : null,
     // C12: the commercial loading, written by the submit route from the
     // hours/occupied answers; absent on every residential estimate.

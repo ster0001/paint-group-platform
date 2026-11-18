@@ -5,7 +5,8 @@
  */
 import { test } from "vitest";
 import assert from "node:assert/strict";
-import type { PricingContext } from "../pricing/estimate";
+import { priceEstimateTotals, type BlockInput, type PricingContext } from "../pricing/estimate";
+import { adjustmentsFrom } from "../pricing/context";
 import type { RateItem, Product } from "../pricing/types";
 import { diffRevision, type RevisionState } from "./diff";
 import { revertChange } from "./revert";
@@ -112,11 +113,16 @@ test("an unknown ref changes nothing", () => {
 // Preparation read "Pricing adjustments changed · −$… · 4 hr". The working
 // state compared must carry EVERY key the scope has (QuoteBuilder spreads the
 // loaded working scope under the live fields).
+// Since 18 Nov 2026 (go-live brief §3) a MISSING preparationHours means the job-size scale, not 0, so the
+// phantom change is the gap between the saved 4 h and the scale's hours for this job — still a change,
+// still the reason the builder spreads the loaded scope under the live fields.
 test("a working state missing preparationHours is a phantom adjustments change", () => {
   const { preparationHours: _drop, ...lossy } = accepted;
   void _drop;
   const phantom = diffRevision(accepted, lossy, ctx).changes;
   assert.deepEqual(phantom.map((c) => c.blockRef), ["adjustments"]);
-  assert.equal(phantom[0].hours, 4);
+  const scaleHours = priceEstimateTotals(lossy.blocks as BlockInput[], ctx, adjustmentsFrom(lossy)).allowanceDefaults.prepHours;
+  assert.ok(scaleHours > 0 && scaleHours !== 4, "the scale gives this job some other set-up hours");
+  assert.equal(Math.round(phantom[0].hours * 100) / 100, Math.round((4 - scaleHours) * 100) / 100);
   assert.deepEqual(diffRevision(accepted, { ...accepted }, ctx).changes, []);
 });
