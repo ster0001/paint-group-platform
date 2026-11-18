@@ -2809,6 +2809,7 @@
 .wz .wzq-doc .ql .amt { white-space: nowrap; font-variant-numeric: tabular-nums; font-weight: 600; color: var(--heading); }
 .wz .wzq-doc .ql.todo .amt { color: var(--muted); font-weight: 400; }
 .wz .wzq-doc .ql.now { background: var(--wash); margin: 0 -14px; padding-left: 14px; padding-right: 14px; }
+.wz .wzq-doc .ql.extra div:first-child { color: var(--muted); }
 .wz .wzq-doc .ql.sum { border-bottom: 0; padding: 6px 0 2px; color: var(--muted); }
 .wz .wzq-doc .ql.sum .amt { font-weight: 500; color: var(--muted); }
 .wz .wzq-doc .ql.total { border-top: 1px solid var(--heading); border-bottom: 0; margin-top: 6px; padding-top: 10px; font-weight: 700; color: var(--heading); }
@@ -2896,6 +2897,14 @@
   .wz .wzq-rail-plan { display: block; width: 100%; border: 1px solid var(--line); border-radius: 14px; overflow: hidden; background: #fff; padding: 0; margin: 0 0 18px; cursor: pointer; }
   .wz .wzq-rail-plan img { display: block; width: 100%; max-height: 220px; object-fit: contain; }
   .wz .wzq-rail .wzq-band { margin: 0 0 18px; }
+  /* Go-live S5 (M11): the rail's room grid */
+  .wz .wzq-rail-rooms { list-style: none; margin: 0 0 18px; padding: 0; display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .wz .wzq-rr { display: flex; flex-direction: column; gap: 2px; width: 100%; border: 1px solid var(--line); background: var(--panel); border-radius: 12px; padding: 10px 12px; font: inherit; text-align: left; cursor: pointer; color: var(--heading); }
+  .wz .wzq-rr b { font-size: 14px; font-weight: 600; }
+  .wz .wzq-rr span { font-size: 12px; color: var(--muted); }
+  .wz .wzq-rr.measured span { color: #1f9d6a; }
+  .wz .wzq-rr.todo span { color: #b26b00; }
+  .wz .wzq-rr.now { border-color: var(--heading); box-shadow: 0 0 0 1px var(--heading) inset; }
   .wz .wzq-rail-qh { display: flex; align-items: center; gap: 8px; width: 100%; border: 1px solid var(--line); background: var(--panel); border-radius: 14px; padding: 12px 14px; font: inherit; text-align: left; cursor: pointer; }
   .wz .wzq-rail-qh b { color: var(--heading); font-size: 13px; }
   .wz .wzq-rail-qh > span { color: var(--muted); font-size: 12px; }

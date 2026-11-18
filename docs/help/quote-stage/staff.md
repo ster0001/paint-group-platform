@@ -29,3 +29,9 @@ You are signed in as staff. The estimate is still a draft (an accepted estimate 
 ## Related
 - [The customer's view](customer.md)
 - [Online estimates from the office side](../estimator/staff.md)
+
+## Changes on 19 Nov 2026
+- **The customer's quote lines come from one split** (`lib/pricing/quoteBreakdown.ts`): each room's engine price, plus Set-up and preparation (sundries + prep hours), Cleaning, specialist work, size allowance and discount, share the range in whole dollars so the lines add to the Subtotal. The loading (job modifier) is inside the room prices and has no line of its own.
+- **"Valid N days"** on the quote reads Settings → Estimates → Accuracy tiers & online cap → *how long a fixed price is held* (`wizard_hold_days`, default 60). There is no separate validity number.
+- **Rooms cleared** applies no Staging modifier any more (the seeded `STG-EMPTY` row is unused); Mostly cleared and Furniture stays are unchanged.
+

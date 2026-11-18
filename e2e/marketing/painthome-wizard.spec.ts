@@ -92,6 +92,7 @@ test.describe("Paint Home — the wizard brand branch (session 3)", () => {
     await quickNext(page);
     await expect(page.locator("[data-mobile-screen='colours']")).toBeVisible({ timeout: 20_000 });
     await page.getByTestId("ql-colours-new").tap();
+    await page.getByTestId("ql-bold-no").tap(); // S5 M8: a colour change asks the bold question first
     await expect(page.locator("[data-mobile-screen='condition']")).toBeVisible({ timeout: 20_000 });
     await page.getByTestId("ql-condition-wear").tap();
     await expect(page.locator("[data-mobile-screen='living']")).toBeVisible({ timeout: 20_000 });

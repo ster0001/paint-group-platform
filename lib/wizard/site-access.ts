@@ -62,8 +62,11 @@ export type SiteAccess = {
  * in the Staging group, which is the group the lived-in-home modifier already
  * uses — ONE selection per group, so they can never compound with it.
  */
-export const OCCUPANCY_MODIFIERS: Record<NonNullable<SiteAccess["cleared"]>, { code: string; pct: number }> = {
-  yes: { code: "STG-EMPTY", pct: 2 },
+export const OCCUPANCY_MODIFIERS: Record<NonNullable<SiteAccess["cleared"]>, { code: string; pct: number } | null> = {
+  // Go-live brief H5 (18 Nov 2026): rooms cleared / empty is the plain answer — it applies NO loading. Staff applied a
+  // staging loading on about 2 of 210 jobs; the wizard had been applying one to 24 of 59 for the answer "yes, cleared".
+  // Furnished and Occupied stand as they were (⚑ D4, Tom's call).
+  yes: null,
   some: { code: "STG-PART-CLEARED", pct: 2 },
   no: { code: "STG-FURNISHED", pct: 4 },
 };
@@ -144,8 +147,8 @@ export function applySiteAccess(
   const notes: string[] = [];
   const deferred: WizardDeferred[] = [];
 
-  if (access.cleared) {
-    const rule = OCCUPANCY_MODIFIERS[access.cleared];
+  const rule = access.cleared ? OCCUPANCY_MODIFIERS[access.cleared] : null;
+  if (rule) {
     if (modifiers.some((m) => m.code === rule.code)) {
       modSel[STAGING_GROUP] = rule.code;
     } else {

@@ -141,6 +141,15 @@ function typicalOpenings(roomType: string, bedrooms: number): { doors: number; w
   }
 }
 
+/**
+ * M9 — the doors a hall or landing carries: one for every room on its storey whose typical openings include a door (each
+ * such room opens onto the hall), plus the inside of the front door on the ground floor.
+ */
+export function hallDoors(rooms: readonly StarterRoom[], storey: StarterRoom["storey"]): number {
+  const onto = rooms.filter((r) => r.storey === storey && r.roomType !== "hallway" && typicalOpenings(r.sizeType ?? r.roomType, 0).doors > 0).length;
+  return onto + (storey === "Ground" ? 1 : 0);
+}
+
 const unknownDoor = {
   type: "internal_hinged" as const,
   style: "unknown" as const,
@@ -188,7 +197,9 @@ export function starterExtraction(
     ceiling_height_m: opts.heightM,
     rooms: rooms.map((r) => {
       const size = typicalSize(r.sizeType ?? r.roomType, typicals);
-      const openings = typicalOpenings(r.sizeType ?? r.roomType, opts.bedrooms);
+      // Go-live brief M9 (⚑ D7, 18 Nov 2026): a hall carries the hall side of every door that opens onto it, plus the
+      // inside of the front door — not just the bedroom doors.
+      const openings = r.roomType === "hallway" ? { doors: hallDoors(rooms, r.storey), windows: 0 } : typicalOpenings(r.sizeType ?? r.roomType, opts.bedrooms);
       return {
         name_on_plan: r.name,
         normalised_type: r.roomType as Extraction["rooms"][number]["normalised_type"],

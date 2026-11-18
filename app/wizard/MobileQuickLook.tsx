@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
-import { CONDITION_BANDS, OCCUPIED, roomTypeForName, type QuickLook, type QuickLookStep, type ScopePreset } from "@/lib/wizard/quick-look";
+import { CONDITION_BANDS, OCCUPIED, roomTypeForName, visibleChanging, type QuickLook, type QuickLookStep, type ScopePreset } from "@/lib/wizard/quick-look";
 import {
   COLOUR_CHOICES, EXTRA_ROOMS, JOB_CHOICES, MOBILE_SCREEN_KEY, applyColourChoice, applyJobChoice, colourChoiceOf, detailsReady,
   detailsWhy, mobileProgress, mobileScreensFor, paintScreenParts, roomChips, roomsTicked, surfaceChips, surfacesTicked, toggleListedRoom, toggleSurface, AROUND_EXTRAS,
@@ -490,6 +490,23 @@ export default function MobileQuickLook({
                   {key(i + 1)}
                 </button>
               ))}
+            </div>
+          )}
+
+          {current.id === "bold" && (
+            // Go-live S5 (M8, ⚑ D7): the phone asks the laptop's bold question. "Yes" marks every group that is changing
+            // colour as bold (the laptop's "Which ones?" is not asked here); "No" prices them as a plain colour change.
+            <div className="wzm-opts" role="group" aria-labelledby="wzm-h1" data-testid="ql-bold">
+              {([{ value: "no", label: "No", hint: "A similar depth of colour" }, { value: "yes", label: "Yes", hint: "We allow an undercoat under the new colour" }] as const).map((o, i) => {
+                const on = (quick.bold ? "yes" : "no") === o.value;
+                return (
+                  <button key={o.value} type="button" className={`wzm-opt ${on ? "on" : ""}`} aria-pressed={on} data-testid={`ql-bold-${o.value}`}
+                    onClick={() => pick(o.value === "yes" ? { bold: true, boldGroups: visibleChanging(quick.scope, quick.excluded ?? []) } : { bold: false, boldGroups: [] })}>
+                    <span><span className="t">{o.label}</span><span className="d">{o.hint}</span></span>
+                    {key(i + 1)}
+                  </button>
+                );
+              })}
             </div>
           )}
 

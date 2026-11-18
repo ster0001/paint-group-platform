@@ -2335,7 +2335,7 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
       <header className="wz-top">
         <Wordmark logoUrl={logoUrl} brand={brand} />
         {/* UI refresh S9: the old dots are gone (brief §10) — the staff page list says where it is in words. */}
-        <span className="wz-pcount" data-testid="pages-count">{screen === "processing" ? "Working it out" : `Step ${page} of ${lastPage}`}</span>
+        <span className="wz-pcount" data-testid="pages-count">{screen === "processing" ? "Working it out" : `Step ${Math.min(page, lastPage)} of ${lastPage}`}</span>
         {/* C8 — Save & book in the header of every screen (prototype: every
             screen except the map). Leaving is never a dead end. */}
         {isCustomer && screen !== "processing" && (

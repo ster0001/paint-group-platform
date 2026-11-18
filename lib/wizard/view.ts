@@ -11,6 +11,7 @@ import type { LoopConfirmState } from "./confirm-state";
 import { SCAFFOLD_EXCLUSION } from "./exterior-allowances";
 import { rangeBandPct, rangeFromTotal, type BandSettings, type GuardrailDecision } from "./policy";
 import { splitGst } from "@/lib/pricing/gst";
+import { quoteBreakdown, type QuoteBreakdown } from "@/lib/pricing/quoteBreakdown";
 import { sumEnvelopes, type Envelope } from "./envelope";
 
 /**
@@ -51,7 +52,12 @@ export type WizardDeferred = {
 
 export type WizardEditorPayload = {
   rooms: WizardRoomView[];
-  totals: { subtotalCents: number; totalCents: number; contractorHours: number; marginCents: number };
+  totals: {
+    subtotalCents: number; totalCents: number; contractorHours: number; marginCents: number;
+    /** Go-live H1: the parts of the subtotal that are not a room, so the customer's quote can give each a line. Absent on a payload from before 18 Nov 2026. */
+    sundriesCents?: number; preparationHoursCents?: number; cleaningHoursCents?: number; thirdPartyPriceCents?: number;
+    sizeUpliftCents?: number; discountCents?: number; netSubtotalCents?: number;
+  };
   accuracyPct: number;
   deferred: WizardDeferred[];
   /** True while any area still has an assumed ceiling height. */
@@ -173,6 +179,8 @@ export type CustomerPayload = {
   confirmedShare?: number;
   /** Quote stage v10 §5 — the Subtotal and GST rows of the quote document, split from the two ends of the range by `lib/pricing/gst.ts`. */
   quoteTotals?: { subtotalLoCents: number; subtotalHiCents: number; gstLoCents: number; gstHiCents: number };
+  /** Go-live H1 — every part of the Subtotal with its share of the range (`lib/pricing/quoteBreakdown.ts`): the lines add up. */
+  quoteBreakdown?: QuoteBreakdown;
 };
 
 export type CustomerRange = { rangeLoCents: number; rangeHiCents: number; bandPct: number };
@@ -242,6 +250,19 @@ export function customerPayload(
   const { loCents, hiCents } = env ? { loCents: env.loCents, hiCents: env.hiCents } : rangeFromTotal(payload.totals.totalCents, bandPct, extra.underPct ?? 0);
 
   const gstLo = splitGst(loCents, extra.gstRate ?? 0.1), gstHi = splitGst(hiCents, extra.gstRate ?? 0.1);
+  // Go-live H1 (18 Nov 2026): the quote's lines. Each room by its engine price; the dollars outside the rooms by theirs.
+  // The engine's loading (the job modifier) is inside every room price already, so it needs no line of its own.
+  const pt = payload.totals;
+  const breakdown = pt.netSubtotalCents != null
+    ? quoteBreakdown([
+        ...payload.rooms.map((r) => ({ key: `room:${r.areaId}`, cents: r.priceCents })),
+        { key: "prep", cents: (pt.sundriesCents ?? 0) + (pt.preparationHoursCents ?? 0) },
+        { key: "cleaning", cents: pt.cleaningHoursCents ?? 0 },
+        { key: "specialist", cents: pt.thirdPartyPriceCents ?? 0 },
+        { key: "size", cents: pt.sizeUpliftCents ?? 0 },
+        { key: "discount", cents: -(pt.discountCents ?? 0) },
+      ], loCents, hiCents, extra.gstRate ?? 0.1)
+    : null;
   return {
     outcome: "reveal",
     rooms,
@@ -249,6 +270,7 @@ export function customerPayload(
     rangeHiCents: hiCents,
     ...(env ? { confirmedShare: env.confirmedShare } : {}),
     quoteTotals: { subtotalLoCents: gstLo.exCents, subtotalHiCents: gstHi.exCents, gstLoCents: gstLo.gstCents, gstHiCents: gstHi.gstCents },
+    ...(breakdown ? { quoteBreakdown: breakdown } : {}),
     ...(env ? { openQuestions: env.open, openClosesCents: env.closesCents } : {}),
     tightPct: bands.tightPct,
     widePct: bands.widePct,
@@ -355,6 +377,8 @@ export function editorPayload(
       totalCents: totals.totalCents,
       contractorHours: Math.round(totals.contractorHours * 100) / 100,
       marginCents: totals.marginCents,
+      sundriesCents: totals.sundriesCents, preparationHoursCents: totals.preparationHoursCents, cleaningHoursCents: totals.cleaningHoursCents,
+      thirdPartyPriceCents: totals.thirdPartyPriceCents, sizeUpliftCents: totals.sizeUpliftCents, discountCents: totals.discountCents, netSubtotalCents: totals.netSubtotalCents,
     },
     // A room the customer says is MOSTLY gone holds the range wide however
     // much else they confirmed — see MAJOR_DEFECT_CAP (Tom, 9 Sep).

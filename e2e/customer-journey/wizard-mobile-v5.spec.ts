@@ -315,6 +315,7 @@ test.describe("Wizard mobile v5 — the phone's screens (session 2)", () => {
     await page.getByTestId("ql-next").tap();
     await check("colours", false);
     await page.getByTestId("ql-colours-deciding").tap();
+    await page.getByTestId("ql-bold-no").tap(); // S5 M8: a colour change asks the bold question first
     await check("condition", false);
     await page.getByTestId("ql-condition-needs_work").tap();
     await check("living", false);

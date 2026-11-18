@@ -1,4 +1,5 @@
 import type { CustomerPayload, CustomerRoomView } from "@/lib/wizard/view";
+import type { QuoteBreakdown } from "@/lib/pricing/quoteBreakdown";
 import type { QuoteRoom } from "./cards";
 
 /**
@@ -25,6 +26,8 @@ export type QuoteLine = {
   amount: string;
   state: "todo" | "typical" | "measured";
 };
+/** Go-live H1: a dollar line that is not a room — set-up and preparation, cleaning, specialist work, a size allowance, a discount. */
+export type QuoteExtraLine = { key: string; label: string; detail: string; amount: string; loCents: number; hiCents: number };
 export type QuoteDocument = {
   title: "Draft quote" | "Quote";
   number: string;
@@ -32,13 +35,36 @@ export type QuoteDocument = {
   validity: string;
   preparedFor: PreparedFor;
   lines: QuoteLine[];
+  /** H1: the lines after the rooms, so every dollar in the Subtotal has a line. Empty on a payload from before the breakdown. */
+  extras: QuoteExtraLine[];
   repairsLine: string;
+  /** H1: one GST basis, said on the rows — the lines and the Subtotal are ex GST, the total is inc GST. */
+  subtotalLabel: string;
   subtotal: string | null;
+  gstLabel: string;
   gst: string | null;
   totalLabel: "Your range" | "Your price";
   total: string;
   settledShare: number;
 };
+
+/** The words of the non-room lines (H1). The dollars come from `lib/pricing/quoteBreakdown.ts`; nothing here adds up. */
+export const EXTRA_LINE_WORDS: Record<string, { label: string; detail: string }> = {
+  prep: { label: "Set-up and preparation", detail: "Protection, filling and sanding — repairs allowed for, confirmed on the day" },
+  cleaning: { label: "Cleaning", detail: "Each day, and a final clean" },
+  specialist: { label: "Specialist work", detail: "Priced with your estimator" },
+  size: { label: "Job size allowance", detail: "" },
+  discount: { label: "Discount", detail: "" },
+};
+export function quoteExtraLines(breakdown: QuoteBreakdown | null | undefined): QuoteExtraLine[] {
+  if (!breakdown) return [];
+  return breakdown.lines
+    .filter((l) => !l.key.startsWith("room:") && (l.loCents !== 0 || l.hiCents !== 0))
+    .map((l) => {
+      const w = EXTRA_LINE_WORDS[l.key] ?? { label: l.key, detail: "" };
+      return { key: l.key, label: w.label, detail: w.detail, amount: range(l.loCents, l.hiCents), loCents: l.loCents, hiCents: l.hiCents };
+    });
+}
 export type QuoteSummary = { toGo: number; minutes: number; settledShare: number; allSettled: boolean };
 
 const fmt = (cents: number) => `$${Math.round(cents / 100).toLocaleString("en-AU")}`;
@@ -52,12 +78,17 @@ export function lineState(r: Pick<QuoteRoom, "size" | "confirmed">): QuoteLine["
   return "todo";
 }
 
-export function quoteLines(rooms: QuoteRoom[], views: CustomerRoomView[]): QuoteLine[] {
+export function quoteLines(rooms: QuoteRoom[], views: CustomerRoomView[], breakdown: QuoteBreakdown | null = null): QuoteLine[] {
   return rooms.map((r) => {
     const v = views.find((x) => x.areaId === r.areaId);
     const state = lineState(r);
     const settled = state !== "todo";
-    const amount = settled && v?.rangeLoCents != null && v.rangeHiCents != null ? range(v.rangeLoCents, v.rangeHiCents) : "—";
+    // H1: the room's share of the Subtotal (ex GST, whole dollars — the lines add up); a payload from before the
+    // breakdown falls back to the room's own range.
+    const share = breakdown?.lines.find((l) => l.key === `room:${r.areaId}`) ?? null;
+    const amount = !settled ? "—"
+      : share ? range(share.loCents, share.hiCents)
+      : v?.rangeLoCents != null && v.rangeHiCents != null ? range(v.rangeLoCents, v.rangeHiCents) : "—";
     return {
       areaId: r.areaId, name: r.name,
       size: `${r.kind === "side" ? `${dims(r.lengthM)} × ${dims(r.widthM)} m` : `${dims(r.widthM)} × ${dims(r.lengthM)} × ${dims(r.heightM)} m`}${state === "measured" ? "" : " (typical)"}`,
@@ -76,26 +107,36 @@ export function quoteSummary(rooms: QuoteRoom[], generalToGo: number): QuoteSumm
 }
 
 export function quoteDocument(i: {
-  payload: Pick<CustomerPayload, "rooms" | "rangeLoCents" | "rangeHiCents" | "quoteTotals">;
+  payload: Pick<CustomerPayload, "rooms" | "rangeLoCents" | "rangeHiCents" | "quoteTotals" | "quoteBreakdown">;
   rooms: QuoteRoom[];
   preparedFor: PreparedFor;
   number: string;
   date: string;
   generalToGo: number;
+  /** Go-live D5: how long the quote stands — Settings `wizard_hold_days`, never a number typed here. */
+  validDays: number;
 }): QuoteDocument {
-  const lines = quoteLines(i.rooms, i.payload.rooms);
+  const b = i.payload.quoteBreakdown ?? null;
+  const lines = quoteLines(i.rooms, i.payload.rooms, b);
   const summary = quoteSummary(i.rooms, i.generalToGo);
   const t = i.payload.quoteTotals ?? null;
+  // H1: with the breakdown, every row reads from it — the lines add to the Subtotal and the Subtotal and GST to the total.
+  const subtotal = b ? range(b.subtotalLoCents, b.subtotalHiCents) : t ? range(t.subtotalLoCents, t.subtotalHiCents) : null;
+  const gst = b ? range(b.gstLoCents, b.gstHiCents) : t ? range(t.gstLoCents, t.gstHiCents) : null;
+  const total = b ? range(b.totalLoCents, b.totalHiCents) : range(i.payload.rangeLoCents, i.payload.rangeHiCents);
   return {
     title: summary.allSettled ? "Quote" : "Draft quote",
-    number: i.number, date: i.date, validity: "Valid 30 days · Includes GST",
+    number: i.number, date: i.date, validity: `Valid ${i.validDays} days · Includes GST`,
     preparedFor: i.preparedFor,
     lines,
+    extras: quoteExtraLines(b),
     repairsLine: "Repairs allowed for — confirmed on the day",
-    subtotal: t ? range(t.subtotalLoCents, t.subtotalHiCents) : null,
-    gst: t ? range(t.gstLoCents, t.gstHiCents) : null,
+    subtotalLabel: "Subtotal · ex GST",
+    subtotal,
+    gstLabel: "GST",
+    gst,
     totalLabel: summary.allSettled ? "Your price" : "Your range",
-    total: range(i.payload.rangeLoCents, i.payload.rangeHiCents),
+    total,
     settledShare: summary.settledShare,
   };
 }

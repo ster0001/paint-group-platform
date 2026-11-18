@@ -16,6 +16,13 @@ export const MONEY_RANGE = /\$[\d,]+\s*–\s*\$[\d,]+/;
 export const DESKTOP_ONE_PRESS = process.env.NEXT_PUBLIC_WIZARD_DESKTOP_ONEPRESS === "1";
 export const GROUPED_LAPTOP_ONLY = "the grouped laptop screens — desktop one-press is on here, and the phone blocks drive its screens";
 
+/** Go-live S5 (M8): the phone's bold screen follows "New colours" / "Still deciding" — answer No if it is showing, carry on if not. */
+export async function boldNoIfAsked(page: Page): Promise<void> {
+  const screen = page.locator("[data-mobile-screen='bold']");
+  try { await screen.waitFor({ state: "visible", timeout: 4_000 }); } catch { return; }
+  await page.getByTestId("ql-bold-no").click();
+}
+
 export type DriveOptions = {
   /** Email for the "keep this estimate" door; defaults to a throwaway. */
   email?: string;
@@ -518,8 +525,12 @@ export async function driveMobileQuickLook(page: Page, opts: DriveOptions): Prom
   await at("rooms");
   await quickNext(page);
   await at("colours");
-  // bold is not asked on a phone — it prices as new colours
   await page.getByTestId(`ql-colours-${opts.colour === "same" ? "same" : "new"}`).click();
+  // Go-live S5 (M8): the phone asks the bold question after any colour change; "bold" = Yes (every changing group), else No.
+  if (opts.colour !== "same") {
+    await at("bold");
+    await page.getByTestId(`ql-bold-${opts.colour === "bold" ? "yes" : "no"}`).click();
+  }
   await at("condition");
   await page.getByTestId(`ql-condition-${opts.condition ?? "wear"}`).click();
   await at("living");

@@ -13,10 +13,10 @@ const ids = (quick: QuickLook, gate = true) => mobileScreensFor(stepsFor(quick.j
 /** Brief §2 / §9 item 1: twelve screens in order (the twelfth is the gate, after the details). */
 describe("the phone's screens (wizard mobile v5 §2)", () => {
   it("an inside job on a house walks the eleven question screens in the brief's order", () => {
-    expect(ids(q())).toEqual(["what", "property", "beds", "storeys", "job", "surfaces", "rooms", "colours", "condition", "living", "details", "code"]);
+    expect(ids(q())).toEqual(["what", "property", "beds", "storeys", "job", "surfaces", "rooms", "colours", "bold", "condition", "living", "details", "code"]);
   });
   it("a unit or apartment skips storeys", () => {
-    expect(ids(q({ propertyKind: "unit_apartment" }))).toEqual(["what", "property", "beds", "job", "surfaces", "rooms", "colours", "condition", "living", "details", "code"]);
+    expect(ids(q({ propertyKind: "unit_apartment" }))).toEqual(["what", "property", "beds", "job", "surfaces", "rooms", "colours", "bold", "condition", "living", "details", "code"]);
   });
   it("an outside job skips the job and rooms screens — its own steps follow the place, as they are (§2.4)", () => {
     const list = ids(q({ jobType: "exterior" }));

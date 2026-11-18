@@ -123,3 +123,8 @@ On a phone (any screen narrower than about 770px) the same questions come one at
 - **"A few details to settle" comes first.** In Tighten my price the card is framed in cyan with *Start here* above its title, and the rooms and everything below it are dimmed until every detail is answered. They are still there to tap, but the details are the place to start.
 - **Measurements save themselves.** Type a room's length, width or ceiling height (or an outside side's length and height) and click or tap out of the boxes; the size is recorded and the range repriced. There is no Update button. A side copied from the opposite side keeps a one-tap **Keep these**.
 
+## Changes on 19 Nov 2026
+- **On a phone, after "New colours" or "Still deciding"** a screen asks "Going much lighter, or a bold colour?" — the same question the laptop asks. Yes allows an undercoat under every surface changing colour; "Same colours" is never asked it.
+- **What we'll do** — the coats badge counts the topcoats and names the undercoat beside them ("2 coats + undercoat"), and the sentence under it always says the same number.
+- **A hall or landing** now carries the hall side of every door that opens onto it, plus the inside of the front door, in the starting room list.
+

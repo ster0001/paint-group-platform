@@ -83,6 +83,7 @@ test.describe("on a phone: a both job is inside then outside, one gate (exterior
     await page.getByTestId("ql-next").tap();
     await at(page, "colours");
     await page.getByTestId("ql-colours-new").tap();
+    await page.getByTestId("ql-bold-no").tap(); // S5 M8: a colour change asks the bold question first
     await at(page, "condition");
     await page.getByTestId("ql-condition-good").tap();
     await at(page, "living");

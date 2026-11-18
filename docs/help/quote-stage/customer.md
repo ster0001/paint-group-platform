@@ -53,3 +53,11 @@ Type numbers in metres — **3.5**, not 3,5 or "three". Letters or a blank where
 - **Typed sizes are checked.** Letters are refused with a message; a side over 10 m (6 m in a bedroom, bathroom, laundry or WC), under 1 m, or a high ceiling asks "is it right?" before it is saved. Nothing is clamped quietly.
 - **One "Get my quote range" button at a time.** On your range the button at the bottom stands in for the one in the page only while that one is off the screen.
 - **"Room by room, about 10 minutes. A tape helps, pacing it out is fine."** replaces "nothing to measure" on the range screen — sizes are typed, and pacing a room out is fine.
+
+## Changes on 19 Nov 2026
+- **The quote adds up.** Every dollar has a line: your rooms, **Set-up and preparation** (protection, filling and sanding — repairs allowed for and confirmed on the day) and **Cleaning**, plus any specialist work, job-size allowance or discount. The lines are before GST and add to the **Subtotal · ex GST**; Subtotal plus GST is your range, to the dollar.
+- **How long the quote stands** ("Valid N days") is the number the office sets, not a fixed 30.
+- **"Rooms cleared"** on the whole-house questions changes the price by nothing — it is the plain answer. Furniture staying is what adds an allowance.
+- **The done screen** starts "Tap a room to measure it" and names only the rooms still at the typical size.
+- **On a laptop** the right rail shows every room as a tile — measured, typical size, or to measure — and a tap opens that room's size card. A finished quote reads "All settled".
+
