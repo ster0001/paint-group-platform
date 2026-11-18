@@ -79,3 +79,8 @@ Since 21 Oct 2026 a customer's outside estimate is built from the house they dre
 ## Related
 - crm/staff — Today, the Diary and the customer record
 - estimator/customer, estimator/commercial, estimator/trade — what the customer sees
+
+## Changes on 19 Nov 2026
+- **Calibration before customers.** To compare a past job with its wizard re-entry, run `scripts/wizard/calibration-compare.ts` with the two estimate ids (see `docs/briefs/wizard-public-switch-checklist.md` §7). It reads only, prices both with today's engine, and writes a Markdown report: the roll-up first, then every area side by side.
+- **The quote's "Valid N days"** is the hold-days number in Settings → Estimates → Accuracy tiers & online cap.
+
