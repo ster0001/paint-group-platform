@@ -1,5 +1,6 @@
 "use client";
 import { useState } from "react";
+import { editorHref } from "@/lib/wizard/ui-flags";
 import ReachStrip from "@/app/estimate/scope/ReachStrip";
 import type { ContactRequest } from "@/app/estimate/scope/ContactCard";
 
@@ -45,7 +46,7 @@ export default function Book({ estimateId, estimator, companyPhone, phoneHours, 
       {done ? (
         <div className="sc-done-banner sent" data-testid="book-done" role="status">
           <b>{done}</b>
-          <span>We&rsquo;re available Monday to Friday. <a className="wz-linkish" href={`/estimate/scope?id=${estimateId}`}>Back to your estimate</a></span>
+          <span>We&rsquo;re available Monday to Friday. <a className="wz-linkish" href={editorHref(estimateId)}>Back to your estimate</a></span>
         </div>
       ) : (
         <ReachStrip
@@ -56,7 +57,7 @@ export default function Book({ estimateId, estimator, companyPhone, phoneHours, 
         />
       )}
       {error && <p className="wz-err" data-testid="book-error">{error}</p>}
-      <p className="wz-chint"><a className="wz-linkish" href={`/estimate/scope?id=${estimateId}`} data-testid="book-back">Back to your estimate</a></p>
+      <p className="wz-chint"><a className="wz-linkish" href={editorHref(estimateId)} data-testid="book-back">Back to your estimate</a></p>
     </main>
   );
 }

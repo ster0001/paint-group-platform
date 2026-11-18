@@ -408,11 +408,15 @@ test.describe("UI refresh S3 · the range screen, every path", () => {
     await page.setViewportSize({ width: 1440, height: 900 });
     await driveNoPlanWizard(page, { stopAtReveal: true });
     await expect(page.getByTestId("reveal-range")).toHaveText(MONEY_RANGE);
-    const tiers = page.getByTestId("reveal-tiers");
-    await expect(tiers.locator("span.on")).toHaveText("Guide");
-    await expect(tiers).toContainText("Detailed");
-    await expect(tiers).toContainText("Confirmed");
-    await expect(page.getByTestId("reveal-tiers-visit")).toHaveCount(0);
+    // Go-live C2 (18 Nov 2026): no ladder and no tolerance badge on the laptop — the phone's small print and three tiles
+    await expect(page.getByTestId("reveal-tiers")).toHaveCount(0);
+    await expect(page.getByTestId("reveal-tier")).toHaveCount(0);
+    const tiles = page.getByTestId("reveal-tiles");
+    await expect(tiles.locator("li")).toHaveCount(3);
+    await expect(tiles.locator("li.done b")).toHaveText("Your range");
+    await expect(tiles.locator("li.now b")).toHaveText(/Your quote range|Your detailed price/);
+    await expect(page.getByTestId("reveal-fine")).toContainText("Price is subject to change based on the information provided.");
+    await expect(page.getByTestId("reveal")).not.toContainText(/±|within \d+%/);
     await expect(page.getByTestId("door-tighten")).toHaveAttribute("data-hero", "1");
     await expect(page.locator(".wz-doors [data-hero='1']")).toHaveCount(1);
     await expect(page.getByTestId("estimator-strip")).toBeVisible();
@@ -436,8 +440,8 @@ test.describe("UI refresh S3 · the range screen, every path", () => {
     await quickNext(page);
     await passGateIfShown(page);
     await expect(page.getByTestId("reveal-range")).toHaveText(MONEY_RANGE, { timeout: 90_000 });
-    await expect(page.getByTestId("reveal-tiers")).not.toContainText("Confirmed");
-    await expect(page.getByTestId("reveal-tiers-visit")).toContainText(/Every outside price is confirmed on site/);
+    await expect(page.getByTestId("reveal-tiles").locator("li")).toHaveCount(3); // C2: the tiles, no ladder, outside too
+    await expect(page.getByTestId("reveal-fine")).toContainText(/confirms it with you before anything is fixed/);
     // "Speak with us" is the server's call (R25/R34 — under the phone limit, outside jobs included): not asserted here.
   });
 
@@ -450,7 +454,7 @@ test.describe("UI refresh S3 · the range screen, every path", () => {
     // Whole dollars on screen: each figure is rounded, so allow a dollar per part.
     expect(Math.abs(inside[0] + outside[0] - total[0])).toBeLessThanOrEqual(2);
     expect(Math.abs(inside[1] + outside[1] - total[1])).toBeLessThanOrEqual(2);
-    await expect(page.getByTestId("reveal-tiers")).not.toContainText("Confirmed");
+    await expect(page.getByTestId("reveal-tiles").locator("li")).toHaveCount(3); // C2
     // The widest range there is (two five-figure ends) still fits inside its card on a laptop.
     for (const width of [1280, 1440, 1000]) {
       await page.setViewportSize({ width, height: 900 });
@@ -475,8 +479,7 @@ test.describe("UI refresh S3 · the range screen, every path", () => {
     await expect(page.getByTestId("reveal-range")).toHaveText(MONEY_RANGE, { timeout: 90_000 });
     await expect(page.getByTestId("reveal-kicker")).toContainText(/Office/);
     await expect(page.getByTestId("reveal-commercial-note")).toBeVisible();
-    await expect(page.getByTestId("reveal-tiers")).not.toContainText("Confirmed");
-    await expect(page.getByTestId("reveal-tiers-visit")).toContainText(/Every commercial price/);
+    await expect(page.getByTestId("reveal-tiles").locator("li")).toHaveCount(3); // C2: the tiles, no ladder, commercial too
     // "Speak with us" is the server's call (R25/R34 — under the phone limit, outside jobs included): not asserted here.
     await expect(page.getByTestId("reveal-trust")).toContainText("Certificates and SWMS with every quote");
   });

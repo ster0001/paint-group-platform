@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { editorHref } from "@/lib/wizard/ui-flags";
 import RoomCard from "@/app/components/scope/RoomCard";
 import PlanViewer from "./PlanViewer";
 import { browserClient } from "@/lib/supabase/lazyClient";
@@ -166,7 +167,7 @@ export default function CustomerResult({ outcome, reveal, roomTypes, logoUrl, co
         <div className="wz-confirmrow">
           <div className="wz-cf">
             <span><b>Shape your estimate</b> — add or remove rooms and surfaces, and watch the range follow.</span>
-            <a className="wz-mini" href={`/estimate/scope?id=${reveal.estimateId}`} style={{ textDecoration: "none" }}>
+            <a className="wz-mini" href={editorHref(reveal.estimateId)} style={{ textDecoration: "none" }}>
               Open the editor
             </a>
           </div>

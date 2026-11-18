@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import WhatWeDo from "./WhatWeDo";
 import EstimatorStrip from "./EstimatorStrip";
 import { UI_FLAGS } from "@/lib/wizard/ui-flags";
+import { editorHref } from "@/lib/wizard/ui-flags";
 import { assumedList, restatement, type QuickLook } from "@/lib/wizard/quick-look";
 import { commercialAssumedList, commercialRestatement, openCount, type CommercialAnswers, type Segment } from "@/lib/wizard/segments";
 import { exteriorAssumedList, exteriorRestatement, type ExteriorQuickLook } from "@/lib/wizard/exterior-quick-look";
@@ -152,11 +153,10 @@ export default function Reveal({
 
   // UI refresh S3 (brief §7.4): the ladder. An exterior, a "both" or a commercial job is never
   // told about Confirmed (lib/wizard/ladder.ts) — they get two bars and the visit sentence.
-  const insideOnly = quick.jobType === "interior" && !payload.commercial && !payload.parts;
   const how = payload.parts ? "room by room, then side by side" : exteriorOnly ? "side by side" : payload.commercial ? "area by area" : "room by room";
-  // ⚑ 11: the Guide bar follows the live band; Detailed and Confirmed are illustrative, with no numbers.
-  const guideBar = Math.max(40, Math.min(96, Math.round(payload.bandPct * 3)));
   const first = firstName?.trim().split(/\s+/)[0] ?? "";
+  // The person on the tiles and the small print — the resolved estimator's first name, never an invented one (⚑ 3).
+  const who = payload.estimator?.name?.trim().split(/\s+/)[0] || "Your estimator";
   // Exterior wizard v2 (S5, brief §5.3): the tier is an accuracy label — Detailed once the band is inside the mid band.
   const detailed = exteriorOnly && !!outside?.v2 && payload.bandPct <= DEFAULT_BANDS.midPct;
   // D-E1 (exterior on mobile v5, Tom 30 Oct 2026): the drawn-house gate shows NO tolerance and no tier label on either width —
@@ -171,9 +171,6 @@ export default function Reveal({
         <section className="wz-rv-card" aria-labelledby="reveal-kicker">
           <p className="wz-rv-label">
             <span className="wz-kick" id="reveal-kicker" data-testid="reveal-kicker">{kicker}</span>
-            {!noTier && (
-              <span className={`wz-rv-pill ${detailed ? "wz-rv-pill--det" : ""}`} data-testid="reveal-tier" data-tier={detailed ? "detailed" : "guide"}>{detailed ? "Detailed" : "Guide"} · within <span data-testid="range-width">{payload.bandPct}</span>%</span>
-            )}
           </p>
           {/* C11 — the roller reveal: the one motion moment on this screen (S3 keeps it rather
               than adding a count-up — the run sheet allows one, not both), and none at all for
@@ -215,31 +212,17 @@ export default function Reveal({
           )}
           <p className="wz-restate" data-testid="reveal-restatement">{basis}</p>
 
-          {/* Guide → Detailed → Confirmed, drawn as bars of decreasing width. An explanation, not a
-              control: "the only progression the customer sees is the range narrowing and three
-              honest words" (Ruling G). Never points, never a badge. */}
-          <div className="wz-tiers wz-ladder" data-testid="reveal-tiers" aria-label="How the range narrows">
-            <div className="wz-ladder-row now">
-              <p><span className="on">Guide</span><em>where you are now</em></p>
-              <i aria-hidden="true"><b style={{ width: `${guideBar}%` }} /></i>
-            </div>
-            <div className="wz-ladder-row">
-              <p><span>Detailed</span><em>after checking it {how.split(",")[0]}</em></p>
-              <i aria-hidden="true"><b style={{ width: "34%" }} /></i>
-            </div>
-            {insideOnly ? (
-              <div className="wz-ladder-row">
-                <p><span>Confirmed</span><em>fixed with your estimator</em></p>
-                <i aria-hidden="true"><b style={{ width: "6%" }} /></i>
-              </div>
-            ) : (
-              <p className="wz-ladder-visit" data-testid="reveal-tiers-visit">
-                {brand === "painthome" && paintHome?.tier === "call"
-                  ? <><b>Then one call.</b> {PAINT_HOME_WORDS.thenCall}</>
-                  : <><b>Then a visit.</b> {payload.commercial ? "Every commercial price" : "Every outside price"} is confirmed on site by your estimator before it&rsquo;s fixed.</>}
-              </p>
-            )}
-          </div>
+          {/* Go-live brief C2 (18 Nov 2026): the laptop takes the phone's gate — no tolerance badge and no Guide → Detailed →
+              Confirmed ladder (R2, R4). The phone's small print, then the three tiles: Your range ✓ · Your quote range ·
+              <estimator> confirms. */}
+          <p className="wzm-gate-fine wz-rv-fine" data-testid="reveal-fine">
+            Price is subject to change based on the information provided. {who} confirms it with you before anything is fixed. Includes GST.
+          </p>
+          <ol className="wzm-tiles wz-rv-tiles" data-testid="reveal-tiles" data-at={1}>
+            <li className="wzm-tile done" data-state="done"><span className="k" aria-hidden="true">✓</span><b>Your range</b>Just now</li>
+            <li className="wzm-tile now" data-state="now"><span className="k" aria-hidden="true">2</span><b>{quoteStage ? "Your quote range" : "Your detailed price"}</b>Online, today</li>
+            <li className="wzm-tile todo" data-state="todo"><span className="k" aria-hidden="true">3</span><b>{who} confirms</b>{brand === "painthome" && paintHome?.tier === "call" ? "On one short call" : "In person, 40 min"}</li>
+          </ol>
           {/* Wizard mobile v5 (session 1, v1 B1): the dock lives IN the range card. On a phone it is the fixed
               bottom bar it always was; on a laptop it was hidden by a media query — now the same button, in the
               card, under the ladder. The hand-off has no door into the editor (Tom, 27 Oct 2026). */}
@@ -407,7 +390,7 @@ export default function Reveal({
                   )}
                   {/* C10: each line deep-links to the card that changes it. */}
                   {a.rung && !handoffLocked && (
-                    <a className="wz-linkish" href={`/estimate/scope?id=${estimateId}#${a.rung}`} data-testid={`reveal-assumed-link-${a.key}`}>Change this</a>
+                    <a className="wz-linkish" href={editorHref(estimateId, a.rung)} data-testid={`reveal-assumed-link-${a.key}`}>Change this</a>
                   )}
                 </li>
               ))}
