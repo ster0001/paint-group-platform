@@ -5,6 +5,17 @@ import { serviceClient } from "../fixtures/woLoop";
 /** A money range like "$5,120 – $5,560". */
 export const MONEY_RANGE = /\$[\d,]+\s*–\s*\$[\d,]+/;
 
+/**
+ * The grouped laptop screens (shape and size together, one Painting page, …) exist only
+ * while desktop one-press is OFF — production's setting until Tom flips it. With it ON,
+ * as CI builds, the laptop shows the phone's one-question screens, which every spec's
+ * "on a phone" block drives. A test of the grouped screens steps aside under one-press
+ * instead of timing out at 2–5 minutes, twice (18 Nov 2026: ~20 such tests kept main's
+ * e2e job running for hours).
+ */
+export const DESKTOP_ONE_PRESS = process.env.NEXT_PUBLIC_WIZARD_DESKTOP_ONEPRESS === "1";
+export const GROUPED_LAPTOP_ONLY = "the grouped laptop screens — desktop one-press is on here, and the phone blocks drive its screens";
+
 export type DriveOptions = {
   /** Email for the "keep this estimate" door; defaults to a throwaway. */
   email?: string;

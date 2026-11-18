@@ -1081,7 +1081,9 @@ export function buildEstimateAfterVisitItems(rows: readonly VisitDoneRow[], esti
 export async function loadAfterVisitFacts(supabase: SupabaseClient, now: Date): Promise<{ rows: VisitDoneRow[]; estimates: AccountEstimateRow[]; error: string | null }> {
   const since30d = new Date(now.getTime() - 30 * 86_400_000).toISOString();
   const doneVisitsRes = await supabase.from("visits").select("id, account_id, estimate_id, starts_at, outcome_at, customer_name, address")
-    .eq("status", "done").gte("starts_at", since30d).order("starts_at", { ascending: true }).limit(200);
+    // Newest first: past the cap, the visit just marked done must be read, not the oldest (18 Nov 2026 — the
+    // test project's 200+ done visits hid every new one from Today and the Work queue).
+    .eq("status", "done").gte("starts_at", since30d).order("starts_at", { ascending: false }).limit(200);
   if (doneVisitsRes.error) return { rows: [], estimates: [], error: "visits done: read failed" };
   const doneVisits = (doneVisitsRes.data ?? []) as VisitDoneRow[];
   const doneAccountIds = [...new Set(doneVisits.map((v) => v.account_id).filter((x): x is string => Boolean(x)))];
