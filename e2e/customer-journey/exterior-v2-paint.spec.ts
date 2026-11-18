@@ -65,6 +65,7 @@ test("the groups, nothing ticked, no materials, no price — and Continue refuse
 test("a chip lights its part on the picture; a tap on the picture ticks the chip; the caption names it", async ({ page }) => {
   test.setTimeout(120_000);
   await toPaint(page);
+  await setParts(page, []); // go-live S4 (H2): the usual parts come pre-ticked — start from an empty house
   expect(await picture(page).locator(".e[data-on='1']").count()).toBe(0);
   await page.getByTestId("ext-part-walls").click();
   await expect(page.getByTestId("ext-part-walls")).toHaveAttribute("aria-pressed", "true");
@@ -87,6 +88,7 @@ test("a chip lights its part on the picture; a tap on the picture ticks the chip
 test("the verandah family appears with the verandah and leaves with it; the gable is on a gable-roof home", async ({ page }) => {
   test.setTimeout(120_000);
   await toPaint(page, "cal");
+  await setParts(page, []); // go-live S4 (H2): start from an empty house
   for (const p of ["posts", "ceiling", "handrail"]) await expect(page.getByTestId(`ext-part-${p}`)).toHaveCount(0);
   await page.getByTestId("ext-part-verandah").click();
   for (const p of ["posts", "ceiling", "handrail"]) await expect(page.getByTestId(`ext-part-${p}`)).toBeVisible();

@@ -279,6 +279,11 @@ export async function setParts(page: Page, wanted: readonly string[]) {
   }
 }
 
+/** M4, the bigger-job / tightened variant: the visible Book a visit door. */
+export function bookDoor(page: Page) {
+  return page.locator('[data-testid="gate-book"]:visible, [data-testid="gate-bar-book"]:visible').first();
+}
+
 /** Go-live S4 (M4): one "Get my quote range" door is visible at a time — the inline button, or the sticky bar standing in for it. */
 export function gateDoor(page: Page) {
   return page.locator('[data-testid="gate-exact"]:visible, [data-testid="gate-bar-exact"]:visible').first();

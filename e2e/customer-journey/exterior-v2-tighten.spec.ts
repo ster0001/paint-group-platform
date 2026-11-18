@@ -1,5 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
-import { lookAtEverySide, passGateIfShown, quickNext, MONEY_RANGE, passOtpIfShown, tightenToScope, setParts, gateDoor } from "./drive";
+import { lookAtEverySide, passGateIfShown, quickNext, MONEY_RANGE, passOtpIfShown, tightenToScope, setParts, gateDoor, bookDoor } from "./drive";
 import { toSides } from "./exterior-v2-drive";
 
 /**
@@ -253,7 +253,7 @@ test.describe("on a phone: Tighten is the walk-around, one screen per side (exte
     await expect(page.getByTestId("gate-included")).toHaveAttribute("data-open", "1");
     await expect(page.getByTestId("ext-range-front")).toContainText(/checked/);
     await expect(page.getByTestId("ext-range-right")).toContainText(/weathered/);
-    await expect(page.getByTestId("gate-bar-book")).toBeVisible();
+    await expect(bookDoor(page)).toBeVisible(); // M4
     await expect(page.getByTestId("gate-exact")).toHaveCount(0);
     const text = await gate.innerText();
     expect(text).not.toMatch(/±|within \d+%|Guide ·|Detailed/);

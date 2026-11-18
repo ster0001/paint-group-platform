@@ -5,7 +5,7 @@ import { test } from "../helpers";
 /** Quote stage v10 (S7 switch-over): with the flag on, the gate's door reads "detailed" and opens /estimate/quote. */
 const V10 = process.env.NEXT_PUBLIC_QUOTE_STAGE_V10 !== "0";
 import { serviceClient } from "../fixtures/woLoop";
-import { MONEY_RANGE, passOtpIfShown, gateDoor } from "./drive";
+import { MONEY_RANGE, passOtpIfShown, gateDoor, bookDoor } from "./drive";
 
 /**
  * Wizard mobile v5 — session 4 (brief §4, acceptance §9 items 7, 10, 11),
@@ -215,7 +215,7 @@ test.describe("Wizard mobile v5 — the gate on a phone (session 4)", () => {
     await expect(page.getByTestId("gate-tiles").locator("li").nth(2)).toHaveAttribute("data-state", "now");
     await expect(page.getByTestId("gate-fine")).toBeVisible();
     if (SHOTS) { await page.waitForTimeout(700); await page.screenshot({ path: `${SHOTS}/12-gate-bigger.png`, animations: "disabled" }); }
-    await page.getByTestId("gate-bar-book").tap();
+    await bookDoor(page).tap(); // M4: whichever Book door is the visible one
     await expect(page).toHaveURL(/\/estimate\/visit\?id=/, { timeout: 20_000 });
     expect(new URL(page.url()).host).toMatch(/^painthome\.localhost/);
   });

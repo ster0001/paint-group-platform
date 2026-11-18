@@ -143,6 +143,7 @@ export default function MobileQuickLook({
   const sub = subState.step === step ? subState.sub : 0;
   const setSub = (n: number) => setSubState({ step, sub: n });
   const pendingRef = useRef<"first" | "last" | null>(null);
+  const moveRef = useRef<"first" | "last">("first");
   const stepRef = useRef<QuickLookStep | null>(null);
   // The remembered screen, read ONCE at mount: a resume lands its step after the first paint (the draft loads
   // asynchronously), and the first paint has by then written ITS screen over the remembered one — so the
@@ -158,6 +159,7 @@ export default function MobileQuickLook({
     stepRef.current = step;
     const want = pendingRef.current;
     pendingRef.current = null;
+    if (want) moveRef.current = want;
     if (want === "first") { setSub(0); return; }
     if (want === "last") { setSub(Math.max(0, stepScreens.length - 1)); return; }
     // No move of our own (a mount, a resume): the remembered screen, if it is one of this step's.
@@ -170,6 +172,14 @@ export default function MobileQuickLook({
     setSub(at >= 0 ? at : 0);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- stepScreens is derived from step + answers; the step is the trigger
   }, [step]);
+  // Go-live S4 (M5): a step with no screens of its own on this path — the place step on an outside house — is passed
+  // straight through in the direction of travel, so the shell never shows an empty step.
+  useEffect(() => {
+    if (stepScreens.length > 0) return;
+    if (moveRef.current === "last") { pendingRef.current = "last"; onBack(); return; }
+    pendingRef.current = "first"; onNext();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- the step is the trigger; onNext/onBack are the parent's stable handlers
+  }, [step, stepScreens.length]);
   const current: MobileScreen = stepScreens[Math.min(sub, Math.max(0, stepScreens.length - 1))] ?? { id: step, step, advance: "bar", heading: null, sub: null };
   const index = Math.max(0, screens.findIndex((s) => s.id === current.id));
   const first = index === 0;
@@ -224,6 +234,16 @@ export default function MobileQuickLook({
   };
 
   const [changingAddress, setChangingAddress] = useState(false);
+  // Go-live S4 (M1): the address chip stands in for the field only when the address was already known on ARRIVING at the
+  // screen (a resume, a return). Typing the address never swaps the field for the chip under the customer's thumb, so the
+  // job cards below never move.
+  // (derived state, set during render: where the address BECAME known — "mount" for a hand-off or resume; cleared on leaving the screen)
+  const [knownOn, setKnownOn] = useState<string | null>(address.known ? "mount" : null);
+  const [prevKnown, setPrevKnown] = useState(address.known);
+  if (address.known !== prevKnown) { setPrevKnown(address.known); setKnownOn(address.known ? current.id : null); }
+  const [seenScreen, setSeenScreen] = useState(current.id);
+  if (seenScreen !== current.id) { setSeenScreen(current.id); if (knownOn === "what") setKnownOn("left"); }
+  const showAddressChip = address.known && knownOn !== "what" && !changingAddress;
   const ticked = roomsTicked(quick, roomNames, addedRooms);
   const ready = current.id === "details" ? Boolean(contact && detailsReady(contact))
     : current.id === "code" ? Boolean(otp && otp.code.length === 6)
@@ -363,7 +383,7 @@ export default function MobileQuickLook({
 
           {current.id === "what" && (
             <>
-              {address.known && !changingAddress ? (
+              {showAddressChip ? (
                 <div className="wzm-addr" data-testid="wzm-addr">
                   <span>{address.text}</span>
                   <button type="button" onClick={() => setChangingAddress(true)} data-testid="wzm-addr-change">Change</button>
