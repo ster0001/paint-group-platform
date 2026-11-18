@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { fillQuickAddress, MONEY_RANGE, openQuickLook, quickNext, tightenToScope } from "./drive";
+import { fillQuickAddress, MONEY_RANGE, openQuickLook, quickNext, tightenToScope, DESKTOP_ONE_PRESS, GROUPED_LAPTOP_ONLY } from "./drive";
 import { existsSync } from "node:fs";
 
 /**
@@ -22,6 +22,7 @@ const PLAN = "regression-set/plans/120 murrumbeena.jpg";
 // present on Tom's machines, absent on a CI runner. Skip there, never fabricate.
 test("the plan panel is big enough to read, and opens bigger still", async ({ page }) => {
   test.skip(!existsSync(PLAN), `regression plan not on this machine: ${PLAN}`);
+  test.skip(DESKTOP_ONE_PRESS, GROUPED_LAPTOP_ONLY); // the place step's floorplan upload is the grouped laptop's
   test.setTimeout(420_000);
   await page.setViewportSize({ width: 1512, height: 900 });
   // Tom, 14 Sep: the floorplan is uploaded ON the quick look — the place

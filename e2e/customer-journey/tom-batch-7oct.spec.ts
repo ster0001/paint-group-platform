@@ -10,7 +10,7 @@
  */
 import { test, expect, type Page } from "@playwright/test";
 import { existsSync } from "node:fs";
-import { driveNoPlanWizard, fillQuickAddress, openQuickLook, openScopeEditor, quickNext } from "./drive";
+import { driveNoPlanWizard, fillQuickAddress, openQuickLook, openScopeEditor, quickNext, DESKTOP_ONE_PRESS, GROUPED_LAPTOP_ONLY } from "./drive";
 
 const cardNamed = (page: Page, name: string) => page.locator(".sc-rc[data-room]", { has: page.getByLabel(`Rename ${name}`, { exact: true }) }).first();
 const openCard = async (card: ReturnType<typeof cardNamed>) => { await card.locator(".il-hd").click().catch(() => undefined); };
@@ -95,6 +95,7 @@ test("Add room by name alone opens the new room with its size boxes ready; a wal
 const PLAN = "regression-set/plans/120 murrumbeena.jpg";
 test("with a floorplan uploaded, the rooms step shows the reading panel until the plan is read — never a guessed list", async ({ page }) => {
   test.skip(!existsSync(PLAN), `regression plan not on this machine: ${PLAN}`);
+  test.skip(DESKTOP_ONE_PRESS, GROUPED_LAPTOP_ONLY); // the place step's floorplan upload is the grouped laptop's
   test.setTimeout(420_000);
   await openQuickLook(page);
   await fillQuickAddress(page);

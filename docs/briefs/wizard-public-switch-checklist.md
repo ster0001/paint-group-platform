@@ -117,7 +117,7 @@ The six build sessions of `claude-code-brief-wizard-go-live-fixes.md` are the la
   DATABASE_URL="$IMPORT_DATABASE_URL" npx tsx scripts/wizard/calibration-compare.ts --pairs <staffId>=<wizardId>,… --out docs/testing/wizard-calibration-19nov.md
   ```
   Read-only. The report's roll-up (median difference, pairs within ±10%) is the number to decide on; the per-area tables say where a difference comes from. Commit the report.
-- [ ] Vercel env: `NEXT_PUBLIC_QUOTE_STAGE_V10` is ON (or unset — on is the default); `NEXT_PUBLIC_WIZARD_DESKTOP_ONEPRESS` stays OFF until the ten grouped-laptop specs are ported (the open card from S3).
+- [ ] Vercel env: `NEXT_PUBLIC_QUOTE_STAGE_V10` is ON (or unset — on is the default); `NEXT_PUBLIC_WIZARD_DESKTOP_ONEPRESS` may go ON once the spec port (`feat/wizard-onepress-spec-port`, 19 Nov) has a green PR e2e run — CI already builds with it on; production is Tom's flip in Vercel.
 - [ ] Settings → Estimates → Accuracy tiers: the hold days are the quote's "Valid N days" now (D5) — confirm the number you want customers to read.
 - [ ] Then §3: Settings → Estimates → Online estimates → on.
 
