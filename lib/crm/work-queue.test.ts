@@ -530,6 +530,12 @@ describe("estimate_after_visit — visit done, estimate not sent (Estimates tab 
     expect(buildEstimateAfterVisitItems([visit()], [{ id: "e9", account_id: "a1", sent_at: "2026-11-10T05:00:00Z", total_cents: 1 }], now)).toEqual([]);
     expect(buildEstimateAfterVisitItems([visit()], [{ id: "e9", account_id: "a1", sent_at: "2026-11-01T05:00:00Z", total_cents: 1 }], now)).toHaveLength(1);
   });
+  it("a visit with its own estimate is cleared by sending THAT one, not another quote to the same customer", () => {
+    const own = { id: "e1", account_id: "a1", sent_at: null, total_cents: 640_000 };
+    const other = { id: "e9", account_id: "a1", sent_at: "2026-11-10T05:00:00Z", total_cents: 220_000 };
+    expect(buildEstimateAfterVisitItems([visit({ estimate_id: "e1" })], [own, other], now)).toHaveLength(1);
+    expect(buildEstimateAfterVisitItems([visit({ estimate_id: "e1" })], [{ ...own, sent_at: "2026-11-10T06:00:00Z" }, other], now)).toEqual([]);
+  });
   it("the visit's own estimate is the subject and the value, and sending it clears the item", () => {
     const own = { id: "e1", account_id: null, sent_at: null, total_cents: 820_000 };
     const [item] = buildEstimateAfterVisitItems([visit({ account_id: null, estimate_id: "e1" })], [own], now);

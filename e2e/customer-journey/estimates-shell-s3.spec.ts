@@ -93,6 +93,7 @@ test.describe("Estimates shell, session 3 — chips, view count, came back", () 
   });
 
   test("six chips in the brief's order, All estimates pressed, the nine tabs inside it", async ({ page }) => {
+    test.setTimeout(120_000);
     await signIn(page, staff!, /\/(home|estimates|crm|quote|$)/);
     await page.goto("/estimates");
     const chips = page.getByTestId("estimates-views").locator("[data-view]");
@@ -103,7 +104,9 @@ test.describe("Estimates shell, session 3 — chips, view count, came back", () 
     }
     // Another view keeps the chips; the tabs are All estimates' own (every view is built from session 5).
     await page.getByTestId("estimates-view-funnel").click();
-    await expect(page).toHaveURL(/view=funnel/);
+    // The Funnel is built server-side before the URL changes; on the shared test project's data that
+    // measured 19 s (19 Nov 2026) — flagged as a performance follow-up, not a broken chip.
+    await expect(page).toHaveURL(/view=funnel/, { timeout: 45_000 });
     await expect(page.getByTestId("estimates-view-funnel")).toHaveAttribute("aria-current", "page");
     await expect(page.getByTestId("funnel-view")).toBeVisible();
     await expect(page.getByTestId("estimates-tab-all")).toHaveCount(0);

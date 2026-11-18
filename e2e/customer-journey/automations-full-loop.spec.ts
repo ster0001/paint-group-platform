@@ -28,7 +28,6 @@ const run = randomBytes(3).toString("hex");
 const SECRET = process.env.CRON_SECRET ?? "";
 const suburb = `E2E FullLoop ${run}`;
 const NAME = `Loop Customer ${run}`;
-const FIRST = "Loop";
 const EMAIL = `loop.${run}@full-loop.invalid`;
 const MOBILE = `04${String(parseInt(randomBytes(4).toString("hex"), 16)).padStart(8, "0").slice(0, 8)}`;
 const E164 = `+61${MOBILE.replace(/^0/, "")}`;
@@ -293,14 +292,13 @@ test.describe("Automations — the full loop (session 6)", () => {
     const issue = await db!.from("invoices").update({ status: "issued", number: `INV-E2E${run.slice(-4)}`, issued_on: melDayPlus(0), due_on: melDayPlus(2) }).eq("id", (dep.data as { id: string }).id);
     if (issue.error) throw issue.error;
     const start = melDayPlus(3);
-    const wo = await db!.from("work_orders").insert({
-      estimate_id: estimateId, wo_ref: `WO-LOOP${Math.floor(Math.random() * 10000)}`, share_token: `woloop${run}${randomBytes(12).toString("hex")}`,
-      stage: "pre_start", status: "issued", issued_at: new Date().toISOString(), start_date: start,
-      wo_snapshot: { version: 1, woRef: "WO-LOOP", status: "issued", jobTitle: "Loop", jobAddress: `9 Loop Street, ${suburb}`, contactFirstName: FIRST, contactPhone: "", startDate: start,
-        accessNotes: "", crewNotes: "", levelOfFinish: "Level 3", finishCode: "PG-3", contractorName: "", contractorPaymentCents: 0, materials: [], areas: [], exclusions: [], company: { name: "Paint Group", phone: "", logoUrl: "" } },
-    }).select("id").single();
+    // Acceptance opens the job's work order itself (one per estimate); the office books it.
+    const wo = await db!.from("work_orders").select("id").eq("estimate_id", estimateId).maybeSingle();
     if (wo.error) throw wo.error;
-    workOrderId = wo.data.id as string;
+    expect(wo.data, "acceptance opened the work order").not.toBeNull();
+    workOrderId = (wo.data as { id: string }).id;
+    const booked = await db!.from("work_orders").update({ stage: "pre_start", status: "issued", issued_at: new Date().toISOString(), start_date: start }).eq("id", workOrderId);
+    if (booked.error) throw booked.error;
     await sweep("reminders");
     const w2Due = morningBeforeDue(start, 3, new Date());
     const w2 = await textsFor("deposit_due");
