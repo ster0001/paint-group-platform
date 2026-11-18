@@ -9,7 +9,7 @@
  * the preset decides which tiles exist.
  */
 import { test, expect } from "@playwright/test";
-import { fillQuickAddress, MONEY_RANGE, openQuickLook, quickNext, passGateIfShown, tightenToScope } from "./drive";
+import { fillQuickAddress, MONEY_RANGE, openQuickLook, quickNext, passGateIfShown, tightenToScope, onMobileShell } from "./drive";
 
 const parseRange = (text: string): [number, number] => {
   const m = text.match(/\$([\d,]+)\s*–\s*\$([\d,]+)/);
@@ -24,6 +24,29 @@ test("the colour tiles follow the job preset and start ticked", async ({ page })
   await quickNext(page);
   await quickNext(page); // the place, defaults
   await expect(page.locator("[data-quick-step='job']")).toBeVisible({ timeout: 30_000 });
+  if (await onMobileShell(page)) {
+    // Desktop one-press (19 Nov 2026): the laptop runs the phone's screens. The preset decides which surfaces the
+    // SURFACES screen offers (the positive list, every one ticked); unticking the window frames takes them out; walls
+    // and ceilings only has nothing to untick and goes straight to the rooms.
+    await page.getByTestId("ql-scope-trims_doors").click();
+    await expect(page.locator("[data-mobile-screen='surfaces']")).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByTestId("ql-surface-walls")).toHaveCount(0);
+    await expect(page.getByTestId("ql-surface-ceilings")).toHaveCount(0);
+    for (const k of ["windows", "doors", "skirting", "architraves"]) await expect(page.getByTestId(`ql-surface-${k}`)).toHaveAttribute("aria-pressed", "true");
+    await page.getByTestId("wzm-back").click();
+    await expect(page.locator("[data-mobile-screen='job']")).toBeVisible({ timeout: 20_000 });
+    await page.getByTestId("ql-scope-whole").click();
+    await expect(page.locator("[data-mobile-screen='surfaces']")).toBeVisible({ timeout: 20_000 });
+    for (const k of ["walls", "ceilings", "windows", "doors", "skirting", "architraves"]) await expect(page.getByTestId(`ql-surface-${k}`)).toHaveAttribute("aria-pressed", "true");
+    await page.getByTestId("ql-surface-windows").click();
+    await expect(page.getByTestId("ql-surface-windows")).toHaveAttribute("aria-pressed", "false");
+    await page.getByTestId("ql-surface-windows").click();
+    await expect(page.getByTestId("ql-surface-windows")).toHaveAttribute("aria-pressed", "true");
+    await page.getByTestId("wzm-back").click();
+    await expect(page.locator("[data-mobile-screen='job']")).toBeVisible({ timeout: 20_000 });
+    await page.getByTestId("ql-scope-walls_ceilings").click(); // nothing to exclude: straight to the rooms
+    await expect(page.locator("[data-quick-step='rooms']")).toBeVisible({ timeout: 30_000 });
+  } else {
   for (const k of ["walls", "ceilings", "trims"]) await expect(page.getByTestId(`ql-changing-${k}`)).toHaveAttribute("aria-pressed", "true");
   await page.getByTestId("ql-scope-walls_ceilings").click();
   await expect(page.getByTestId("ql-changing-trims")).toHaveCount(0);
@@ -54,6 +77,7 @@ test("the colour tiles follow the job preset and start ticked", async ({ page })
   await page.getByTestId("ql-scope-walls_ceilings").click(); // no popup: nothing to exclude from walls and ceilings
   await quickNext(page);
   await expect(page.locator("[data-quick-step='rooms']")).toBeVisible({ timeout: 30_000 }); // 14 Sep (evening): confirm the rooms
+  }
   await quickNext(page);
   await quickNext(page);
   await passGateIfShown(page); // S6: the details-first question sits before the range
