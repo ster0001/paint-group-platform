@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
+import { boldCoats } from "@/lib/wizard/coatsHint";
 import { CONDITION_BANDS, OCCUPIED, roomTypeForName, visibleChanging, type QuickLook, type QuickLookStep, type ScopePreset } from "@/lib/wizard/quick-look";
 import {
   COLOUR_CHOICES, EXTRA_ROOMS, JOB_CHOICES, MOBILE_SCREEN_KEY, applyColourChoice, applyJobChoice, colourChoiceOf, detailsReady,
@@ -497,7 +498,7 @@ export default function MobileQuickLook({
             // Go-live S5 (M8, ⚑ D7): the phone asks the laptop's bold question. "Yes" marks every group that is changing
             // colour as bold (the laptop's "Which ones?" is not asked here); "No" prices them as a plain colour change.
             <div className="wzm-opts" role="group" aria-labelledby="wzm-h1" data-testid="ql-bold">
-              {([{ value: "no", label: "No", hint: "A similar depth of colour" }, { value: "yes", label: "Yes", hint: "We allow an undercoat under the new colour" }] as const).map((o, i) => {
+              {([{ value: "no", label: "No", hint: boldCoats(false) }, { value: "yes", label: "Yes", hint: boldCoats(true) }] as const).map((o, i) => {
                 const on = (quick.bold ? "yes" : "no") === o.value;
                 return (
                   <button key={o.value} type="button" className={`wzm-opt ${on ? "on" : ""}`} aria-pressed={on} data-testid={`ql-bold-${o.value}`}

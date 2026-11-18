@@ -28,7 +28,7 @@ describe("the Painting step", () => {
     const all = PART_GROUPS.flatMap((g) => g.parts);
     expect([...all].sort()).toEqual([...EXTERIOR_PARTS].sort());
     expect(new Set(all).size).toBe(EXTERIOR_PARTS.length);
-    expect(VERANDAH_PARTS).toEqual(["posts", "ceiling", "handrail"]);
+    expect(VERANDAH_PARTS).toEqual(["posts", "ceiling"]); // Tom, 19 Nov 2026: the handrail stands on its own
   });
   it("nothing is ticked for anyone; a tick toggles; unticking the verandah takes its family; ticking a family member brings the verandah", () => {
     const v2 = house();

@@ -187,7 +187,9 @@ export function partExists(v2: ExteriorV2, side: ExteriorSideKey, part: Exterior
   if (part === "walls" || part === "fascias" || part === "gutters" || part === "downpipes" || part === "eaves" || part === "windows" || part === "doors") return true;
   if (part === "gable") return (t.roof === "gable" && (side === "front" || side === "back")) || on.has("gable");
   if (part === "verandah") return (t.verandah !== "none" && side === "front") || on.has("verandah");
-  if (part === "posts" || part === "ceiling" || part === "handrail") return partExists(v2, side, "verandah", t) && (on.has(part) || (v2.parts.includes(part) && defaultSidesForPart(part, t).includes(side)));
+  // Tom, 19 Nov 2026: a handrail or balustrade stands on its own (a deck, steps, a balcony) — only the posts and the
+  // ceiling need the verandah.
+  if (part === "posts" || part === "ceiling") return partExists(v2, side, "verandah", t) && (on.has(part) || (v2.parts.includes(part) && defaultSidesForPart(part, t).includes(side)));
   return on.has(part) || (v2.parts.includes(part) && defaultSidesForPart(part, t).includes(side));
 }
 
@@ -198,15 +200,15 @@ export const PART_GROUPS: ReadonlyArray<{ key: "house" | "roof" | "open" | "vera
   { key: "open", label: "Windows & doors", parts: ["windows", "doors", "garage", "shutters"] },
   { key: "verandah", label: "Verandah or porch", parts: ["verandah", "posts", "ceiling", "handrail"] },
 ];
-/** The verandah family is offered once the verandah is ticked. */
-export const VERANDAH_PARTS: ExteriorPart[] = ["posts", "ceiling", "handrail"];
+/** The verandah family is offered once the verandah is ticked. The handrail / balustrade is NOT in it (Tom, 19 Nov 2026): it can be added on its own. */
+export const VERANDAH_PARTS: ExteriorPart[] = ["posts", "ceiling"];
 
 export const EXTRA_LABEL: Record<ExteriorExtra, string> = {
   paling_fence: "Paling fence", picket_fence: "Picket fence", deck: "Deck", pergola: "Pergola", shed: "Shed / garage",
   wall: "Boundary wall", side_gate: "Side gate", meter_box: "Meter box", security_door: "Security door",
 };
 
-/** Tick or untick a part. Unticking the verandah takes its posts, ceiling and handrail with it (they need it). */
+/** Tick or untick a part. Unticking the verandah takes its posts and ceiling with it (they need it); a handrail stays. */
 export function togglePart(v2: ExteriorV2, part: ExteriorPart): ExteriorV2 {
   const on = v2.parts.includes(part);
   let parts = on ? v2.parts.filter((p) => p !== part) : [...v2.parts, part];

@@ -175,6 +175,13 @@ test.describe("Go-live S4 — inputs and dead ends, on a phone", () => {
     for (const p of ["windows", "doors"]) await expect(page.getByTestId(`ext-part-${p}`)).toHaveAttribute("aria-pressed", "true");
     await page.getByTestId("ql-next").tap();
     await at(page, "p-ver");
+    // Tom, 19 Nov 2026: a handrail or balustrade can be ticked without a verandah; the posts and ceiling still wait for one
+    await expect(page.getByTestId("ext-part-verandah")).toHaveAttribute("aria-pressed", "false");
+    await expect(page.getByTestId("ext-part-handrail")).toBeVisible();
+    await expect(page.getByTestId("ext-part-posts")).toHaveCount(0);
+    await page.getByTestId("ext-part-handrail").tap();
+    await expect(page.getByTestId("ext-part-verandah")).toHaveAttribute("aria-pressed", "false");
+    await page.getByTestId("ext-part-handrail").tap();
     await page.getByTestId("ql-next").tap();
     await at(page, "p-around");
     await page.getByTestId("ql-next").tap();
@@ -186,6 +193,9 @@ test.describe("Go-live S4 — inputs and dead ends, on a phone", () => {
     await at(page, "a-win");
     await page.getByTestId("ql-ext-win-casement").tap();
     await at(page, "a-colours");
+    // Tom, 19 Nov 2026: each colour answer says the coats it is quoted at
+    await expect(page.getByTestId("ql-ext-colour-same")).toContainText(/one full coat/i);
+    await expect(page.getByTestId("ql-ext-colour-new")).toContainText(/two full coats/i);
     await page.getByTestId("ql-ext-colour-new").tap();
     await at(page, "a-access");
     await page.getByTestId("ql-next").tap();

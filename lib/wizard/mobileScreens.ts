@@ -1,3 +1,4 @@
+import { interiorColourCoats } from "./coatsHint";
 import {
   changingForScope, exclusionOptions, visibleChanging,
   type InteriorExcludable, type QuickLook, type QuickLookStep, type ScopePreset,
@@ -131,7 +132,7 @@ export function mobileScreensFor(
         const t = v2 ? typicalFor(v2.propertyType, rows) : null;
         out.push({ id: "p-house", step, advance: "bar", heading: "Tap everything we're painting", sub: "Walls and roofline. Tap each part and watch it paint in.", stage: "Painting" });
         out.push({ id: "p-win", step, advance: "bar", heading: "Windows and doors", sub: null, stage: "Painting" });
-        out.push({ id: "p-ver", step, advance: "bar", heading: "The verandah", sub: t && t.verandah !== "none" ? null : "Tick it if there is one.", stage: "Painting" });
+        out.push({ id: "p-ver", step, advance: "bar", heading: "The verandah", sub: t && t.verandah !== "none" ? "A handrail or balustrade on its own can be ticked without one." : "Tick it if there is one. A handrail or balustrade on its own — a deck, steps, a balcony — can be ticked without one.", stage: "Painting" });
         out.push({ id: "p-around", step, advance: "bar", heading: "Around the house", sub: "Anything else outside we're painting?", stage: "Painting" });
         break;
       }
@@ -197,10 +198,11 @@ export function mobileProgress(index: number, total: number): number {
 
 /** §2 — the three colour answers, derived from (and written back to) the quick look's colour tiles. */
 export type ColourChoice = "new" | "same" | "deciding";
+// Tom, 19 Nov 2026: each answer says the coats it is quoted at — read from the paint-systems table (`coatsHint.ts`).
 export const COLOUR_CHOICES: Array<{ value: ColourChoice; label: string; hint: string }> = [
-  { value: "new", label: "New colours", hint: "A change — we allow for an undercoat" },
-  { value: "same", label: "Same colours", hint: "A fresh coat of what's there" },
-  { value: "deciding", label: "Still deciding", hint: "We'll allow for new colours" },
+  { value: "new", label: "New colours", hint: interiorColourCoats("new") },
+  { value: "same", label: "Same colours", hint: interiorColourCoats("same") },
+  { value: "deciding", label: "Still deciding", hint: interiorColourCoats("deciding") },
 ];
 export function colourChoiceOf(q: Pick<QuickLook, "changing" | "undecided" | "scope" | "excluded">): ColourChoice {
   if (q.undecided) return "deciding";

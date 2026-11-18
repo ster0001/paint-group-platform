@@ -63,7 +63,7 @@ export default function ExteriorPaintStep({ v2, rows = [], onChange }: {
           <div className="wz-chips">
             {g.parts.filter((p) => !VERANDAH_PARTS.includes(p) || verandahOn).map(chip)}
           </div>
-          {g.key === "verandah" && !verandahOn && <p className="wz-chint">Tick the verandah and we ask about its posts, ceiling and handrail.</p>}
+          {g.key === "verandah" && !verandahOn && <p className="wz-chint">Tick the verandah and we ask about its posts and ceiling. A handrail or balustrade on its own — a deck, steps, a balcony — can be ticked without one.</p>}
         </div>
       ))}
 

@@ -63,9 +63,14 @@ test.describe("Go-live S5 — the quote adds up, and copy", () => {
     await quickNext(page);
     // M8 — New colours asks the bold question; Same colours does not
     await at(page, "colours");
+    // Tom, 19 Nov 2026: each colour answer says the coats it is quoted at
+    await expect(page.getByTestId("ql-colours-same")).toContainText(/one coat/i);
+    await expect(page.getByTestId("ql-colours-new")).toContainText(/two coats/i);
     await page.getByTestId("ql-colours-new").tap();
     await at(page, "bold");
     await expect(page.locator("#wzm-h1")).toHaveText("Going much lighter, or a bold colour?");
+    await expect(page.getByTestId("ql-bold-yes")).toContainText(/an undercoat and two coats/i);
+    await expect(page.getByTestId("ql-bold-no")).toContainText(/two coats/i);
     await expect(page.getByTestId("ql-bold")).toHaveAttribute("role", "group");
     await shot(page, "01-bold");
     await page.getByTestId("wzm-back").tap();

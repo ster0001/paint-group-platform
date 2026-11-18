@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, type ReactNode } from "react";
+import { boldCoats, interiorColourCoats } from "@/lib/wizard/coatsHint";
 import dynamic from "next/dynamic";
 import {
   CHANGING_GROUPS, CONDITION_BANDS, OCCUPIED,
@@ -418,7 +419,8 @@ export default function QuickLook({
           {tag("changing")}
 
           <p className="wz-qhead">Any of them going much lighter, or a bold colour?</p>
-          <p className="wz-hint">That needs an undercoat first. We allow for it.</p>
+          {/* Tom, 19 Nov 2026: the coats each answer is quoted at, from the paint-systems table */}
+          <p className="wz-hint" data-testid="ql-bold-coats">Yes: {boldCoats(true).toLowerCase()}. No: {boldCoats(false).toLowerCase()}. Anything staying the same colour: {interiorColourCoats("same").toLowerCase()}.</p>
           <Chips options={[{ value: "no", label: "No" }, { value: "yes", label: "Yes" }]} value={quick.bold ? "yes" : "no"}
             onPick={(v) => onQuick({ bold: v === "yes" })} name="bold" />
           {/* Tom, 15 Sep: "Yes" then WHICH — the groups being painted and changing colour.

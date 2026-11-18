@@ -34,7 +34,7 @@ describe("the side's list", () => {
     const v2 = bungalow();
     expect(sideListParts(v2, "front", t)).toEqual(["walls", "gable", "fascias", "gutters", "eaves", "windows", "doors", "verandah", "posts"]);
     expect(sideListParts(v2, "right", t)).toEqual(["walls", "fascias", "gutters", "eaves", "windows", "doors"]);
-    expect(sideAddableParts(v2, "right", t)).toEqual(["gable", "downpipes", "garage", "shutters", "verandah"]); // the family waits for a verandah here
+    expect(sideAddableParts(v2, "right", t)).toEqual(["gable", "downpipes", "garage", "shutters", "verandah", "handrail"]); // the posts and ceiling wait for a verandah here; a handrail stands alone (Tom, 19 Nov 2026)
     const withPorch = toggleSidePart(v2, "back", "verandah", t);
     expect(sideAddableParts(withPorch, "back", t)).toEqual(expect.arrayContaining(["posts", "ceiling", "handrail"]));
   });

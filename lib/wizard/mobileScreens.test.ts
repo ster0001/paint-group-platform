@@ -176,16 +176,16 @@ describe("exterior on mobile v5 — the Painting step on a phone", () => {
     expect(cal.map((s) => s.id)).toEqual(["p-house", "p-win", "p-ver", "p-around"]);
     expect(cal.every((s) => s.advance === "bar" && s.stage === "Painting")).toBe(true);
     expect(cal[0].heading).toBe("Tap everything we're painting");
-    expect(cal[2].sub).toBeNull();
+    expect(cal[2].sub).toBe("A handrail or balustrade on its own can be ticked without one."); // Tom, 19 Nov 2026
     const wb = mobileScreensFor(steps, quick, { v2: house("wb") }).filter((s) => s.step === "paint");
-    expect(wb[2].sub).toBe("Tick it if there is one.");
+    expect(wb[2].sub).toBe("Tick it if there is one. A handrail or balustrade on its own — a deck, steps, a balcony — can be ticked without one."); // Tom, 19 Nov 2026
   });
   it("the house and its roofline share one screen; the verandah family appears once the verandah is ticked; the sheet lists them all", () => {
     expect(paintScreenParts("p-house", house("cal"))).toEqual(["walls", "gable", "fascias", "gutters", "downpipes", "eaves"]);
     expect(paintScreenParts("p-win", house("cal"))).toEqual(["windows", "doors", "garage", "shutters"]);
-    expect(paintScreenParts("p-ver", house("cal"))).toEqual(["verandah"]);
+    expect(paintScreenParts("p-ver", house("cal"))).toEqual(["verandah", "handrail"]); // Tom, 19 Nov 2026: a handrail stands on its own
     expect(paintScreenParts("p-ver", house("cal", ["verandah"]))).toEqual(["verandah", "posts", "ceiling", "handrail"]);
-    expect(paintParts(house("cal"))).toHaveLength(11);
+    expect(paintParts(house("cal"))).toHaveLength(12); // + the handrail, offered without a verandah (Tom, 19 Nov 2026)
   });
 });
 

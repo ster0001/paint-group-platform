@@ -5,6 +5,11 @@ import { mobileScreensFor, applyColourChoice } from "./mobileScreens";
 import { DEFAULT_QUICK_LOOK, type QuickLook } from "./quick-look";
 import { stepsFor } from "./quick-look";
 import { OCCUPANCY_MODIFIERS, applySiteAccess } from "./site-access";
+import { defaultSides, partExists, sideAddableParts, togglePart } from "./exterior-model";
+import { paintScreenParts } from "./mobileScreens";
+import { typicalFor } from "./exterior-typicals";
+import { houseOfShape } from "@/app/wizard/ExteriorHome";
+import type { ExteriorV2 } from "./state";
 
 /**
  * Go-live brief Session 5 — the quote adds up, and copy (H1, H3, H5, M8–M12; D4, D5, D7). H1's arithmetic is
@@ -46,5 +51,18 @@ describe("go-live S5", () => {
     const seeded = [{ code: "STG-FURNISHED", multiplier: 1.04 }, { code: "STG-PART-CLEARED", multiplier: 1.02 }, { code: "STG-EMPTY", multiplier: 1.02 }] as Parameters<typeof applySiteAccess>[1];
     expect(applySiteAccess({ cleared: "yes" }, seeded).modSel).toEqual({});
     expect(applySiteAccess({ cleared: "no" }, seeded).modSel).toEqual({ Staging: "STG-FURNISHED" });
+  });
+
+  it("Tom, 19 Nov 2026: a handrail or balustrade can be ticked without a verandah — on the Painting screens, on a side, and it prices", () => {
+    const bare = { ...houseOfShape("cal", null, []), parts: [] as ExteriorV2["parts"], wall: { down: null, up: null, brickPainted: null, timberPainted: null }, sizeBand: "md" as const };
+    const blank: ExteriorV2 = { ...bare, sides: defaultSides(bare) };
+    expect(paintScreenParts("p-ver", blank)).toEqual(["verandah", "handrail"]); // the posts and ceiling still wait for the verandah
+    const rail = togglePart(blank, "handrail");
+    expect(rail.parts).toEqual(["handrail"]); // no verandah ticked for it
+    expect(togglePart(blank, "posts").parts).toEqual(["verandah", "posts"]); // the posts still bring the verandah
+    const t = typicalFor("cal", []);
+    expect(partExists(rail, "front", "handrail", t)).toBe(true);
+    expect(sideAddableParts(blank, "back", t)).toContain("handrail");
+    expect(sideAddableParts(blank, "back", t)).not.toContain("posts");
   });
 });

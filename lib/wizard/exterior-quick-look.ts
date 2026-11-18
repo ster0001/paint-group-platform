@@ -1,4 +1,5 @@
 import { defaultExterior, exteriorElements, exteriorSurfaceKeys, type ExteriorV2, type WizardExterior, type WizardState } from "./state";
+import { exteriorColourCoats } from "./coatsHint";
 import { PART_LABEL, exteriorV2Answered, paintedSides, worstCondition } from "./exterior-model";
 import { typicalFor } from "./exterior-typicals";
 import { isExteriorSubstrateKey } from "@/lib/estimate/substrates";
@@ -143,10 +144,11 @@ export const EXT_WINDOW_TYPES: Choice<ExteriorWindowType>[] = [
   { value: "unsure", label: "Not sure" },
 ];
 
+// Tom, 19 Nov 2026: each answer says the coats it is quoted at — the exterior row of the paint-systems table (`coatsHint.ts`).
 export const EXT_COLOURS: Choice<ExteriorColour>[] = [
-  { value: "same", label: "The same colours again", hint: "Colour-matched — a freshen up" },
-  { value: "new", label: "New colours", hint: "Two coats, standard preparation" },
-  { value: "bold", label: "Going much lighter", hint: "An undercoat first, then two coats" },
+  { value: "same", label: "The same colours again", hint: exteriorColourCoats("same") },
+  { value: "new", label: "New colours", hint: exteriorColourCoats("new") },
+  { value: "bold", label: "Going much lighter", hint: exteriorColourCoats("bold") },
 ];
 
 export const EXT_CONDITIONS: Choice<"good" | "weathered" | "peeling">[] = [

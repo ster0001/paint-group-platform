@@ -45,7 +45,7 @@ describe("the picture state (wizard mobile v5 §3.1)", () => {
     const chips = outsideSheetChips(v2({ parts: ["gable"] }));
     expect(chips.map((c) => `${c.key}:${c.part}:${c.on ? 1 : 0}`)).toEqual([
       "walls:walls:0", "gable:gable:1", "fascias:fascias:0", "gutters:gutters:0", "downpipes:downpipes:0", "eaves:eaves:0",
-      "windows:windows:0", "doors:doors:0", "garage:garage:0", "shutters:shutters:0", "verandah:verandah:0",
+      "windows:windows:0", "doors:doors:0", "garage:garage:0", "shutters:shutters:0", "verandah:verandah:0", "handrail:handrail:0", // the handrail stands alone (Tom, 19 Nov 2026)
     ]);
     expect(outsideSheetChips(v2({ parts: ["verandah"] })).map((c) => c.key)).toContain("posts");
     expect(outsideSheetChips(null)).toEqual([]);

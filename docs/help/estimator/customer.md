@@ -127,4 +127,6 @@ On a phone (any screen narrower than about 770px) the same questions come one at
 - **On a phone, after "New colours" or "Still deciding"** a screen asks "Going much lighter, or a bold colour?" — the same question the laptop asks. Yes allows an undercoat under every surface changing colour; "Same colours" is never asked it.
 - **What we'll do** — the coats badge counts the topcoats and names the undercoat beside them ("2 coats + undercoat"), and the sentence under it always says the same number.
 - **A hall or landing** now carries the hall side of every door that opens onto it, plus the inside of the front door, in the starting room list.
+- **The coats, beside the colours question.** Each colour answer now says what it is quoted at — inside: "Same colours · One coat", "New colours · Two coats", and on the bold question "Yes · An undercoat and two coats"; outside: one full coat, two full coats, or two with a third agreed first if the colour needs it. The words come from the same paint-systems table the price does.
+- **A handrail or balustrade on its own.** On the outside Painting screens the handrail / balustrade can be ticked without a verandah — a deck, steps, a balcony. The posts and the verandah ceiling still wait for the verandah.
 
