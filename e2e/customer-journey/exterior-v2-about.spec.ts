@@ -1,5 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
-import { fillQuickAddress, openQuickLook, passDetailsSheetIfShown, passGateIfShown, quickNext, MONEY_RANGE, lookAtEverySide } from "./drive";
+import { fillQuickAddress, openQuickLook, passGateIfShown, quickNext, MONEY_RANGE, lookAtEverySide, tightenToScope } from "./drive";
 
 /**
  * Exterior wizard v2 — S3: "Tell us about what you ticked" (brief §7.3;
@@ -146,8 +146,7 @@ test("the extras ask their sizes; a ticked pergola needs its top; then the range
   await expect(page.getByTestId("reveal-restatement")).toContainText(/the front, back and left side/);
   await expect(page.getByTestId("reveal-restatement")).toContainText(/single storey/);
   // And Tighten opens the customer editor (21 Oct, item 8) — the right side is not there at all (8 Sep ruling).
-  await page.getByTestId("door-tighten").click();
-  await passDetailsSheetIfShown(page);
+  await tightenToScope(page);
   await expect(page.locator(".sd-card").first()).toBeVisible({ timeout: 90_000 });
   await expect(page.locator('[data-side="right"]')).toHaveCount(0);
   await expect(page.locator('[data-side="front"]')).toBeVisible();

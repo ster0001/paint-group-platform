@@ -1,5 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
-import { passDetailsSheetIfShown, passGateIfShown, quickNext, MONEY_RANGE, lookAtEverySide, passOtpIfShown } from "./drive";
+import { passGateIfShown, quickNext, MONEY_RANGE, lookAtEverySide, passOtpIfShown, tightenToScope } from "./drive";
 import { toSides } from "./exterior-v2-drive";
 /** Quote stage v10 (S7 switch-over): with the flag on, the gate's door reads "detailed". */
 const V10 = process.env.NEXT_PUBLIC_QUOTE_STAGE_V10 !== "0";
@@ -64,8 +64,7 @@ test("the guide range on a bungalow: the pill, one row per side with the gable o
   await expect(page.getByTestId("door-tighten")).toHaveAttribute("data-hero", "1");
   await expect(page.getByTestId("door-tighten")).toContainText(/Side by side/);
   // 21 Oct: Tighten opens the customer editor on the drawn house — front, right and back cards; the left side is not there.
-  await page.getByTestId("door-tighten").click();
-  await passDetailsSheetIfShown(page);
+  await tightenToScope(page);
   await expect(page.locator(".sd-card").first()).toBeVisible({ timeout: 90_000 });
   for (const k of ["front", "right", "back"]) await expect(page.locator(`[data-side="${k}"]`)).toBeVisible();
   await expect(page.locator('[data-side="left"]')).toHaveCount(0);

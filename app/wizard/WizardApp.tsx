@@ -74,6 +74,7 @@ import Wordmark from "./Wordmark";
 import { allowedForBrand, type WizardBrand } from "@/lib/wizard/brand";
 import { brandFor } from "@/lib/marketing/brand";
 import { breakpointNow, markScopeFromGate, sendWizardEvent, stepCompletedBy } from "@/lib/wizard/wizardEvents";
+import { countInBackground } from "@/lib/marketing/success";
 import ChatWidget from "./ChatWidget";
 import WizardHeader from "./WizardHeader";
 import { UI_FLAGS } from "@/lib/wizard/ui-flags";
@@ -1640,6 +1641,8 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
       if (!res.ok) { setBookError(j.error ?? "That didn't save — try again in a moment."); return; }
       flushDraft("quick:com_book:booked");
       setBriefDone({ slot: j.booked ? (bookSlot ?? null) : null, emailed: j.emailed === true, booked: j.booked === true, bookingProblem: j.bookingProblem ?? null, email });
+      // Success URL (Tom, 18 Nov 2026): a commercial brief booked is a visit; sent without a slot, it is with the estimator.
+      countInBackground(j.booked ? "visit" : "sent", `brief:${email}`);
       clearResume();
       window.scrollTo({ top: 0 });
     } catch {
@@ -1673,7 +1676,7 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
     setError(null);
     setOtp((o) => ({ ...o, busy: true, error: null }));
     const r = await otpSend(c.phone, state.brand);
-    if (r.status === "verified") { otpVerifiedRef.current = digits; setOtp((o) => ({ ...o, phase: "idle", busy: false })); return "verified"; }
+    if (r.status === "verified") { otpVerifiedRef.current = digits; countInBackground("lead", digits); setOtp((o) => ({ ...o, phase: "idle", busy: false })); return "verified"; }
     if (r.status === "sent") { setOtp({ phase: "code", masked: r.masked || maskMobile(digits), mobile: digits, code: "", error: null, busy: false, sentAt: Date.now() }); return "sent"; }
     if (r.status === "too_soon") {
       // a code for this number is already on its way (a reload, a double tap): the code screen, with the wait shown
@@ -1693,6 +1696,8 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
     void otpVerify(digits, code).then((r) => {
       if (r.status === "ok") {
         otpVerifiedRef.current = digits;
+        // Success URL (Tom, 18 Nov 2026): the details are given and the mobile proven — a lead, counted behind the page.
+        countInBackground("lead", digits);
         setOtp((o) => ({ ...o, phase: "idle", busy: false, code: "", error: null }));
         quickNext();
         return;
@@ -2127,12 +2132,13 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
           onTighten={() => {
             void recordRangeOption(reveal.estimateId, "tighten");
             // Tom, 21 Oct (item 8): Tighten opens the customer editor on every path — the drawn house too (the walk-around step is retired).
-            const go = () => { clearResume(); markScopeFromGate(); router.push(`/estimate/scope?id=${reveal.estimateId}`); };
+            // Tom, 18 Nov 2026: the laptop's door leads where the phone's does — the quote stage (one card per question), the old scope page only behind the kill switch.
+            const go = () => { clearResume(); markScopeFromGate(); router.push(`${quoteStageV10On() ? "/estimate/quote" : "/estimate/scope"}?id=${reveal.estimateId}`); };
             // R7 (range first): any option asks for the details before going further.
             if (!contactKnown) { setTalk({ mode: "details", then: go }); return; }
             go();
           }}
-          onEditor={() => { void recordRangeOption(reveal.estimateId, "tighten"); clearResume(); markScopeFromGate(); router.push(`/estimate/scope?id=${reveal.estimateId}`); }}
+          onEditor={() => { void recordRangeOption(reveal.estimateId, "tighten"); clearResume(); markScopeFromGate(); router.push(`${quoteStageV10On() ? "/estimate/quote" : "/estimate/scope"}?id=${reveal.estimateId}`); }}
           onBook={() => { void recordRangeOption(reveal.estimateId, "visit"); clearResume(); router.push(`/estimate/visit?id=${reveal.estimateId}`); }}
           speakWithUs={Boolean((reveal.payload as { speakWithUs?: boolean }).speakWithUs)}
           brand={brand}
@@ -2140,6 +2146,7 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
           onSpeak={() => { void recordRangeOption(reveal.estimateId, "speak"); setTalk({ mode: "call" }); }}
           onMessage={() => { void recordRangeOption(reveal.estimateId, "message"); setTalk({ mode: "message" }); }}
           contactKnown={contactKnown}
+          quoteStage={quoteStageV10On()}
           prefillEmail={prefill?.email}
           firstName={prefill?.name ?? state.contact.name}
           trust={trust}

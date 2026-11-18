@@ -1,6 +1,6 @@
 "use client";
 
-import { countCallTap } from "@/lib/marketing/success";
+import { countCallTap, countInBackground } from "@/lib/marketing/success";
 import { useEffect, useState } from "react";
 
 /**
@@ -69,6 +69,9 @@ export default function SaveAndBookSheet({
       const j = (await res.json().catch(() => ({}))) as { error?: string; booked?: boolean; emailed?: boolean; bookingProblem?: string | null };
       if (!res.ok) { setError(j.error ?? "That didn't save — try again in a moment."); return; }
       setDone({ booked: j.booked === true, emailed: j.emailed === true, bookingProblem: j.bookingProblem ?? null });
+      // Success URLs (Tom, 18 Nov 2026): saved for later; and a visit when a slot was booked with it.
+      countInBackground("saved", `save:${email.trim().toLowerCase()}`);
+      if (j.booked) countInBackground("visit", `save:${email.trim().toLowerCase()}`);
       onSaved?.();
     } catch {
       setError("That didn't save — check your connection and try again.");

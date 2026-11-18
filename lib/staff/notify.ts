@@ -48,6 +48,8 @@ export type StaffAlertOutcome = "sent" | "off" | "already" | "nobody" | "error";
 
 type StaffProfile = { id: string; name: string | null; phone: string | null; staff_notify: unknown };
 type Recipient = { profileId: string; channel: StaffNotifyChannel; to: string };
+/** A recipient, or the office address standing in when no login is routed (`profileId` null; Tom, 18 Nov 2026). */
+type Told = { profileId: string | null; channel: StaffNotifyChannel; to: string };
 
 /** Pure: who gets this event by which channel, given the staff list. Exported for the test. */
 export function recipientsFor(
@@ -69,6 +71,20 @@ export function recipientsFor(
     }
   }
   return out;
+}
+
+/**
+ * Tom, 18 Nov 2026 ("make sure all of the contact methods actually work"): an
+ * alert routed to nobody by email is not dropped — the office address (Settings →
+ * Messaging office email, else the company email) hears instead, the way the
+ * estimate chat always did. Texts stay routed only: nobody's phone is a default.
+ * Pure; exported for the test.
+ */
+export function withOfficeFallback(recipients: Recipient[], channels: readonly StaffNotifyChannel[], officeEmail: string, skipEmails: string[] = []): Told[] {
+  const office = officeEmail.trim();
+  if (!channels.includes("email") || !office || recipients.some((r) => r.channel === "email")) return recipients;
+  if (skipEmails.some((e) => e.trim().toLowerCase() === office.toLowerCase())) return recipients;
+  return [...recipients, { profileId: null, channel: "email", to: office }];
 }
 
 /**
@@ -109,7 +125,8 @@ export async function notifyStaff(service: SupabaseClient, alert: StaffAlert): P
     const claimId = (claim.data as { id: string }[] | null)?.[0]?.id;
     if (!claimId) return "already";
 
-    const recipients = recipientsFor(await loadStaffForEvent(service, alert.key), alert.key, alert.skipEmails, alert.channels);
+    const routed = recipientsFor(await loadStaffForEvent(service, alert.key), alert.key, alert.skipEmails, alert.channels);
+    const recipients = withOfficeFallback(routed, alert.channels ?? ["email", "sms"], messaging.officeEmail || company.email || "", alert.skipEmails);
     if (recipients.length === 0) {
       await service.from("staff_notifications").update({ recipients: [] }).eq("id", claimId);
       return "nobody";

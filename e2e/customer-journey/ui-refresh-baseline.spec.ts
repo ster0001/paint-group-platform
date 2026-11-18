@@ -2,7 +2,7 @@ import { test, expect, type Browser, type Page } from "@playwright/test";
 import { mkdirSync } from "node:fs";
 import path from "node:path";
 import { createClient } from "@supabase/supabase-js";
-import { driveNoPlanWizard, fillQuickAddress, openQuickLook, openScopeEditor, passGateIfShown, quickNext, MONEY_RANGE, passDetailsSheetIfShown, openTalk, lookAtEverySide } from "./drive";
+import { driveNoPlanWizard, fillQuickAddress, openQuickLook, openScopeEditor, passGateIfShown, quickNext, MONEY_RANGE, openTalk, lookAtEverySide, tightenToScope } from "./drive";
 
 /**
  * Wizard UI refresh, S0 — the "before" set.
@@ -108,7 +108,7 @@ test.describe("ui refresh baseline screenshots", () => {
         await expect(page.getByTestId("reveal-range")).toHaveText(MONEY_RANGE, { timeout: 90_000 });
         await shot(page, width, "07-reveal");
 
-        await page.getByTestId("door-tighten").click();
+        await tightenToScope(page);
         await openScopeEditor(page);
         const id = estimateId(page);
         expect(id, "editor URL carries the estimate id").toBeTruthy();
@@ -237,8 +237,7 @@ test.describe("ui refresh baseline screenshots", () => {
         await expect(page.getByTestId("reveal-range")).toHaveText(MONEY_RANGE, { timeout: 90_000 });
         await shot(page, width, "35-ext-reveal");
         // 21 Oct: Tighten opens the customer editor (the walk-around is retired).
-        await page.getByTestId("door-tighten").click();
-        await passDetailsSheetIfShown(page, { email: `ui.refresh.ext.${Date.now()}@example.com` });
+        await tightenToScope(page, { email: `ui.refresh.ext.${Date.now()}@example.com` });
         await expect(page.locator(".sd-card").first()).toBeVisible({ timeout: 90_000 });
         await expect(page.locator("[data-ready='1']")).toBeAttached({ timeout: 20_000 });
         await shot(page, width, "38-ext-sides-editor");
@@ -259,7 +258,7 @@ test.describe("ui refresh baseline screenshots", () => {
         page = await newPage(browser, width);
         await driveNoPlanWizard(page, { jobType: "both", stopAtReveal: true });
         await shot(page, width, "41-both-reveal");
-        await page.getByTestId("door-tighten").click();
+        await tightenToScope(page);
         await expect(page.locator(".sc-rc[data-room]").first()).toBeVisible({ timeout: 60_000 });
         await expect(page.locator(".sd-card").first()).toBeVisible({ timeout: 60_000 });
         await shot(page, width, "42-both-stacked-editor");
@@ -282,7 +281,7 @@ test.describe("ui refresh baseline screenshots", () => {
         await passGateIfShown(page, { email: `ui.refresh.com.${Date.now()}@example.com` });
         await expect(page.getByTestId("reveal-range")).toHaveText(MONEY_RANGE, { timeout: 90_000 });
         await shot(page, width, "53-com-reveal");
-        await page.getByTestId("door-tighten").click();
+        await tightenToScope(page);
         await page.waitForURL(/\/estimate\/scope/, { timeout: 60_000 });
         await expect(page.getByTestId("estimator-strip")).toBeVisible({ timeout: 60_000 });
         await shot(page, width, "54-com-area-editor");

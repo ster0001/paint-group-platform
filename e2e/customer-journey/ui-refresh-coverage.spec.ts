@@ -1,5 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
-import { driveNoPlanWizard, fillQuickAddress, MONEY_RANGE, openQuickLook, openScopeEditor, passGateIfShown, quickNext, answerOutsideQuick } from "./drive";
+import { driveNoPlanWizard, fillQuickAddress, MONEY_RANGE, openQuickLook, openScopeEditor, passGateIfShown, quickNext, answerOutsideQuick, tightenToScope } from "./drive";
 
 /**
  * Wizard UI refresh — "Nothing left behind" (brief §10; run sheet S8).
@@ -82,7 +82,7 @@ test.describe("UI refresh · nothing left behind (1440px, as a customer)", () =>
     await noFullBleedBar(page);
 
     // The editor: slim header, cards left, the rail right.
-    await page.getByTestId("door-tighten").click();
+    await tightenToScope(page);
     await openScopeEditor(page);
     expect(await head(page)).toBeLessThanOrEqual(64);
     await twoColumns(page, ".sc-ed > .sc-wrap", ".sc-rail");
@@ -131,7 +131,7 @@ test.describe("UI refresh · nothing left behind (1440px, as a customer)", () =>
     await quickNext(page);
     await passGateIfShown(page);
     await expect(page.getByTestId("reveal-range")).toHaveText(MONEY_RANGE, { timeout: 90_000 });
-    await page.getByTestId("door-tighten").click();
+    await tightenToScope(page);
     await expect(page.locator(".sd-card").first()).toBeVisible({ timeout: 90_000 });
     expect(await head(page)).toBeLessThanOrEqual(64);
     await twoColumns(page, ".sd-ed > .sc-wrap", ".sc-rail");

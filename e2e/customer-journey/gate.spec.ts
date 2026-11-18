@@ -1,7 +1,7 @@
 import { expect } from "@playwright/test";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { serviceClient } from "../fixtures/woLoop";
-import { driveNoPlanWizard, onMobileShell, openQuickLook, passOtpIfShown, quickNext } from "./drive";
+import { driveNoPlanWizard, onMobileShell, openQuickLook, passOtpIfShown, quickNext, tightenToScope, hopToScopeIfOnQuote } from "./drive";
 import { userIdFor, test } from "../helpers";
 import { loginStaff, RUN, staffEmail } from "./visitHelpers";
 
@@ -100,7 +100,7 @@ test.describe("S6 — the gate", () => {
     expect(ids.indexOf("door-message")).toBeGreaterThan(ids.indexOf("door-book"));
     if (ids.includes("door-speak")) expect(ids.indexOf("door-speak")).toBe(1);
     await expect(page.getByTestId("door-tighten")).toHaveAttribute("data-hero", "1");
-    await expect(page.getByTestId("door-tighten")).toContainText(/Tighten my price|Get my detailed price/); // desktop one-press (5 Nov 2026): "Get my detailed price"
+    await expect(page.getByTestId("door-tighten")).toContainText(/Tighten my price|Get my detailed price|Get my quote range/); // quote stage on (18 Nov 2026): "Get my quote range"
     await expect(page.getByTestId("door-tighten")).toContainText("Get a more accurate quote now");
     expect(await page.locator("body").innerText()).not.toContain("Request a quote");
 
@@ -114,7 +114,7 @@ test.describe("S6 — the gate", () => {
     expect(acc?.name).toBe("Gate Tester");
 
     // The chosen option is recorded.
-    await page.getByTestId("door-tighten").click();
+    await tightenToScope(page);
     await page.waitForURL((u) => u.pathname === "/estimate/scope");
     await expect.poll(async () => (await db!.from("wizard_drafts").select("range_option").ilike("suburb", `Gatedf${RUN}`).order("started_at", { ascending: false }).limit(1).single()).data?.range_option, { timeout: 10_000 }).toBe("tighten");
   });
@@ -172,6 +172,8 @@ test.describe("S6 — the gate", () => {
     await page.getByTestId("talk-email").fill(email);
     await page.getByTestId("talk-mobile").fill("0400 333 444");
     await page.getByTestId("talk-go").click();
+    await page.waitForURL((u) => /^\/estimate\/(quote|scope)$/.test(u.pathname), { timeout: 60_000 });
+    await hopToScopeIfOnQuote(page); // 18 Nov 2026: the door leads to the quote stage; this spec reads the old editor's session row
     await page.waitForURL((u) => u.pathname === "/estimate/scope", { timeout: 60_000 });
     const { data: draft } = await db!.from("wizard_drafts").select("gate_version, gate_completed_at, range_shown_at, range_option").ilike("suburb", `Gaterf${RUN}`).order("started_at", { ascending: false }).limit(1).single();
     expect(draft?.gate_version).toBe("range_first");

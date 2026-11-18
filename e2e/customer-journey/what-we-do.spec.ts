@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { fillQuickAddress, MONEY_RANGE, openQuickLook, quickNext, passGateIfShown } from "./drive";
+import { fillQuickAddress, MONEY_RANGE, openQuickLook, quickNext, passGateIfShown, tightenToScope } from "./drive";
 
 /**
  * C9 — What's changing colour, the details screen, What we'll do.
@@ -47,7 +47,7 @@ test("doors and trims changing, then water over oil: the panel gains the underco
 
   // Tighten → the details card asks what the trims are painted with, then
   // what is underneath.
-  await page.getByTestId("door-tighten").click();
+  await tightenToScope(page);
   await page.waitForURL(/\/estimate\/scope/, { timeout: 60_000 });
   // Tom, 14 Sep (evening): one question at a time — cornices, doors, the window type, then the paint.
   const detailsCard = page.getByTestId("details-card");

@@ -33,6 +33,13 @@ export const SUCCESS_MOMENTS = {
   message: { title: "Thanks — your message is in", line: "We'll get back to you as soon as we can." },
   accepted: { title: "Thank you — your estimate is accepted", line: "We'll be in touch about your start date and your painter." },
   "deposit-paid": { title: "Thank you — your deposit is paid", line: "Your start date is held." },
+  // Tom, 18 Nov 2026: every trigger has one — the details given (a lead), the estimate saved for later, the quote
+  // range settled, the estimate sent to the estimator, the price fixed online. All counted behind the page.
+  lead: { title: "Thanks — we have your details", line: "Your price range is on its way." },
+  saved: { title: "Your estimate is saved", line: "We've emailed you the link back to it." },
+  quote: { title: "Your quote range is ready", line: "Thanks — it's saved with your estimate." },
+  sent: { title: "Thanks — your estimate is with your estimator", line: "They'll check it and come back to you." },
+  fixed: { title: "Your price is fixed", line: "Nothing to pay now — we'll be in touch about a start." },
 } as const;
 export type SuccessMoment = keyof typeof SUCCESS_MOMENTS;
 export const SUCCESS_MOMENT_KEYS = Object.keys(SUCCESS_MOMENTS) as SuccessMoment[];

@@ -1,13 +1,10 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { notifyStaff } from "@/lib/staff/notify";
 import { alertRouteNow } from "@/lib/staff/requestAlerts";
-import { loadMessaging } from "@/lib/messaging/load";
-import { automationOn, renderTemplate } from "@/lib/messaging/config";
-import { buildEstimateEmailHtml, emailConfigured, sendEmail } from "@/lib/messaging/send";
+import { renderTemplate } from "@/lib/messaging/config";
 import { siteUrl } from "@/lib/invoicing/pdf";
 import { reportError } from "@/lib/monitoring/report";
 import { officeOpenAt, OFFICE_HOURS_LINE } from "@/lib/messaging/officeHours";
-import { emailLogoUrl } from "@/lib/messaging/logo";
 
 /**
  * A customer's message on their estimate chat (Tom, 20 Sep 2026): "all
@@ -56,7 +53,8 @@ export async function postCustomerChatMessage(service: SupabaseClient, input: { 
       hours_tag: !route.inHours ? " (after hours)" : "",
       hours_line: !route.inHours ? `\n\nSent outside office hours (${OFFICE_HOURS_LINE}); they have been told we will reply when open.` : "",
     };
-    const outcome = await notifyStaff(service, {
+    // Nobody routed → the office address, inside notifyStaff since 18 Nov 2026 (every office alert, not only this one).
+    await notifyStaff(service, {
       key: "office_estimate_chat", entityId: msg.id, channels: route.channels,
       subject: renderTemplate("Chat from {{customer}} — {{job}}{{hours_tag}}", vars),
       message: renderTemplate("{{customer}} wrote on the chat for {{job}}:\n\n“{{message}}”\n\nReply from the chat pop-up on any staff page, or open the estimate.{{hours_line}}", vars),
@@ -67,24 +65,8 @@ export async function postCustomerChatMessage(service: SupabaseClient, input: { 
       // routed back into the chat (app/api/inbound/messages).
       estimateId: est.id,
     });
-    if (outcome === "nobody") await emailOfficeFallback(service, est.id, vars, link);
   } catch (e) {
     reportError(e, { where: "postCustomerChatMessage.alert", bestEffort: true });
   }
   return { status: "ok", afterHours };
-}
-
-/** Nobody routed under Staff logins → the office address still hears. */
-async function emailOfficeFallback(service: SupabaseClient, estimateId: string, vars: Record<string, string>, link: string) {
-  const { messaging, company } = await loadMessaging(service);
-  if (!automationOn(messaging, "office_estimate_chat")) return;
-  const to = (messaging.officeEmail || company.email || "").trim();
-  if (!to || !emailConfigured()) return;
-  const subject = renderTemplate(messaging.officeEstimateChatSubject, { ...vars, link });
-  const intro = renderTemplate(messaging.officeEstimateChatBody, { ...vars, link });
-  await sendEmail({
-    to, subject,
-    html: buildEstimateEmailHtml({ intro, link, companyName: company.name || "Paint Group", logoUrl: emailLogoUrl(company), buttonLabel: "Open the estimate" }),
-    ctx: { estimateId, kind: "staff_alert" },
-  });
 }

@@ -1,6 +1,6 @@
 import { expect } from "@playwright/test";
 import { credentials, missingCreds, signIn, test } from "./helpers";
-import { fillQuickAddress, passGateIfShown, quickNext, MONEY_RANGE } from "./customer-journey/drive";
+import { fillQuickAddress, passGateIfShown, quickNext, MONEY_RANGE, tightenToScope } from "./customer-journey/drive";
 
 /**
  * Tom (20 Aug): "new estimate → start with the wizard" must land in the NEW
@@ -34,7 +34,7 @@ test("staff wizard submit lands in the new confirm-loop editor", async ({ page }
   await quickNext(page); // condition
   await passGateIfShown(page, { email: `staff.wizard.${Date.now()}@example.com` });
   await expect(page.getByTestId("reveal-range")).toHaveText(MONEY_RANGE, { timeout: 90_000 });
-  await page.getByTestId("door-tighten").click();
+  await tightenToScope(page);
 
   // The NEW editor: confirm-loop chrome, amber cards — and no margin.
   await expect(page).toHaveURL(/\/estimate\/scope\?id=/, { timeout: 90_000 });

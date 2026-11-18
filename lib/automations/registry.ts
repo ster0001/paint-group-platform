@@ -794,10 +794,11 @@ export const AUTOMATIONS: Automation[] = [
   },
   // Lead L9 / L10 / L13 (R4, 17 Nov 2026): help, visit and call requests, routed by the office hours.
   // Who is told is each person's routing under Settings → Staff logins: in hours the Email box (and the
-  // chat pop-up), out of hours the Text box as well. Ship off (A‑D).
+  // chat pop-up), out of hours the Text box as well. Shipped ON (Tom, 18 Nov 2026: a customer asking for a person must
+  // always reach the office — a routed login, or failing that the office address, lib/staff/notify.ts withOfficeFallback).
   {
     key: "office_lead_help", name: "Lead L9 — a customer needs help (staff alert)", audience: "office", channels: ["email", "sms"], kind: "automatic",
-    defaultOff: true, defaultChannel: "both", sendKind: "office_alert", quietExempt: true, capExempt: true,
+    defaultChannel: "both", sendKind: "office_alert", quietExempt: true, capExempt: true,
     trigger: "A customer asks for help in the wizard (\"I'm stuck, call me\" or a question). In office hours (Mon–Fri 8–5, the Settings holidays out) everyone routed by email is emailed and the chat pop-up shows it; out of hours everyone routed by text is texted as well.",
     templates: [
       { field: "officeLeadHelpSubject", label: "Email subject", kind: "subject", placeholders: ["{{first_name}}", "{{address}}", "{{step}}", "{{message}}", "{{hours_tag}}", "{{link}}"] },
@@ -807,7 +808,7 @@ export const AUTOMATIONS: Automation[] = [
   },
   {
     key: "office_visit_request", name: "Lead L10 — visit request (staff alert)", audience: "office", channels: ["email", "sms"], kind: "automatic",
-    defaultOff: true, defaultChannel: "both", sendKind: "office_alert", quietExempt: true, capExempt: true,
+    defaultChannel: "both", sendKind: "office_alert", quietExempt: true, capExempt: true,
     trigger: "A customer asks for a visit (a time, or a visit before the range). Routed by the office hours the same way as L9. The customer's own \"we're on it\" chat a working day later is Lead L10 — we're sorting a time.",
     templates: [
       { field: "officeVisitRequestSubject", label: "Email subject", kind: "subject", placeholders: ["{{first_name}}", "{{address}}", "{{zone}}", "{{due}}", "{{hours_tag}}", "{{link}}"] },
@@ -817,7 +818,7 @@ export const AUTOMATIONS: Automation[] = [
   },
   {
     key: "office_call_request", name: "Lead L13 — call request (staff alert)", audience: "office", channels: ["email", "sms"], kind: "automatic",
-    defaultOff: true, defaultChannel: "both", sendKind: "office_alert", quietExempt: true, capExempt: true,
+    defaultChannel: "both", sendKind: "office_alert", quietExempt: true, capExempt: true,
     trigger: "A customer asks us to call (Speak with us, a call back, a call to finalise by phone). Routed by the office hours the same way as L9.",
     templates: [
       { field: "officeCallRequestSubject", label: "Email subject", kind: "subject", placeholders: ["{{first_name}}", "{{address}}", "{{range}}", "{{phone}}", "{{hours_tag}}", "{{link}}"] },

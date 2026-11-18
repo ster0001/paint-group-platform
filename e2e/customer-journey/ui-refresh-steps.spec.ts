@@ -1,7 +1,7 @@
 import { test, expect, devices, type Page } from "@playwright/test";
 import { stepsFor, type QuickLook } from "../../lib/wizard/quick-look";
 import { STEP_LABELS } from "../../app/wizard/stepRail";
-import { driveNoPlanWizard, fillQuickAddress, openQuickLook, openScopeEditor, passGateIfShown, quickNext, MONEY_RANGE, answerOutsideQuick, passDetailsSheetIfShown, openTalk, lookAtEverySide, onMobileShell } from "./drive";
+import { driveNoPlanWizard, fillQuickAddress, openQuickLook, openScopeEditor, passGateIfShown, quickNext, MONEY_RANGE, answerOutsideQuick, openTalk, lookAtEverySide, onMobileShell, tightenToScope } from "./drive";
 
 /**
  * Wizard UI refresh, S1 — the shell, on every path (brief §7.1, §7.7, §10).
@@ -650,8 +650,7 @@ test.describe("UI refresh S5 · home outside", () => {
     // 21 Oct (item 8): Tighten opens the customer editor itself — the
     // walk-around step, its tiles, size and condition taps and See my range
     // are retired (exterior-v2-tighten.spec.ts).
-    await page.getByTestId("door-tighten").click();
-    await passDetailsSheetIfShown(page);
+    await tightenToScope(page);
     await expect(page.locator(".sd-card").first()).toBeVisible({ timeout: 90_000 });
     await openScopeEditor(page);
     // The S4 frame: one slim header, the price card and the house from above in the rail; no right side at all.

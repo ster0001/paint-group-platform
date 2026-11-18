@@ -393,10 +393,10 @@ test.describe("quote stage v10 — session 5: the plan tile", () => {
 
   test("no plan → no tile; with a plan → the tile, the sheet with the image and the ticked rooms, tap-to-jump", async ({ page }) => {
     test.setTimeout(300_000);
-    // the desktop quick look to its range (the shared drive fills the gate), then the desktop door (the old editor this release) for the id
+    // the desktop quick look to its range (the shared drive fills the gate), then the desktop door (the stage since 18 Nov 2026) for the id
     await driveNoPlanWizard(page, { suburb, stopAtReveal: true, contactName: "Plan Tester", email: `q10p.${run}@example.com` });
     await page.getByTestId("door-tighten").click();
-    await expect(page).toHaveURL(/\/estimate\/scope\?id=/, { timeout: 60_000 });
+    await expect(page).toHaveURL(/\/estimate\/quote\?id=/, { timeout: 60_000 }); // Tom, 18 Nov 2026: the laptop's door leads to the stage too
     const id = new URL(page.url()).searchParams.get("id")!;
     // a plan ON FILE: the fixtures are not readable plans (the reader refuses them and the submit fails), so the plan is put on
     // file the way the upload route leaves it — the image in the bucket and its `estimate_sources` row — through the service client

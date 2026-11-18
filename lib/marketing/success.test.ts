@@ -5,8 +5,8 @@ import { MARKETING_EVENT_NAMES } from "@/lib/analytics";
 
 /** Success URLs for paid marketing (Tom, 17 Nov 2026). */
 describe("success URLs", () => {
-  it("the seven moments Tom chose, each its own /thanks/ page", () => {
-    expect(SUCCESS_MOMENT_KEYS).toEqual(["range", "visit", "call", "call-tap", "message", "accepted", "deposit-paid"]);
+  it("the seven moments Tom chose on 17 Nov and the five of 18 Nov, each its own /thanks/ page", () => {
+    expect(SUCCESS_MOMENT_KEYS).toEqual(["range", "visit", "call", "call-tap", "message", "accepted", "deposit-paid", "lead", "saved", "quote", "sent", "fixed"]);
     expect(thanksHref("deposit-paid", "/i/abc?pay=success")).toBe("/thanks/deposit-paid?back=%2Fi%2Fabc%3Fpay%3Dsuccess");
     expect(isSuccessMoment("accepted")).toBe(true);
     expect(isSuccessMoment("toString")).toBe(false);

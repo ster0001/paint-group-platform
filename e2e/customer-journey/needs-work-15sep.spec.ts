@@ -1,6 +1,6 @@
 import { test, expect } from "@playwright/test";
 import { createClient } from "@supabase/supabase-js";
-import { MONEY_RANGE, openQuickLook, fillQuickAddress, quickNext, passGateIfShown } from "./drive";
+import { MONEY_RANGE, openQuickLook, fillQuickAddress, quickNext, passGateIfShown, tightenToScope } from "./drive";
 
 /**
  * Tom, 15 Sep (late): "Needs work" on the quick look.
@@ -46,7 +46,7 @@ test("needs work: a note and a photo, both optional, and the range still arrives
   await passGateIfShown(page); // S6: the details-first question sits before the range
   await expect(page.getByTestId("reveal-range")).toContainText(MONEY_RANGE, { timeout: 120_000 });
   await expect(page.getByTestId("reveal-prep-check")).toContainText(/checked by our estimator before/i);
-  await page.getByTestId("door-tighten").click();
+  await tightenToScope(page);
   await expect(page.locator(".sc-rc[data-room]").first()).toBeVisible({ timeout: 90_000 });
   const id = new URL(page.url()).searchParams.get("id")!;
 
@@ -80,7 +80,7 @@ test("needs work with nothing added still reaches a range, flagged for the estim
   await expect(page.getByTestId("reveal-range")).toContainText(MONEY_RANGE, { timeout: 120_000 });
   await expect(page.getByTestId("reveal-prep-check")).toBeVisible();
   if (url && serviceKey) {
-    await page.getByTestId("door-tighten").click();
+    await tightenToScope(page);
     await expect(page.locator(".sc-rc[data-room]").first()).toBeVisible({ timeout: 90_000 });
     const id = new URL(page.url()).searchParams.get("id")!;
     const db = createClient(url, serviceKey);

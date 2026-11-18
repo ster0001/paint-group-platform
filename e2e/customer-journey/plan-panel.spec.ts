@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { fillQuickAddress, MONEY_RANGE, openQuickLook, quickNext } from "./drive";
+import { fillQuickAddress, MONEY_RANGE, openQuickLook, quickNext, tightenToScope } from "./drive";
 import { existsSync } from "node:fs";
 
 /**
@@ -54,7 +54,7 @@ test("the plan panel is big enough to read, and opens bigger still", async ({ pa
   await expect(page.locator("[data-quick-step='condition']")).toBeVisible({ timeout: 30_000 });
   await quickNext(page); // See my guide range — the plan's rooms, priced
   await expect(page.getByTestId("reveal-range")).toContainText(MONEY_RANGE, { timeout: 240_000 });
-  await page.getByTestId("door-tighten").click();
+  await tightenToScope(page);
 
   // 28 Aug: the wizard lands straight in the editor.
   await expect(page.locator(".sc-r").first()).toBeVisible({ timeout: 120_000 });
