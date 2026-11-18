@@ -53,7 +53,7 @@ import { otpSend, otpVerify } from "@/lib/wizard/otpClient";
 import { maskMobile, normaliseMobile } from "@/lib/wizard/otpFormat";
 import MobileGate from "./MobileGate";
 import MobileWalk from "./MobileWalk";
-import { quoteStageV10On, wizardDesktopOnePressOn } from "@/lib/wizard/ui-flags";
+import { editorHref, quoteStageV10On, wizardDesktopOnePressOn } from "@/lib/wizard/ui-flags";
 import MobileContact from "./MobileContact";
 import { starterRoomNames } from "@/lib/wizard/some-rooms";
 import SaveAndBookSheet from "./SaveAndBookSheet";
@@ -734,7 +734,7 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
       // assumption marked; the chat is only where the paragraph wasn't enough.
       if (withBrief && j.built && j.estimateId) {
         clearResume();
-        router.push(`/estimate/scope?id=${j.estimateId}`);
+        router.push(editorHref(j.estimateId));
         return;
       }
       router.push(`/estimate/assist?c=${j.conversationId}`);
@@ -1123,7 +1123,7 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
         return;
       }
       clearResume();
-      router.push(`/estimate/scope?id=${landedId}`);
+      router.push(editorHref(landedId));
       return;
     }
     // Tom (20 Aug): staff land in the NEW confirm-loop editor — the same
@@ -1142,7 +1142,7 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
       }).catch(() => {});
     }
     clearResume();
-    router.push(`/estimate/scope?id=${landed.estimateId}`);
+    router.push(editorHref(landed.estimateId));
   }
 
   /**

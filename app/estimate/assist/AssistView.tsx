@@ -1,6 +1,7 @@
 "use client";
 
 import { createClient } from "@/lib/supabase/client";
+import { editorHref } from "@/lib/wizard/ui-flags";
 import { sendToLabel } from "@/lib/wizard/finish-line";
 import { useEffect, useRef, useState } from "react";
 import type { CustomerScopeBundle } from "@/lib/wizard/customer-scope";
@@ -85,7 +86,7 @@ export default function AssistView({ conversationId, estimateId, disclosure, ass
         <nav className="as-nav">
           <button type="button" className={pane === "chat" ? "on" : ""} onClick={() => setPane("chat")}>Chat</button>
           <button type="button" className={pane === "estimate" ? "on" : ""} onClick={() => setPane("estimate")}>My estimate</button>
-          <a className="as-switch" href={`/estimate/scope?id=${estimateId}`}>Fill it in instead</a>
+          <a className="as-switch" href={editorHref(estimateId)}>Fill it in instead</a>
         </nav>
       </header>
 
@@ -127,7 +128,7 @@ export default function AssistView({ conversationId, estimateId, disclosure, ass
         <div className="as-range" data-testid="as-range" data-shown={price?.showNumber ? "1" : "0"}>
           {price?.showNumber ? (
             <>
-              <small>ESTIMATE · INCL. GST · <span data-testid="as-band">±{price.bandPct}%</span></small>
+              <small>ESTIMATE · INCL. GST · <span data-testid="as-band" data-band={price.bandPct}>your range</span></small>
               <strong>{fmt(price.loCents)} – {fmt(price.hiCents)}</strong>
               {price.assumptions.length > 0 && (
                 <ul className="as-chipsline" aria-label="Assumptions" data-testid="as-assumptions">

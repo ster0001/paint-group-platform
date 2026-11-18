@@ -33,8 +33,8 @@ test("the estimator strip is on the reveal, the tighten screen and the finish li
   await expect(page.getByTestId("estimator-strip").first()).toBeVisible();
   const onReveal = await stripName();
   expect(onReveal).not.toMatch(/Sarah/); // the prototype's placeholder never reaches a customer
-  // The reveal's tiers: Guide lit, by construction.
-  await expect(page.getByTestId("reveal-tiers").locator("span.on")).toHaveText("Guide");
+  // The reveal's tiles (C2, 18 Nov 2026): Your range done, by construction.
+  await expect(page.getByTestId("reveal-tiles").locator("li.done b")).toHaveText("Your range");
 
   await tightenToScope(page);
   await page.waitForURL(/\/estimate\/scope/, { timeout: 60_000 });

@@ -1,6 +1,7 @@
 "use client";
 
 import { countCallTap } from "@/lib/marketing/success";
+import { editorHref } from "@/lib/wizard/ui-flags";
 import { useState } from "react";
 import { handoffSteps } from "@/lib/wizard/finish-line";
 
@@ -131,7 +132,7 @@ export default function Sent({
         <b>Your estimate is saved.</b>{" "}
         {email
           ? <>We&rsquo;ve sent a link to <b>{email}</b>. Use it to see the price, your photos and where things are up to — no password needed.</>
-          : <>Open it any time from the link in your email, or <a className="wz-linkish" href={`/estimate/scope?id=${estimateId}`}>pick it up here</a>.</>}
+          : <>Open it any time from the link in your email, or <a className="wz-linkish" href={editorHref(estimateId)}>pick it up here</a>.</>}
       </div>
 
       {companyPhone && (

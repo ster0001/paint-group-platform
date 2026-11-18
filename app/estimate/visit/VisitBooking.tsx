@@ -1,6 +1,7 @@
 "use client";
 
 import { countInBackground } from "@/lib/marketing/success";
+import { editorHref } from "@/lib/wizard/ui-flags";
 import { useEffect, useState } from "react";
 import type { OfferedDay } from "@/lib/visits/schedule";
 import type { ZoneOutcome } from "@/lib/visits/zones";
@@ -80,7 +81,7 @@ export default function VisitBooking(props: {
 
   const cur = days[Math.min(dayIx, Math.max(0, days.length - 1))];
   const tel = props.companyPhone ? `tel:${props.companyPhone.replace(/\s+/g, "")}` : null;
-  const tightenHref = `/estimate/scope?id=${estimateId}`;
+  const tightenHref = editorHref(estimateId);
 
   async function post<T>(path: string, body: Record<string, unknown>): Promise<{ ok: true; data: T } | { ok: false; status: number; error: string; code: string; attemptsLeft?: number | null }> {
     setBusy(true); setErr("");

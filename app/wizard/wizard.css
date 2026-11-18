@@ -3006,3 +3006,7 @@
 .wz .wz-pic-art.live { background: #eef2f5; }
 .wz .wz-pic-art.live > svg { padding: 6px 0; }
 @media (prefers-reduced-motion: reduce) { .wz .wzm--desk .wzm-screen { animation: none; } }
+
+/* Go-live brief C2 (18 Nov 2026): the laptop range card wears the phone's small print and tiles. */
+.wz .wz-rv-card .wz-rv-fine { font-size: 12.5px; color: var(--muted); line-height: 1.5; margin: 14px 0 0; }
+.wz .wz-rv-card .wz-rv-tiles { margin: 18px 0 0; }

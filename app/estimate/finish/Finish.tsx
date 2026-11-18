@@ -1,6 +1,7 @@
 "use client";
 
 import { countInBackground, countCallTap } from "@/lib/marketing/success";
+import { editorHref } from "@/lib/wizard/ui-flags";
 import WhatWeDo, { whatWeDoLines } from "@/app/wizard/WhatWeDo";
 import EstimatorStrip from "@/app/wizard/EstimatorStrip";
 
@@ -293,7 +294,7 @@ export default function Finish({
             <span>{r.text}</span>
             {/* Every row is changeable. A summary you can only read is a
                 receipt; one you can act on is a last chance to be right. */}
-            <a className="wz-linkish" href={`/estimate/scope?id=${estimateId}#${r.card}`}>Change</a>
+            <a className="wz-linkish" href={editorHref(estimateId, r.card)}>Change</a>
           </li>
         ))}
       </ul>
@@ -303,7 +304,7 @@ export default function Finish({
 
       <p className="wz-notincluded" data-testid="finish-excluded">{NOT_INCLUDED}</p>
       <p className="wz-reveal-call">
-        <a className="wz-linkish" href={`/estimate/scope?id=${estimateId}`}>← Back to your estimate</a>
+        <a className="wz-linkish" href={editorHref(estimateId)}>← Back to your estimate</a>
       </p>
       </div>
     </div>

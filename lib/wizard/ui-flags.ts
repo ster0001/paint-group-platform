@@ -42,6 +42,18 @@ export function quoteStageV10On(): boolean {
 }
 
 /**
+ * Go-live brief C2 (18 Nov 2026): the ONE href for "the customer's editor" — the quote stage while
+ * `quoteStageV10On()`, the old scope page only behind the kill switch. Every link a customer can press
+ * (the range screen, the booking and finish pages, the assistant, Sent, the resume paths) reads this,
+ * so nothing a customer presses opens `/estimate/scope` on the live build. A card anchor (`#rooms`)
+ * is the scope page's and is dropped for the stage.
+ */
+export function editorHref(estimateId: string, cardAnchor?: string | null): string {
+  if (quoteStageV10On()) return `/estimate/quote?id=${encodeURIComponent(estimateId)}`;
+  return `/estimate/scope?id=${encodeURIComponent(estimateId)}${cardAnchor ? `#${cardAnchor}` : ""}`;
+}
+
+/**
  * Desktop one-press (`docs/briefs/claude-code-brief-wizard-desktop-onepress-addendum.md`,
  * Tom 5 Nov 2026): on a laptop the quick look keeps its two-column shell but
  * mounts the phone's one-question router inside it — the same screens, copy
