@@ -175,7 +175,7 @@ test.describe("Lead alerts L9 / L10 / L13, L10's chat and L8", () => {
     if (before.inHours && after.inHours) expect(mine).toEqual(["email"]);
 
     // Staff: the chat pop-up opens on any staff page with the request on that estimate.
-    await signIn(page, staff!, /\/(dashboard|crm|estimates|pc)/);
+    await signIn(page, staff!, /\/(home|dashboard|crm|estimates|pc)/);
     await page.goto("/crm/today");
     const row = page.getByTestId("dock-row").filter({ hasText: "AlertA" });
     await expect(row).toBeVisible({ timeout: 40_000 });
@@ -244,7 +244,7 @@ test.describe("Lead alerts L9 / L10 / L13, L10's chat and L8", () => {
     expect((chat.data![0] as { body: string }).body).toContain("Hi AlertC, thanks for the visit request for C Alert Street. I'm sorting a time and will come back to you by");
 
     // L8: Appendix A's line on Today.
-    await signIn(page, staff!, /\/(dashboard|crm|estimates|pc)/);
+    await signIn(page, staff!, /\/(home|dashboard|crm|estimates|pc)/);
     const card = page.getByText("Call AlertD (" + d.phone + ") — tightened D Alert Street to $7,000–$7,600 inc. GST, no booking yet");
     const found = await gotoTodayWith(page, "/crm/today", card);
     expect(found).toBeGreaterThan(0);

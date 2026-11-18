@@ -119,8 +119,9 @@ async function estimateChatRows(db: NonNullable<ReturnType<typeof agentDb>>, sin
  * last day is a row on its estimate's thread — the dock pops and chimes on a
  * row it has not seen, and opening it is the estimate chat, where "reply in
  * thread" happens. A thread already in the inbox keeps its own row. The row
- * goes once a person answers after it: a staff chat line, a call logged, a
- * time offered or a visit booked.
+ * goes once a person answers after it: a staff chat line, a message the
+ * office sent (never an automatic one), a call logged, a time offered or a
+ * visit booked.
  */
 const ALERT_KEYS = ["office_lead_help", "office_visit_request", "office_call_request"] as const;
 const ALERT_WORDS: Record<(typeof ALERT_KEYS)[number], string> = { office_lead_help: "Needs help", office_visit_request: "Visit request", office_call_request: "Call request" };
@@ -151,14 +152,25 @@ async function requestAlertRows(db: NonNullable<ReturnType<typeof agentDb>>, alr
   const [ests, replies, answers] = await Promise.all([
     db.from("estimates").select("id, title, account_id, builder_state, lead_snapshot, accounts(name, phone)").in("id", ids),
     db.from("estimate_messages").select("estimate_id, created_at").eq("direction", "staff").in("estimate_id", ids).gte("created_at", since),
-    db.from("crm_events").select("estimate_id, occurred_at").in("type", ANSWERS).in("estimate_id", ids).gte("occurred_at", since),
+    db.from("crm_events").select("type, estimate_id, occurred_at, payload").in("type", ANSWERS).in("estimate_id", ids).gte("occurred_at", since),
   ]);
   if (ests.error) throw ests.error;
   if (replies.error) throw replies.error;
   if (answers.error) throw answers.error;
+  type A = { type: string; estimate_id: string; occurred_at: string; payload: { messageId?: string } | null };
+  // An automatic message (the "Request received" email, an L-step text) is not the office
+  // answering — it goes out the moment the request lands, which hid every request row.
+  const sentIds = ((answers.data ?? []) as A[]).filter((a) => a.type === "message_out" && a.payload?.messageId).map((a) => a.payload!.messageId!);
+  const automatic = new Set<string>();
+  if (sentIds.length > 0) {
+    const { data: auto, error: mErr } = await db.from("messages").select("id").in("id", sentIds).not("meta->>automation", "is", null);
+    if (mErr) throw mErr;
+    for (const m of (auto ?? []) as { id: string }[]) automatic.add(m.id);
+  }
+  const answered = ((answers.data ?? []) as A[]).filter((a) => !(a.type === "message_out" && automatic.has(a.payload?.messageId ?? "")));
   const answeredAt = new Map<string, string>();
   for (const r of [...((replies.data ?? []) as { estimate_id: string; created_at: string }[]).map((x) => ({ id: x.estimate_id, at: x.created_at })),
-    ...((answers.data ?? []) as { estimate_id: string; occurred_at: string }[]).map((x) => ({ id: x.estimate_id, at: x.occurred_at }))]) {
+    ...answered.map((x) => ({ id: x.estimate_id, at: x.occurred_at }))]) {
     if ((answeredAt.get(r.id) ?? "") < r.at) answeredAt.set(r.id, r.at);
   }
   type E = { id: string; title: string | null; account_id: string | null; builder_state: { contact?: { name?: string | null; phone?: string | null } } | null; lead_snapshot: { firstName?: string; address?: string } | null; accounts?: { name: string | null; phone: string | null } | null };

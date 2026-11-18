@@ -119,6 +119,8 @@ test.describe("automations · channel, mode and the editor", () => {
 
     // Sending hours + daily limit.
     await page.getByTestId("quiet-saturday-on").uncheck();
+    // Set both ends: a run cancelled mid-spec can leave the test project on 0–24.
+    await page.getByTestId("quiet-weekday-open").selectOption("8");
     await page.getByTestId("quiet-weekday-close").selectOption("20");
     await page.getByTestId("daily-cap").fill("5");
 

@@ -187,8 +187,21 @@ test.describe("Automations — the full loop (session 6)", () => {
     const back = ago(2.2);
     const b1 = await db!.from("wizard_drafts").update({ range_shown_at: back, gate_completed_at: back, last_seen_at: back }).eq("id", draftId);
     if (b1.error) throw b1.error;
-    const b2 = await db!.from("crm_events").update({ occurred_at: back }).eq("wizard_draft_id", draftId);
-    if (b2.error) throw b2.error;
+    // crm_events is append-only (no UPDATE, even for the service key), so the wizard's
+    // events are moved back by re-inserting them: same rows, two hours earlier.
+    const evs = await db!.from("crm_events").select("*").eq("wizard_draft_id", draftId);
+    if (evs.error) throw evs.error;
+    const del = await db!.from("crm_events").delete().eq("wizard_draft_id", draftId);
+    if (del.error) throw del.error;
+    const moved = (evs.data ?? []).map((e: Record<string, unknown>) => {
+      const copy: Record<string, unknown> = { ...e, occurred_at: back };
+      delete copy.id;
+      return copy;
+    });
+    if (moved.length > 0) {
+      const b2 = await db!.from("crm_events").insert(moved);
+      if (b2.error) throw b2.error;
+    }
     await sweep("leads");
     const l1 = await textsFor("lead_range_reminder");
     expect(l1, "L1: one text").toHaveLength(1);
@@ -277,7 +290,7 @@ test.describe("Automations — the full loop (session 6)", () => {
     const dep = await db!.from("invoices").select("id").eq("estimate_id", estimateId).eq("kind", "deposit").maybeSingle();
     if (dep.error) throw dep.error;
     expect(dep.data, "acceptance drafted the deposit invoice").not.toBeNull();
-    const issue = await db!.from("invoices").update({ status: "issued", issued_on: melDayPlus(0), due_on: melDayPlus(2) }).eq("id", (dep.data as { id: string }).id);
+    const issue = await db!.from("invoices").update({ status: "issued", number: `INV-E2E${run.slice(-4)}`, issued_on: melDayPlus(0), due_on: melDayPlus(2) }).eq("id", (dep.data as { id: string }).id);
     if (issue.error) throw issue.error;
     const start = melDayPlus(3);
     const wo = await db!.from("work_orders").insert({
