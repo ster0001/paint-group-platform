@@ -2,7 +2,7 @@
 feature: success-urls
 role: staff
 title: Count paid-marketing conversions with the success pages
-summary: Every success moment — a range seen, a visit or call asked for, a call tap, a message, an estimate accepted, a deposit paid — loads its own /thanks/… page, so Google Ads and Meta can count it by URL.
+summary: Every success moment — details given, a range seen, a visit or call asked for, a call tap, a message, the estimate saved, the quote range settled, sent to the estimator, fixed online, accepted, a deposit paid — loads its own /thanks/… page, so Google Ads and Meta can count it by URL.
 ---
 
 ## What this is for
@@ -25,6 +25,11 @@ Your ad platforms count a conversion when a page with a known address loads. Eac
 | Sent a message or email | `/thanks/message` | Nothing (counted behind the page; the estimate chat counts the first message) |
 | Accepted an estimate | `/thanks/accepted` | Nothing. They stay on their signed estimate, so they can download it |
 | Paid the deposit | `/thanks/deposit-paid` | A short thank-you on the way back from the card payment, then their invoice |
+| Gave their details and proved their mobile (a lead) | `/thanks/lead` | Nothing (counted behind the page) |
+| Saved the estimate for later (Keep this estimate, Save and come back later) | `/thanks/saved` | Nothing (counted behind the page) |
+| Settled their quote range (the end of the quote stage) | `/thanks/quote` | Nothing (counted behind the page) |
+| Sent the estimate to their estimator (Finalise, a commercial brief) | `/thanks/sent` | Nothing (counted behind the page) |
+| Fixed their price online | `/thanks/fixed` | Nothing (counted behind the page) |
 
 "Counted behind the page" means the success page loads invisibly in the same browser tab. Ad platforms count it exactly as if the customer had opened it. We do it that way wherever leaving the page would lose what's on screen, such as their price or the visit they just booked.
 

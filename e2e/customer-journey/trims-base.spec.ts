@@ -8,7 +8,7 @@
  * marks the trims line for a person, and tells the customer we'll check.
  */
 import { test, expect } from "@playwright/test";
-import { fillQuickAddress, MONEY_RANGE, openQuickLook, quickNext, passGateIfShown } from "./drive";
+import { fillQuickAddress, MONEY_RANGE, openQuickLook, quickNext, passGateIfShown, tightenToScope } from "./drive";
 
 const parseRange = (text: string): [number, number] => {
   const m = text.replace(/,/g, "").match(/\$(\d+)\s*–\s*\$(\d+)/);
@@ -35,7 +35,7 @@ async function toEditor(page: import("@playwright/test").Page) {
   const doors = await page.getByTestId("door-tighten").boundingBox();
   const assumed = await page.getByTestId("reveal-assumed-toggle").boundingBox();
   expect(doors!.y).toBeLessThan(assumed!.y);
-  await page.getByTestId("door-tighten").click();
+  await tightenToScope(page);
   await expect(page).toHaveURL(/\/estimate\/scope\?id=/, { timeout: 60_000 });
   await expect(page.locator("[data-ready='1']")).toBeAttached({ timeout: 20_000 });
   // Tom, 14 Sep (evening): one question at a time — cornices, doors, the window type, then the paint.

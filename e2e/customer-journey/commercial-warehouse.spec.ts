@@ -1,5 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
-import { fillQuickAddress, MONEY_RANGE, openQuickLook, quickNext, passGateIfShown } from "./drive";
+import { fillQuickAddress, MONEY_RANGE, openQuickLook, quickNext, passGateIfShown, tightenToScope } from "./drive";
 
 /**
  * C13 — the warehouse pattern (addendum S6b, prototype `s-com-warehouse`).
@@ -89,7 +89,7 @@ test("Tom's check: 1,000–2,500 m², 4–6 m, precast, some racking, operating 
 
   // Tighten: the warehouse floor is a room card; the scissor-lift and the
   // precast prep are on the settle list as "priced on confirmation" flags.
-  await page.getByTestId("door-tighten").click();
+  await tightenToScope(page);
   await page.waitForURL(/\/estimate\/scope/, { timeout: 60_000 });
   await expect(page.getByTestId("estimator-strip").first()).toBeVisible({ timeout: 60_000 });
   // Retrying assertions: the strip can paint before the room cards do, and a
@@ -113,7 +113,7 @@ test("a lift on site removes the scissor-lift line; up to 4 m never has one", as
   await expect(page.getByTestId("reveal-range")).toContainText(MONEY_RANGE, { timeout: 90_000 });
   await page.getByTestId("reveal-assumed-toggle").click();
   await expect(page.getByTestId("reveal-assumed-height")).toContainText(/Your lift used — no hire allowed for/);
-  await page.getByTestId("door-tighten").click();
+  await tightenToScope(page);
   await page.waitForURL(/\/estimate\/scope/, { timeout: 60_000 });
   await expect(page.getByTestId("estimator-strip").first()).toBeVisible({ timeout: 60_000 });
   await expect(page.locator("body")).not.toContainText(/Scissor lift for walls/);

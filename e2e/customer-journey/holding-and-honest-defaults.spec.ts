@@ -1,6 +1,6 @@
 import { test, expect, devices } from "@playwright/test";
 import { createClient } from "@supabase/supabase-js";
-import { driveNoPlanWizard, uniquePhone , openQuickLook, fillQuickAddress, quickNext, MONEY_RANGE, passGateIfShown } from "./drive";
+import { driveNoPlanWizard, uniquePhone, openQuickLook, fillQuickAddress, quickNext, MONEY_RANGE, passGateIfShown, tightenToScope } from "./drive";
 import { DEFAULT_ONLINE_ESTIMATES } from "../../lib/wizard/publicFlag";
 
 /**
@@ -117,7 +117,7 @@ test.describe("holding page + honest defaults", () => {
     await expect(page.getByTestId("reveal-assumed-hazards")).toContainText(/asbestos|lead/i);
 
     // The price is a range and the job cannot fix itself online.
-    await page.getByTestId("door-tighten").click();
+    await tightenToScope(page);
     await expect(page.locator(".sc-r").first()).toHaveText(MONEY_RANGE, { timeout: 60_000 });
     await expect(page.locator(".il-cta")).not.toHaveText(/Accept estimate/);
     await ctx.close();

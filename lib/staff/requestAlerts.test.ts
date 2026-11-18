@@ -35,11 +35,12 @@ describe("request alerts (L9 / L10 / L13)", () => {
   it("words a reply-by in Melbourne time", () => {
     expect(dueWords("2026-11-18T06:00:00Z")).toMatch(/Wed,? 18 Nov,? 5:00\s?pm/);
   });
-  it("the three alerts are hours-routed staff events, shipped off, with the after-hours text", () => {
+  it("the three alerts are hours-routed staff events, shipped ON (Tom, 18 Nov 2026), with the after-hours text", () => {
     for (const k of ["office_lead_help", "office_visit_request", "office_call_request"] as const) {
       expect(STAFF_EVENT_KEYS).toContain(k);
       expect(byHoursEvent(k)).toBe(true);
-      expect(automationByKey(k)).toMatchObject({ audience: "office", defaultOff: true, quietExempt: true, channels: ["email", "sms"] });
+      expect(automationByKey(k)).toMatchObject({ audience: "office", quietExempt: true, channels: ["email", "sms"] });
+      expect(automationByKey(k)?.defaultOff ?? false).toBe(false);
     }
     expect(byHoursEvent("office_invoice_paid")).toBe(false);
   });

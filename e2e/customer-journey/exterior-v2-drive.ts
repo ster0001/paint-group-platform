@@ -1,5 +1,5 @@
 import { expect, type Page } from "@playwright/test";
-import { fillQuickAddress, lookAtEverySide, MONEY_RANGE, openQuickLook, passDetailsSheetIfShown, passGateIfShown, quickNext } from "./drive";
+import { fillQuickAddress, lookAtEverySide, MONEY_RANGE, openQuickLook, passGateIfShown, quickNext, tightenToScope } from "./drive";
 
 /**
  * Exterior wizard v2 — the shared walk to the Each-side step for the S4/S5
@@ -44,8 +44,7 @@ export async function toSidesEditor(page: Page, who: { name?: string; email?: st
   await quickNext(page);
   await passGateIfShown(page, who);
   await expect(page.getByTestId("reveal-range")).toContainText(MONEY_RANGE, { timeout: 90_000 });
-  await page.getByTestId("door-tighten").click();
-  await passDetailsSheetIfShown(page, who);
+  await tightenToScope(page, who);
   await expect(page.locator(".sd-card").first()).toBeVisible({ timeout: 90_000 });
   await expect(page.locator("[data-ready='1']")).toBeAttached({ timeout: 30_000 });
 }

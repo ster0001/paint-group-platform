@@ -132,16 +132,20 @@ export default function Finish({
         fixedOnline?: { priceCents: number; heldUntil: string };
         fixDeclined?: boolean;
       };
+      // Success URLs (Tom, 18 Nov 2026): fixed online, or sent to the estimator (handed over counts as sent).
       if (body.fixedOnline) {
+        countInBackground("fixed", `finish:${estimateId}`);
         setFixed(body.fixedOnline);
         setSending(null);
         return;
       }
       if (body.fixDeclined) {
+        countInBackground("sent", `finish:${estimateId}`);
         setHandedOver(true);
         setSending(null);
         return;
       }
+      countInBackground("sent", `finish:${estimateId}`);
       router.push(`/estimate/sent?id=${estimateId}`);
     } catch {
       setError("That didn't send — check your connection and try again.");

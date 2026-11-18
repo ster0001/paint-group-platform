@@ -1171,7 +1171,7 @@
       "feature": "success-urls",
       "role": "staff",
       "title": "Count paid-marketing conversions with the success pages",
-      "summary": "Every success moment — a range seen, a visit or call asked for, a call tap, a message, an estimate accepted, a deposit paid — loads its own /thanks/… page, so Google Ads and Meta can count it by URL.",
+      "summary": "Every success moment — details given, a range seen, a visit or call asked for, a call tap, a message, the estimate saved, the quote range settled, sent to the estimator, fixed online, accepted, a deposit paid — loads its own /thanks/… page, so Google Ads and Meta can count it by URL.",
       "path": "docs/help/success-urls/staff.md",
       "walkthrough": null,
       "media": [],

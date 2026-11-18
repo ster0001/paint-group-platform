@@ -50,10 +50,12 @@ const OPEN_BY_KEY: Record<string, string[]> = { openings: ["doors", "windows"], 
 
 export default function Reveal({
   payload, quick, estimateId, onTighten, onBook, phone, prefillEmail, commercial = null, outside = null, speakWithUs = false, onSpeak, onMessage, contactKnown = false,
-  firstName = null, trust = null, walkChecked = false, onEditor, brand = "paintgroup", paintHome = null, onePress = false,
+  firstName = null, trust = null, walkChecked = false, onEditor, brand = "paintgroup", paintHome = null, onePress = false, quoteStage = false,
 }: {
   /** Desktop one-press (addendum §1.6, quote-stage R1): the doors ask "Want the detailed number?" and the first reads "Get my detailed price". */
   onePress?: boolean;
+  /** Quote stage v10 (Tom, 18 Nov 2026): the laptop's first door reads "Get my quote range" and leads to the card stage, as the phone's does. */
+  quoteStage?: boolean;
   /** Paint Home brief §5: the shopfront, and the server's phone-close verdict — `call` draws "Confirm my price. Book a call"; `visit` draws the hand-off. */
   brand?: WizardBrand;
   paintHome?: { tier: "call" | "visit"; capCents: number } | null;
@@ -98,6 +100,8 @@ export default function Reveal({
   }, [estimateId, payload.rangeLoCents, payload.rangeHiCents, handoffLocked]);
   const fire = (cta: "exact" | "visit" | "call" | "message" | "save") => sendWizardEvent("gate_cta_clicked", { cta, breakpoint: breakpointNow() });
   const tighten = () => { fire("exact"); onTighten(); };
+  // One wording for the first door and the dock: the stage's (5 Nov ruling: "your quote range"), the one-press desktop's, or the old editor's.
+  const tightenTitle = quoteStage ? "Get my quote range" : onePress ? "Get my detailed price" : "Tighten my price";
   const editor = () => { fire("exact"); onEditor?.(); };
   const book = () => { fire("visit"); onBook(); };
   const speak = () => { fire("call"); onSpeak?.(); };
@@ -138,6 +142,7 @@ export default function Reveal({
       if (!res.ok) { setKeepError(j.error ?? "That didn't save — try again in a moment."); return; }
       setKept({ emailed: j.emailed === true });
       fire("save");
+      countInBackground("saved", estimateId);
     } catch {
       setKeepError("That didn't save — check your connection and try again.");
     } finally {
@@ -240,7 +245,7 @@ export default function Reveal({
               card, under the ladder. The hand-off has no door into the editor (Tom, 27 Oct 2026). */}
           {!handoffLocked && (
             <div className="wz-rv-dock">
-              <button type="button" className="wz-btn wz-bp wz-bpaint" onClick={tighten} data-testid="reveal-dock-tighten">Tighten my price</button>
+              <button type="button" className="wz-btn wz-bp wz-bpaint" onClick={tighten} data-testid="reveal-dock-tighten">{tightenTitle}</button>
             </div>
           )}
         </section>
@@ -261,7 +266,7 @@ export default function Reveal({
           </div>
         ) : (
         <div className="wz-rv-doors">
-          <h2 className="wz-doors-head">{onePress ? "Want the detailed number?" : "Where would you like to go from here?"}</h2>
+          <h2 className="wz-doors-head">{quoteStage ? "Want your quote range?" : onePress ? "Want the detailed number?" : "Where would you like to go from here?"}</h2>
           <div className="wz-doors">
             {/* Paint Home brief §5: phone-close — one short call confirms the price; no site visit is offered. */}
             {brand === "painthome" && paintHome?.tier === "call" && onSpeak && (
@@ -275,7 +280,7 @@ export default function Reveal({
               />
             ) : (
               <Door
-                testId="door-tighten" icon="◫" title={onePress ? "Get my detailed price" : "Tighten my price"} onClick={tighten}
+                testId="door-tighten" icon="◫" title={tightenTitle} onClick={tighten}
                 body={exteriorOnly && outside?.v2
                   ? "Side by side, a few minutes — confirm each side's size and the paintwork, and the range closes to within a few percent."
                   : `Get a more accurate quote now. A few minutes, ${how}.`}

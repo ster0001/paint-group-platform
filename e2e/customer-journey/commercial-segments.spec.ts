@@ -1,5 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
-import { fillQuickAddress, MONEY_RANGE, openQuickLook, quickNext, passGateIfShown } from "./drive";
+import { fillQuickAddress, MONEY_RANGE, openQuickLook, quickNext, passGateIfShown, tightenToScope } from "./drive";
 import { serviceClient } from "../fixtures/woLoop";
 
 /**
@@ -107,7 +107,7 @@ test("Tom's check: office → 4 offices, 1 open plan, 1 meeting room → a range
   await expect(page.locator("body")).not.toContainText(/Fix (my )?price online|Fix online/i);
 
   // The tighten screen: six areas from the seed, and still no Fix online.
-  await page.getByTestId("door-tighten").click();
+  await tightenToScope(page);
   await page.waitForURL(/\/estimate\/scope/, { timeout: 60_000 });
   await expect(page.getByTestId("estimator-strip").first()).toBeVisible({ timeout: 60_000 });
   const names = await page.locator("body").innerText();
@@ -154,7 +154,7 @@ test("school: the hall asks its height, and over 6 m allows for a platform", asy
   await expect(page.getByTestId("reveal-assumed-open")).toContainText(/over 6 m — platform or lift allowed for/);
   // The EWP line is on the tighten screen's "still to settle" list — flagged
   // and unpriced, exactly one.
-  await page.getByTestId("door-tighten").click();
+  await tightenToScope(page);
   await page.waitForURL(/\/estimate\/scope/, { timeout: 60_000 });
   // Tom, 14 Sep (item 26): the flagged line is the estimator's; the customer read it on the reveal above.
   await expect(page.locator(".wz-confirmonsite")).toHaveCount(0);

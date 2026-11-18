@@ -9,7 +9,7 @@
  * the preset decides which tiles exist.
  */
 import { test, expect } from "@playwright/test";
-import { fillQuickAddress, MONEY_RANGE, openQuickLook, quickNext, passGateIfShown } from "./drive";
+import { fillQuickAddress, MONEY_RANGE, openQuickLook, quickNext, passGateIfShown, tightenToScope } from "./drive";
 
 const parseRange = (text: string): [number, number] => {
   const m = text.match(/\$([\d,]+)\s*–\s*\$([\d,]+)/);
@@ -58,7 +58,7 @@ test("the colour tiles follow the job preset and start ticked", async ({ page })
   await quickNext(page);
   await passGateIfShown(page); // S6: the details-first question sits before the range
   await expect(page.getByTestId("reveal-range")).toContainText(MONEY_RANGE, { timeout: 90_000 });
-  await page.getByTestId("door-tighten").click();
+  await tightenToScope(page);
   await expect(page).toHaveURL(/\/estimate\/scope\?id=/, { timeout: 60_000 });
   await expect(page.locator("[data-ready='1']")).toBeAttached({ timeout: 20_000 });
   const first = page.locator(".sc-rc[data-room]").first();
@@ -85,7 +85,7 @@ test("answering a detail question narrows the range and never lifts the low end 
   await page.getByTestId("reveal-assumed-toggle").click();
   await expect(page.locator("[data-testid^='reveal-open-']").first()).toBeVisible();
 
-  await page.getByTestId("door-tighten").click();
+  await tightenToScope(page);
   await expect(page).toHaveURL(/\/estimate\/scope\?id=/, { timeout: 60_000 });
   const id = page.url().match(/id=([0-9a-f-]{36})/)![1];
   const post = (body: Record<string, unknown>) => page.evaluate(async ({ id, body }) => {

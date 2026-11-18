@@ -194,10 +194,10 @@ test.describe("quote stage v10 — session 6: the desktop format and the keyboar
 
   test("three columns at 1280: drawing left, the card centre, price + collapsed quote right; 1–4, Enter and ← drive it", async ({ page }) => {
     test.setTimeout(300_000);
-    // the desktop quick look to its range (the shared drive fills the gate's details on the way), then the desktop door (still the old editor this release)
+    // the desktop quick look to its range (the shared drive fills the gate's details on the way), then the desktop door (the stage since 18 Nov 2026)
     await driveNoPlanWizard(page, { suburb, stopAtReveal: true, contactName: "Desk Tester", email: `q10d.${run}@example.com` });
     await page.getByTestId("door-tighten").click();
-    await expect(page).toHaveURL(/\/estimate\/scope\?id=/, { timeout: 60_000 });
+    await expect(page).toHaveURL(/\/estimate\/quote\?id=/, { timeout: 60_000 }); // Tom, 18 Nov 2026: the laptop's door leads to the stage too
     const id = new URL(page.url()).searchParams.get("id")!;
     await page.goto(`/estimate/quote?id=${id}`);
     const stage = page.getByTestId("quote-stage");

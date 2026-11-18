@@ -3,7 +3,7 @@ import { mkdirSync } from "node:fs";
 import { serviceClient } from "../fixtures/woLoop";
 import { stepsFor } from "../../lib/wizard/quick-look";
 import { EXTERIOR_SHAPE_KEYS, scaledLengths, typicalFor } from "../../lib/wizard/exterior-typicals";
-import { fillQuickAddress, openQuickLook, passDetailsSheetIfShown, passGateIfShown, quickNext, MONEY_RANGE, lookAtEverySide } from "./drive";
+import { fillQuickAddress, openQuickLook, passGateIfShown, quickNext, MONEY_RANGE, lookAtEverySide, tightenToScope } from "./drive";
 
 /**
  * Exterior wizard v2 — S2: "What kind of home is it?" and the drawn house
@@ -176,8 +176,7 @@ test("the rest of the outside path still reaches a range, and the sides editor's
   await expect(page.getByTestId("reveal-range")).toContainText(MONEY_RANGE, { timeout: 90_000 });
   // 21 Oct: Tighten opens the customer editor; the front's size there is the drawn house's — 5 m across,
   // 5.6 m high on a small townhouse — not the 12 × 2.6 the old scaffold assumed.
-  await page.getByTestId("door-tighten").click();
-  await passDetailsSheetIfShown(page);
+  await tightenToScope(page);
   await expect(page.locator(".sd-card").first()).toBeVisible({ timeout: 90_000 });
   const front = page.locator('[data-side="front"]');
   await front.locator(".sd-hd").click();

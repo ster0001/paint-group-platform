@@ -24,6 +24,11 @@ test.describe("Success URLs", () => {
     await expect(page.getByTestId("thanks-back")).toHaveAttribute("href", "/work");
     await page.waitForURL(/\/work$/, { timeout: 10_000 });
     expect(events.some((e) => e.includes("success_page") && e.includes("visit"))).toBe(true);
+    // 18 Nov 2026: five more moments — the details given, saved for later, the quote range settled, sent to the estimator, fixed online
+    for (const [m, title] of [["lead", "Thanks — we have your details"], ["saved", "Your estimate is saved"], ["quote", "Your quote range is ready"], ["sent", "Thanks — your estimate is with your estimator"], ["fixed", "Your price is fixed"]] as const) {
+      await page.goto(`/thanks/${m}?back=%2Fwork`);
+      await expect(page.getByTestId("thanks-title")).toHaveText(title);
+    }
 
     await page.goto("/thanks/message?back=%2F%2Fevil.example");
     await expect(page.getByTestId("thanks-back")).toHaveAttribute("href", "/");

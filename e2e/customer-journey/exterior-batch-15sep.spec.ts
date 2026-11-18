@@ -1,6 +1,6 @@
 import { test, expect, type Page } from "@playwright/test";
 import { createClient } from "@supabase/supabase-js";
-import { MONEY_RANGE, quickNext, passGateIfShown, passDetailsSheetIfShown, lookAtEverySide } from "./drive";
+import { MONEY_RANGE, quickNext, passGateIfShown, lookAtEverySide, tightenToScope } from "./drive";
 import { toSides } from "./exterior-v2-drive";
 
 /**
@@ -43,8 +43,7 @@ async function toEditor(page: Page, shape: "wb" | "ds", dropSides: Array<"front"
   await passGateIfShown(page);
   await expect(page.getByTestId("reveal-range")).toContainText(MONEY_RANGE, { timeout: 90_000 });
   // 21 Oct (item 8): Tighten opens the customer editor; the walk-around step is retired.
-  await page.getByTestId("door-tighten").click();
-  await passDetailsSheetIfShown(page);
+  await tightenToScope(page);
   await expect(page.locator(".sd-card").first()).toBeVisible({ timeout: 90_000 });
   await expect(page.locator("[data-ready='1']")).toBeAttached({ timeout: 30_000 });
   return new URL(page.url()).searchParams.get("id")!;

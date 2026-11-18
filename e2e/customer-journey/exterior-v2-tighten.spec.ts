@@ -1,5 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
-import { lookAtEverySide, passDetailsSheetIfShown, passGateIfShown, quickNext, MONEY_RANGE, passOtpIfShown } from "./drive";
+import { lookAtEverySide, passGateIfShown, quickNext, MONEY_RANGE, passOtpIfShown, tightenToScope } from "./drive";
 import { toSides } from "./exterior-v2-drive";
 
 /**
@@ -31,8 +31,7 @@ async function toEditor(page: Page) {
   await expect(page.getByTestId("reveal-range")).toContainText(MONEY_RANGE, { timeout: 90_000 });
   await expect(page.getByTestId("reveal-tier")).toHaveCount(0); // D-E1 (30 Oct): no tier pill on the drawn-house gate
   await expect(page.getByTestId("door-tighten")).toContainText(/Side by side/);
-  await page.getByTestId("door-tighten").click();
-  await passDetailsSheetIfShown(page);
+  await tightenToScope(page);
   await expect(page.locator(".sd-card").first()).toBeVisible({ timeout: 90_000 });
   await expect(page.locator("[data-ready='1']")).toBeAttached({ timeout: 30_000 });
 }

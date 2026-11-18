@@ -222,13 +222,36 @@ export async function passDetailsSheetIfShown(page: Page, who: { name?: string; 
   // drawn house (exterior v2) — the walk-around. Without `ext-walk` here every
   // v2 tighten spec timed out under details-first (the 15 reds of 20 Oct).
   const editor = page.locator(".sc-r").first().or(page.getByTestId("ext-walk"));
-  await expect(sheet.or(editor)).toBeVisible({ timeout: 60_000 });
-  if (!(await sheet.count())) return false;
-  await page.getByTestId("talk-name").fill(who.name ?? "Drive Tester");
-  await page.getByTestId("talk-email").fill(who.email ?? `drive.${Date.now()}@example.com`);
-  await page.getByTestId("talk-mobile").fill(who.mobile ?? uniquePhone());
-  await page.getByTestId("talk-go").click();
-  return true;
+  // 18 Nov 2026: on a laptop the door leads to the QUOTE STAGE now (Tom), as on a phone. The specs that call
+  // this test the room-by-room editor the stage replaces, so until their removal release they hop on to it.
+  const quote = page.getByTestId("quote-stage");
+  await expect(sheet.or(editor).or(quote)).toBeVisible({ timeout: 60_000 });
+  let shown = false;
+  if (await sheet.count()) {
+    await page.getByTestId("talk-name").fill(who.name ?? "Drive Tester");
+    await page.getByTestId("talk-email").fill(who.email ?? `drive.${Date.now()}@example.com`);
+    await page.getByTestId("talk-mobile").fill(who.mobile ?? uniquePhone());
+    await page.getByTestId("talk-go").click();
+    shown = true;
+    await expect(editor.or(quote)).toBeVisible({ timeout: 60_000 });
+  }
+  await hopToScopeIfOnQuote(page);
+  return shown;
+}
+
+/** The quote stage (/estimate/quote) → the old scope editor for the same estimate; a no-op anywhere else. */
+export async function hopToScopeIfOnQuote(page: Page): Promise<void> {
+  if (!/\/estimate\/quote/.test(page.url())) return;
+  const id = new URL(page.url()).searchParams.get("id");
+  if (!id) throw new Error(`quote stage with no estimate id: ${page.url()}`);
+  await page.goto(`/estimate/scope?id=${encodeURIComponent(id)}`);
+  await expect(page.locator(".sc-r").first().or(page.getByTestId("ext-walk"))).toBeVisible({ timeout: 60_000 });
+}
+
+/** The laptop's first door, then the details sheet when it comes, then the OLD editor (hopping off the quote stage). */
+export async function tightenToScope(page: Page, who: { name?: string; email?: string; mobile?: string } = {}): Promise<void> {
+  await page.getByTestId("door-tighten").click();
+  await passDetailsSheetIfShown(page, who);
 }
 
 /** Open /estimate and wait for the quick look's first screen. */

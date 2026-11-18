@@ -16,6 +16,7 @@ import type { Estimator } from "@/lib/wizard/estimator";
 import type { WizardBrand } from "@/lib/wizard/brand";
 import { assertCustomerShape } from "@/lib/wizard/contract";
 import { breakpointNow, sendWizardEvent } from "@/lib/wizard/wizardEvents";
+import { countInBackground } from "@/lib/marketing/success";
 import { quoteCards, quoteProgress, quoteRoomsFrom, quoteSidesFrom, typicalRoomNames, type AttentionCard, type GeneralAnswers, type GeneralCard, type JobKind, type MeasureCard, type QuoteRoom, type RobeCard, type RoomsCard, type SideAttentionCard, type SideOnCard, type SideSizeCard, type SurfacesCard } from "@/lib/quote/cards";
 import type { SidesView } from "@/lib/wizard/sides";
 import type { ExteriorV2 } from "@/lib/wizard/state";
@@ -252,6 +253,8 @@ export default function QuoteStage({ brand, estimateId, initial, jobKind, initia
     if (current.kind !== "done") return;
     const typical = typicalRoomNames(rooms).length;
     sendWizardEvent("quote_stage_done", { settled_share: summary.settledShare, typical_count: typical, range_lo: payload.rangeLoCents, range_hi: payload.rangeHiCents });
+    // Success URL (Tom, 18 Nov 2026): the quote range settled, counted behind the page.
+    countInBackground("quote", estimateId);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- once, when the done screen is reached
   }, [current.kind]);
 

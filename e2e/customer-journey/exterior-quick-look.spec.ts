@@ -1,5 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
-import { MONEY_RANGE, openQuickLook, fillQuickAddress, quickNext, passGateIfShown, passDetailsSheetIfShown, lookAtEverySide } from "./drive";
+import { MONEY_RANGE, openQuickLook, fillQuickAddress, quickNext, passGateIfShown, lookAtEverySide, tightenToScope } from "./drive";
 
 /**
  * The EXTERIOR quick look — rewritten to the drawn house (Exterior wizard v2,
@@ -170,8 +170,7 @@ test("Tom's check 3: unticking the walls removes them everywhere — the questio
   await expect(page.getByTestId("reveal-restatement")).toContainText(/^Based on windows, doors and fascias, \d+ casement windows/);
   await expect(page.getByTestId("ext-range-front")).not.toContainText(/walls/);
   // 21 Oct: Tighten opens the customer editor — the front card carries no wall line.
-  await page.getByTestId("door-tighten").click();
-  await passDetailsSheetIfShown(page);
+  await tightenToScope(page);
   await expect(page.locator(".sd-card").first()).toBeVisible({ timeout: 90_000 });
   const front = page.locator('[data-side="front"]');
   await front.locator(".sd-hd").click();

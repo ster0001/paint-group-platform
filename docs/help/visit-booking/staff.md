@@ -15,7 +15,7 @@ Customers in a bookable zone book their own site visit from the guide-price scre
 
 ## What the customer goes through
 1. The last wizard question before the price asks for their full name, email and mobile (**Settings → Booking rules → gate order**, "details first"). The guide price follows, and their account exists from that moment.
-2. On the guide price the options are, in order: **Tighten my price**, **Speak with us** (only when the job is inside the phone limits), **Book a site visit**, **Send us a message**.
+2. On the guide price the options are, in order: **Get my quote range** (was Tighten my price), **Speak with us** (only when the job is inside the phone limits), **Book a site visit**, **Send us a message**.
 3. They tap **Book a site visit**. If the gate order is "range first" and we hold no details yet, they are asked for them here instead.
 4. They see **Choose a time for your site visit**: only the free slots of the estimator covering their zone, in the next three weeks, none closer than two hours from now, none on a public holiday.
 5. They pick a time. We hold it for ten minutes and text a 6-digit code to their mobile.

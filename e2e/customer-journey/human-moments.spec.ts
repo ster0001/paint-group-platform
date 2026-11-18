@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { fillQuickAddress, MONEY_RANGE, openQuickLook, quickNext, passGateIfShown } from "./drive";
+import { fillQuickAddress, MONEY_RANGE, openQuickLook, quickNext, passGateIfShown, tightenToScope } from "./drive";
 
 /**
  * C11 — the human moments and the reveal.
@@ -36,7 +36,7 @@ test("the estimator strip is on the reveal, the tighten screen and the finish li
   // The reveal's tiers: Guide lit, by construction.
   await expect(page.getByTestId("reveal-tiers").locator("span.on")).toHaveText("Guide");
 
-  await page.getByTestId("door-tighten").click();
+  await tightenToScope(page);
   await page.waitForURL(/\/estimate\/scope/, { timeout: 60_000 });
   await expect(page.getByTestId("estimator-strip").first()).toBeVisible({ timeout: 60_000 });
   expect(await stripName()).toBe(onReveal);
@@ -74,7 +74,7 @@ test("the footer line changes with the not-sures, and the offers appear at their
   await quickNext(page);
   await passGateIfShown(page); // S6: the details-first question sits before the range
   await expect(page.getByTestId("reveal-range")).toContainText(MONEY_RANGE, { timeout: 90_000 });
-  await page.getByTestId("door-tighten").click();
+  await tightenToScope(page);
   await page.waitForURL(/\/estimate\/scope/, { timeout: 60_000 });
 
   // Tom, 14 Sep (items 1, 12): no human line, no not-sures box — the details card asks.

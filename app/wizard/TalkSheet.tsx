@@ -88,7 +88,8 @@ export default function TalkSheet({ open, mode, onClose, estimateId, prefill, ha
       return;
     }
     if (mode === "details") {
-      if (await post("/api/visits/details", contact)) onDone?.(contact);
+      // Success URL (Tom, 18 Nov 2026): the details given on the range-first path are a lead.
+      if (await post("/api/visits/details", contact)) { countInBackground("lead", contact.mobile); onDone?.(contact); }
       return;
     }
     setStage("message");

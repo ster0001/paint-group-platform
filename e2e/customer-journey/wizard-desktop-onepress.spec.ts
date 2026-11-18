@@ -149,8 +149,9 @@ test.describe("Desktop one-press — the laptop takes the phone's screens (adden
     // "Your range" lit: the range header's first step is the current one
     await expect(page.getByTestId("wz-rail").locator("li").first()).toHaveAttribute("data-state", "cur");
     // 6 · the gate copy on a laptop
-    await expect(page.locator(".wz-doors-head")).toHaveText("Want the detailed number?");
-    await expect(page.getByTestId("door-tighten")).toContainText("Get my detailed price");
+    // 18 Nov 2026: the quote stage is on, so the stage's words lead (the 5 Nov ruling: "your quote range", never "detailed price")
+    await expect(page.locator(".wz-doors-head")).toHaveText("Want your quote range?");
+    await expect(page.getByTestId("door-tighten")).toContainText("Get my quote range");
   });
 
   test("1b · a unit skips storeys; Outside skips job and rooms and goes to the drawn house", async ({ page }) => {
