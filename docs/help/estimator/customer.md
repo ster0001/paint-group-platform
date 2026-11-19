@@ -127,4 +127,5 @@ On a phone (any screen narrower than about 770px) the same questions come one at
 - **On a phone, after "New colours" or "Still deciding"** a screen asks "Going much lighter, or a bold colour?" — the same question the laptop asks. Yes allows an undercoat under every surface changing colour; "Same colours" is never asked it.
 - **What we'll do** — the coats badge counts the topcoats and names the undercoat beside them ("2 coats + undercoat"), and the sentence under it always says the same number.
 - **A hall or landing** now carries the hall side of every door that opens onto it, plus the inside of the front door, in the starting room list.
+- **A two-storey house is priced, not handed off.** The drawn house already allows for the upper level, so a two-storey outside job no longer sends a Paint Home customer to the "bigger job" screen. That screen now appears only when the top of the range is over Paint Home's phone-close ceiling; a job that genuinely needs a person to look (an unsure asbestos answer, a mixed scope) reads "This one needs a look in person" instead.
 

@@ -12,7 +12,7 @@ import { exteriorAssumedList, exteriorRestatement, type ExteriorQuickLook } from
 import { DEFAULT_BANDS } from "@/lib/wizard/policy";
 import type { CustomerPayload } from "@/lib/wizard/view";
 import ExteriorRangeRows, { notInThisNumber } from "./ExteriorRangeRows";
-import { PAINT_HOME_WORDS, type WizardBrand } from "@/lib/wizard/brand";
+import { PAINT_HOME_WORDS, type WizardBrand, paintHomeHandoffWords } from "@/lib/wizard/brand";
 import { breakpointNow, sendWizardEvent } from "@/lib/wizard/wizardEvents";
 
 /**
@@ -59,7 +59,7 @@ export default function Reveal({
   quoteStage?: boolean;
   /** Paint Home brief §5: the shopfront, and the server's phone-close verdict — `call` draws "Confirm my price. Book a call"; `visit` draws the hand-off. */
   brand?: WizardBrand;
-  paintHome?: { tier: "call" | "visit"; capCents: number } | null;
+  paintHome?: { tier: "call" | "visit"; capCents: number; why?: string | null } | null;
   /** Exterior wizard v2 (S5): every painted side checked on the walk — the Tighten door reads "Change a side" and Book a site visit is primary (⚑ 14). */
   walkChecked?: boolean;
   /** Exterior wizard v2 (S5): "Change anything else" — the after-range sides editor (§7.7). */
@@ -237,13 +237,14 @@ export default function Reveal({
           // Paint Home brief §5: over the phone-close ceiling (or a job that needs seeing) — the polite
           // hand-off, every answer kept. The first and only place the wizard names Paint Group.
           // Tom, 27 Oct 2026: NO way into the editor from here — no Tighten door, no "Change this", no dock button.
-          <div className="wz-rv-doors wz-ph-handoff" data-testid="painthome-handoff">
-            <p className="wz-kick">{PAINT_HOME_WORDS.handoff.kicker}</p>
-            <h2 className="wz-doors-head">{PAINT_HOME_WORDS.handoff.heading}</h2>
-            <p className="wz-sub">{PAINT_HOME_WORDS.handoff.body}</p>
-            <p className="wz-sub" data-testid="painthome-handoff-team">{PAINT_HOME_WORDS.handoff.team}</p>
+          <div className="wz-rv-doors wz-ph-handoff" data-testid="painthome-handoff" data-why={paintHome?.why ?? ""}>
+            {/* Tom, 19 Nov 2026: the words follow the reason — "bigger" only over the ceiling */}
+            <p className="wz-kick">{paintHomeHandoffWords(paintHome?.why).kicker}</p>
+            <h2 className="wz-doors-head">{paintHomeHandoffWords(paintHome?.why).heading}</h2>
+            <p className="wz-sub">{paintHomeHandoffWords(paintHome?.why).body}</p>
+            <p className="wz-sub" data-testid="painthome-handoff-team">{paintHomeHandoffWords(paintHome?.why).team}</p>
             <div className="wz-doors">
-              <Door testId="door-book" icon="📍" title={PAINT_HOME_WORDS.handoff.button} onClick={book} body="Choose a time for us to see the property. About 40 minutes." hero />
+              <Door testId="door-book" icon="📍" title={paintHomeHandoffWords(paintHome?.why).button} onClick={book} body="Choose a time for us to see the property. About 40 minutes." hero />
               {onMessage && <Door testId="door-message" icon="✉" title="Send us a message" onClick={message} body="Ask a question about your estimate" />}
             </div>
           </div>

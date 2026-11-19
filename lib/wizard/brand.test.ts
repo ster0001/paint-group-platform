@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { allowedForBrand, isWizardBrand, jobTypesFor, paintHomeEstimatorIntro, paintHomeTier, propertyKindsFor, PAINT_HOME_WORDS } from "./brand";
+import { allowedForBrand, isWizardBrand, jobTypesFor, paintHomeEstimatorIntro, paintHomeTier, propertyKindsFor, PAINT_HOME_WORDS, paintHomeHandoffWords } from "./brand";
 import { stepsFor } from "./quick-look";
 import { parseEstimateIntent } from "@/lib/marketing/prefill";
 
@@ -41,6 +41,17 @@ describe("Paint Home wizard brand branch (paint-home brief §5)", () => {
     expect(paintHomeTier({ hiCents: 500_000, capCents: cap, reasons: ["asbestos_unsure"], requiresSiteCheck: false }).tier).toBe("visit");
     expect(paintHomeTier({ hiCents: 500_000, capCents: cap, reasons: [], requiresSiteCheck: true })).toEqual({ tier: "visit", why: "needs a person on site" });
     expect(paintHomeTier({ hiCents: null, capCents: cap, reasons: [], requiresSiteCheck: false }).tier).toBe("visit");
+  });
+  it("Tom, 19 Nov 2026: the hand-off's words follow its reason — bigger only over the ceiling, a closer look otherwise", () => {
+    expect(paintHomeHandoffWords("over the phone-close ceiling").heading).toMatch(/bigger than we can price/);
+    expect(paintHomeHandoffWords(null).heading).toMatch(/bigger than we can price/);
+    for (const why of ["needs a person on site", "asbestos_unsure", "mixed_scope", "no range"]) {
+      const w = paintHomeHandoffWords(why);
+      expect(w.heading).not.toMatch(/bigger/);
+      expect(w.kicker).toBe("A closer look");
+      expect(w.team).toBe(PAINT_HOME_WORDS.handoff.team);
+      for (const v of Object.values(w)) expect(v).not.toMatch(/—|!/);
+    }
   });
   it("Sarah is introduced plainly; the hand-off is the first and only place the wizard names Paint Group", () => {
     expect(paintHomeEstimatorIntro("Sarah Reid")).toBe("Sarah, who'll be checking your price.");
