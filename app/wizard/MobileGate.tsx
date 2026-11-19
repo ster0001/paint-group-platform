@@ -9,7 +9,7 @@ import { exteriorRestatement, type ExteriorQuickLook } from "@/lib/wizard/exteri
 import ExteriorRangeRows, { notInThisNumber } from "./ExteriorRangeRows";
 import { allSidesChecked } from "@/lib/wizard/exterior-model";
 import { initialsOf } from "@/lib/wizard/estimator";
-import { PAINT_HOME_WORDS, type WizardBrand } from "@/lib/wizard/brand";
+import { paintHomeHandoffWords, type WizardBrand } from "@/lib/wizard/brand";
 import { breakpointNow, sendWizardEvent } from "@/lib/wizard/wizardEvents";
 
 /**
@@ -36,7 +36,7 @@ import { breakpointNow, sendWizardEvent } from "@/lib/wizard/wizardEvents";
  */
 const fmt = (cents: number) => `$${Math.round(cents / 100).toLocaleString("en-AU")}`;
 
-export default function MobileGate({ payload, quick, outside, brand, logo, estimateId, firstName, suburb, trust, handoff, walked = false, detailed = false, onExact, onVisit, onBook, onContactOpen, onBack }: {
+export default function MobileGate({ payload, quick, outside, brand, logo, estimateId, firstName, suburb, trust, handoff, handoffWhy = null, walked = false, detailed = false, onExact, onVisit, onBook, onContactOpen, onBack }: {
   logo: ReactNode;
   /** R6: the Contact pill, on the gate too (session 5). */
   onContactOpen: () => void;
@@ -50,6 +50,8 @@ export default function MobileGate({ payload, quick, outside, brand, logo, estim
   trust: { rating: number | null; count: number | null; warranty: string | null } | null;
   /** §4.2: the bigger-job variant (Paint Home over the ceiling, or a job that needs seeing). */
   handoff: boolean;
+  /** Tom, 19 Nov 2026: why the hand-off — the words follow it ("bigger" only over the ceiling). */
+  handoffWhy?: string | null;
   /** S6: the walk-around has re-priced the house (WizardApp's `walkDone` landed) — the exact-price stage needs that, not just the checked flags. */
   walked?: boolean;
   /** Quote stage v10 (R1, D-Q2): the door reads "Get my quote range" and leads to the card stage. */
@@ -145,9 +147,9 @@ export default function MobileGate({ payload, quick, outside, brand, logo, estim
             <p className="wzm-gate-alt">Or <button type="button" className="wzm-linkish" onClick={exact} data-testid="gate-change-side">change a side</button></p>
           </section>
         ) : handoff ? (
-          <section data-testid="gate-block-bigger">
+          <section data-testid="gate-block-bigger" data-why={handoffWhy ?? ""}>
             <h2 className="wzm-gate-ask">We&rsquo;ll come and look</h2>
-            <p className="wzm-gate-asksub">{PAINT_HOME_WORDS.handoff.heading} {PAINT_HOME_WORDS.handoff.body}</p>
+            <p className="wzm-gate-asksub">{paintHomeHandoffWords(handoffWhy).heading} {paintHomeHandoffWords(handoffWhy).body}</p>
             <button type="button" ref={inlineDoorRef} className="wzm-cta wzm-cta--teal" onClick={book} data-testid="gate-book">Book a visit<small>About 40 minutes, no charge</small></button>
           </section>
         ) : (

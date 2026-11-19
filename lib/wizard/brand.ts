@@ -51,6 +51,16 @@ export function allowedForBrand(brand: WizardBrand | null | undefined, patch: Pa
  */
 export type PaintHomeTier = { tier: "call" | "visit"; why: string | null };
 
+/**
+ * Tom, 19 Nov 2026: the hand-off's words follow its REASON. Over the ceiling it is a bigger job; a must-see
+ * guardrail or a job that needs a person on site is a closer look, never "bigger than we can price" over a
+ * $12,000 range. Same body, same team line, same door.
+ */
+export function paintHomeHandoffWords(why: string | null | undefined): Record<keyof typeof PAINT_HOME_WORDS.handoff, string> {
+  if (why == null || why === "over the phone-close ceiling") return PAINT_HOME_WORDS.handoff;
+  return { ...PAINT_HOME_WORDS.handoff, kicker: "A closer look", heading: "This one needs a look in person before we can price it." };
+}
+
 // Tom, 27 Oct 2026: `over_self_serve_cap` is NOT here any more — that cap is about fixing a price online
 // with nobody looking (interior $6,000), which Paint Home never does (one call always). It was sending
 // every inside job over $6,000 to the hand-off while the ceiling said $12,000. The phone-close ceiling

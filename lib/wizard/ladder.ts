@@ -188,9 +188,11 @@ export function requiresSiteCheck(input: {
   const ext = state.exterior;
   // An exterior job with no exterior answers has not told us enough to price it.
   if (!ext) return true;
+  // Tom, 19 Nov 2026: a two-storey house is NOT a reason for a person to look. The drawn house prices the second
+  // storey — 5.5 m sides, the Access ×1.15 modifier (15 Sep) and the upper-level hours (exterior allowances) — and on
+  // Paint Home this clause was sending a $12,000 two-storey job to the "bigger job" hand-off (13 Leamington Cres).
   return (
     state.jobType === "both"
-    || ext.storeys === "double"
     || ext.condition === "peeling"
     // Gear the wizard cannot price (scissor/boom lift, scaffold) — the
     // estimator confirms access before any price is fixed.

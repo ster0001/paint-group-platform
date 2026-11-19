@@ -2056,6 +2056,7 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
             suburb={state.address?.suburb || state.customer?.suburb || null}
             trust={trust ? { rating: trust.rating, count: trust.count, warranty: trust.warranty } : null}
             handoff={brand === "painthome" && (reveal.payload as { paintHome?: { tier: "call" | "visit" } }).paintHome?.tier === "visit"}
+            handoffWhy={(reveal.payload as { paintHome?: { why?: string | null } }).paintHome?.why ?? null}
             walked={walked}
             onExact={() => {
               void recordRangeOption(reveal.estimateId, "tighten");
