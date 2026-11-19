@@ -84,6 +84,14 @@ export type DesktopRail = {
   planPending: boolean;
 };
 
+/** The screen remembered when this page loaded (MOBILE_SCREEN_KEY), shared by every router instance — see its use below. */
+let screenAtPageLoad: string | null | undefined;
+function rememberScreenAtPageLoad(): void {
+  if (screenAtPageLoad !== undefined) return;
+  try { screenAtPageLoad = window.localStorage.getItem(MOBILE_SCREEN_KEY); } catch { screenAtPageLoad = null; }
+}
+function forgetScreenAtPageLoad(): void { screenAtPageLoad = null; }
+
 export default function MobileQuickLook({
   brand, logo, steps, step, quick, onQuick, outside, onOutside, exteriorTypicals = [], address, contact, onContact, roomNames, addedRooms, onAddRoom, onRemoveAdded,
   error, busy, canContinue, whyNot, onNext, onBack, canBack, onContactOpen, renderStep, resumed, onStartAgain, otp, otpOn, desktop = null,
@@ -148,10 +156,12 @@ export default function MobileQuickLook({
   // asynchronously), and the first paint has by then written ITS screen over the remembered one — so the
   // resumed step must consult what was there at mount, not the store (C1, 29 Oct: an outside reload at
   // "size" came back on "shape"). A move of the customer's own clears it.
-  const rememberedAtMount = useRef<string | null | undefined>(undefined);
+  // Held per PAGE LOAD, not per instance (19 Nov 2026): with desktop one-press on, a phone's hydration render
+  // mounts the laptop's router first (the mobile media query is false on the server snapshot), which wrote
+  // "what" over the remembered screen before the phone's own router mounted — so a phone came back to the
+  // place step's first screen instead of "beds" (estimates-full-loop-s7).
   useLayoutEffect(() => {
-    if (rememberedAtMount.current !== undefined) return;
-    try { rememberedAtMount.current = window.localStorage.getItem(MOBILE_SCREEN_KEY); } catch { rememberedAtMount.current = null; }
+    rememberScreenAtPageLoad();
   }, []);
   useLayoutEffect(() => {
     if (stepRef.current === step) return;
@@ -161,12 +171,12 @@ export default function MobileQuickLook({
     if (want === "first") { setSub(0); return; }
     if (want === "last") { setSub(Math.max(0, stepScreens.length - 1)); return; }
     // No move of our own (a mount, a resume): the remembered screen, if it is one of this step's.
-    let stored: string | null = rememberedAtMount.current ?? null;
+    let stored: string | null = screenAtPageLoad ?? null;
     if (stored == null) { try { stored = window.localStorage.getItem(MOBILE_SCREEN_KEY); } catch { stored = null; } }
     // a reload on the code screen lands on the details: Continue asks the server again (a verified mobile goes straight on)
     if (stored === "code") stored = "details";
     const at = stored ? stepScreens.findIndex((s) => s.id === stored) : -1;
-    if (at >= 0) rememberedAtMount.current = null;
+    if (at >= 0) forgetScreenAtPageLoad();
     setSub(at >= 0 ? at : 0);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- stepScreens is derived from step + answers; the step is the trigger
   }, [step]);
@@ -193,7 +203,7 @@ export default function MobileQuickLook({
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => () => { if (timer.current) clearTimeout(timer.current); }, []);
   const go = () => {
-    rememberedAtMount.current = null;
+    forgetScreenAtPageLoad();
     if (!last) { setSub(sub + 1); return; }
     pendingRef.current = "first";
     onNext();
@@ -215,7 +225,7 @@ export default function MobileQuickLook({
   };
   const back = () => {
     if (timer.current) clearTimeout(timer.current);
-    rememberedAtMount.current = null;
+    forgetScreenAtPageLoad();
     if (current.id === "code") otpOn?.onChange();
     if (sub > 0) { setSub(sub - 1); return; }
     if (!canBack) return;
@@ -647,7 +657,7 @@ export default function MobileQuickLook({
           {desktop && current.id === "rooms" && ticked === 0 && <p className="wzm-why" data-testid="ql-why" role="status">Tick at least one room, or add one.</p>}
           <button key={error ?? "ok"} type="button" className={`wzm-cta ${error ? "wz-shake" : ""}`} disabled={!ready || !canContinue || busy || Boolean(otp?.busy)} data-testid="ql-next"
             onClick={() => {
-              rememberedAtMount.current = null; pendingRef.current = "first";
+              forgetScreenAtPageLoad(); pendingRef.current = "first";
               // Tom, 5 Nov 2026: Continue on the details texts the code (or learns the mobile is already verified and goes on)
               if (current.id === "details" && otpOn) {
                 void otpOn.onBegin().then((r) => { if (r === "sent") setSub(sub + 1); else if (r === "verified") onNext(); });

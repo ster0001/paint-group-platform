@@ -181,7 +181,7 @@ const PROC_TIPS = [
   "Nothing is booked and nothing is charged until you say so.",
 ];
 
-export default function WizardApp({ roomTypes, substrates, mode = "internal", prefill, prefillState, logoUrl, companyPhone = null, estimatorName = null, trust = null, intent, resume = null, assisted = null, segments = DEFAULT_SEGMENTS, gateOrder = "details_first", exteriorTypicals = [], brand = "paintgroup" }: {
+export default function WizardApp({ roomTypes, substrates, mode = "internal", prefill, prefillState, prefillIsScopeSeed = false, logoUrl, companyPhone = null, estimatorName = null, trust = null, intent, resume = null, assisted = null, segments = DEFAULT_SEGMENTS, gateOrder = "details_first", exteriorTypicals = [], brand = "paintgroup" }: {
   /** Paint Home brief §5: the shopfront this session came through — the host or the hand-off decided it (lib/wizard/brandServer.ts). Paint Group by default. */
   brand?: WizardBrand;
   /** Exterior wizard v2 (S2): the shape typicals (`exterior_typicals`); empty = the built-in list. */
@@ -218,6 +218,13 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
    * as the starting point, so the walk only asks what's changed. The server
    * strips file/run references before it hands this over. */
   prefillState?: WizardState;
+  /**
+   * The prefill is only the homepage chip's job type (`?scope=`, scopeSeed) —
+   * not a rebook, a spec or a showcase copy. It is a starting point, so a saved
+   * walk for the same address still resumes over it (19 Nov 2026: every hero
+   * visitor who reloaded lost their walk, because any prefill skipped the resume).
+   */
+  prefillIsScopeSeed?: boolean;
   /** Homepage hand-off (lib/marketing/prefill.ts): the address the visitor
    * typed on the marketing site, shown in the field; "business" pre-selects
    * the commercial property kind. Intent only — no account, no event. */
@@ -623,7 +630,7 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
     window.scrollTo({ top: 0 });
   };
   useEffect(() => {
-    if (!isCustomer || prefillState || prefill?.address) return;
+    if (!isCustomer || (prefillState && !prefillIsScopeSeed) || prefill?.address) return;
     // Deferred: the restore is a state change, and it must land after paint.
     const t = setTimeout(() => {
       let raw: string | null = null;
