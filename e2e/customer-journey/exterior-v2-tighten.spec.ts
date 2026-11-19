@@ -53,6 +53,9 @@ async function answerQuestions(page: Page) {
   await expect(q).toHaveClass(/done/, { timeout: 30_000 });
 }
 
+/** Quote stage v10 (S7 switch-over): with the flag on, the gate's door opens the quote stage. */
+const V10 = process.env.NEXT_PUBLIC_QUOTE_STAGE_V10 !== "0";
+
 test("Tighten opens the customer editor; A few questions first glows, shows what each paintwork answer looks like, and asks the paintwork, the rot AND the access", async ({ page }) => {
   test.skip(DESKTOP_ONE_PRESS, GROUPED_LAPTOP_ONLY);
   test.setTimeout(240_000);
@@ -176,6 +179,9 @@ test.describe("on a phone: Tighten is the walk-around, one screen per side (exte
   };
 
   test("Get my exact price → the walk: counts, size, condition per side, Check this side waits for the size; all four checked → See my exact price → the gate as the exact-price stage, change a side", async ({ page }) => {
+    // Quote stage v10 (S7 switch-over): with the flag on the door opens /estimate/quote and the sides are its cards —
+    // proven by quote-stage-v10-s6.spec.ts; the walk-around below is the kill-switch path (go-live S4 noted this red).
+    test.skip(V10, "with the quote stage on, the door opens the quote stage, not the walk-around");
     test.setTimeout(240_000);
     await toGate(page);
     const thumb = page.getByTestId("wzm-thumb").locator("svg.wz-elev");
