@@ -230,6 +230,8 @@ export default async function CustomerWizardPage({
   // the zod schema and stripped of every file/run reference before they seed
   // the wizard. Anything that fails simply falls back to a fresh walk.
   let prefillState: WizardState | undefined;
+  /** The prefill is only a job-type seed (scopeSeed) — a starting point, which a saved walk for the same address beats. */
+  let prefillIsScopeSeed = false;
   if (memberEmail && rebookParam && /^[0-9a-f-]{36}$/.test(rebookParam) && svc) {
     const { data: memberships } = await supabase.from("account_users").select("account_id");
     const owned = new Set((memberships ?? []).map((m) => m.account_id as string));
@@ -310,7 +312,7 @@ export default async function CustomerWizardPage({
         .eq("id", showcase.estimate_id).maybeSingle();
       prefillState = sanitiseClonedState(src?.wizard_state ?? null, intent.propertyKind) ?? undefined;
     }
-    if (!prefillState && scope) prefillState = scopeSeed(scope, intent.propertyKind);
+    if (!prefillState && scope) { prefillState = scopeSeed(scope, intent.propertyKind); prefillIsScopeSeed = true; }
   }
 
   return (
@@ -334,6 +336,7 @@ export default async function CustomerWizardPage({
         address: prefillAddress,
       } : undefined}
       prefillState={prefillState}
+      prefillIsScopeSeed={prefillIsScopeSeed}
       intent={intent}
       brand={brand}
     />
