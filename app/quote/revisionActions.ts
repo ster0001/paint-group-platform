@@ -16,6 +16,7 @@ import { after } from "next/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import { notifyPayChangeSent } from "@/lib/contractor/notify";
 import { revisionCredit } from "@/lib/revision/hoursOnly";
+import { signedNetFor, withSignedReversals } from "@/lib/revision/signedReversal";
 
 /**
  * The revision builder's server side (addendum A2).
@@ -240,34 +241,34 @@ async function draftRevision(
     ctx,
   );
 
-  const diff = diffRevision(
-    (scope.accepted_state ?? {}) as RevisionState,
-    (scope.working_state ?? {}) as RevisionState,
-    ctx,
-  );
-
   // What the customer has already signed, per block.
-  const { data: existingRows } = await supabase
+  const { data: existingRows, error: existingErr } = await supabase
     .from("wo_variations")
-    .select("id, revision_block_ref, status, price_cents, credit, est_hours")
+    .select("id, revision_block_ref, status, price_cents, credit, est_hours, priced_inputs, comment")
     .eq("work_order_id", scope.work_order_id)
     .not("revision_block_ref", "is", null);
+  // Drafting against an unread signed list would charge the customer twice.
+  if (existingErr) return { ok: false, message: `Could not read the signed variations: ${existingErr.message}` };
   const existing = (existingRows ?? []) as {
     id: string; revision_block_ref: string; status: string;
-    price_cents: number | null; credit: boolean; est_hours: string | number | null;
+    price_cents: number | null; credit: boolean; est_hours: string | number | null; priced_inputs: unknown; comment: string | null;
   }[];
 
-  const signedDeltaFor = (ref: string) =>
-    existing
-      .filter((v) => v.revision_block_ref === ref
-        && (v.status === "customer_approved" || v.status === "contractor_accepted")
-        && v.price_cents != null)
-      .reduce((s, v) => s + (v.credit ? -(v.price_cents ?? 0) : (v.price_cents ?? 0)), 0);
-  const signedHoursFor = (ref: string) =>
-    existing
-      .filter((v) => v.revision_block_ref === ref
-        && (v.status === "customer_approved" || v.status === "contractor_accepted"))
-      .reduce((s, v) => s + (v.credit ? -Number(v.est_hours ?? 0) : Number(v.est_hours ?? 0)), 0);
+  // A block whose signed change was taken back out no longer differs from the
+  // accepted scope — withSignedReversals puts it back in so it is credited.
+  const diff = withSignedReversals(
+    diffRevision(
+      (scope.accepted_state ?? {}) as RevisionState,
+      (scope.working_state ?? {}) as RevisionState,
+      ctx,
+    ),
+    existing,
+    (scope.accepted_state ?? {}) as RevisionState,
+    (scope.working_state ?? {}) as RevisionState,
+  );
+
+  const signedDeltaFor = (ref: string) => signedNetFor(existing, ref).incCents;
+  const signedHoursFor = (ref: string) => signedNetFor(existing, ref).hours;
 
   const drafted: DraftedVariation[] = [];
   const seenRefs = new Set<string>();
@@ -282,11 +283,16 @@ async function draftRevision(
     const credit = revisionCredit(draftDelta, hoursSigned);
     const priceIncCents = Math.abs(draftDelta);
 
-    const beyondSigned = signedInc !== 0;
-    const comment = beyondSigned
+    const reverted = change.kind === "reverted";
+    const beyondSigned = signedInc !== 0 && !reverted;
+    const comment = reverted
+      ? `${change.title} — ${change.detail}`
+      : beyondSigned
       ? `${change.title} — further to the change already signed${change.detail ? ` (${change.detail})` : ""}`
       : `${change.title}${change.detail ? ` — ${change.detail}` : ""}`;
-    const pricedLines = beyondSigned
+    const pricedLines = reverted
+      ? change.pricedLines
+      : beyondSigned
       ? [{ label: `${change.title} — beyond the already-signed change`, cents: draftDelta }]
       : change.pricedLines;
 

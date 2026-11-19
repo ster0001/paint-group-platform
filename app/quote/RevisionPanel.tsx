@@ -214,7 +214,9 @@ export default function RevisionPanel({
           {diff.changes.map((c) => (
             <li key={c.blockRef} className="flex flex-wrap items-baseline gap-2 text-xs" data-testid={`revision-change-${c.blockRef.replace(/[^a-z0-9]/gi, "-")}`}>
               <span className={`font-mono ${c.credit ? "text-rose-400" : "text-emerald-400"}`}>
-                {signed(c.deltaIncCents)}
+                {/* A signed change taken back out: 0 against the accepted
+                    estimate, but the customer is owed what they signed. */}
+                {c.kind === "reverted" ? signed(c.credit ? -c.priceIncCents : c.priceIncCents) : signed(c.deltaIncCents)}
               </span>
               <span className="font-medium">{c.title}</span>
               {c.detail && <span className="text-gray-500">· {c.detail}</span>}
@@ -235,7 +237,7 @@ export default function RevisionPanel({
                       Revise
                     </button>
                   )}
-                  {onRevert && (
+                  {onRevert && c.kind !== "reverted" && (
                     <button
                       type="button"
                       onClick={() => {
