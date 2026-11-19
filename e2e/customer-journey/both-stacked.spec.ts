@@ -133,7 +133,7 @@ test.describe("on a phone: a both job is inside then outside, one gate (exterior
     await expect(page.getByTestId("gate-part-exterior")).toContainText(MONEY_RANGE);
     await expect(page.getByTestId("gate-basis")).toContainText(/Outside:/);
     await expect(page.getByTestId("gate-fine")).toContainText(/scaffolding or a lift/);
-    await expect(page.getByTestId("gate-block-ask")).toContainText(/room by room, then side by side/);
+    await expect(page.getByTestId("gate-block-ask")).toContainText(/room by room, then side by side/i); // go-live S4 (H7): "Room by room, then side by side, about 15 minutes."
     await expect(page.getByTestId("gate-exact")).toContainText("Inside, then outside");
     expect(await gate.innerText()).not.toMatch(/±|within \d+%|Guide ·|Detailed/);
     await page.getByTestId("gate-included").locator("summary").tap();

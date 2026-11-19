@@ -118,6 +118,8 @@ export type CustomerScopeBundle =
       initialWindowsPainted: "yes" | "no" | null;
       /** Tom, 14 Sep (evening, item 9): the cornice answer as stored. */
       initialCornices: "none" | "standard" | "decorative" | null;
+      /** 19 Nov 2026: the quote stage's other whole-house answers as stored, so a reload (or a return) does not ask them again. */
+      initialGeneral: { doors: "panel" | "flat" | null; windows: "casement" | "sash" | "colonial" | "winder" | null; paintBase: "water" | "oil" | "unsure" | null; glossTrims: "yes" | "no" | "unsure" | null };
       /** §4.5 — the extras on offer, which are on, the colour-help tick and the note. */
       initialExtras: { offer: JobExtra[]; on: string[]; counts: Record<string, number>; colourHelp: boolean; note: string };
     };
@@ -311,6 +313,12 @@ export async function loadCustomerScope(db: SupabaseClient, estimate: EstimateRo
       ? (snap.data.details.windowsPainted ?? (blocks.some((b) => b.kind === "area" && b.type !== "Exterior" && (((b as { surfaces?: Array<{ code?: unknown }> }).surfaces) ?? []).some((x) => /window/i.test(String(x.code ?? "")))) ? "yes" : null))
       : null,
     initialCornices: snap.success ? (snap.data.details.cornices ?? null) : null,
+    initialGeneral: {
+      doors: snap.success && (snap.data.details.doorStyle === "panel" || snap.data.details.doorStyle === "flat") ? snap.data.details.doorStyle : null,
+      windows: snap.success && ["casement", "sash", "colonial", "winder"].includes(snap.data.details.windowStyle) ? (snap.data.details.windowStyle as "casement" | "sash" | "colonial" | "winder") : null,
+      paintBase: snap.success ? snap.data.paint.base ?? null : null,
+      glossTrims: snap.success ? snap.data.paint.trimsOilBased ?? null : null,
+    },
     initialColourTier: snap.success ? snap.data.condition.tier : "change",
     initialDarkToLight: {
       asked: snap.success && snap.data.condition.tier === "dark_to_light",

@@ -43,8 +43,8 @@ async function measureOneAndNarrow(page: Page, touch: boolean) {
   const id = (await cardId(page))!;
   const before = await band(page);
   const settledBefore = Number(await page.getByTestId("q-band").or(page.getByTestId("q-rail-band")).first().getAttribute("data-settled"));
-  await page.getByTestId("q-measure-w").fill("3.6");
-  await page.getByTestId("q-measure-l").fill("4.2");
+  if (id.startsWith("side-size:")) { await page.getByTestId("q-side-w").fill("9.5"); await page.getByTestId("q-side-h").fill("2.7"); } // a side: across × high
+  else { await page.getByTestId("q-measure-w").fill("3.6"); await page.getByTestId("q-measure-l").fill("4.2"); }
   await press(page.getByTestId("q-size-ok"), touch);
   await expect.poll(() => cardId(page), { timeout: 30_000 }).not.toBe(id);
   await settle(page);
@@ -221,7 +221,7 @@ test.describe("Go-live S6 — the public path end to end, on a laptop", () => {
       await page.getByTestId("talk-mobile").fill(`04${String(Date.now()).slice(-8)}`);
       await page.getByTestId("talk-go").click();
     }
-    await passOtpIfShown(page);
+    // the details were given at the gate on the way to the range, so the door asks for no code here
     await expect(page).toHaveURL(/\/estimate\/quote\?id=/, { timeout: 60_000 });
     await expect(stage).toBeVisible({ timeout: 30_000 });
     await measureOneAndNarrow(page, false);

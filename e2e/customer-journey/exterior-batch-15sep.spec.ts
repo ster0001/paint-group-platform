@@ -84,6 +84,7 @@ test("a side not painting is off the estimate altogether; the editor's sides ope
 test("double storey, outside only: the shape says so — the Access ×1.15 modifier, no working-at-height line, the WO access note seeded", async ({ page }) => {
   test.setTimeout(300_000);
   test.skip(!url || !serviceKey, "needs the service key to read builder_state");
+  test.skip(DESKTOP_ONE_PRESS, GROUPED_LAPTOP_ONLY); // go-live S4 (M5): under one-press an outside job has no place screen — the shell path is proven by the phone blocks and go-live-s4.spec
   const id = await toEditor(page, "ds");
   const db = createClient(url!, serviceKey!);
   const { data: est } = await db.from("estimates").select("builder_state").eq("id", id).single();
