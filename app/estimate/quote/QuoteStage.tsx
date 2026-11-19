@@ -74,7 +74,7 @@ const DRAWING: Record<NonNullable<GeneralCard["options"][number]["drawing"]>, Re
   "win-casement": WINDOW_DRAWINGS.casement, "win-sash": WINDOW_DRAWINGS.sash, "win-colonial": WINDOW_DRAWINGS.colonial, "win-winder": WINDOW_DRAWINGS.winder,
 };
 
-export default function QuoteStage({ brand, estimateId, initial, jobKind, initialScopeRooms, initialLoop, catalogue, initialRoomExtras, initialExtras, roomTypes, plan, initialSides, v2, typicalRows, initialCornices, initialAccess, logoUrl, estimator, companyPhone, customerSuburb, preparedFor, quoteNo, quoteDate, holdDays }: {
+export default function QuoteStage({ brand, estimateId, initial, jobKind, initialScopeRooms, initialLoop, catalogue, initialRoomExtras, initialExtras, roomTypes, plan, initialSides, v2, typicalRows, initialCornices, initialAccess, logoUrl, estimator, companyPhone, customerSuburb, preparedFor, quoteNo, quoteDate, holdDays, initialGeneral = null }: {
   brand: WizardBrand;
   estimateId: string;
   initial: CustomerPayload;
@@ -95,6 +95,8 @@ export default function QuoteStage({ brand, estimateId, initial, jobKind, initia
   /** R6: the customer's own floorplan, when one was uploaded (signed URL from `estimateDocuments`); null = no plan tile. */
   plan: EstimateDocument | null;
   initialCornices: "none" | "standard" | "decorative" | null;
+  /** 19 Nov 2026: the other whole-house answers as stored — a reload or a return never asks them again. */
+  initialGeneral?: { doors: string | null; windows: string | null; paintBase: string | null; glossTrims: string | null } | null;
   initialAccess: { answers: SiteAccess; asksLift: boolean };
   logoUrl: string | null;
   estimator: Estimator;
@@ -125,7 +127,14 @@ export default function QuoteStage({ brand, estimateId, initial, jobKind, initia
   const [v2State, setV2State] = useState<ExteriorV2 | null>(v2);
   const [railQuoteOpen, setRailQuoteOpen] = useState(false); // D-Q6: the desktop quote starts collapsed
   const rooms = useMemo(() => (jobKind === "exterior" ? quoteSidesFrom(sidesView) : quoteRoomsFrom(scopeRooms, loop, roomExtras)), [jobKind, sidesView, scopeRooms, loop, roomExtras]);
-  const [general, setGeneral] = useState<GeneralAnswers>({ cornices: initialCornices });
+  // 19 Nov 2026: every whole-house answer the server already holds starts answered — a reload used to show "5 to go"
+  // over a finished quote. The height is answered when no room's height is assumed and the rooms agree on one.
+  const [general, setGeneral] = useState<GeneralAnswers>(() => {
+    const heights = [...new Set(rooms.filter((r) => r.kind !== "side").map((r) => r.heightM))];
+    const h = heights.length === 1 ? heights[0] : null;
+    const height = initial.heightUnconfirmed || h == null ? null : h >= 3 ? "3" : h === 2.7 ? "2.7" : h === 2.4 ? "2.4" : "varies";
+    return { cornices: initialCornices, height, doors: initialGeneral?.doors ?? null, windows: initialGeneral?.windows ?? null, paintBase: initialGeneral?.paintBase ?? null, glossTrims: initialGeneral?.glossTrims ?? null };
+  });
   const [access, setAccess] = useState<SiteAccess>(initialAccess.answers);
   const [index, setIndex] = useState(0);
   const [busy, setBusy] = useState(false);

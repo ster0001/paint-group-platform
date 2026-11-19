@@ -60,4 +60,5 @@ Type numbers in metres — **3.5**, not 3,5 or "three". Letters or a blank where
 - **"Rooms cleared"** on the whole-house questions changes the price by nothing — it is the plain answer. Furniture staying is what adds an allowance.
 - **The done screen** starts "Tap a room to measure it" and names only the rooms still at the typical size.
 - **On a laptop** the right rail shows every room as a tile — measured, typical size, or to measure — and a tap opens that room's size card. A finished quote reads "All settled".
+- **Coming back keeps your answers.** Reopening the quote range, or reloading it, no longer asks the whole-house questions again; it picks up where you were.
 

@@ -39,6 +39,7 @@ const picture = (page: Page) => page.getByTestId("ql-picture").getByTestId("pic-
 
 test("the home step is on the rail, between the place and the outside questions", async ({ page }) => {
   test.setTimeout(120_000);
+  test.skip(DESKTOP_ONE_PRESS, GROUPED_LAPTOP_ONLY); // go-live S4 (M5): under one-press an outside job has no place screen — the shell path is proven by the phone blocks and go-live-s4.spec
   await toHome(page);
   const keys = await page.getByTestId("wz-rail").locator("li[data-step]").evaluateAll((els) => els.map((e) => (e as HTMLElement).dataset.step ?? ""));
   const want = stepsFor("exterior", "house", "areas", "range", "whole", keys.includes("gate"));
@@ -69,6 +70,7 @@ test("Continue needs a shape and a size, said in words", async ({ page }) => {
 
 test("every shape draws: the picture carries the shape, its parts in grey, and the typical sizes in the caption", async ({ page }) => {
   test.setTimeout(180_000);
+  test.skip(DESKTOP_ONE_PRESS, GROUPED_LAPTOP_ONLY); // go-live S4 (M5): under one-press an outside job has no place screen — the shell path is proven by the phone blocks and go-live-s4.spec
   await toHome(page);
   for (const k of EXTERIOR_SHAPE_KEYS) {
     await page.getByTestId(`ql-ext-type-${k}`).click();
@@ -298,7 +300,7 @@ test.describe("on a phone: Your home is three screens, the drawn house in the st
     // before a shape: the placeholder house of session 3, no drawn house yet
     await expect(page.getByTestId("wzm-thumb").locator("svg[data-testid='wzm-pic']")).toHaveAttribute("data-kind", "house");
     await expect(thumbHouse(page)).toHaveCount(0);
-    await expect(page.getByTestId("wzm-ribbon-1")).toHaveText("Outside · House");
+    await expect(page.getByTestId("wzm-ribbon-1")).toHaveText("Outside"); // go-live S4 (M5): no kind-of-place answer on an outside job
     // the first tap draws it — the front elevation of that shape — and the ribbon names the shape
     await page.getByTestId("ql-ext-type-cal").tap();
     await at(page, "size");

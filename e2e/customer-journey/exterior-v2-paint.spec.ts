@@ -65,6 +65,7 @@ test("the groups, nothing ticked, no materials, no price — and Continue refuse
 
 test("a chip lights its part on the picture; a tap on the picture ticks the chip; the caption names it", async ({ page }) => {
   test.setTimeout(120_000);
+  test.skip(DESKTOP_ONE_PRESS, GROUPED_LAPTOP_ONLY); // go-live S4 (M5): under one-press an outside job has no place screen — the shell path is proven by the phone blocks and go-live-s4.spec
   await toPaint(page);
   await setParts(page, []); // go-live S4 (H2): the usual parts come pre-ticked — start from an empty house
   expect(await picture(page).locator(".e[data-on='1']").count()).toBe(0);

@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { fillQuickAddress, openQuickLook, quickNext, driveNoPlanWizard, openExteriorPages } from "./drive";
+import { fillQuickAddress, openQuickLook, quickNext, driveNoPlanWizard, openExteriorPages, DESKTOP_ONE_PRESS, GROUPED_LAPTOP_ONLY } from "./drive";
 
 /**
  * R1.3 — the document model (diagnostic #2 and #3).
@@ -50,6 +50,7 @@ test.describe("R1.3 document model", () => {
   });
 
   test("the exterior path has no floorplan field anywhere", async ({ page }) => {
+    test.skip(DESKTOP_ONE_PRESS, GROUPED_LAPTOP_ONLY); // go-live S4 (M5): under one-press an outside job has no place screen — the shell path is proven by the phone blocks and go-live-s4.spec
     // Tom, 25 Oct 2026: a customer's only way in is the quick look (the upload
     // route is staff-only) — an outside job walks the drawn house, and no screen
     // on it offers a floorplan.

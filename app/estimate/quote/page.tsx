@@ -98,6 +98,7 @@ export default async function QuoteStagePage({ searchParams }: { searchParams: P
         v2={v2}
         typicalRows={typicalRows}
         initialCornices={bundle.kind === "rooms" ? bundle.initialCornices : null}
+        initialGeneral={bundle.kind === "rooms" ? bundle.initialGeneral : null}
         initialAccess={bundle.kind === "rooms" ? bundle.initialAccess : { answers: {}, asksLift: false }}
         logoUrl={bundle.logoUrl}
         estimator={bundle.estimator}
