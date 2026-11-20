@@ -2679,12 +2679,12 @@
 }
 
 /* ── WIZARD MOBILE V5 — S5: the Contact sheet (brief §5) ── */
-.wz .wzm-contact .wzm-srow { display: flex; align-items: center; gap: 12px; width: 100%; padding: 14px 0; border: 0; border-bottom: 1px solid var(--line); background: none; font: inherit; font-weight: 600; font-size: 16px; color: var(--heading); text-align: left; text-decoration: none; cursor: pointer; }
-.wz .wzm-contact .wzm-srow:last-child { border-bottom: 0; }
-.wz .wzm-contact .wzm-srow small { display: block; font-weight: 400; color: var(--muted); font-size: 12px; }
-.wz .wzm-contact .wzm-srow--who { border-bottom: 0; padding-top: 4px; }
-.wz .wzm-contact .wzm-srow--who > div { display: block; }
-.wz .wzm-contact .wzm-contact-book { margin: 8px 0 14px; }
+.wz .wzm-contact-sheet .wzm-srow { display: flex; align-items: center; gap: 12px; width: 100%; padding: 14px 0; border: 0; border-bottom: 1px solid var(--line); background: none; font: inherit; font-weight: 600; font-size: 16px; color: var(--heading); text-align: left; text-decoration: none; cursor: pointer; }
+.wz .wzm-contact-sheet .wzm-srow:last-child { border-bottom: 0; }
+.wz .wzm-contact-sheet .wzm-srow small { display: block; font-weight: 400; color: var(--muted); font-size: 12px; }
+.wz .wzm-contact-sheet .wzm-srow--who { border-bottom: 0; padding-top: 4px; }
+.wz .wzm-contact-sheet .wzm-srow--who > div { display: block; }
+.wz .wzm-contact-sheet .wzm-contact-book { margin: 8px 0 14px; }
 
 /* ── EXTERIOR ON MOBILE v5 — S1: Your home on a phone (plan §2 screens 2–4, §3; the prototype at 390px). Under .wzm only. ── */
 .wz .wzm-stage { font-size: 12px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--cyan); margin: 0 0 2px; }

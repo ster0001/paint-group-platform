@@ -109,7 +109,7 @@ On a phone (any screen narrower than about 770px) the same questions come one at
 - **On a phone the quick look is one question per screen** — see *On a phone* above. The picture panel pinned under the step bar and the floating talk-it-through pill are gone on phones; the laptop layout is unchanged.
 - **The strip under the bar shows your place** — a small picture that paints each surface in as you tick it, with your answers so far beside it; tap it for the full-width picture and the same chips.
 - **The range screen on a phone is one column** — the range, the one question, three tiles, your estimator, the trust line and what's in the range; no picture, no tolerance figure. The room-by-room editor on Paint Home now carries the Paint Home mark.
-- **Contact on a phone is a sheet** — your estimator, Book a visit, Call, Send a message, Save and come back later — on every screen including the range.
+- **Contact on a phone is a sheet** — your estimator, Book a visit, Call, Send us a message, Save and come back later — on every screen including the range.
 - **The laptop's room picture rolls the paint on** — tick a surface on the job step and a roller sweeps it in; untick and it wipes back (the same roller as the phone's picture).
 - **The homepage's address box on a phone** is stacked — the address, then a full-width See my price — and suggestions overlay the chips.
 

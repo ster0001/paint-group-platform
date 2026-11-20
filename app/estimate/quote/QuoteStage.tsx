@@ -37,6 +37,7 @@ import { lineState } from "@/lib/quote/quote";
 import { DOOR_DRAWINGS, WINDOW_DRAWINGS } from "@/app/estimate/scope/StyleTiles";
 import Wordmark from "@/app/wizard/Wordmark";
 import MobileContact from "@/app/wizard/MobileContact";
+import TalkSheet from "@/app/wizard/TalkSheet";
 
 /**
  * QUOTE STAGE v10 — the shell and the cards (brief §2 mobile, §3; the
@@ -114,6 +115,7 @@ export default function QuoteStage({ brand, estimateId, initial, jobKind, initia
   // the room sheet is open FOR a card: moving to another card closes it without an effect
   const [roomOpenFor, setRoomOpenFor] = useState<string | null>(null);
   const [planOpen, setPlanOpen] = useState(false);
+  const [messageOpen, setMessageOpen] = useState(false); // Tom, 20 Nov 2026: "Send us a message" is on the Contact sheet on every card, the finished quote included
   const [saveOpen, setSaveOpen] = useState(false); // Tom, 5 Nov: "Save estimate — you can come back to it at any time"
   const [payload, setPayload] = useState<Payload>(initial);
   const [scopeRooms, setScopeRooms] = useState<CustomerScopeRoom[]>(initialScopeRooms);
@@ -507,7 +509,15 @@ export default function QuoteStage({ brand, estimateId, initial, jobKind, initia
         </div>
       )}
       <MobileContact open={contactOpen} onClose={() => setContactOpen(false)} brand={brand} estimatorName={estimator.name} suburb={customerSuburb}
-        phone={estimator.phone ?? companyPhone} onBook={book} onCall={() => sendWizardEvent("quote_book_clicked", {})} />
+        phone={estimator.phone ?? companyPhone} onBook={book} onCall={() => sendWizardEvent("quote_book_clicked", {})}
+        onMessage={() => { sendWizardEvent("contact_opened", { step: `message:${current.id}`.slice(0, 40) }); setMessageOpen(true); }} />
+      {/* the talk sheet's message mode: posted into the customer's chat with the office (the CRM's live chat) and emailed */}
+      {messageOpen && (
+        <TalkSheet open mode="message" onClose={() => setMessageOpen(false)} estimateId={estimateId}
+          prefill={{ name: preparedFor.name ?? "", email: preparedFor.email ?? "", mobile: preparedFor.mobile ?? "" }}
+          hasContact={Boolean(preparedFor.name?.trim() && preparedFor.email?.trim() && preparedFor.mobile?.trim())}
+          address={preparedFor.address ?? ""} />
+      )}
     </div>
   );
 }

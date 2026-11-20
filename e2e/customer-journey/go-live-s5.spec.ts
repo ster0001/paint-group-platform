@@ -161,6 +161,28 @@ test.describe("Go-live S5 — the quote adds up, and copy", () => {
     await expect(tiles.first()).toHaveAttribute("data-state", "typical");
     await expect(page.getByTestId("q-rail-quote-toggle")).toContainText("All settled");
     await shot(page, "04-laptop-rail");
+    // Tom, 20 Nov 2026 — Contact on a laptop is a side sheet with every row readable (it drew as one big bubble), and the
+    // finished quote always carries "Send us a message": the talk sheet's message box, which posts into the office's live chat
+    await page.getByTestId("wzm-contact").click();
+    const panel = page.getByTestId("wzm-contact-panel");
+    await expect(panel).toBeVisible();
+    const look = await panel.evaluate((el) => { const c = getComputedStyle(el); const r = el.getBoundingClientRect(); return { radius: parseFloat(c.borderTopLeftRadius), pad: parseFloat(c.paddingLeft), width: r.width, right: r.right, vw: window.innerWidth }; });
+    expect(look.radius, "square side sheet, not a bubble").toBeLessThanOrEqual(30);
+    expect(look.pad).toBeGreaterThanOrEqual(18);
+    expect(look.width).toBeLessThanOrEqual(480);
+    expect(Math.round(look.right), "docked to the right edge").toBe(look.vw);
+    for (const id of ["wzm-contact-who", "wzm-contact-book", "wzm-contact-message"]) {
+      const box = await panel.getByTestId(id).boundingBox();
+      expect(box && box.x >= look.right - look.width && box.x + box.width <= look.right, `${id} sits inside the sheet`).toBe(true);
+    }
+    await shot(page, "05-laptop-contact");
+    await expect(panel.getByTestId("wzm-contact-message")).toContainText("Send us a message");
+    await panel.getByTestId("wzm-contact-message").click();
+    await expect(page.getByTestId("wzm-contact-sheet")).toHaveCount(0);
+    await expect(page.getByTestId("talk-sheet")).toHaveAttribute("aria-label", "Send us a message");
+    await expect(page.getByTestId("talk-message"), "the details are known, so the message box comes first").toBeVisible();
+    await page.keyboard.press("Escape");
+    await expect(page.getByTestId("talk-sheet")).toHaveCount(0);
     // a tile opens that room's size card
     await tiles.first().click();
     await expect.poll(() => cardId(page), { timeout: 30_000 }).toMatch(/^measure:/);

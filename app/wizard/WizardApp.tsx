@@ -181,13 +181,15 @@ const PROC_TIPS = [
   "Nothing is booked and nothing is charged until you say so.",
 ];
 
-export default function WizardApp({ roomTypes, substrates, mode = "internal", prefill, prefillState, logoUrl, companyPhone = null, estimatorName = null, trust = null, intent, resume = null, assisted = null, segments = DEFAULT_SEGMENTS, gateOrder = "details_first", exteriorTypicals = [], brand = "paintgroup" }: {
+export default function WizardApp({ roomTypes, substrates, mode = "internal", prefill, prefillState, logoUrl, companyPhone = null, estimatorName = null, estimatorPhone = null, trust = null, intent, resume = null, assisted = null, segments = DEFAULT_SEGMENTS, gateOrder = "details_first", exteriorTypicals = [], brand = "paintgroup" }: {
   /** Paint Home brief §5: the shopfront this session came through — the host or the hand-off decided it (lib/wizard/brandServer.ts). Paint Group by default. */
   brand?: WizardBrand;
   /** Exterior wizard v2 (S2): the shape typicals (`exterior_typicals`); empty = the built-in list. */
   exteriorTypicals?: ReadonlyArray<ExteriorTypicalRow>;
   /** UI refresh S2 (⚑ 23): the estimator the wizard resolves (`resolveEstimator`), named in "Talk it through". Null names nobody. */
   estimatorName?: string | null;
+  /** Tom, 20 Nov 2026: the estimator's own number (Settings → Company → Estimator phone), shown wherever the estimator is named; the company number when blank. */
+  estimatorPhone?: string | null;
   /** UI refresh S3 (⚑ 5): the homepage's trust claims, for the range screen. */
   trust?: { rating: number | null; count: number | null; url: string | null; warranty: string | null; warrantyNote: string | null } | null;
   /** S6 (R6): the gate order in Booking rules when the page loaded. A resumed session keeps its own. */
@@ -2023,7 +2025,7 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
           brand={brand}
           estimatorName={reveal.payload.estimator?.name ?? estimatorName}
           suburb={state.address?.suburb || state.customer?.suburb || null}
-          phone={companyPhone}
+          phone={estimatorPhone ?? companyPhone}
           // on the gate: the booking page — the zone's pre-set days, the hold, the texted code (brief §5.2; both shopfronts)
           onBook={() => { sendWizardEvent("gate_cta_clicked", { cta: "visit", breakpoint: "mobile" }); void recordRangeOption(reveal.estimateId, "visit"); clearResume(); router.push(`/estimate/visit?id=${reveal.estimateId}`); }}
           onMessage={() => { sendWizardEvent("gate_cta_clicked", { cta: "message", breakpoint: "mobile" }); void recordRangeOption(reveal.estimateId, "message"); setTalk({ mode: "message" }); }}
@@ -2269,7 +2271,7 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
         otp: { ui: otp, on: otpOn },
       } : null}
       onChooseBoth={chooseBoth}
-      phone={companyPhone}
+      phone={estimatorPhone ?? companyPhone}
       outside={outside}
       onOutside={setOutside}
       // Tom, 15 Sep: under "Needs work" — the damage note and the
@@ -2357,7 +2359,7 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
           brand={brand}
           estimatorName={estimatorName}
           suburb={state.address?.suburb || state.customer?.suburb || null}
-          phone={companyPhone}
+          phone={estimatorPhone ?? companyPhone}
           // before the range a visit is a REQUEST, never a slot (R3): the talk sheet's visit mode (a call request needs a range — R25)
           onBook={() => setTalk({ mode: "visit" })}
           onMessage={() => setTalk({ mode: "message" })}
@@ -2523,7 +2525,7 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
                 desktop={{
                   suburb: state.address?.suburb || state.customer?.suburb || null,
                   estimatorName,
-                  phone: companyPhone,
+                  phone: estimatorPhone ?? companyPhone,
                   // Paint Home brief §5: the mid-flow door asks for a call, never a site visit (as the grouped page's talk card).
                   onBook: () => { flushDraft(lastScreen); sendWizardEvent("contact_opened", { step: quickStep }); setTalk({ mode: brand === "painthome" ? "call" : "visit" }); },
                   onMessage: () => { flushDraft(lastScreen); sendWizardEvent("contact_opened", { step: quickStep }); setTalk({ mode: "message" }); },

@@ -20,6 +20,9 @@ import type { WizardBrand } from "@/lib/wizard/brand";
  *   · Call → tel:
  *   · Send a message → the talk sheet's message mode
  *   · Save and come back later → Save & book (the link back by email)
+ * Tom, 20 Nov 2026: the sheet's own class is `wzm-contact-sheet`. It used to share `wzm-contact` with the PILL that
+ * opens it, so the sheet took the pill's 999px corners, 8px padding and 13px type: on a laptop a full-height bubble with
+ * its rows cut off by the curve.
  * ⚑ The brief's slot booking from step 3 on name + mobile alone, confirmed
  * by a text rather than a code, needs three rulings first (ledger M5 · S5).
  */
@@ -51,7 +54,7 @@ export default function MobileContact({ open, onClose, brand, estimatorName, sub
   const go = (fn: () => void) => () => { onClose(); fn(); };
   return (
     <div className="wz-sheetback wzm-sheetback" role="dialog" aria-modal="true" aria-label="Contact" data-testid="wzm-contact-sheet" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
-      <div className="wz-sheet wzm-sheet wzm-contact">
+      <div className="wz-sheet wzm-sheet wzm-contact-sheet" data-testid="wzm-contact-panel">
         <button type="button" className="wz-sheet-x" aria-label="Close" onClick={onClose} data-testid="wzm-contact-x">×</button>
         <div className="wzm-grab" aria-hidden="true" />
         <div className="wzm-srow wzm-srow--who" data-testid="wzm-contact-who">
@@ -66,7 +69,7 @@ export default function MobileContact({ open, onClose, brand, estimatorName, sub
         {phone && (
           <a className="wzm-srow" href={`tel:${phone.replace(/\s+/g, "")}`} data-testid="wzm-contact-call" onClick={() => { countCallTap(); onCall?.(); }}>Call {phone}<small>Mon–Fri, 8–6</small></a>
         )}
-        {onMessage && <button type="button" className="wzm-srow" onClick={go(onMessage)} data-testid="wzm-contact-message">Send a message<small>We reply the same day</small></button>}
+        {onMessage && <button type="button" className="wzm-srow" onClick={go(onMessage)} data-testid="wzm-contact-message">Send us a message<small>Straight to our team&rsquo;s live chat. We reply the same day</small></button>}
         {onSave && <button type="button" className="wzm-srow" onClick={go(onSave)} data-testid="wzm-contact-save">Save and come back later<small>We email you the link</small></button>}
       </div>
     </div>
