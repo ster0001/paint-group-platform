@@ -1,5 +1,5 @@
 import { expect, type Page } from "@playwright/test";
-import { fillQuickAddress, lookAtEverySide, MONEY_RANGE, openQuickLook, passGateIfShown, quickNext, tightenToScope } from "./drive";
+import { fillQuickAddress, lookAtEverySide, MONEY_RANGE, openQuickLook, passGateIfShown, quickNext, setParts, tightenToScope } from "./drive";
 
 /**
  * Exterior wizard v2 — the shared walk to the Each-side step for the S4/S5
@@ -22,7 +22,7 @@ export async function toSides(page: Page, shape = "cal", parts = BUNGALOW_PARTS,
   if (rowPosition) await page.getByTestId(`ql-ext-row-${rowPosition}`).click();
   await quickNext(page);
   await expect(page.locator("[data-quick-step='paint']")).toBeVisible({ timeout: 20_000 });
-  for (const p of parts) await page.getByTestId(`ext-part-${p}`).click();
+  await setParts(page, parts);
   await quickNext(page);
   await expect(page.locator("[data-quick-step='about']")).toBeVisible({ timeout: 20_000 });
   if (parts.includes("walls")) await page.getByTestId("ext-mat-weatherboards").click();

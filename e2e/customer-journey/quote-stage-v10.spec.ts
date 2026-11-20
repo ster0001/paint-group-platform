@@ -3,7 +3,7 @@ import { randomBytes } from "node:crypto";
 import { test } from "../helpers";
 import { serviceClient } from "../fixtures/woLoop";
 import { readFileSync } from "node:fs";
-import { MONEY_RANGE, driveMobileQuickLook, driveNoPlanWizard, openQuickLook, fillQuickAddress, passOtpIfShown } from "./drive";
+import { MONEY_RANGE, driveMobileQuickLook, driveNoPlanWizard, openQuickLook, fillQuickAddress, passOtpIfShown, gateDoor } from "./drive";
 /** D-Q5: `lib/wizard/spotPhoto.ts SPOT_PHOTO_MAX_BYTES` (not imported — that module loads the browser client). */
 const SPOT_PHOTO_MAX_BYTES = 25 * 1024 * 1024; // Tom, 5 Nov: any phone-sized photo — the adapter's own limit
 
@@ -100,10 +100,10 @@ test.describe("quote stage v10 — session 1: the cards on a phone", () => {
     if (await bounced.count()) throw new Error(`submit failed: ${await bounced.first().innerText()}`);
     // R1 / D-Q2: the door's words
     await expect(page.getByTestId("gate-exact")).toContainText("Get my quote range");
-    await expect(page.getByTestId("gate-bar-exact")).toHaveText("Get my quote range");
+    await expect(gateDoor(page)).toContainText("Get my quote range"); // M4: whichever door is the visible one
     await shot(page, "phone-00-gate");
     await expect(gate).not.toContainText(/exact/i);
-    await page.getByTestId("gate-bar-exact").tap();
+    await gateDoor(page).tap();
     await expect(page).toHaveURL(/\/estimate\/quote\?id=/, { timeout: 30_000 });
     const stage = page.getByTestId("quote-stage");
     await expect(stage).toBeVisible({ timeout: 30_000 });
@@ -127,7 +127,7 @@ test.describe("quote stage v10 — session 1: the cards on a phone", () => {
     const doc = page.getByTestId("q-panel").getByTestId("q-doc"); // the desktop rail holds a second copy, hidden on a phone
     await expect(doc).toHaveAttribute("data-title", "Draft quote");
     await expect(doc.getByTestId("q-doc-title")).toHaveText(/^Draft quote · PG-[0-9A-F]{6}$/);
-    await expect(doc).toContainText("Valid 30 days · Includes GST");
+    await expect(doc).toContainText(/Valid \d+ days · Includes GST/); // go-live D5: the number is Settings' (wizard_hold_days)
     await expect(doc.getByTestId("q-doc-for")).toContainText("Quote Tester");
     await expect(doc.getByTestId("q-doc-for")).toContainText(`q10.${run}@example.com`);
     const lines = doc.locator("[data-testid^='q-line-']:not([data-testid$='-amount'])");
@@ -264,13 +264,13 @@ test.describe("quote stage v10 — session 1: the cards on a phone", () => {
     await page.getByTestId("q-add-surface").tap();
     await page.getByTestId("q-next").tap();
     await expect(stage).toHaveAttribute("data-quote-card", new RegExp(`^(robe|attention):${firstArea}$`), { timeout: 30_000 });
-    // B3 — robes and cupboards (only where the loop offers a row): Yes opens the loop's own questions
+    // B3 — built-in robes (a bedroom, where the card has a robe row)
     if ((await cardId(page)) === `robe:${firstArea}`) {
-      await expect(page.getByTestId("wzm-h1")).toContainText("robes or cupboards");
-      await page.getByTestId("q-robe-yes").tap();
+      await expect(page.getByTestId("wzm-h1")).toContainText("built-in robes");
+      // Tom, 20 Nov 2026: the doors and the walls inside are two ticks, each with its own counter
+      await page.getByTestId("q-robe-doors").tap();
+      await expect(page.getByTestId("q-robe-doors")).toHaveAttribute("aria-pressed", "true", { timeout: 30_000 });
       await expect(page.getByTestId("q-robe-more")).toBeVisible();
-      await page.getByTestId("q-robe-doors-yes").tap();
-      await expect(page.getByTestId("q-robe-doors-yes")).toHaveAttribute("aria-pressed", "true");
       // §4 (S4) — the robe and its doors render on the right wall
       await expect(page.getByTestId("q-room-pic").locator("[data-surf='robedoors']")).toHaveAttribute("data-on", "true", { timeout: 30_000 });
       await page.getByTestId("q-next").tap();

@@ -1,4 +1,5 @@
 import { expect, type Page } from "@playwright/test";
+import { setParts, boldNoIfAsked } from "./drive";
 import { randomBytes } from "node:crypto";
 import { mkdirSync } from "node:fs";
 import { test } from "../helpers";
@@ -112,6 +113,7 @@ test.describe("Wizard mobile v5 — the live strip, thumbnail and roller (sessio
     await at(page, "colours");
     await expect(page.getByTestId("wzm-ribbon-1")).toHaveText(/^Inside · House · 3 bed · Two storeys · Whole interior · \d+ rooms$/);
     await page.getByTestId("ql-colours-new").tap();
+    await page.getByTestId("ql-bold-no").tap(); // S5 M8: a colour change asks the bold question first
     await at(page, "condition");
     await page.getByTestId("ql-condition-wear").tap();
     await at(page, "living");
@@ -220,6 +222,7 @@ test.describe("Wizard mobile v5 — the live strip, thumbnail and roller (sessio
     await at(page, "colours");
     for (const c of ["new", "same", "deciding"] as const) {
       await page.getByTestId(`ql-colours-${c}`).tap();
+      await boldNoIfAsked(page); // S5 M8: a colour change asks the bold question first
       await at(page, "condition");
       await expect(thumb(page)).toHaveAttribute("data-colour", c);
       await shot(page, `colour-${c}`);
@@ -227,6 +230,7 @@ test.describe("Wizard mobile v5 — the live strip, thumbnail and roller (sessio
       await at(page, "colours");
     }
     await page.getByTestId("ql-colours-new").tap();
+    await page.getByTestId("ql-bold-no").tap(); // S5 M8: a colour change asks the bold question first
     await at(page, "condition");
     for (const c of ["wear", "needs_work", "good"] as const) {
       await page.getByTestId(`ql-condition-${c}`).tap();
@@ -257,9 +261,16 @@ test.describe("Wizard mobile v5 — the live strip, thumbnail and roller (sessio
     await expect(house).toHaveAttribute("data-shape", "ds");
     await page.getByTestId("ql-ext-size-md").tap();
     await at(page, "p-house");
-    await expect(page.getByTestId("wzm-ribbon-2")).toHaveText("0 parts ticked · tap to see");
-    await page.getByTestId("ext-part-walls").click();
-    await page.getByTestId("ext-part-gutters").click();
+    // go-live S4 (H2): the usual parts come pre-ticked — cleared, then the two this test wants
+    await expect(page.getByTestId("ext-part-walls")).toHaveAttribute("aria-pressed", "true");
+    await setParts(page, []);
+    await expect(page.getByTestId("wzm-ribbon-2")).toHaveText("2 parts ticked · tap to see"); // windows and doors, on the next screen
+    await setParts(page, ["walls", "gutters"]);
+    await page.getByTestId("ql-next").click();
+    await at(page, "p-win");
+    await setParts(page, []);
+    await page.getByTestId("wzm-back").click();
+    await at(page, "p-house");
     await expect(house.locator(".e-walls")).toHaveAttribute("data-on", "1");
     await expect(house.locator(".e-gutters")).toHaveAttribute("data-on", "1");
     await expect(house.locator(".e-doors")).toHaveAttribute("data-on", "0");

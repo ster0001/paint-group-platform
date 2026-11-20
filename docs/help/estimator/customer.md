@@ -79,6 +79,16 @@ On a phone (any screen narrower than about 770px) the same questions come one at
 - estimator/commercial — an office, warehouse, shop or building
 - estimator/trade — agencies and building managers with a trade account
 
+## Changes on 18 Nov 2026
+- **Outside, the usual parts come ticked.** Walls (where a home like yours usually has painted walls — bare brick stays unticked), fascias, gutters, eaves, windows and doors start ticked on the Painting screens; untick what we are not doing. The first screen says so if you clear everything, and the last Painting screen's Continue tells you why it waits ("Tick at least one part").
+- **Outside skips "What kind of place?"** — the home-type screen says it. Painting a commercial building? The line under the shapes takes you to the commercial questions.
+- **The wall material is pre-selected** from the home type (weatherboards for a weatherboard home, render for a double-storey, brick for brick veneer); change it if we have it wrong.
+- **The outside promise reads "Side by side, about two minutes."** and the range screen's basis line names only the parts you ticked.
+- **The details screen says what is wrong** as you type — a first name alone, a landline ("That looks like a landline — we need a mobile to text your code"), a short mobile, an email that doesn't look right — and the consent line sits above the button, never under it.
+- **Typing your address never moves the job cards**; the suggestions drop over them.
+- **A small job** (under our minimum call-out) shows one sentence and the mobile you already gave — tap **Request a call back**, or **Different number?** to change it. An address outside our area gets the out-of-area screen first, whatever the size.
+- **Option cards are named for screen readers** by the question above them.
+
 ## Changes on 5 Nov 2026
 - **One question at a time on a laptop.** Where the shopfront has it switched on, the laptop asks the phone's twelve screens one at a time inside its two-column layout, with the keys 1–5 / Enter / ← and small key numbers on the cards; the range screen asks **Want the detailed number?** with **Get my detailed price** as the first door. See *Steps*, step 2.
 - **A texted code before the price.** After your name, mobile and email, we text a six-digit code to the mobile and the range shows only once it is entered — on a phone and on a laptop. Send it again waits a minute; Wrong number? Change it goes back to the details. See *On a phone*, step 12a.
@@ -99,7 +109,7 @@ On a phone (any screen narrower than about 770px) the same questions come one at
 - **On a phone the quick look is one question per screen** — see *On a phone* above. The picture panel pinned under the step bar and the floating talk-it-through pill are gone on phones; the laptop layout is unchanged.
 - **The strip under the bar shows your place** — a small picture that paints each surface in as you tick it, with your answers so far beside it; tap it for the full-width picture and the same chips.
 - **The range screen on a phone is one column** — the range, the one question, three tiles, your estimator, the trust line and what's in the range; no picture, no tolerance figure. The room-by-room editor on Paint Home now carries the Paint Home mark.
-- **Contact on a phone is a sheet** — your estimator, Book a visit, Call, Send a message, Save and come back later — on every screen including the range.
+- **Contact on a phone is a sheet** — your estimator, Book a visit, Call, Send us a message, Save and come back later — on every screen including the range.
 - **The laptop's room picture rolls the paint on** — tick a surface on the job step and a roller sweeps it in; untick and it wipes back (the same roller as the phone's picture).
 - **The homepage's address box on a phone** is stacked — the address, then a full-width See my price — and suggestions overlay the chips.
 
@@ -112,4 +122,10 @@ On a phone (any screen narrower than about 770px) the same questions come one at
 ## Changes on 28 Oct 2026
 - **"A few details to settle" comes first.** In Tighten my price the card is framed in cyan with *Start here* above its title, and the rooms and everything below it are dimmed until every detail is answered. They are still there to tap, but the details are the place to start.
 - **Measurements save themselves.** Type a room's length, width or ceiling height (or an outside side's length and height) and click or tap out of the boxes; the size is recorded and the range repriced. There is no Update button. A side copied from the opposite side keeps a one-tap **Keep these**.
+
+## Changes on 19 Nov 2026
+- **On a phone, after "New colours" or "Still deciding"** a screen asks "Going much lighter, or a bold colour?" — the same question the laptop asks. Yes allows an undercoat under every surface changing colour; "Same colours" is never asked it.
+- **What we'll do** — the coats badge counts the topcoats and names the undercoat beside them ("2 coats + undercoat"), and the sentence under it always says the same number.
+- **A hall or landing** now carries the hall side of every door that opens onto it, plus the inside of the front door, in the starting room list.
+- **A two-storey house is priced, not handed off.** The drawn house already allows for the upper level, so a two-storey outside job no longer sends a Paint Home customer to the "bigger job" screen. That screen now appears only when the top of the range is over Paint Home's phone-close ceiling; a job that genuinely needs a person to look (an unsure asbestos answer, a mixed scope) reads "This one needs a look in person" instead.
 

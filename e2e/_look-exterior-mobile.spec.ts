@@ -1,7 +1,7 @@
 import { expect, type Page } from "@playwright/test";
 import { mkdirSync } from "node:fs";
 import { test } from "./helpers";
-import { fillQuickAddress, openQuickLook, MONEY_RANGE, passOtpIfShown } from "./customer-journey/drive";
+import { fillQuickAddress, openQuickLook, MONEY_RANGE, passOtpIfShown, setParts, gateDoor } from "./customer-journey/drive";
 
 /**
  * Diagnostic, not a gate — exterior on mobile v5's screenshot set (plan §5
@@ -28,15 +28,14 @@ test.describe("exterior mobile screenshots (the plan's set)", () => {
     await fillQuickAddress(page, { suburb: "Shotsville" });
     await expect(page.getByTestId("wzm")).toBeVisible({ timeout: 20_000 });
     await shot("01-what");
-    await tap("ql-jobtype-exterior"); await at("property");
-    await tap("ql-kind-house"); await at("shape"); await shot("02-shape");
+    await tap("ql-jobtype-exterior"); await at("shape"); await shot("02-shape"); // go-live S4 (M5): no "What kind of place?" outside
     await tap("ql-ext-type-cal"); await at("size"); await shot("03-size");
     await tap("ql-ext-size-md"); await at("p-house"); await shot("05a-house");
-    for (const p of ["walls", "gable", "fascias", "eaves"]) await tap(`ext-part-${p}`);
+    await setParts(page, ["walls", "gable", "fascias", "eaves", "windows", "doors", "verandah"]); // go-live S4 (H2): the usual parts come pre-ticked
     await page.waitForTimeout(800); await shot("05a-house-ticked");
     await page.getByTestId("wzm-strip").tap(); await page.waitForTimeout(500); await shot("05a-sheet"); await page.keyboard.press("Escape");
-    await next("p-win"); await tap("ext-part-windows"); await tap("ext-part-doors"); await shot("05b-windows-doors");
-    await next("p-ver"); await tap("ext-part-verandah"); await shot("05c-verandah");
+    await next("p-win"); await setParts(page, ["windows", "doors"]); await shot("05b-windows-doors");
+    await next("p-ver"); await setParts(page, ["verandah"]); await shot("05c-verandah");
     await next("p-around"); await tap("ext-extra-paling_fence"); await shot("05d-around");
     await next("a-walls"); await shot("06a-walls");
     await tap("ext-mat-weatherboards"); await at("a-gable"); await shot("06-gable");
@@ -59,7 +58,7 @@ test.describe("exterior mobile screenshots (the plan's set)", () => {
     await expect(page.getByTestId("gate-range")).toHaveText(MONEY_RANGE);
     await shot("11-gate");
     await page.getByTestId("gate-included").locator("summary").tap(); await shot("11-gate-rows");
-    await tap("gate-bar-exact"); await at("w-front"); await shot("12-walk-front");
+    await gateDoor(page).tap(); await at("w-front"); await shot("12-walk-front");
     await tap("ext-size-adj"); await shot("12-walk-adjust");
     await tap("ext-size-yes"); await tap("ext-cond-good"); await tap("ext-check-side"); await at("w-right");
     for (const s of ["w-right", "w-back", "w-left"]) { await at(s); await tap("ext-size-yes"); await tap("ext-cond-good"); await tap("ext-check-side"); }

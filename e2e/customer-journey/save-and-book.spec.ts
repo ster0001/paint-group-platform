@@ -1,5 +1,5 @@
 import { expect } from "@playwright/test";
-import { driveNoPlanWizard, fillQuickAddress, MONEY_RANGE, openQuickLook, quickNext, passGateIfShown, answerOutsideQuick, openTalk } from "./drive";
+import { driveNoPlanWizard, fillQuickAddress, MONEY_RANGE, openQuickLook, quickNext, passGateIfShown, answerOutsideQuick, openTalk, onMobileShell } from "./drive";
 import { serviceClient } from "../fixtures/woLoop";
 import { credentials, signIn, test } from "../helpers";
 
@@ -37,6 +37,17 @@ test("nine taps to a range, and no email is asked before it (range first)", asyn
   const tap = async (testId: string) => { await page.getByTestId(testId).click(); taps++; };
   await fillQuickAddress(page);
   await expect(page.locator('input[type="email"]')).toHaveCount(0);
+  if (await onMobileShell(page)) {
+    // Desktop one-press (19 Nov 2026): the phone's one-question screens — a single choice advances itself.
+    await tap("ql-jobtype-interior");
+    await expect(page.locator('input[type="email"]')).toHaveCount(0);
+    await tap("ql-kind-house"); await tap("ql-bedrooms-3"); await tap("ql-storeys-single");
+    await tap("ql-scope-whole"); await tap("ql-next"); // the surfaces screen, as it is
+    await expect(page.locator("[data-quick-step='rooms']")).toBeVisible({ timeout: 30_000 });
+    await tap("ql-next");
+    await expect(page.locator('input[type="email"]')).toHaveCount(0);
+    await tap("ql-colours-same"); await tap("ql-condition-good"); await tap("ql-occupied-no");
+  } else {
   await tap("ql-next");
   await expect(page.locator('input[type="email"]')).toHaveCount(0);
   await tap("ql-kind-house"); await tap("ql-bedrooms-3"); await tap("ql-storeys-single");
@@ -51,6 +62,7 @@ test("nine taps to a range, and no email is asked before it (range first)", asyn
   await expect(page.locator('input[type="email"]')).toHaveCount(0);
   await tap("ql-condition-good"); await tap("ql-occupied-no");
   await tap("ql-next");
+  }
   await expect(page.getByTestId("reveal-range")).toContainText(MONEY_RANGE, { timeout: 90_000 });
   // Thirteen taps including the Continues and the exclusions popup (Tom, 14 Sep
   // evening: the rooms are confirmed before the gate) — and no email anywhere on the way.
@@ -80,7 +92,9 @@ test("Save & book from screen 3 keeps the session; staff open it at screen 3", a
   await page.getByTestId("ql-bedrooms-2").click();
   await quickNext(page);
   await expect(page.locator("[data-quick-step='job']")).toBeVisible();
-  await page.getByTestId("ql-scope-walls_ceilings").click();
+  // On the one-press shell a preset advances itself — walls and ceilings only would leave the job step at once, so
+  // there the whole interior is picked (its surfaces screen is still the job step: `quick:job`).
+  await page.getByTestId((await onMobileShell(page)) ? "ql-scope-whole" : "ql-scope-walls_ceilings").click();
 
   // The pill, on screen 3.
   await page.getByTestId("save-and-book-pill").click();
@@ -115,7 +129,7 @@ test("'both' meets the choice screen, then shows two ranges", async ({ page }) =
   await openQuickLook(page);
   await fillQuickAddress(page);
   await page.getByTestId("ql-jobtype-both").click();
-  await quickNext(page);
+  if (!(await onMobileShell(page))) await quickNext(page); // the shell's job-type tap advances itself
   await expect(page.getByTestId("ql-both")).toBeVisible();
   await expect(page.getByTestId("ql-next")).toHaveCount(0); // the doors are the answer
   await page.getByTestId("ql-both-book").click();
@@ -128,10 +142,12 @@ test("'both' meets the choice screen, then shows two ranges", async ({ page }) =
   await page.getByTestId("ql-kind-house").click();
   await quickNext(page);
   await page.getByTestId("ql-scope-whole").click();
-  await page.getByTestId("ql-excl-none").click(); // the exclusions popup after a preset (14 Sep evening)
+  const shell = await onMobileShell(page);
+  if (!shell) await page.getByTestId("ql-excl-none").click(); // the exclusions popup after a preset (14 Sep evening)
   await quickNext(page);
   await expect(page.locator("[data-quick-step='rooms']")).toBeVisible({ timeout: 30_000 }); // 14 Sep (evening): confirm the rooms
   await quickNext(page);
+  if (shell) { await page.getByTestId("ql-colours-new").click(); await page.getByTestId("ql-bold-no").click(); } // the shell's colours, then the bold question
   await page.getByTestId("ql-condition-good").click();
   await quickNext(page);
   await answerOutsideQuick(page); // the outside answers on whichever screens the flag puts there (S3); lands on Which sides

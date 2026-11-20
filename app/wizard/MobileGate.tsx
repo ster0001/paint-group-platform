@@ -1,7 +1,7 @@
 "use client";
 
 import { countInBackground } from "@/lib/marketing/success";
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import type { CustomerPayload } from "@/lib/wizard/view";
 import { restatement, type QuickLook } from "@/lib/wizard/quick-look";
 import { surfaceChips } from "@/lib/wizard/mobileScreens";
@@ -9,7 +9,7 @@ import { exteriorRestatement, type ExteriorQuickLook } from "@/lib/wizard/exteri
 import ExteriorRangeRows, { notInThisNumber } from "./ExteriorRangeRows";
 import { allSidesChecked } from "@/lib/wizard/exterior-model";
 import { initialsOf } from "@/lib/wizard/estimator";
-import { PAINT_HOME_WORDS, type WizardBrand } from "@/lib/wizard/brand";
+import { paintHomeHandoffWords, type WizardBrand } from "@/lib/wizard/brand";
 import { breakpointNow, sendWizardEvent } from "@/lib/wizard/wizardEvents";
 
 /**
@@ -36,7 +36,7 @@ import { breakpointNow, sendWizardEvent } from "@/lib/wizard/wizardEvents";
  */
 const fmt = (cents: number) => `$${Math.round(cents / 100).toLocaleString("en-AU")}`;
 
-export default function MobileGate({ payload, quick, outside, brand, logo, estimateId, firstName, suburb, trust, handoff, walked = false, detailed = false, onExact, onVisit, onBook, onContactOpen, onBack }: {
+export default function MobileGate({ payload, quick, outside, brand, logo, estimateId, firstName, suburb, trust, handoff, handoffWhy = null, walked = false, detailed = false, onExact, onVisit, onBook, onContactOpen, onBack }: {
   logo: ReactNode;
   /** R6: the Contact pill, on the gate too (session 5). */
   onContactOpen: () => void;
@@ -50,6 +50,8 @@ export default function MobileGate({ payload, quick, outside, brand, logo, estim
   trust: { rating: number | null; count: number | null; warranty: string | null } | null;
   /** §4.2: the bigger-job variant (Paint Home over the ceiling, or a job that needs seeing). */
   handoff: boolean;
+  /** Tom, 19 Nov 2026: why the hand-off — the words follow it ("bigger" only over the ceiling). */
+  handoffWhy?: string | null;
   /** S6: the walk-around has re-priced the house (WizardApp's `walkDone` landed) — the exact-price stage needs that, not just the checked flags. */
   walked?: boolean;
   /** Quote stage v10 (R1, D-Q2): the door reads "Get my quote range" and leads to the card stage. */
@@ -82,14 +84,25 @@ export default function MobileGate({ payload, quick, outside, brand, logo, estim
   // S7 (v2 brief 7.8): a both job — one gate for the two, the inside's basis then the outside's, the two ranges under the one figure.
   const both = quick.jobType === "both" && outside?.v2 != null;
   const basis = exteriorOnly ? exteriorRestatement(outside) : both && outside ? `${restatement(quick)} Outside: ${exteriorRestatement(outside)}` : restatement(quick);
-  const how = exteriorOnly ? "side by side" : both ? "room by room, then side by side" : "room by room";
   // Exterior on mobile v5 (S5; plan §2 screen 11, D-E1, D-E4): an outside job's gate keeps every v5 rule — no tolerance, no tier
   // label — with the brief's words: "A few minutes", the scaffolding / lifts exclusion in the small print, one row per side below.
   const v2 = exteriorOnly || both ? outside?.v2 ?? null : null;
-  const minutes = exteriorOnly ? "A few minutes" : both ? "A quarter of an hour" : "Ten minutes";
+  // Go-live S4 (H7, M6): "Room by room, about 10 minutes. A tape helps, pacing it out is fine." — sizes are typed (29 Oct), so
+  // "nothing to measure" went; the outside promise is about two minutes.
+  const promise = exteriorOnly ? "Side by side, about two minutes." : both ? "Room by room, then side by side, about 15 minutes." : "Room by room, about 10 minutes.";
   // S6 (plan §2 screen 12; prototype's tightened gate): every side checked on the walk-around → the exact-price stage —
   // "your exact price", "Book <who> to confirm it", "Or change a side", the side rows open. Never on the bigger-job variant.
   const tightened = Boolean(v2 && exteriorOnly && !handoff && walked && allSidesChecked(v2));
+  // M4: one door visible at a time — the sticky bar stands in for the inline button only while that button is off the screen.
+  const [inlineDoorInView, setInlineDoorInView] = useState(false);
+  const inlineDoorRef = useRef<HTMLButtonElement | null>(null);
+  useEffect(() => {
+    const el = inlineDoorRef.current;
+    if (!el || typeof IntersectionObserver === "undefined") return;
+    const io = new IntersectionObserver(([e]) => setInlineDoorInView(Boolean(e?.isIntersecting && e.intersectionRatio >= 0.98)), { threshold: [0, 0.98, 1], rootMargin: "0px 0px -96px 0px" });
+    io.observe(el);
+    return () => io.disconnect();
+  }, [handoff, tightened]);
   const painthome = brand === "painthome";
   // §4 block 6: the TICKED surfaces with their coats — a system line stays only while its chip is on
   // (the cornices ride with the ceilings in the engine, so "Ceilings and cornices" would otherwise outlive an unticked ceiling).
@@ -134,18 +147,18 @@ export default function MobileGate({ payload, quick, outside, brand, logo, estim
             <p className="wzm-gate-alt">Or <button type="button" className="wzm-linkish" onClick={exact} data-testid="gate-change-side">change a side</button></p>
           </section>
         ) : handoff ? (
-          <section data-testid="gate-block-bigger">
+          <section data-testid="gate-block-bigger" data-why={handoffWhy ?? ""}>
             <h2 className="wzm-gate-ask">We&rsquo;ll come and look</h2>
-            <p className="wzm-gate-asksub">{PAINT_HOME_WORDS.handoff.heading} {PAINT_HOME_WORDS.handoff.body}</p>
-            <button type="button" className="wzm-cta wzm-cta--teal" onClick={book} data-testid="gate-book">Book a visit<small>About 40 minutes, no charge</small></button>
+            <p className="wzm-gate-asksub">{paintHomeHandoffWords(handoffWhy).heading} {paintHomeHandoffWords(handoffWhy).body}</p>
+            <button type="button" ref={inlineDoorRef} className="wzm-cta wzm-cta--teal" onClick={book} data-testid="gate-book">Book a visit<small>About 40 minutes, no charge</small></button>
           </section>
         ) : (
           <section data-testid="gate-block-ask">
             <h2 className="wzm-gate-ask">{detailed ? "Want your quote range?" : "Want the exact number?"}</h2>
             <p className="wzm-gate-asksub">
-              {minutes}, {how}, nothing to measure. {painthome ? `Then one short call with ${who} runs through the finer details and confirms it.` : `Then ${who} visits to run through the finer details and confirm it.`}
+              {promise} A tape helps, pacing it out is fine. {painthome ? `Then one short call with ${who} runs through the finer details and confirms it.` : `Then ${who} visits to run through the finer details and confirm it.`}
             </p>
-            <button type="button" className="wzm-cta wzm-cta--teal wzm-cta--glow" onClick={exact} data-testid="gate-exact">{detailed ? "Get my quote range" : "Get my exact price"}<small>{exteriorOnly ? "Side by side · a few minutes" : both ? "Inside, then outside · about 15 min" : "Room by room · about 10 min"}</small></button>
+            <button type="button" ref={inlineDoorRef} className="wzm-cta wzm-cta--teal wzm-cta--glow" onClick={exact} data-testid="gate-exact">{detailed ? "Get my quote range" : "Get my exact price"}<small>{exteriorOnly ? "Side by side · about 2 min" : both ? "Inside, then outside · about 15 min" : "Room by room · about 10 min"}</small></button>
             <p className="wzm-gate-alt">Or <button type="button" className="wzm-linkish" onClick={visit} data-testid="gate-visit">book a time with {who} first</button></p>
           </section>
         )}
@@ -215,7 +228,7 @@ export default function MobileGate({ payload, quick, outside, brand, logo, estim
       </main>
 
       {/* §4.1 — the sticky bar: the one door only */}
-      <div className="wzm-foot" data-testid="gate-bar">
+      <div className="wzm-foot" data-testid="gate-bar" hidden={inlineDoorInView} data-standing-in={inlineDoorInView ? "0" : "1"}>
         {handoff || tightened
           ? <button type="button" className="wzm-cta wzm-cta--teal" onClick={book} data-testid="gate-bar-book">Book a visit</button>
           : <button type="button" className="wzm-cta wzm-cta--teal wzm-cta--glow" onClick={exact} data-testid="gate-bar-exact">{detailed ? "Get my quote range" : "Get my exact price"}</button>}

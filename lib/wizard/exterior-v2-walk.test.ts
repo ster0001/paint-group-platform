@@ -6,6 +6,8 @@ import {
   rebuildExteriorNodes, setSideCond, setSideCounts, setSidePaint, setSideSize, togglePart, worstCondition, SIDE_NODE_NAME,
 } from "./exterior-model";
 import { houseOfShape } from "@/app/wizard/ExteriorHome";
+/** Go-live S4 (H2): a fresh house now pre-ticks the usual parts and its usual wall material — these tests tick their own, so they start blank. */
+const blank = (shape: Parameters<typeof houseOfShape>[0]) => ({ ...houseOfShape(shape, null, []), parts: [], wall: { down: null, up: null, brickPainted: null, timberPainted: null } });
 import { walkTileState } from "@/app/wizard/ExteriorWalk";
 import { isWallLine } from "./sides";
 import { envelopeFor } from "./envelope";
@@ -29,7 +31,7 @@ const golden = JSON.parse(readFileSync(new URL("../pricing/__fixtures__/golden-e
 const ctx: PricingContext = { rateItems: refsFile.rateItems, products: golden.reference.products, modifiers: golden.reference.modifiers, settings: golden.reference.settings };
 
 function bungalow(): ExteriorV2 {
-  let v2: ExteriorV2 = { ...houseOfShape("cal", null, []), sizeBand: "md" };
+  let v2: ExteriorV2 = { ...blank("cal"), sizeBand: "md" };
   v2 = { ...v2, sides: defaultSides(v2) };
   v2 = ["walls", "gable", "fascias", "gutters", "eaves", "windows", "doors"].reduce<ExteriorV2>((acc, p) => togglePart(acc, p as never), v2);
   return { ...v2, wall: { ...v2.wall, down: "weatherboards" }, gableFill: "stucco" };

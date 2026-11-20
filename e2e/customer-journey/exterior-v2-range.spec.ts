@@ -1,5 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
-import { passGateIfShown, quickNext, MONEY_RANGE, lookAtEverySide, passOtpIfShown, tightenToScope, DESKTOP_ONE_PRESS, GROUPED_LAPTOP_ONLY } from "./drive";
+import { passGateIfShown, quickNext, MONEY_RANGE, lookAtEverySide, passOtpIfShown, tightenToScope, setParts, gateDoor, DESKTOP_ONE_PRESS, GROUPED_LAPTOP_ONLY } from "./drive";
 import { toSides } from "./exterior-v2-drive";
 /** Quote stage v10 (S7 switch-over): with the flag on, the gate's door reads "detailed". */
 const V10 = process.env.NEXT_PUBLIC_QUOTE_STAGE_V10 !== "0";
@@ -125,17 +125,15 @@ test.describe("on a phone: the outside range is the v5 gate with one row per sid
     await fillQuickAddress(page, { suburb: `E2E S5 Gate ${run}` });
     await expect(page.getByTestId("wzm")).toBeVisible({ timeout: 20_000 });
     await page.getByTestId("ql-jobtype-exterior").tap();
-    await at(page, "property");
-    await page.getByTestId("ql-kind-house").tap();
     await at(page, "shape");
     await page.getByTestId("ql-ext-type-cal").tap();
     await at(page, "size");
     await page.getByTestId("ql-ext-size-md").tap();
     await at(page, "p-house");
-    await page.getByTestId("ext-part-walls").tap();
-    await page.getByTestId("ext-part-fascias").tap();
+    await setParts(page, ["walls", "fascias"]); // go-live S4 (H2): the usual parts come pre-ticked — set the exact two
     await page.getByTestId("ql-next").tap();
     await at(page, "p-win");
+    await setParts(page, ["walls", "fascias"]);
     await page.getByTestId("ql-next").tap();
     await at(page, "p-ver");
     await page.getByTestId("ql-next").tap();
@@ -183,8 +181,9 @@ test.describe("on a phone: the outside range is the v5 gate with one row per sid
     await expect(page.getByTestId("wzm-strip")).toHaveCount(0);
     // the one question, the brief's words, the doors
     await expect(page.getByTestId("gate-block-ask")).toContainText(V10 ? "Want your quote range?" : "Want the exact number?");
-    await expect(page.getByTestId("gate-block-ask")).toContainText(/A few minutes, side by side, nothing to measure\./);
-    await expect(page.getByTestId("gate-exact")).toContainText("Side by side · a few minutes");
+    // go-live S4 (H7, M6): sizes are typed, so no "nothing to measure"; the outside promise is about two minutes
+    await expect(page.getByTestId("gate-block-ask")).toContainText(/Side by side, about two minutes\. A tape helps, pacing it out is fine\./);
+    await expect(page.getByTestId("gate-exact")).toContainText("Side by side · about 2 min");
     await expect(page.getByTestId("gate-visit")).toContainText(/book a time with .+ first/);
     await expect(page.getByTestId("gate-tiles").locator("li")).toHaveCount(3);
     await expect(page.getByTestId("gate-estimator")).toBeVisible();
@@ -198,7 +197,7 @@ test.describe("on a phone: the outside range is the v5 gate with one row per sid
     await expect(page.getByTestId("ext-range-left")).toHaveCount(0);
     await expect(page.getByTestId("ext-range-front")).toContainText(/\d+(\.\d)? × 3 m · walls/);
     await expect(page.getByTestId("ext-range-extras")).toContainText(/paling fence/);
-    await expect(page.getByTestId("gate-bar-exact")).toBeVisible();
+    await expect(gateDoor(page)).toBeVisible(); // M4: one door visible at a time
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
   });
 });

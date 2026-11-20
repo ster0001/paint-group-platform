@@ -4,14 +4,14 @@ import { generalCards, houseCounts, measureCards, quoteCards, quoteProgress, quo
 const base: QuoteInput = {
   jobKind: "interior", general: {}, heightUnconfirmed: true, access: {}, asksLift: false,
   rooms: [
-    room({ areaId: 1, name: "Bed 1", lengthM: 3.5, widthM: 3.2, size: null, confirmed: false, cupboard: { question: "Paint the built-in robe doors?", on: null }, tiles: [tile("doors", 2), tile("windows", 1)] }),
+    room({ areaId: 1, name: "Bed 1", lengthM: 3.5, widthM: 3.2, size: null, confirmed: false, roomType: "bedroom", cupboard: { question: "Paint the built-in robe doors?", on: null, count: 2 }, tiles: [tile("doors", 2), tile("windows", 1)] }),
     room({ areaId: 2, name: "Living room", lengthM: 5, widthM: 4, size: "adjusted", confirmed: true, tiles: [tile("doors", 1), tile("windows", 3)] }),
-    room({ areaId: 3, name: "Kitchen", lengthM: 4, widthM: 3, size: "yes", confirmed: true, cupboard: { question: "Are we painting the kitchen cupboards?", on: false } }),
+    room({ areaId: 3, name: "Kitchen", lengthM: 4, widthM: 3, size: "yes", confirmed: true, roomType: "kitchen", cupboard: { question: "Are we painting the kitchen cupboards?", on: false, count: 14 } }),
   ],
 };
 function tile(key: string, count: number): QuoteRoom["tiles"][number] { return { key, label: key, on: true, count, countable: true, longTail: false }; }
 function room(r: Partial<QuoteRoom> & Pick<QuoteRoom, "areaId" | "name">): QuoteRoom {
-  return { lengthM: 3, widthM: 3, heightM: 2.4, size: null, confirmed: false, tiles: [], windows: [], cupboard: null, cupboardInterior: null, spots: [], extras: { featureWalls: 0, wallpaper: false, other: "" }, garagePending: false, ...r };
+  return { lengthM: 3, widthM: 3, heightM: 2.4, size: null, confirmed: false, tiles: [], windows: [], cupboard: null, cupboardInterior: null, roomType: "", cupboardDoors: null, spots: [], extras: { featureWalls: 0, wallpaper: false, other: "" }, garagePending: false, ...r };
 }
 
 describe("quote stage v10 — the cards as data (brief §3)", () => {
@@ -46,18 +46,31 @@ describe("quote stage v10 — the cards as data (brief §3)", () => {
   it("the full list ends on the done card; the bar runs 55 → 100 across it", () => {
     const all = quoteCards(base);
     expect(all[all.length - 1].kind).toBe("done");
-    expect(all).toHaveLength(9 + 11 + 2 + 1);
+    expect(all).toHaveLength(9 + 10 + 2 + 1); // the kitchen has no robe card (item 4)
     expect(quoteProgress(0, all.length)).toBe(55);
     expect(quoteProgress(all.length - 1, all.length)).toBe(100);
     expect(quoteProgress(6, 13)).toBe(78);
   });
 
-  it("session 3: four cards per room (the robe card only where the loop offers a cupboard row), then E1, E2, done", () => {
+  it("session 3: four cards per room (the robe card in a BEDROOM only — Tom, 20 Nov 2026, item 4), then E1, E2, done", () => {
     const ids = roomCards(base).map((c) => c.id);
-    expect(ids).toEqual(["measure:1", "surfaces:1", "robe:1", "attention:1", "measure:2", "surfaces:2", "attention:2", "measure:3", "surfaces:3", "robe:3", "attention:3"]);
+    expect(ids).toEqual(["measure:1", "surfaces:1", "robe:1", "attention:1", "measure:2", "surfaces:2", "attention:2", "measure:3", "surfaces:3", "attention:3"]);
     const all = quoteCards(base).map((c) => c.id);
     expect(all.slice(-3)).toEqual(["rooms", "extras", "done"]);
     expect(all.indexOf("measure:1")).toBeGreaterThan(all.indexOf("g:parking"));
+  });
+  it("items 2–4 (Tom, 20 Nov 2026): the robe card needs a bedroom, and stands on the walls inside alone; a later bedroom offers Same as the first", () => {
+    const inside = { question: "Paint the walls inside the built-in robe?", on: false, count: 1 };
+    const rooms = [
+      room({ areaId: 1, name: "Bed 1", roomType: "bedroom", cupboardInterior: inside }), // a card with no robe-door row still asks about the walls inside
+      room({ areaId: 2, name: "Hall & Entry", roomType: "hallway", cupboardInterior: inside }),
+      room({ areaId: 3, name: "Bed 2", roomType: "bedroom", cupboard: { question: "Paint the built-in robe doors?", on: null, count: 2 } }),
+      room({ areaId: 4, name: "Bathroom", roomType: "bathroom", cupboard: { question: "Paint the vanity cupboard?", on: false, count: 2 } }),
+    ];
+    const cards = roomCards({ ...base, rooms });
+    expect(cards.filter((c) => c.kind === "robe").map((c) => c.id)).toEqual(["robe:1", "robe:3"]);
+    const m = measureCards({ ...base, rooms });
+    expect(m.map((c) => c.sameAs)).toEqual([null, null, { areaId: 1, name: "Bed 1" }, null]);
   });
   it("E1's house counts add up the rooms' door and window tiles", () => {
     expect(houseCounts(base.rooms)).toEqual({ doors: 3, windows: 4 });
@@ -67,7 +80,7 @@ describe("quote stage v10 — the cards as data (brief §3)", () => {
   it("quoteRoomsFrom joins the three server views by areaId and tolerates a missing loop row", () => {
     const rs = quoteRoomsFrom(
       [{ areaId: 7, name: "Hall", m2: null, tiles: [tile("walls", 1)], spots: [], condition: "same", garagePending: true }],
-      [{ areaId: 7, sizeLabel: "", lengthM: 6, widthM: 1.2, heightM: 2.7, heightAdjusted: false, size: "yes", confirmed: true, cupboard: null, cupboardInterior: { question: "Inside?", unit: "", on: true, count: 1, note: "" }, cupboardDoorInside: null, windows: [{ id: 3, label: "Windows", count: 2, sizeBand: "M" }], customs: [] }],
+      [{ areaId: 7, sizeLabel: "", lengthM: 6, widthM: 1.2, heightM: 2.7, heightAdjusted: false, size: "yes", confirmed: true, roomType: "hallway", cupboardDoors: { unit: "cupboard doors", count: 0, defaultCount: 2 }, cupboard: null, cupboardInterior: { question: "Inside?", unit: "", on: true, count: 1, note: "" }, cupboardDoorInside: null, windows: [{ id: 3, label: "Windows", count: 2, sizeBand: "M" }], customs: [] }],
       { "7": { featureWalls: 1, wallpaper: false, other: "" } },
     );
     expect(rs[0]).toMatchObject({ areaId: 7, name: "Hall", lengthM: 6, widthM: 1.2, heightM: 2.7, size: "yes", cupboard: null, cupboardInterior: { on: true }, extras: { featureWalls: 1 }, garagePending: true });

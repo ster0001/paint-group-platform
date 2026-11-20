@@ -16,6 +16,13 @@ export const MONEY_RANGE = /\$[\d,]+\s*–\s*\$[\d,]+/;
 export const DESKTOP_ONE_PRESS = process.env.NEXT_PUBLIC_WIZARD_DESKTOP_ONEPRESS === "1";
 export const GROUPED_LAPTOP_ONLY = "the grouped laptop screens — desktop one-press is on here, and the phone blocks drive its screens";
 
+/** Go-live S5 (M8): the phone's bold screen follows "New colours" / "Still deciding" — answer No if it is showing, carry on if not. */
+export async function boldNoIfAsked(page: Page): Promise<void> {
+  const screen = page.locator("[data-mobile-screen='bold']");
+  try { await screen.waitFor({ state: "visible", timeout: 4_000 }); } catch { return; }
+  await page.getByTestId("ql-bold-no").click();
+}
+
 export type DriveOptions = {
   /** Email for the "keep this estimate" door; defaults to a throwaway. */
   email?: string;
@@ -123,7 +130,7 @@ export async function driveNoPlanWizard(page: Page, opts: DriveOptions = {}) {
   }
   if (opts.stopAtReveal) return;
 
-  if (await page.getByTestId("gate-bar-exact").count()) await page.getByTestId("gate-bar-exact").click();
+  if (await page.getByTestId("gate-bar-exact").count()) await gateDoor(page).click();
   else await page.getByTestId("door-tighten").click();
   await passDetailsSheetIfShown(page, { name: opts.contactName, email: opts.email, mobile: opts.mobile });
   await expect(page.locator(".sc-r").first()).toHaveText(MONEY_RANGE, { timeout: 60_000 });
@@ -194,8 +201,7 @@ export async function answerOutsideQuick(page: Page): Promise<"v2" | "v1"> {
     await page.getByTestId("ql-ext-size-md").click();
     await leaveHomeStep(page);
     await expect(page.locator("[data-quick-step='paint']")).toBeVisible({ timeout: 20_000 });
-    await page.getByTestId("ext-part-walls").click();
-    await page.getByTestId("ext-part-fascias").click();
+    await setParts(page, ["walls", "fascias"]);
     await quickNext(page);
     await expect(page.locator("[data-quick-step='about']")).toBeVisible({ timeout: 20_000 });
     await page.getByTestId("ext-mat-weatherboards").click();
@@ -271,6 +277,36 @@ export async function tightenToScope(page: Page, who: { name?: string; email?: s
  * name, email, mobile — and the range follows; under "range first" it does
  * not. Waits for whichever comes, fills the gate when it is there.
  */
+/**
+ * Go-live S4 (H2): a fresh house PRE-TICKS the usual parts (walls where usually painted, fascias, gutters, eaves,
+ * windows, doors), so a spec that wants an exact set of parts SETS it — ticking the missing, unticking the rest — over
+ * the chips on the screen (the one Painting step on a laptop, one of three screens on a phone). Two passes, because
+ * the verandah family's chips appear once the verandah is ticked.
+ */
+export async function setParts(page: Page, wanted: readonly string[]) {
+  for (let pass = 0; pass < 2; pass++) {
+    const chips = page.locator('[data-testid^="ext-part-"]');
+    const ids = (await chips.evaluateAll((els) => els.map((e) => e.getAttribute("data-testid") ?? ""))).map((t) => t.replace("ext-part-", ""));
+    for (const id of ids) {
+      const chip = page.getByTestId(`ext-part-${id}`);
+      if (!(await chip.count())) continue;
+      const on = (await chip.getAttribute("aria-pressed")) === "true";
+      const want = wanted.includes(id);
+      if (on !== want) { await chip.click(); await expect(chip).toHaveAttribute("aria-pressed", String(want)); }
+    }
+  }
+}
+
+/** M4, the bigger-job / tightened variant: the visible Book a visit door. */
+export function bookDoor(page: Page) {
+  return page.locator('[data-testid="gate-book"]:visible, [data-testid="gate-bar-book"]:visible').first();
+}
+
+/** Go-live S4 (M4): one "Get my quote range" door is visible at a time — the inline button, or the sticky bar standing in for it. */
+export function gateDoor(page: Page) {
+  return page.locator('[data-testid="gate-exact"]:visible, [data-testid="gate-bar-exact"]:visible').first();
+}
+
 export async function passGateIfShown(page: Page, who: { name?: string; email?: string; mobile?: string } = {}): Promise<boolean> {
   const gate = page.locator("[data-quick-step='gate']");
   const reveal = page.getByTestId("reveal");
@@ -466,9 +502,15 @@ export async function driveMobileQuickLook(page: Page, opts: DriveOptions): Prom
     await at("both");
     await page.getByTestId("ql-both-self").click();
   }
+  // Go-live S4 (M5): an outside job has no "What kind of place?" — the shape screen says it; a commercial building leaves from there
+  if (opts.jobType === "exterior") {
+    await at("shape");
+    if (opts.propertyKind === "commercial") await page.getByTestId("ql-ext-commercial").click();
+    return false;
+  }
   await at("property");
   await page.getByTestId(`ql-kind-${opts.propertyKind ?? "house"}`).click();
-  if (opts.propertyKind === "commercial" || opts.jobType === "exterior") return false;
+  if (opts.propertyKind === "commercial") return false;
   await at("beds");
   await page.getByTestId(`ql-bedrooms-${opts.bedrooms ?? 3}`).click();
   if ((opts.propertyKind ?? "house") !== "unit_apartment") {
@@ -483,8 +525,12 @@ export async function driveMobileQuickLook(page: Page, opts: DriveOptions): Prom
   await at("rooms");
   await quickNext(page);
   await at("colours");
-  // bold is not asked on a phone — it prices as new colours
   await page.getByTestId(`ql-colours-${opts.colour === "same" ? "same" : "new"}`).click();
+  // Go-live S5 (M8): the phone asks the bold question after any colour change; "bold" = Yes (every changing group), else No.
+  if (opts.colour !== "same") {
+    await at("bold");
+    await page.getByTestId(`ql-bold-${opts.colour === "bold" ? "yes" : "no"}`).click();
+  }
   await at("condition");
   await page.getByTestId(`ql-condition-${opts.condition ?? "wear"}`).click();
   await at("living");

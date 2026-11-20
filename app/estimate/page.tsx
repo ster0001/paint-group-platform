@@ -124,7 +124,7 @@ export default async function CustomerWizardPage({
   // Every read below needs only the client above, so they go out together —
   // each is a round trip to Supabase, and one after another they were most of
   // this page's server response time (Lighthouse, 11 Oct).
-  const [refRows, [reviews, homeCopy], estimatorName, gateOrder, exteriorTypicals] = await Promise.all([
+  const [refRows, [reviews, homeCopy], estimator, gateOrder, exteriorTypicals] = await Promise.all([
     ref
       ? Promise.all([
         ref.from("settings").select("value").eq("key", WIZARD_PUBLIC_KEY).maybeSingle(),
@@ -142,7 +142,8 @@ export default async function CustomerWizardPage({
       ? (async () => {
         const { data: profileRows, error: profileError } = await ref.from("settings").select("key, value").eq("key", "company_profile");
         if (profileError) { reportError(profileError, { where: "estimate.page.estimatorName" }); return null; }
-        return (await resolveEstimator(ref, profileRows ?? [], null)).name;
+        const e = await resolveEstimator(ref, profileRows ?? [], null);
+        return { name: e.name, phone: e.phone };
       })()
       : null,
     // S6 (R6): the gate order from Booking rules, read here so a session starts under the rule as it stands.
@@ -323,7 +324,8 @@ export default async function CustomerWizardPage({
       mode="customer"
       logoUrl={company.logoUrlLight}
       companyPhone={company.phone || null}
-      estimatorName={estimatorName}
+      estimatorName={estimator?.name ?? null}
+      estimatorPhone={estimator?.phone ?? null}
       trust={trust}
       gateOrder={gateOrder}
       exteriorTypicals={exteriorTypicals}

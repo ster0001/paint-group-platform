@@ -23,16 +23,22 @@ import { useState } from "react";
  */
 
 export default function HardStop({
-  heading, message, why, companyPhone, turnaround = "within one working day", canRetry = false,
+  heading, message, why, companyPhone, turnaround = "within one working day", canRetry = false, knownPhone = null, brief = false,
 }: {
   heading: string;
   message: string;
   why?: string | null;
+  /** Go-live S4 (H6): the mobile the customer already gave — shown, never asked for again. */
+  knownPhone?: string | null;
+  /** H6: the small-job screen is one sentence — no "what we'll do" block. */
+  brief?: boolean;
   companyPhone: string | null;
   turnaround?: string;
   canRetry?: boolean;
 }) {
-  const [phone, setPhone] = useState("");
+  const [phone, setPhone] = useState(knownPhone?.trim() ?? "");
+  const [changing, setChanging] = useState(false);
+  const carried = Boolean(knownPhone?.trim()) && !changing;
   const [note, setNote] = useState("");
   const [sending, setSending] = useState(false);
   const [done, setDone] = useState(false);
@@ -73,13 +79,13 @@ export default function HardStop({
       <p className="wz-sub">{message}</p>
       {why && <p className="wz-q" data-testid="outcome-why">{why}</p>}
 
-      <div className="wz-stop-what" data-testid="hard-stop-what">
+      {!brief && <div className="wz-stop-what" data-testid="hard-stop-what">
         <b>What we&rsquo;ll do</b>
         <span>
           We&rsquo;ll call you {turnaround} to talk it through and arrange an assessment.
           Everything you&rsquo;ve told us is saved, so you won&rsquo;t have to repeat it.
         </span>
-      </div>
+      </div>}
 
       {done ? (
         <p className="wz-kept" data-testid="hard-stop-done">
@@ -88,11 +94,17 @@ export default function HardStop({
       ) : (
         <div className="wz-stop-ask">
           <p className="wz-qhead" style={{ marginTop: 0 }}>Ask us to call</p>
-          <input
-            className="wz-in" type="tel" inputMode="tel" autoComplete="tel"
-            placeholder="Your mobile number" value={phone} data-testid="hard-stop-phone"
-            onChange={(e) => setPhone(e.target.value)}
-          />
+          {carried ? (
+            <p className="wz-kept" data-testid="hard-stop-phone-known">
+              We&rsquo;ll ring <b>{phone}</b>. <button type="button" className="wz-linkish" data-testid="hard-stop-phone-change" onClick={() => setChanging(true)}>Different number?</button>
+            </p>
+          ) : (
+            <input
+              className="wz-in" type="tel" inputMode="tel" autoComplete="tel"
+              placeholder="Your mobile number" value={phone} data-testid="hard-stop-phone"
+              onChange={(e) => setPhone(e.target.value)}
+            />
+          )}
           <textarea
             className="wz-brief" rows={2} maxLength={400} value={note} data-testid="hard-stop-note"
             placeholder="Anything you'd like us to know first? (optional)"

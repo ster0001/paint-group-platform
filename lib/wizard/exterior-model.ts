@@ -136,6 +136,16 @@ export function partsOnSide(v2: ExteriorV2, side: ExteriorSideKey, t: ExteriorTy
  * alone), the house is a shape and a size: the v1 screens still collect the
  * parts and the v1 scaffold still lays the lines — sized from the drawn house.
  */
+/**
+ * Go-live S4, H2 (18 Nov 2026): a fresh house starts with the usual parts ticked — walls (where the shape's walls are
+ * usually painted; bare brick is not), fascias, gutters, eaves, windows and doors — as the inside pre-ticks its surfaces.
+ * The customer unticks what we are not painting. Before this nothing was ticked (C8b) and an outside job could reach
+ * the last Painting screen with a greyed Continue and no reason on screen.
+ */
+export function usualParts(t: Pick<ExteriorTypical, "wallsPainted">): ExteriorPart[] {
+  return [...(t.wallsPainted ? ["walls" as const] : []), "fascias", "gutters", "eaves", "windows", "doors"];
+}
+
 export function exteriorV2Answered(v2: Pick<ExteriorV2, "parts" | "extras">): boolean {
   return v2.parts.length > 0 || v2.extras.length > 0;
 }

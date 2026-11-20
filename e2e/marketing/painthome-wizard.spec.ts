@@ -18,6 +18,8 @@ import { passGateIfShown, quickNext } from "../customer-journey/drive";
  *     screen with its answers intact — the ceiling is lowered for the run
  *     (wizard_policy on the test project) and restored after.
  */
+/** Quote stage v10 (S7 switch-over): with the flag on, the gate's door reads "quote range". */
+const V10 = process.env.NEXT_PUBLIC_QUOTE_STAGE_V10 !== "0";
 const db = serviceClient();
 
 test.describe("Paint Home — the wizard brand branch (session 3)", () => {
@@ -92,6 +94,7 @@ test.describe("Paint Home — the wizard brand branch (session 3)", () => {
     await quickNext(page);
     await expect(page.locator("[data-mobile-screen='colours']")).toBeVisible({ timeout: 20_000 });
     await page.getByTestId("ql-colours-new").tap();
+    await page.getByTestId("ql-bold-no").tap(); // S5 M8: a colour change asks the bold question first
     await expect(page.locator("[data-mobile-screen='condition']")).toBeVisible({ timeout: 20_000 });
     await page.getByTestId("ql-condition-wear").tap();
     await expect(page.locator("[data-mobile-screen='living']")).toBeVisible({ timeout: 20_000 });
@@ -111,7 +114,8 @@ test.describe("Paint Home — the wizard brand branch (session 3)", () => {
     const estimateId = await driveToRange(page, suburbs.call, "Inside");
     // §5 on the phone's gate: the exact price is offered, no hand-off, "book a time" is the one other door
     await expect(page.getByTestId("wzm-gate")).toHaveAttribute("data-variant", "exact");
-    await expect(page.getByTestId("gate-exact")).toContainText("Get my exact price");
+    // Quote stage v10 (S7 switch-over) / go-live S3: with the flag on the door reads "Get my quote range" — never "exact"
+    await expect(page.getByTestId("gate-exact")).toContainText(V10 ? "Get my quote range" : "Get my exact price");
     await expect(page.getByTestId("gate-block-bigger")).toHaveCount(0);
     await expect(page.getByTestId("gate-tiles").locator("li").nth(2)).toContainText("On one short call");
     // wizard mobile v5 R10: nothing on the page names Paint Group except the powered-by line

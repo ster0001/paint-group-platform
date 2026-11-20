@@ -2,7 +2,7 @@ import { expect, type Page } from "@playwright/test";
 import { randomBytes } from "node:crypto";
 import { test } from "../helpers";
 import { serviceClient } from "../fixtures/woLoop";
-import { MONEY_RANGE, answerOutsideQuick, driveMobileQuickLook, driveNoPlanWizard, openQuickLook, fillQuickAddress, passOtpIfShown } from "./drive";
+import { MONEY_RANGE, answerOutsideQuick, driveMobileQuickLook, driveNoPlanWizard, openQuickLook, fillQuickAddress, passOtpIfShown, gateDoor } from "./drive";
 
 /**
  * QUOTE STAGE v10 — session 6 (`docs/briefs/claude-code-brief-quote-stage-v10.md`
@@ -52,8 +52,8 @@ const toGate = async (page: Page, run: string) => {
   const bounced = page.locator(".wz-err");
   await expect(gate.or(bounced)).toBeVisible({ timeout: 90_000 });
   if (await bounced.count()) throw new Error(`submit failed: ${await bounced.first().innerText()}`);
-  await expect(page.getByTestId("gate-bar-exact")).toHaveText("Get my quote range");
-  await page.getByTestId("gate-bar-exact").click();
+  await expect(gateDoor(page)).toContainText("Get my quote range"); // M4: whichever door is the visible one
+  await gateDoor(page).click();
   await expect(page).toHaveURL(/\/estimate\/quote\?id=/, { timeout: 30_000 });
   await expect(page.getByTestId("quote-stage")).toBeVisible({ timeout: 30_000 });
 };

@@ -1,10 +1,10 @@
 "use client";
 
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
-import { CONDITION_BANDS, OCCUPIED, roomTypeForName, type QuickLook, type QuickLookStep, type ScopePreset } from "@/lib/wizard/quick-look";
+import { CONDITION_BANDS, OCCUPIED, roomTypeForName, visibleChanging, type QuickLook, type QuickLookStep, type ScopePreset } from "@/lib/wizard/quick-look";
 import {
   COLOUR_CHOICES, EXTRA_ROOMS, JOB_CHOICES, MOBILE_SCREEN_KEY, applyColourChoice, applyJobChoice, colourChoiceOf, detailsReady,
-  mobileProgress, mobileScreensFor, paintScreenParts, roomChips, roomsTicked, surfaceChips, surfacesTicked, toggleListedRoom, toggleSurface, AROUND_EXTRAS,
+  detailsWhy, mobileProgress, mobileScreensFor, paintScreenParts, roomChips, roomsTicked, surfaceChips, surfacesTicked, toggleListedRoom, toggleSurface, AROUND_EXTRAS,
   extraSizeRows, extraSizesWithDefaults, sideOfScreen, MOBILE_SIDE_SHORT, type MobileScreen, type PaintScreenId,
 } from "@/lib/wizard/mobileScreens";
 import { EXT_ACCESS, EXT_COLOURS, EXT_WINDOW_TYPES, toggleAccess } from "@/lib/wizard/exterior-quick-look";
@@ -151,6 +151,7 @@ export default function MobileQuickLook({
   const sub = subState.step === step ? subState.sub : 0;
   const setSub = (n: number) => setSubState({ step, sub: n });
   const pendingRef = useRef<"first" | "last" | null>(null);
+  const moveRef = useRef<"first" | "last">("first");
   const stepRef = useRef<QuickLookStep | null>(null);
   // The remembered screen, read ONCE at mount: a resume lands its step after the first paint (the draft loads
   // asynchronously), and the first paint has by then written ITS screen over the remembered one — so the
@@ -168,6 +169,7 @@ export default function MobileQuickLook({
     stepRef.current = step;
     const want = pendingRef.current;
     pendingRef.current = null;
+    if (want) moveRef.current = want;
     if (want === "first") { setSub(0); return; }
     if (want === "last") { setSub(Math.max(0, stepScreens.length - 1)); return; }
     // No move of our own (a mount, a resume): the remembered screen, if it is one of this step's.
@@ -180,6 +182,14 @@ export default function MobileQuickLook({
     setSub(at >= 0 ? at : 0);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- stepScreens is derived from step + answers; the step is the trigger
   }, [step]);
+  // Go-live S4 (M5): a step with no screens of its own on this path — the place step on an outside house — is passed
+  // straight through in the direction of travel, so the shell never shows an empty step.
+  useEffect(() => {
+    if (stepScreens.length > 0) return;
+    if (moveRef.current === "last") { pendingRef.current = "last"; onBack(); return; }
+    pendingRef.current = "first"; onNext();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- the step is the trigger; onNext/onBack are the parent's stable handlers
+  }, [step, stepScreens.length]);
   const current: MobileScreen = stepScreens[Math.min(sub, Math.max(0, stepScreens.length - 1))] ?? { id: step, step, advance: "bar", heading: null, sub: null };
   const index = Math.max(0, screens.findIndex((s) => s.id === current.id));
   const first = index === 0;
@@ -234,6 +244,16 @@ export default function MobileQuickLook({
   };
 
   const [changingAddress, setChangingAddress] = useState(false);
+  // Go-live S4 (M1): the address chip stands in for the field only when the address was already known on ARRIVING at the
+  // screen (a resume, a return). Typing the address never swaps the field for the chip under the customer's thumb, so the
+  // job cards below never move.
+  // (derived state, set during render: where the address BECAME known — "mount" for a hand-off or resume; cleared on leaving the screen)
+  const [knownOn, setKnownOn] = useState<string | null>(address.known ? "mount" : null);
+  const [prevKnown, setPrevKnown] = useState(address.known);
+  if (address.known !== prevKnown) { setPrevKnown(address.known); setKnownOn(address.known ? current.id : null); }
+  const [seenScreen, setSeenScreen] = useState(current.id);
+  if (seenScreen !== current.id) { setSeenScreen(current.id); if (knownOn === "what") setKnownOn("left"); }
+  const showAddressChip = address.known && knownOn !== "what" && !changingAddress;
   const ticked = roomsTicked(quick, roomNames, addedRooms);
   const ready = current.id === "details" ? Boolean(contact && detailsReady(contact))
     : current.id === "code" ? Boolean(otp && otp.code.length === 6)
@@ -241,6 +261,13 @@ export default function MobileQuickLook({
     // S2 (plan §2 5d): Continue needs at least one part or extra overall by the last Painting screen (the step's own rule)
     : current.id === "p-around" ? Boolean(outside.v2 && exteriorV2Answered(outside.v2))
     : true;
+  // Go-live S4: WHY Continue waits, on the screen it waits on — never a greyed button with no reason (H2, M2). The first
+  // Painting screen names a blank house without blocking it (windows and doors are on the next screen).
+  const localWhy: string | null =
+    current.id === "p-around" && outside.v2 && !exteriorV2Answered(outside.v2) ? "Tick at least one part — go back if it's on an earlier screen."
+    : current.id === "p-house" && outside.v2 && !paintScreenParts("p-house", outside.v2).some((p) => outside.v2!.parts.includes(p)) ? "Nothing ticked here yet — tap the parts we're painting, or carry on to windows and doors."
+    : current.id === "details" && contact && !detailsReady(contact) ? detailsWhy(contact)
+    : null;
   // S4 (plan §2 screen 9): the side screens' bar — "Looks right — next side" on a painted side, "Next side" on one not painting; the
   // last side reads "Looks right" (or Continue when it is not painting). Looking at a side checks it (the effect below).
   const sideAt = sideOfScreen(current.id);
@@ -361,12 +388,12 @@ export default function MobileQuickLook({
   const screenSection = (
         <section className="wzm-screen" key={current.id} data-quick-step={!desktop && current.heading != null ? step : undefined}>
           {current.stage && <p className="wzm-stage" data-testid="wzm-stage">{current.stage}</p>}
-          {current.heading && <h1 data-testid="wzm-h1">{current.id === "code" && otp ? `Enter the code we texted to ${otp.masked}` : current.heading}</h1>}
+          {current.heading && <h1 id="wzm-h1" data-testid="wzm-h1">{current.id === "code" && otp ? `Enter the code we texted to ${otp.masked}` : current.heading}</h1>}
           {current.sub && <p className="wzm-sub" data-testid="wzm-sub">{current.sub}</p>}
 
           {current.id === "what" && (
             <>
-              {address.known && !changingAddress ? (
+              {showAddressChip ? (
                 <div className="wzm-addr" data-testid="wzm-addr">
                   <span>{address.text}</span>
                   <button type="button" onClick={() => setChangingAddress(true)} data-testid="wzm-addr-change">Change</button>
@@ -374,7 +401,7 @@ export default function MobileQuickLook({
               ) : (
                 <div className="wzm-addrfield" data-testid="wzm-addr-field">{address.field}</div>
               )}
-              <div className="wzm-opts two" data-testid="ql-jobtype">
+              <div className="wzm-opts two" role="group" aria-labelledby="wzm-h1" data-testid="ql-jobtype">
                 {jobTypesFor(brand).map((o, i) => (
                   <button key={o.value} type="button" className={`wzm-opt ${quick.jobType === o.value ? "on" : ""}`} aria-pressed={quick.jobType === o.value}
                     data-testid={`ql-jobtype-${o.value}`} onClick={() => pick({ jobType: o.value })}>
@@ -388,7 +415,7 @@ export default function MobileQuickLook({
           )}
 
           {current.id === "property" && (
-            <div className="wzm-opts" data-testid="ql-kind">
+            <div className="wzm-opts" role="group" aria-labelledby="wzm-h1" data-testid="ql-kind">
               {propertyKindsFor(brand).map((o, i) => (
                 <button key={o.value} type="button" className={`wzm-opt ${quick.propertyKind === o.value ? "on" : ""}`} aria-pressed={quick.propertyKind === o.value}
                   data-testid={`ql-kind-${o.value}`} onClick={() => pick({ propertyKind: o.value })}>
@@ -410,7 +437,7 @@ export default function MobileQuickLook({
           )}
 
           {current.id === "storeys" && (
-            <div className="wzm-opts two" data-testid="ql-storeys">
+            <div className="wzm-opts two" role="group" aria-labelledby="wzm-h1" data-testid="ql-storeys">
               {([["single", "One"], ["double", "Two"]] as const).map(([value, label], i) => (
                 <button key={value} type="button" className={`wzm-opt ${quick.storeys === value ? "on" : ""}`} aria-pressed={quick.storeys === value}
                   data-testid={`ql-storeys-${value}`} onClick={() => pick({ storeys: value })}>
@@ -423,7 +450,7 @@ export default function MobileQuickLook({
           )}
 
           {current.id === "job" && (
-            <div className="wzm-opts" data-testid="ql-scope">
+            <div className="wzm-opts" role="group" aria-labelledby="wzm-h1" data-testid="ql-scope">
               {JOB_CHOICES.map((o, i) => (
                 <button key={o.value} type="button" className={`wzm-opt ${quick.scope === o.value ? "on" : ""}`} aria-pressed={quick.scope === o.value}
                   // the same job again keeps the surfaces and rooms as ticked; a different one pre-ticks afresh (§2.6)
@@ -464,7 +491,7 @@ export default function MobileQuickLook({
           )}
 
           {current.id === "colours" && (
-            <div className="wzm-opts" data-testid="ql-colours">
+            <div className="wzm-opts" role="group" aria-labelledby="wzm-h1" data-testid="ql-colours">
               {COLOUR_CHOICES.map((o, i) => (
                 <button key={o.value} type="button" className={`wzm-opt ${colourChoiceOf(quick) === o.value ? "on" : ""}`} aria-pressed={colourChoiceOf(quick) === o.value}
                   data-testid={`ql-colours-${o.value}`} onClick={() => pick(applyColourChoice(quick, o.value))}>
@@ -476,8 +503,25 @@ export default function MobileQuickLook({
             </div>
           )}
 
+          {current.id === "bold" && (
+            // Go-live S5 (M8, ⚑ D7): the phone asks the laptop's bold question. "Yes" marks every group that is changing
+            // colour as bold (the laptop's "Which ones?" is not asked here); "No" prices them as a plain colour change.
+            <div className="wzm-opts" role="group" aria-labelledby="wzm-h1" data-testid="ql-bold">
+              {([{ value: "no", label: "No", hint: "A similar depth of colour" }, { value: "yes", label: "Yes", hint: "We allow an undercoat under the new colour" }] as const).map((o, i) => {
+                const on = (quick.bold ? "yes" : "no") === o.value;
+                return (
+                  <button key={o.value} type="button" className={`wzm-opt ${on ? "on" : ""}`} aria-pressed={on} data-testid={`ql-bold-${o.value}`}
+                    onClick={() => pick(o.value === "yes" ? { bold: true, boldGroups: visibleChanging(quick.scope, quick.excluded ?? []) } : { bold: false, boldGroups: [] })}>
+                    <span><span className="t">{o.label}</span><span className="d">{o.hint}</span></span>
+                    {key(i + 1)}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+
           {current.id === "condition" && (
-            <div className="wzm-opts" data-testid="ql-condition">
+            <div className="wzm-opts" role="group" aria-labelledby="wzm-h1" data-testid="ql-condition">
               {CONDITION_BANDS.map((o, i) => (
                 <button key={o.value} type="button" className={`wzm-opt ${quick.condition === o.value ? "on" : ""}`} aria-pressed={quick.condition === o.value}
                   data-testid={`ql-condition-${o.value}`} onClick={() => pick({ condition: o.value })}>
@@ -490,7 +534,7 @@ export default function MobileQuickLook({
           )}
 
           {current.id === "living" && (
-            <div className="wzm-opts two" data-testid="ql-occupied">
+            <div className="wzm-opts two" role="group" aria-labelledby="wzm-h1" data-testid="ql-occupied">
               {OCCUPIED.map((o, i) => (
                 <button key={o.value} type="button" className={`wzm-opt ${quick.occupied === o.value ? "on" : ""}`} aria-pressed={quick.occupied === o.value}
                   data-testid={`ql-occupied-${o.value}`} onClick={() => pick({ occupied: o.value })}>
@@ -505,7 +549,7 @@ export default function MobileQuickLook({
               exterior brief's `v2` (ExteriorHome's `houseOfShape` / `reseedSides`), so the desktop step, the autosave and
               the submit see exactly what they always did. */}
           {current.id === "shape" && (
-            <div className="wzm-opts two wzm-shapes" data-testid="ql-ext-type">
+            <div className="wzm-opts two wzm-shapes" role="group" aria-labelledby="wzm-h1" data-testid="ql-ext-type">
               {EXTERIOR_SHAPE_KEYS.map((k, i) => {
                 const on = outside.v2?.propertyType === k;
                 return (
@@ -519,6 +563,10 @@ export default function MobileQuickLook({
                 );
               })}
             </div>
+          )}
+          {current.id === "shape" && (
+            // Go-live S4 (M5): "What kind of place?" is not asked outside — the shapes say it; a commercial building leaves from here
+            <p className="wzm-hint wzm-hint--left"><button type="button" className="wzm-linkish" data-testid="ql-ext-commercial" onClick={() => pick({ propertyKind: "commercial" })}>Painting a commercial building instead?</button></p>
           )}
           {current.id === "size" && outside.v2 && <SizeChoices v2={outside.v2} rows={exteriorTypicals} onPick={(v2) => pickOutside({ v2 })} keyOf={key} />}
           {current.id === "row" && outside.v2 && <RowChoices v2={outside.v2} rows={exteriorTypicals} onPick={(v2) => pickOutside({ v2 })} keyOf={key} />}
@@ -547,7 +595,7 @@ export default function MobileQuickLook({
               options={GABLE_FILL.map((o) => ({ value: o.value, label: o.label, hint: o.hint ?? null }))} />
           )}
           {current.id === "a-win" && outside.v2 && (
-            <div className="wzm-opts two wzm-wins" data-testid="ql-ext-win">
+            <div className="wzm-opts two wzm-wins" role="group" aria-labelledby="wzm-h1" data-testid="ql-ext-win">
               {EXT_WINDOW_TYPES.map((o, i) => {
                 const on = outside.v2!.windowType === o.value;
                 const drawing = o.value === "casement" || o.value === "sash" || o.value === "colonial" || o.value === "winder" ? WINDOW_DRAWINGS[o.value] : null;
@@ -635,8 +683,7 @@ export default function MobileQuickLook({
                 <input type="tel" inputMode="tel" value={contact.phone} placeholder="04" autoComplete="tel" data-testid="gate-mobile" onChange={(e) => onContact({ ...contact, phone: e.target.value })} /></label>
               <label className="wzm-field"><span>Email</span>
                 <input type="email" inputMode="email" value={contact.email} placeholder="For your quote" autoComplete="email" data-testid="gate-email" onChange={(e) => onContact({ ...contact, email: e.target.value })} /></label>
-              {/* Tom, 5 Nov 2026: no marketing tick — the details are for the price and the follow-up, said plainly */}
-              <p className="wzm-note wzm-consent" data-testid="gate-consent">By entering these details you agree to receive pricing for your property from {brandFor(brand === "painthome" ? "painthome" : "home").name}, and we may contact you to discuss your quote.</p>
+              {/* Tom, 5 Nov 2026: no marketing tick — the consent line is in the bar, above the button (go-live S4, M3) */}
             </>
           )}
 
@@ -650,9 +697,24 @@ export default function MobileQuickLook({
         </section>
   );
 
+  // Go-live S4 (M3): the bar's height follows its contents (a reason line, the consent, the button) — the page's bottom
+  // padding follows the bar, so nothing on the screen ever sits under it.
+  const footRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    const el = footRef.current, root = rootRef.current;
+    if (!el || !root || typeof ResizeObserver === "undefined") return;
+    const write = () => root.style.setProperty("--wzm-foot-h", `${Math.ceil(el.getBoundingClientRect().height)}px`);
+    write();
+    const ro = new ResizeObserver(write);
+    ro.observe(el);
+    return () => { ro.disconnect(); root.style.removeProperty("--wzm-foot-h"); };
+  }, [showBar, current.id]);
   const foot = showBar && (
-        <div className="wzm-foot" data-testid="wzm-foot">
+        <div className="wzm-foot" data-testid="wzm-foot" ref={footRef}>
           {whyNot && (!canContinue || busy) && <p className="wzm-why" data-testid="ql-why" role="status">{whyNot}</p>}
+          {localWhy && !(whyNot && (!canContinue || busy)) && <p className="wzm-why" data-testid="ql-why" role="status">{localWhy}</p>}
+          {/* Go-live S4 (M3): the consent line sits ABOVE the button, in the bar, so the button never covers it */}
+          {current.id === "details" && <p className="wzm-note wzm-consent" data-testid="gate-consent">By entering these details you agree to receive pricing for your property from {brandFor(brand === "painthome" ? "painthome" : "home").name}, and we may contact you to discuss your quote.</p>}
           {/* Desktop one-press: Continue is never silently unavailable (UI refresh S1) — the missing answer is named */}
           {desktop && current.id === "rooms" && ticked === 0 && <p className="wzm-why" data-testid="ql-why" role="status">Tick at least one room, or add one.</p>}
           <button key={error ?? "ok"} type="button" className={`wzm-cta ${error ? "wz-shake" : ""}`} disabled={!ready || !canContinue || busy || Boolean(otp?.busy)} data-testid="ql-next"
@@ -768,7 +830,7 @@ function StoreyIcon({ two }: { two: boolean }) {
 /** Exterior on mobile v5 (S1), screen 3: the five size pills with the m² / bedroom hint (ExteriorHome's words). */
 function SizeChoices({ v2, rows, onPick, keyOf = () => null }: { v2: ExteriorV2; rows: ReadonlyArray<ExteriorTypicalRow>; onPick: (v2: ExteriorV2) => void; keyOf?: (n: number) => ReactNode }) {
   return (
-    <div className="wzm-opts" data-testid="ql-ext-size">
+    <div className="wzm-opts" role="group" aria-labelledby="wzm-h1" data-testid="ql-ext-size">
       {SIZE_OPTIONS.map((o, i) => {
         const on = v2.sizeBand === o.value;
         return (
@@ -795,7 +857,7 @@ function RowChoices({ v2, rows, onPick, keyOf = () => null }: { v2: ExteriorV2; 
     ["both", "Stands alone", "All four sides"],
   ];
   return (
-    <div className="wzm-opts" data-testid="ql-ext-row">
+    <div className="wzm-opts" role="group" aria-labelledby="wzm-h1" data-testid="ql-ext-row">
       {rows_.map(([value, label, hint], i) => (
         <button key={value} type="button" className={`wzm-opt ${v2.rowPosition === value ? "on" : ""}`} aria-pressed={v2.rowPosition === value} data-testid={`ql-ext-row-${value}`} onClick={() => pick(value)}>
           <span><span className="t">{label}</span>{hint && <span className="d">{hint}</span>}</span>
@@ -813,7 +875,7 @@ function Options<T extends string>({ name, options, value, onPick, two = false, 
   keyOf?: (n: number) => ReactNode;
 }) {
   return (
-    <div className={`wzm-opts ${two ? "two" : ""}`} data-testid={name}>
+    <div className={`wzm-opts ${two ? "two" : ""}`} role="group" aria-labelledby="wzm-h1" data-testid={name}>
       {options.map((o, i) => {
         const on = value === o.value;
         return (

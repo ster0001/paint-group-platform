@@ -243,7 +243,7 @@ export const GUARDRAIL_MESSAGES: Record<string, string> = {
   hard_stop: "Homes of this age and condition need a lead-safe or asbestos assessment before any painting is priced. We'll be in touch to arrange it — there's no obligation.",
   handoff: "This one needs a person rather than a calculator — we'll look at what you've sent and come back to you within one business day.",
   outside_area: "It looks like you're outside the area we currently service — we've kept your details and will let you know if that changes.",
-  below_floor: "Smaller jobs are quoted from our minimum call-out. We'll confirm the exact price with you directly.",
+  below_floor: "Smaller jobs are priced from our minimum call-out — we'll confirm the price with you directly.",
 };
 
 export type GuardrailOutcome =

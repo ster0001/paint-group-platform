@@ -4,7 +4,7 @@ import { test } from "../helpers";
 /** Quote stage v10 (S7 switch-over): with the flag on, the gate's door reads "detailed" and opens /estimate/quote. */
 const V10 = process.env.NEXT_PUBLIC_QUOTE_STAGE_V10 !== "0";
 import { serviceClient } from "../fixtures/woLoop";
-import { MONEY_RANGE, answerOutsideQuick, driveMobileQuickLook, passOtpIfShown } from "./drive";
+import { MONEY_RANGE, answerOutsideQuick, driveMobileQuickLook, passOtpIfShown, gateDoor } from "./drive";
 
 /**
  * Wizard mobile v5 — session 7 (plan §2 "Full E2E on both brands at 390px",
@@ -101,7 +101,7 @@ test.describe("Wizard mobile v5 — the phone, end to end on both shopfronts (se
     await expect(page.getByTestId("gate-basis")).toContainText(/same colours/);
     await expect(page.getByTestId("gate-basis")).toContainText(/good condition/);
     await expect(page.getByTestId("gate-tiles").locator("li").nth(2)).toContainText("In person, 40 min");
-    await page.getByTestId("gate-bar-exact").tap();
+    await gateDoor(page).tap();
     if (V10) {
       await expect(page).toHaveURL(/\/estimate\/quote\?id=/, { timeout: 30_000 });
       await expect(page.getByTestId("quote-stage")).toBeVisible({ timeout: 30_000 });

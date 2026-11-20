@@ -13,14 +13,18 @@ const ids = (quick: QuickLook, gate = true) => mobileScreensFor(stepsFor(quick.j
 /** Brief §2 / §9 item 1: twelve screens in order (the twelfth is the gate, after the details). */
 describe("the phone's screens (wizard mobile v5 §2)", () => {
   it("an inside job on a house walks the eleven question screens in the brief's order", () => {
-    expect(ids(q())).toEqual(["what", "property", "beds", "storeys", "job", "surfaces", "rooms", "colours", "condition", "living", "details", "code"]);
+    expect(ids(q())).toEqual(["what", "property", "beds", "storeys", "job", "surfaces", "rooms", "colours", "bold", "condition", "living", "details", "code"]);
   });
   it("a unit or apartment skips storeys", () => {
-    expect(ids(q({ propertyKind: "unit_apartment" }))).toEqual(["what", "property", "beds", "job", "surfaces", "rooms", "colours", "condition", "living", "details", "code"]);
+    expect(ids(q({ propertyKind: "unit_apartment" }))).toEqual(["what", "property", "beds", "job", "surfaces", "rooms", "colours", "bold", "condition", "living", "details", "code"]);
   });
   it("an outside job skips the job and rooms screens — its own steps follow the place, as they are (§2.4)", () => {
     const list = ids(q({ jobType: "exterior" }));
-    expect(list.slice(0, 2)).toEqual(["what", "property"]);
+    // go-live S4 (M5): the home-type screen says what kind of place it is — "What kind of place?" is not asked outside
+    expect(list.slice(0, 2)).toEqual(["what", "shape"]);
+    expect(list).not.toContain("property");
+    expect(ids(q({ jobType: "exterior", propertyKind: "commercial" })).slice(0, 2)).toEqual(["what", "property"]);
+    expect(ids(q({ jobType: "both" }))).toContain("property");
     expect(list).not.toContain("job");
     expect(list).not.toContain("rooms");
     expect(list).not.toContain("beds");
@@ -28,11 +32,11 @@ describe("the phone's screens (wizard mobile v5 §2)", () => {
     expect(list[list.length - 1]).toBe("code");
     // exterior on mobile v5 (S1): the home step is the shape and size screens; the rest follow as they are
     // exterior on mobile v5 (S2): the paint step is four screens; the rest follow as they are
-    expect(list.slice(2, 4)).toEqual(["shape", "size"]);
-    expect(list.slice(4, 8)).toEqual(["p-house", "p-win", "p-ver", "p-around"]);
+    expect(list.slice(1, 3)).toEqual(["shape", "size"]);
+    expect(list.slice(3, 7)).toEqual(["p-house", "p-win", "p-ver", "p-around"]);
     // S3: the about step is its screens too (nothing ticked → the colours and the access); the sides step follows as it is
     // S4: the sides step is four screens of its own too
-    expect(list.slice(8, 14)).toEqual(["a-colours", "a-access", "s-front", "s-right", "s-back", "s-left"]);
+    expect(list.slice(7, 13)).toEqual(["a-colours", "a-access", "s-front", "s-right", "s-back", "s-left"]);
   });
   it("every screen knows its step, and the rooms heading changes for Some rooms", () => {
     const list = mobileScreensFor(stepsFor("interior", "house", "areas", "range", "some_rooms", true), q({ scope: "some_rooms" }));
@@ -148,7 +152,7 @@ describe("exterior on mobile v5 — the Your home step on a phone", () => {
     const home = screens.filter((s) => s.step === "home");
     expect(home.map((s) => s.id)).toEqual(["shape", "size"]);
     expect(home.every((s) => s.advance === "auto" && s.stage === "Your home" && s.heading)).toBe(true);
-    expect(screens.map((s) => s.id)).toEqual(["what", "property", "shape", "size", "p-house", "p-win", "p-ver", "p-around", "a-colours", "a-access", "s-front", "s-right", "s-back", "s-left", "details", "code"]);
+    expect(screens.map((s) => s.id)).toEqual(["what", "shape", "size", "p-house", "p-win", "p-ver", "p-around", "a-colours", "a-access", "s-front", "s-right", "s-back", "s-left", "details", "code"]);
   });
   it("a shape that usually shares a wall adds Where is it in the row?; a bungalow does not", () => {
     const ids = (v2: ExteriorV2) => mobileScreensFor(steps, quick, { v2 }).filter((s) => s.step === "home").map((s) => s.id);

@@ -29,3 +29,21 @@ You are signed in as staff. The estimate is still a draft (an accepted estimate 
 ## Related
 - [The customer's view](customer.md)
 - [Online estimates from the office side](../estimator/staff.md)
+
+## Changes on 19 Nov 2026
+- **The customer's quote lines come from one split** (`lib/pricing/quoteBreakdown.ts`): each room's engine price, plus Set-up and preparation (sundries + prep hours), Cleaning, specialist work, size allowance and discount, share the range in whole dollars so the lines add to the Subtotal. The loading (job modifier) is inside the room prices and has no line of its own.
+- **"Valid N days"** on the quote reads Settings → Estimates → Accuracy tiers & online cap → *how long a fixed price is held* (`wizard_hold_days`, default 60). There is no separate validity number.
+- **Rooms cleared** applies no Staging modifier any more (the seeded `STG-EMPTY` row is unused); Mostly cleared and Furniture stays are unchanged.
+
+## Contact sheet (20 November 2026)
+
+- **Send us a message** is on the Contact sheet on every card of the quote stage, the finished quote included. The message lands in the customer's conversation in the CRM chat, the same place as a message sent from the range screen.
+- **The number under the estimator's name** is the estimator's own: the staff profile whose patch covers the postcode, else Settings → Company → Estimator phone, else the company number. Change the number there, not in code.
+- On a laptop the Contact sheet is a side sheet on the right. It used to draw as one large rounded bubble.
+
+## Changes on 20 November 2026
+
+- **Robes are a bedroom question.** The robe card is no longer asked in kitchens, bathrooms, laundries or halls. Cupboard doors in those rooms come from **+ Add a surface → Cupboard doors**, with a counter. A room type with no cupboard row of its own (a living room, a hall) prices its doors on the Vanity Door rate row.
+- **Robe doors are counted** on the robe card, and the walls inside can be ticked with no doors.
+- **Same as Bed 1** copies Bed 1's surfaces and robe answers onto a later bedroom and keeps that bedroom's own size. Repairs and photos are never copied.
+- **Typical sizes:** a hallway is 5 × 1.25 m and an ensuite has its own row at 2 × 1.5 m (Settings → typical room sizes). The ensuite no longer follows the bathroom row. These apply to new quotes once migration 20270318 is live; quotes already started keep their sizes.
