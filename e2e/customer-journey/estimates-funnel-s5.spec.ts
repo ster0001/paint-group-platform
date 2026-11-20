@@ -70,6 +70,8 @@ test.describe("Estimates Funnel, session 5 — a real walk moves the charts", ()
     await expect.poll(() => draftId, { timeout: 15_000 }).not.toBe("");
     await cust.reload();
     await expect(cust.getByTestId("wz-resume")).toContainText("Welcome back", { timeout: 20_000 });
+    // 19 Nov 2026: a hero link carries ?scope=, and its seed used to skip the resume; the reload lands where they were.
+    await at("beds");
     await expect.poll(async () => {
       const { data, error } = await db!.from("wizard_drafts").select("visits").eq("id", draftId).maybeSingle();
       if (error) throw new Error(error.message);

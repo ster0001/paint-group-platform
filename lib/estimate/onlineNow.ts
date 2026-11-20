@@ -41,11 +41,15 @@ const dayOf = (iso: string | null) => (iso ? MELBOURNE_DAY.format(new Date(iso))
 const hasDetails = (j: WizardJourney) => Boolean(j.name?.trim() || j.email || j.phone);
 
 export function sectionOf(j: WizardJourney, now: Date): OnlineSection | null {
-  if (j.convertedAt) return null;
   const seen = j.lastActiveAt ? Date.parse(j.lastActiveAt) : Number.NaN;
   const idle = Number.isNaN(seen) ? Infinity : (now.getTime() - seen) / 60_000;
   const today = dayOf(now.toISOString());
   if (idle <= LIVE_MINUTES) return "online";
+  // A draft converts the moment its range shows (the submit route), so "converted" is
+  // everyone who saw a price — they are exactly "Priced, no request" until they ask for
+  // something, and live is live either way (19 Nov 2026: skipping them all left that
+  // section empty forever and dropped a live customer off Online now).
+  if (j.convertedAt) return j.bucket === "priced_no_request" ? "priced" : null;
   if (j.bucket === "needs_help") return "needs_help";
   if (j.visits > 1 && dayOf(j.lastActiveAt) === today) return "came_back";
   if (j.bucket === "priced_no_request") return "priced";
