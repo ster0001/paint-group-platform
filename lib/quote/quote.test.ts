@@ -3,7 +3,7 @@ import { lineState, quoteDocument, quoteLines, quoteNumber, quoteSummary } from 
 import { quoteBreakdown } from "@/lib/pricing/quoteBreakdown";
 import type { QuoteRoom } from "./cards";
 
-const bare = { tiles: [], windows: [], cupboard: null, cupboardInterior: null, spots: [], extras: { featureWalls: 0, wallpaper: false, other: "" }, garagePending: false };
+const bare = { tiles: [], windows: [], cupboard: null, cupboardInterior: null, roomType: "", cupboardDoors: null, spots: [], extras: { featureWalls: 0, wallpaper: false, other: "" }, garagePending: false };
 const rooms: QuoteRoom[] = [
   { areaId: 1, name: "Bed 1", lengthM: 3.5, widthM: 3.2, heightM: 2.4, size: "adjusted", confirmed: true, ...bare },
   { areaId: 2, name: "Living room", lengthM: 5, widthM: 4, heightM: 2.7, size: "yes", confirmed: true, ...bare },

@@ -223,7 +223,9 @@ const ROOM_DEFAULTS: Array<[string, number, number, string]> = [
   // the wizard mockup (16 m2 kitchen/meals, 12 m2 hall & entry); edit in
   // Settings once real numbers exist.
   ["kitchen", 4.0, 4.0, "16 m2 - separate kitchen/meals (placeholder, edit to taste)"],
-  ["hallway", 6.0, 2.0, "12 m2 - hall & entry (placeholder, edit to taste)"],
+  // Tom, 20 Nov 2026: a hallway is 5 x 1.25; an ensuite has its own row (2 x 1.5) instead of borrowing the bathroom's.
+  ["hallway", 5.0, 1.25, "6.25 m2 - hall & entry (Tom, 20 Nov 2026)"],
+  ["ensuite", 2.0, 1.5, "3 m2 - ensuite, its own row (Tom, 20 Nov 2026)"],
   // Tom, 7 Oct 2026: walk-in robe 2 x 1.25 (a storage-type room: WIR, pantry, linen).
   ["storage", 2.0, 1.25, "2.5 m2 - walk-in robe (Tom, 7 Oct 2026)"],
 ];

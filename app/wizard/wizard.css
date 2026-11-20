@@ -3030,3 +3030,13 @@
 .wz .wzm-addrfield .wz-suggest { z-index: 30; }
 /* M5: the shape screen's commercial door */
 .wz .wzm-hint--left { text-align: left; margin: 10px 0 0; }
+
+/* Tom, 20 Nov 2026 — the robe card's two ticks carry their own counter; "Same as Bed 1" is the size card's second button. */
+.wz .wzq .wzq-robe-row { justify-content: space-between; }
+.wz .wzq .wzq-robe-n { display: inline-flex; align-items: center; gap: 8px; flex: 0 0 auto; }
+.wz .wzq .wzq-robe-n em { font-style: normal; font-size: 13px; color: var(--muted); }
+.wz .wzq .wzq-robe-n .n { display: inline-flex; align-items: center; gap: 2px; }
+.wz .wzq .wzq-robe-n .n button { width: 34px; height: 34px; border-radius: 50%; border: 1.5px solid var(--line); background: var(--panel2); font: inherit; font-size: 18px; line-height: 1; color: var(--heading); cursor: pointer; padding: 0; }
+.wz .wzq .wzq-robe-n .n button:disabled { opacity: .4; }
+.wz .wzq .wzq-robe-n .n b { min-width: 24px; text-align: center; font-variant-numeric: tabular-nums; }
+.wz .wzq .wzm-foot .wzm-cta.wzq-cta2 { margin-top: 10px; background: transparent; color: var(--heading); border: 1.5px solid var(--heading); font-size: 15px; padding: 14px; }

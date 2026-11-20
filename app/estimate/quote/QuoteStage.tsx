@@ -387,13 +387,20 @@ export default function QuoteStage({ brand, estimateId, initial, jobKind, initia
 
           {current.kind === "measure" && (
             <MeasureScreen key={current.id} card={current} busy={busy} estimateId={estimateId}
-              onSize={async (dims) => {
-                const ok = dims
-                  ? await act({ action: "room_dims", areaId: current.areaId, lengthM: dims.lengthM, widthM: dims.widthM, ...(dims.heightM != null ? { heightM: dims.heightM } : {}) })
-                  : await act({ action: "room_size_ok", areaId: current.areaId });
+              onSize={async (dims, sameAs) => {
+                const size = dims
+                  ? { action: "room_dims", areaId: current.areaId, lengthM: dims.lengthM, widthM: dims.widthM, ...(dims.heightM != null ? { heightM: dims.heightM } : {}) }
+                  : { action: "room_size_ok", areaId: current.areaId };
+                // Item 3 (Tom, 20 Nov 2026): "Same as Bed 1" — the size, then that room's surfaces and robe answers, in one batch.
+                const ok = await act(sameAs ? { actions: [size, { action: "room_same_as", areaId: current.areaId, fromAreaId: sameAs }] } : size);
                 if (!ok) return;
                 sendWizardEvent("quote_card_answered", { card: "measure", line: current.areaId, measured: Boolean(dims) });
                 sendWizardEvent("quote_line_settled", { line: current.areaId, state: dims ? "measured" : "typical" });
+                if (sameAs) {
+                  // every other card of this room is answered by the copy: on to the next room (or the last checks)
+                  const next = cards.findIndex((c, k) => k > index && (!("areaId" in c) || c.areaId !== current.areaId));
+                  if (next >= 0) { setIndex(next); return; }
+                }
                 advance();
               }} />
           )}
@@ -525,15 +532,18 @@ export default function QuoteStage({ brand, estimateId, initial, jobKind, initia
 /** §3 B1 — "How big is {room}?": typed numbers over greyed typicals (R2); the typical stands unless something is typed.
  *  Go-live S4, C3 (D8): what is typed is CHECKED before it is saved (`lib/quote/sizeCheck.ts`) — letters are refused with a
  *  message, a side over 10 m (6 m in a bedroom, bathroom, laundry or WC), under 1 m or a high ceiling asks first. No clamp. */
-function MeasureScreen({ card, busy, estimateId, onSize }: { card: MeasureCard; busy: boolean; estimateId: string; onSize: (dims: { lengthM: number; widthM: number; heightM: number | null } | null) => void }) {
+function MeasureScreen({ card, busy, estimateId, onSize }: { card: MeasureCard; busy: boolean; estimateId: string; onSize: (dims: { lengthM: number; widthM: number; heightM: number | null } | null, sameAs?: number) => void }) {
   const [draft, setDraft] = useState<{ w: string; l: string; h: string }>({ w: "", l: "", h: "" });
   const [check, setCheck] = useState<SizeCheck<RoomDims> | null>(null);
+  /** Item 3: the size check was raised by "Same as Bed 1" — its Yes carries the copy through. */
+  const [sameAsPending, setSameAsPending] = useState<number | undefined>(undefined);
   const photo = useRoomPhotos(estimateId, card.areaId, card.name, "room", false);
   const typed = draft.w.trim() !== "" || draft.l.trim() !== "" || draft.h.trim() !== "";
-  const submit = () => {
-    if (!typed) { onSize(null); return; }
+  const submit = (sameAs?: number) => {
+    if (!typed) { onSize(null, sameAs); return; }
     const c = checkRoomSize(draft, card, card.name);
-    if (c.kind === "ok") { setCheck(null); onSize(c.dims); return; }
+    if (c.kind === "ok") { setCheck(null); onSize(c.dims, sameAs); return; }
+    setSameAsPending(sameAs);
     setCheck(c);
   };
   const edit = (key: "w" | "l" | "h", value: string) => { setDraft({ ...draft, [key]: value }); if (check) setCheck(null); };
@@ -564,12 +574,17 @@ function MeasureScreen({ card, busy, estimateId, onSize }: { card: MeasureCard; 
         {check?.kind === "confirm" ? (
           <div className="wzq-confirm" role="group" aria-label={check.message} data-testid="q-size-confirm">
             <p className="wzm-why" role="status">{check.message}</p>
-            <button type="button" className="wzm-cta" disabled={busy} onClick={() => { const d = check.dims; setCheck(null); onSize(d); }} data-testid="q-size-yes">{busy ? "Saving…" : "Yes, that's right"}</button>
+            <button type="button" className="wzm-cta" disabled={busy} onClick={() => { const d = check.dims; setCheck(null); onSize(d, sameAsPending); }} data-testid="q-size-yes">{busy ? "Saving…" : "Yes, that's right"}</button>
             <p className="wzm-hint"><button type="button" className="wzm-linkish" disabled={busy} onClick={() => setCheck(null)} data-testid="q-size-fix">Let me fix it</button></p>
           </div>
         ) : (
           <>
-            <button type="button" className="wzm-cta" disabled={busy} onClick={submit} data-testid="q-size-ok">{busy ? "Saving…" : "That's the size"}</button>
+            <button type="button" className="wzm-cta" disabled={busy} onClick={() => submit()} data-testid="q-size-ok">{busy ? "Saving…" : "That's the size"}</button>
+            {card.sameAs && (
+              <button type="button" className="wzm-cta wzq-cta2" disabled={busy} onClick={() => submit(card.sameAs!.areaId)} data-testid="q-same-as">
+                Same as {card.sameAs.name} — skip to the next room
+              </button>
+            )}
             <p className="wzm-hint"><button type="button" className="wzm-linkish" disabled={busy} onClick={() => onSize(null)} data-testid="q-size-typical">Not sure — use the typical size for now</button></p>
           </>
         )}
@@ -741,6 +756,8 @@ function SurfacesScreen({ card, busy, act, catalogue, onNext }: { card: Surfaces
   );
   const offered = (catalogue ?? []).filter((o) => !room.tiles.some((t) => t.on && t.label.toLowerCase() === o.label.toLowerCase()));
   const tail = room.tiles.filter((t) => t.longTail && !t.on);
+  // Item 5 (Tom, 20 Nov 2026): cupboard doors are a countable surface in any room — except a bedroom, whose robe card owns them.
+  const cupDoors = room.roomType === "bedroom" ? null : room.cupboardDoors;
   return (
     <>
       <h1 data-testid="wzm-h1">What we&rsquo;re painting in here</h1>
@@ -763,11 +780,20 @@ function SurfacesScreen({ card, busy, act, catalogue, onNext }: { card: Surfaces
             </span>
           ))
           : chip(windows))}
+        {cupDoors && cupDoors.count > 0 && (
+          <span role="button" tabIndex={busy ? -1 : 0} className="wzm-chip on" aria-pressed aria-disabled={busy} data-testid="q-surf-cupboard-doors"
+            onClick={() => { if (!busy) void act({ action: "room_cupboard", areaId: room.areaId, on: false, count: null }); }}
+            onKeyDown={(e) => { if (e.key === "Enter" && !busy) void act({ action: "room_cupboard", areaId: room.areaId, on: false, count: null }); }}>
+            Cupboard doors
+            <Counter value={cupDoors.count} min={1} max={40} testId="q-count-cupboard-doors" disabled={busy} onChange={(n) => void act({ action: "room_cupboard", areaId: room.areaId, on: true, count: n })} />
+          </span>
+        )}
         <button type="button" className="wzm-chip add" data-testid="q-add-surface" onClick={() => setAdding((a) => !a)} aria-expanded={adding}>+ Add a surface</button>
       </div>
       {adding && (
         <div className="wzq-addpanel" data-testid="q-add-panel">
           <div className="wzm-chips">
+            {cupDoors && cupDoors.count === 0 && <button type="button" className="wzm-chip" disabled={busy} data-testid="q-add-cupboard-doors" onClick={() => { void act({ action: "room_cupboard", areaId: room.areaId, on: true, count: cupDoors.defaultCount }); setAdding(false); }}>+ Cupboard doors</button>}
             {tail.map((t) => <button key={String(t.key)} type="button" className="wzm-chip" disabled={busy} data-testid={`q-add-${String(t.key).replace(/[^a-z0-9]+/gi, "-")}`} onClick={() => { void act({ action: "toggle_surface", areaId: room.areaId, key: String(t.key), on: true }); setAdding(false); }}>+ {t.label}</button>)}
             {offered.map((o) => <button key={`${o.via}:${o.key}`} type="button" className="wzm-chip" disabled={busy} data-testid={`q-add-${o.key.replace(/[^a-z0-9]+/gi, "-")}`}
               onClick={() => { void act(o.via === "substrate" ? { action: "toggle_surface", areaId: room.areaId, key: o.key, on: true } : { action: "room_add_catalogue", areaId: room.areaId, code: o.key }); setAdding(false); }}>+ {o.label}</button>)}
@@ -789,42 +815,46 @@ function SurfacesScreen({ card, busy, act, catalogue, onNext }: { card: Surfaces
   );
 }
 
-/** §3 B3 — robes and cupboards: No advances; Yes asks the loop's own two questions (the doors, the walls inside) — `room_cupboard` / `room_cupboard_interior`. */
+/**
+ * §3 B3 — built-in robes, in a bedroom (Tom, 20 Nov 2026, items 1, 2, 4): **No** advances; the doors and the walls inside
+ * are two separate ticks, each with its own counter — the walls inside can be painted with no doors at all (a mirrored
+ * robe). Writes the loop's own `room_cupboard` / `room_cupboard_interior` with a count.
+ */
 function RobeScreen({ card, busy, act, onNext }: { card: RobeCard; busy: boolean; act: Act; onNext: () => void }) {
   const room = card.room;
-  const [robe, setRobe] = useState<"none" | "yes" | null>(room.cupboard?.on === true || room.cupboardInterior?.on === true ? "yes" : room.cupboard?.on === false ? "none" : null);
+  const doors = room.cupboard; const inside = room.cupboardInterior;
+  const any = doors?.on === true || inside?.on === true;
+  const [none, setNone] = useState(!any && doors?.on === false);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => () => { if (timer.current) clearTimeout(timer.current); }, []);
-  const pick = (v: "none" | "yes") => {
-    setRobe(v);
-    if (v === "none") {
-      const actions = [{ action: "room_cupboard", areaId: room.areaId, on: false, count: null }, ...(room.cupboardInterior ? [{ action: "room_cupboard_interior", areaId: room.areaId, on: false, count: null }] : [])];
-      void act({ actions });
-      timer.current = setTimeout(onNext, 300);
-    }
+  const pickNone = () => {
+    setNone(true);
+    const actions = [...(doors ? [{ action: "room_cupboard", areaId: room.areaId, on: false, count: null }] : []), ...(inside ? [{ action: "room_cupboard_interior", areaId: room.areaId, on: false, count: null }] : [])];
+    void act({ actions });
+    timer.current = setTimeout(onNext, 300);
   };
-  const yn = (value: boolean | null, pickYn: (on: boolean) => void, testId: string) => (
-    <div className="wzm-opts two" data-testid={testId}>
-      <button type="button" className={`wzm-opt ${value === true ? "on" : ""}`} aria-pressed={value === true} disabled={busy} data-testid={`${testId}-yes`} onClick={() => pickYn(true)}><span><span className="t">Yes</span></span></button>
-      <button type="button" className={`wzm-opt ${value === false ? "on" : ""}`} aria-pressed={value === false} disabled={busy} data-testid={`${testId}-no`} onClick={() => pickYn(false)}><span><span className="t">No</span></span></button>
-    </div>
-  );
+  const row = (item: { on: boolean | null; count: number }, label: string, hint: string, unit: string, action: string, testId: string) => {
+    const on = item.on === true;
+    const set = (next: boolean, count: number | null) => { setNone(false); void act({ action, areaId: room.areaId, on: next, count }); };
+    return (
+      <div className={`wzm-opt wzq-robe-row ${on ? "on" : ""}`} role="button" tabIndex={busy ? -1 : 0} aria-pressed={on} aria-disabled={busy} data-testid={testId}
+        onClick={() => { if (!busy) set(!on, on ? null : item.count); }} onKeyDown={(e) => { if (e.key === "Enter" && !busy) set(!on, on ? null : item.count); }}>
+        <span><span className="t">{label}</span><span className="d">{hint}</span></span>
+        {on && <span className="wzq-robe-n"><Counter value={item.count} min={1} max={40} testId={`${testId}-count`} disabled={busy} onChange={(n) => set(true, n)} /><em>{unit}</em></span>}
+      </div>
+    );
+  };
   return (
     <>
-      <h1 data-testid="wzm-h1">Any built-in robes or cupboards being painted?</h1>
-      <p className="wzm-sub" data-testid="wzm-sub">Wardrobes, linen press, hall cupboards.</p>
-      <div className="wzm-opts two" data-testid="q-robe">
-        <button type="button" className={`wzm-opt ${robe === "none" ? "on" : ""}`} aria-pressed={robe === "none"} disabled={busy} data-testid="q-robe-none" onClick={() => pick("none")}><span><span className="t">No</span></span></button>
-        <button type="button" className={`wzm-opt ${robe === "yes" ? "on" : ""}`} aria-pressed={robe === "yes"} disabled={busy} data-testid="q-robe-yes" onClick={() => pick("yes")}><span><span className="t">Yes</span></span></button>
+      <h1 data-testid="wzm-h1">Any built-in robes being painted?</h1>
+      <p className="wzm-sub" data-testid="wzm-sub">Tick the doors, the walls inside, or both — and how many.</p>
+      <div className="wzm-opts" data-testid="q-robe">
+        <button type="button" className={`wzm-opt ${none && !any ? "on" : ""}`} aria-pressed={none && !any} disabled={busy} data-testid="q-robe-none" onClick={pickNone}><span><span className="t">No</span></span></button>
+        {doors && row(doors, "Robe doors", "The fronts of the doors", "doors", "room_cupboard", "q-robe-doors")}
+        {inside && row(inside, "Walls inside the robe", "With or without the doors", inside.count === 1 ? "robe" : "robes", "room_cupboard_interior", "q-robe-inside")}
       </div>
-      {robe === "yes" && (
-        <div className="wzq-sub" data-testid="q-robe-more">
-          {room.cupboard && <><p className="wzq-grp">{room.cupboard.question}</p>{yn(room.cupboard.on, (on) => void act({ action: "room_cupboard", areaId: room.areaId, on, count: null }), "q-robe-doors")}</>}
-          {room.cupboardInterior && <><p className="wzq-grp">{room.cupboardInterior.question}</p>{yn(room.cupboardInterior.on, (on) => void act({ action: "room_cupboard_interior", areaId: room.areaId, on, count: null }), "q-robe-inside")}</>}
-          <p className="wzm-note">Inside: shelves out, filling minor cracks and sanding — allowances set by us.</p>
-        </div>
-      )}
-      {robe === "yes" && (
+      {any && <p className="wzm-note" data-testid="q-robe-more">Inside: shelves out, filling minor cracks and sanding — allowances set by us.</p>}
+      {any && (
         <div className="wzm-foot" data-testid="wzm-foot">
           <button type="button" className="wzm-cta" disabled={busy} onClick={onNext} data-testid="q-next">{busy ? "Saving…" : "Next"}</button>
         </div>
