@@ -166,6 +166,8 @@ test.describe("Go-live S5 — the quote adds up, and copy", () => {
     await page.getByTestId("wzm-contact").click();
     const panel = page.getByTestId("wzm-contact-panel");
     await expect(panel).toBeVisible();
+    // the sheet slides in from the right: measure it once it has stopped
+    await expect.poll(() => panel.evaluate((el) => Math.round(el.getBoundingClientRect().right) - window.innerWidth), { timeout: 10_000 }).toBe(0);
     const look = await panel.evaluate((el) => { const c = getComputedStyle(el); const r = el.getBoundingClientRect(); return { radius: parseFloat(c.borderTopLeftRadius), pad: parseFloat(c.paddingLeft), width: r.width, right: r.right, vw: window.innerWidth }; });
     expect(look.radius, "square side sheet, not a bubble").toBeLessThanOrEqual(30);
     expect(look.pad).toBeGreaterThanOrEqual(18);

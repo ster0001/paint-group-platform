@@ -69,7 +69,7 @@ export default function MobileContact({ open, onClose, brand, estimatorName, sub
         {phone && (
           <a className="wzm-srow" href={`tel:${phone.replace(/\s+/g, "")}`} data-testid="wzm-contact-call" onClick={() => { countCallTap(); onCall?.(); }}>Call {phone}<small>Mon–Fri, 8–6</small></a>
         )}
-        {onMessage && <button type="button" className="wzm-srow" onClick={go(onMessage)} data-testid="wzm-contact-message">Send us a message<small>Straight to our team&rsquo;s live chat. We reply the same day</small></button>}
+        {onMessage && <button type="button" className="wzm-srow" onClick={go(onMessage)} data-testid="wzm-contact-message">Send us a message<small>Live chat with our team</small></button>}
         {onSave && <button type="button" className="wzm-srow" onClick={go(onSave)} data-testid="wzm-contact-save">Save and come back later<small>We email you the link</small></button>}
       </div>
     </div>
