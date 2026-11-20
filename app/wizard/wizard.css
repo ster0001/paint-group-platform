@@ -3010,18 +3010,32 @@
 .wz .wz-rv-card .wz-rv-tiles { margin: 18px 0 0; }
 
 /* ── Tom, 20 Nov 2026: "update our logo so it sits on a dark background like our website and looks a bit neater and bigger".
-   The phone header (the questions, the gate, the walk-around) and the quote stage's header at every width are ONE bar,
-   .wzm-head: the website nav's ink, edge to edge, with the website's own mark (Wordmark on="dark") at 34px — it was 22px
-   on the page's pale grey. Three columns (1fr · auto · 1fr) put the mark on the true centre line whatever the two buttons
-   weigh. The bar is 56px tall on a phone: ui-refresh-steps holds the header to that. ── */
+   EVERY wizard header is the website nav's ink with the website's own mark on it (Wordmark hands over the dark-background logo).
+
+   1. The phone header (the questions, the gate, the walk-around) and the quote stage's header at every width are ONE bar,
+      .wzm-head: edge to edge, the mark at 34px — it was 22px on the page's pale grey. Three columns (1fr · auto · 1fr) put
+      the mark on the true centre line whatever the two buttons weigh. 56px tall on a phone: ui-refresh-steps holds it to that.
+   2. The laptop header (.wz-top — the step rail's row, and the plain bar on the holding / sent / visit pages): the same ink,
+      the mark at 34px (was 26px). The row's own tokens are re-pointed at light-on-dark values, so the rail, the phone
+      number, Save & book and Exit follow without a rule each. The phone's progress line and tiles under the row stay light. ── */
 .wz .wzm-head { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; gap: 8px; padding: 8px 16px; background: #0a0b0d; box-shadow: 0 0 0 100vmax #0a0b0d; clip-path: inset(0 -100vmax); }
 .wz .wzm-head > .wzm-back { justify-self: start; margin-left: -8px; color: rgba(255, 255, 255, .82); }
 .wz .wzm-head > .wzm-back:focus-visible, .wz .wzm-head > .wzm-contact:focus-visible { outline: 2px solid #3bd8e9; outline-offset: 2px; }
 .wz .wzm-head > .wzm-contact { justify-self: end; background: transparent; border-color: rgba(255, 255, 255, .32); color: #ffffff; }
 .wz .wzm-head .wzm-logo .wz-logo { height: 34px; max-height: 34px; width: auto; max-width: 170px; }
-.wz .wzm-head .wz-wm--dark { color: #f4f6f8; font-size: 15px; white-space: nowrap; }
-.wz .wzm-head .wz-wm--dark span { color: #3bd8e9; }
+.wz .wzm-head .wz-wm, .wz .wz-top .wz-wm { color: #f4f6f8; font-size: 15px; white-space: nowrap; }
+.wz .wzm-head .wz-wm span, .wz .wz-top .wz-wm span { color: #3bd8e9; }
 @media (min-width: 900px) {
   .wz .wzm-head .wzm-logo .wz-logo { height: 42px; max-height: 42px; max-width: 260px; }
-  .wz .wzm-head .wz-wm--dark { font-size: 19px; }
+  .wz .wzm-head .wz-wm { font-size: 19px; }
 }
+.wz .wz-top, .wz .wz-top.wz-head, .wz .sc-freeze .wz-top { background: #0a0b0d; border-bottom-color: rgba(255, 255, 255, .08); backdrop-filter: none; -webkit-backdrop-filter: none; }
+.wz .wz-top:not(.wz-head), .wz .wz-head-in {
+  --text: #f4f6f8; --heading: #ffffff; --muted: rgba(255, 255, 255, .66); --line: rgba(255, 255, 255, .22); --line-strong: rgba(255, 255, 255, .34);
+  --panel: rgba(255, 255, 255, .07); --cyan: #3bd8e9; color: var(--text);
+}
+.wz .wz-top .wz-logo { height: 34px; max-height: 34px; width: auto; max-width: 200px; }
+.wz .wz-head-in .wz-rail li.cur .n, .wz .wz-head-in .wz-rail li.done .n { color: #0a0b0d; }
+.wz .wz-top .wz-mprog, .wz .wz-top .wzm-tiles--head { background: var(--ink); }
+.wz .wz-top .wz-mprog { padding-top: 10px; }
+.wz .wz-top .wzm-tiles--head { padding-top: 10px; }

@@ -181,7 +181,7 @@ export default async function CustomerWizardPage({
   if (!wizardOpenFor(online, brand) && !isStaff && !memberEmail) {
     return (
       <>
-        <header className="wz-top"><Wordmark logoUrl={company.logoUrlLight} brand={brand} /></header>
+        <header className="wz-top"><Wordmark logoUrl={company.logoUrl || null} brand={brand} /></header>
         <div className="wz-wrap wz-hold" data-testid="holding-page">
           <h1>{online.holdingTitle}</h1>
           <p className="wz-sub" style={{ marginTop: 14 }}>{online.holdingBody}</p>
@@ -321,8 +321,7 @@ export default async function CustomerWizardPage({
       substrates={substrates}
       segments={segments}
       mode="customer"
-      logoUrl={company.logoUrlLight}
-      logoUrlDark={company.logoUrl || null}
+      logoUrl={company.logoUrl || null}
       companyPhone={company.phone || null}
       estimatorName={estimatorName}
       trust={trust}

@@ -265,7 +265,7 @@ export default function QuoteStage({ brand, estimateId, initial, jobKind, initia
     <div className={`wzm wzq wzq--${jobKind}`} data-testid="quote-stage" data-quote-card={current.id} data-estimate-id={estimateId} data-job-kind={jobKind} data-busy={busy ? "1" : "0"}>
       <header className="wzm-head" data-testid="wzm-head">
         <button type="button" className="wzm-back" aria-label="Back" onClick={back} data-testid="wzm-back">‹</button>
-        <span className="wzm-logo"><Wordmark logoUrl={logoUrl} brand={brand} on="dark" /></span>
+        <span className="wzm-logo"><Wordmark logoUrl={logoUrl} brand={brand} /></span>
         <button type="button" className="wzm-contact" onClick={() => { sendWizardEvent("contact_opened", { step: current.id.slice(0, 40) }); setContactOpen(true); }} data-testid="wzm-contact">Contact</button>
       </header>
       {/* Tom, 5 Nov 2026: the quote, the house and the moving price are FROZEN at the top while the card scrolls; the logo scrolls away */}
