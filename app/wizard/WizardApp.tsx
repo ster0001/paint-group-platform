@@ -197,6 +197,7 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
   substrates: SubstrateGroups;
   mode?: "internal" | "customer";
   /** The Settings logo (logo 1) for the header — wordmark when unset. */
+  /** The website's own mark — `company_profile.logoUrl`, the dark-background logo: every wizard header is a dark bar. */
   logoUrl?: string | null;
   /** The office number, for the reveal screen's "or just talk to us" line. */
   companyPhone?: string | null;

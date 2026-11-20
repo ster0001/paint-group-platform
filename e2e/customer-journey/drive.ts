@@ -660,3 +660,40 @@ export async function openExteriorPages(page: Page) {
   await quickNext(page);                 // → the first outside screen: the v2 home step when the flag is on, else s-ext-job
   await expect(page.locator("[data-quick-step='home'], [data-quick-step='outside']").first()).toBeVisible({ timeout: 20_000 });
 }
+
+/**
+ * Tom, 20 Nov 2026 — "our logo … on a dark background like our website … a bit neater and bigger": the phone and
+ * quote-stage header (`wzm-head`) is a dark bar, the mark on it is the dark-background one, at least `minLogo` px
+ * tall, on the bar's centre line, and the Contact button reads light on it. One check for every screen that wears it.
+ */
+export async function expectDarkHeader(page: Page, opts: { minLogo?: number } = {}): Promise<void> {
+  const head = page.getByTestId("wzm-head");
+  await expect(head).toBeVisible({ timeout: 30_000 });
+  const m = await head.evaluate((el) => {
+    const lum = (css: string) => { const [r, g, b] = (css.match(/[\d.]+/g) ?? []).slice(0, 3).map(Number); return (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255; };
+    const mark = el.querySelector(".wzm-logo .wz-logo, .wzm-logo .wz-wm") as HTMLElement | SVGElement | null;
+    const box = el.getBoundingClientRect();
+    const mb = mark?.getBoundingClientRect() ?? null;
+    const text = mark?.tagName.toLowerCase() === "svg"
+      ? mark.querySelectorAll("path")[1]?.getAttribute("fill") ?? null // the Paint Home wordmark's "PAINT" (the brush is path 0)
+      : mark?.getAttribute("data-on") ?? null;
+    const contact = el.querySelector("[data-testid='wzm-contact']");
+    return {
+      barLum: lum(getComputedStyle(el).backgroundColor), left: box.left, right: box.right, vw: document.documentElement.clientWidth,
+      markH: mb?.height ?? 0, markW: mb?.width ?? 0, offCentre: mb ? Math.abs(mb.left + mb.width / 2 - (box.left + box.width / 2)) : 999,
+      inside: mb ? mb.top >= box.top && mb.bottom <= box.bottom : false, text,
+      contactLum: contact ? lum(getComputedStyle(contact).color) : 0, scrollW: document.documentElement.scrollWidth,
+      // With no logo file in Settings (the test stack has none) Paint Group falls back to its lettered wordmark: type, not a picture.
+      lettered: mark?.classList.contains("wz-wm") ?? false, fontPx: mark ? parseFloat(getComputedStyle(mark).fontSize) : 0,
+    };
+  });
+  expect(m.barLum, "the header bar is dark, like the website's nav").toBeLessThan(0.1);
+  if (m.lettered) expect(m.fontPx, "the lettered wordmark is bigger than the 12px it was").toBeGreaterThanOrEqual(15);
+  else expect(m.markH, "the mark is bigger than the 22px it was").toBeGreaterThanOrEqual(opts.minLogo ?? 30);
+  expect(m.markW, "the mark has a width (an inline SVG with no size draws nothing)").toBeGreaterThan(60);
+  expect(m.offCentre, "the mark sits on the bar's centre line").toBeLessThanOrEqual(1.5);
+  expect(m.inside, "the mark sits inside the bar").toBe(true);
+  expect(["dark", "#eeeeee"], "the mark is the dark-background one").toContain(m.text);
+  expect(m.contactLum, "Contact reads light on the dark bar").toBeGreaterThan(0.8);
+  expect(m.scrollW, "no sideways scroll from the bar").toBeLessThanOrEqual(m.vw);
+}
