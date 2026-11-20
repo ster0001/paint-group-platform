@@ -264,13 +264,13 @@ test.describe("quote stage v10 — session 1: the cards on a phone", () => {
     await page.getByTestId("q-add-surface").tap();
     await page.getByTestId("q-next").tap();
     await expect(stage).toHaveAttribute("data-quote-card", new RegExp(`^(robe|attention):${firstArea}$`), { timeout: 30_000 });
-    // B3 — robes and cupboards (only where the loop offers a row): Yes opens the loop's own questions
+    // B3 — built-in robes (a bedroom, where the card has a robe row)
     if ((await cardId(page)) === `robe:${firstArea}`) {
-      await expect(page.getByTestId("wzm-h1")).toContainText("robes or cupboards");
-      await page.getByTestId("q-robe-yes").tap();
+      await expect(page.getByTestId("wzm-h1")).toContainText("built-in robes");
+      // Tom, 20 Nov 2026: the doors and the walls inside are two ticks, each with its own counter
+      await page.getByTestId("q-robe-doors").tap();
+      await expect(page.getByTestId("q-robe-doors")).toHaveAttribute("aria-pressed", "true", { timeout: 30_000 });
       await expect(page.getByTestId("q-robe-more")).toBeVisible();
-      await page.getByTestId("q-robe-doors-yes").tap();
-      await expect(page.getByTestId("q-robe-doors-yes")).toHaveAttribute("aria-pressed", "true");
       // §4 (S4) — the robe and its doors render on the right wall
       await expect(page.getByTestId("q-room-pic").locator("[data-surf='robedoors']")).toHaveAttribute("data-on", "true", { timeout: 30_000 });
       await page.getByTestId("q-next").tap();

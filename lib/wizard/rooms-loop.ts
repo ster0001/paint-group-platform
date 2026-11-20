@@ -69,6 +69,15 @@ export const CUPBOARD_BY_ROOM_TYPE: Record<string, {
   },
 };
 
+/**
+ * Tom, 20 Nov 2026 (item 5): "+ Add a surface → Cupboard doors" works in ANY room. A room type with its own cupboard
+ * row above uses it; every other room (a living room's built-ins, a hall's linen press) prices its doors on the plain
+ * cupboard-door row. Only `applyCupboard` and the `cupboardDoors` view read this — the cupboard QUESTION still belongs
+ * to the four room types above, so nothing new is asked anywhere.
+ */
+export const GENERIC_CUPBOARD = { code: "Vanity Door", question: "", unit: "cupboard doors", defaultCount: 2, note: "" } as const;
+export const cupboardConfigFor = (roomType: string) => CUPBOARD_BY_ROOM_TYPE[roomType] ?? GENERIC_CUPBOARD;
+
 const isInteriorRoom = (b: LooseBlock) =>
   b.kind === "area" && b.type !== "Exterior" && b.areaType !== "surface";
 
@@ -170,8 +179,7 @@ export function applyCupboard(
   blocks: LooseBlock[], areaId: number, on: boolean, count: number | null, nextId: () => number,
 ): RoomsLoopResult {
   return withRoom(blocks, areaId, (b) => {
-    const cfg = CUPBOARD_BY_ROOM_TYPE[String(b.roomType ?? "")];
-    if (!cfg) return "This room has no cupboard question.";
+    const cfg = cupboardConfigFor(String(b.roomType ?? ""));
     const surfaces = (b.surfaces ?? []).filter((s) => String(s.code) !== cfg.code && (on || s.cupInside !== true));
     if (on) {
       const n = Math.min(40, Math.max(1, count ?? cfg.defaultCount));
@@ -180,6 +188,29 @@ export function applyCupboard(
     }
     b.surfaces = surfaces;
     b.customer = on ? { ...customerOf(b), cup: true } : { ...customerOf(b), cup: false, cupDoorInside: null };
+  });
+}
+
+/** A repair or prep line belongs to one spot in one room — never copied to another. */
+const isRepairLine = (s: LooseSurface) => s.allowance === true || (Array.isArray(s.assumedFields) && (s.assumedFields as string[]).includes("prep"));
+
+/**
+ * Tom, 20 Nov 2026 (item 3): "Same as Bedroom 1" — the room takes everything the other room is having painted (its
+ * surfaces with their counts, shares, door scope and window sizes; the robe answers) and KEEPS its own size, name and
+ * ceiling height. Repairs and photos are spots in one room and stay there. The room is then answered: the loop moves
+ * straight to the next room.
+ */
+export function applyRoomSameAs(blocks: LooseBlock[], areaId: number, fromAreaId: number, nextId: () => number): RoomsLoopResult {
+  const from = blocks.find((b) => isInteriorRoom(b) && Number(b.id) === fromAreaId);
+  if (!from || fromAreaId === areaId) return { ok: false, error: "No such room to copy." };
+  return withRoom(blocks, areaId, (b) => {
+    if (String(b.roomType ?? "") !== String(from.roomType ?? "")) return "Those two rooms are different kinds of room.";
+    const kept = (b.surfaces ?? []).filter(isRepairLine);
+    const copied = (from.surfaces ?? []).filter((s) => !isRepairLine(s)).map((s) => ({ ...s, id: nextId() }));
+    b.surfaces = [...copied, ...kept];
+    const src = customerOf(from);
+    b.customer = { ...customerOf(b), cup: src.cup, cupInterior: src.cupInterior ?? null, cupDoorInside: src.cupDoorInside ?? null };
+    b.customerCustom = [...(from.customerCustom ?? [])];
   });
 }
 
@@ -430,7 +461,11 @@ export type RoomLoopView = {
   heightAdjusted: boolean;
   size: "yes" | "adjusted" | null;
   confirmed: boolean;
+  /** The block's room type ("bedroom", "hallway", …) — the quote stage asks the robe card in bedrooms only. */
+  roomType: string;
   cupboard: null | { question: string; unit: string; on: boolean | null; count: number; note: string };
+  /** Tom, 20 Nov 2026 (item 5): cupboard doors as a countable surface in ANY room — `count` 0 = none; null when the card has no row to price them. */
+  cupboardDoors: null | { unit: string; count: number; defaultCount: number };
   /** Interiors ride the same shape; null when the card has no row for this room type. */
   cupboardInterior: null | { question: string; unit: string; on: boolean | null; count: number; note: string };
   /** Tom, 7 Sep: the inside face of the robe doors. */
@@ -457,8 +492,12 @@ export function roomLoopViews(blocks: LooseBlock[], cupboardCodes: ReadonlySet<s
     const dCfg = CUPBOARD_DOOR_INSIDE_BY_ROOM_TYPE[String(b.roomType ?? "")];
     const doorInsideCfg = dCfg && cupboardCodes.has(dCfg.code) ? dCfg : null;
     const doorInsideLine = doorInsideCfg ? (b.surfaces ?? []).find((s) => s.cupInside === true) : undefined;
+    const doorsCfg = cupboardConfigFor(String(b.roomType ?? ""));
+    const doorsLine = cupboardCodes.has(doorsCfg.code) ? (b.surfaces ?? []).find((s) => String(s.code) === doorsCfg.code && s.cupInside !== true) : undefined;
     out.push({
       areaId: Number(b.id) || 0,
+      roomType: String(b.roomType ?? ""),
+      cupboardDoors: cupboardCodes.has(doorsCfg.code) ? { unit: doorsCfg.unit, count: doorsLine ? Number(doorsLine.count) || 1 : 0, defaultCount: doorsCfg.defaultCount } : null,
       sizeLabel: `${Number(b.L) || 0} × ${Number(b.W) || 0} m`,
       lengthM: Number(b.L) || 0,
       widthM: Number(b.W) || 0,

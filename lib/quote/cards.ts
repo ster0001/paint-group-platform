@@ -54,10 +54,12 @@ export type MeasureCard = {
   /** "Not sure — use the typical size for now" was taken (`room_size_ok`), or the size was never touched. */
   typical: boolean;
   position: { n: number; of: number };
+  /** Tom, 20 Nov 2026 (item 3): a second or later bedroom may take the first bedroom's answers — "Same as Bed 1". */
+  sameAs: { areaId: number; name: string } | null;
 };
 /** §3 B2 — "What we're painting in here": the room's tiles, its window groups, the door scope and the wall share. */
 export type SurfacesCard = { kind: "surfaces"; id: string; areaId: number; name: string; stage: string; room: QuoteRoom };
-/** §3 B3 — robes and cupboards; only where the room type has a cupboard row to write (D-Q4, see the ledger). */
+/** §3 B3 — built-in robes: BEDROOMS only (Tom, 20 Nov 2026, item 4), and only where the card has a robe row to write (D-Q4). */
 export type RobeCard = { kind: "robe"; id: string; areaId: number; name: string; stage: string; room: QuoteRoom };
 /** §3 B4 — anything needing attention: the spot tags, how much, a photo; a feature wall. */
 export type AttentionCard = { kind: "attention"; id: string; areaId: number; name: string; stage: string; room: QuoteRoom };
@@ -86,8 +88,12 @@ export type QuoteRoom = {
   tiles: CustomerTile[];
   windows: RoomLoopView["windows"];
   /** B3: the cupboard rows (doors, the walls inside) the loop offers this room type — null = no row to write. */
-  cupboard: { question: string; on: boolean | null } | null;
-  cupboardInterior: { question: string; on: boolean | null } | null;
+  cupboard: { question: string; on: boolean | null; count: number } | null;
+  cupboardInterior: { question: string; on: boolean | null; count: number } | null;
+  /** The block's room type — the robe card is a bedroom's; "Same as Bed 1" pairs rooms of one type. */
+  roomType: string;
+  /** Item 5: cupboard doors as a countable surface in any room (0 = none); null = the card cannot price them. */
+  cupboardDoors: { unit: string; count: number; defaultCount: number } | null;
   /** B4: the repairs pinned to the room, and its extras row (feature wall / wallpaper / other). */
   spots: RoomSpot[];
   extras: { featureWalls: number; wallpaper: boolean; other: string };
@@ -109,7 +115,7 @@ export function quoteSidesFrom(sides: SidesView | null): QuoteRoom[] {
     lengthM: s.L, widthM: s.H, heightM: 0,
     size: s.size === "adjusted" ? "adjusted" : s.size === "yes" || s.size === "ns" ? "yes" : null,
     confirmed: s.confirmed,
-    tiles: [], windows: [], cupboard: null, cupboardInterior: null, spots: [],
+    tiles: [], windows: [], cupboard: null, cupboardInterior: null, roomType: "", cupboardDoors: null, spots: [],
     extras: { featureWalls: 0, wallpaper: false, other: "" }, garagePending: false,
     kind: "side", sideKey: s.key, sideTiles: s.tiles, sideNote: s.note, sideNotePhotos: s.notePhotos,
   }));
@@ -124,8 +130,9 @@ export function quoteRoomsFrom(scopeRooms: CustomerScopeRoom[], loop: RoomLoopVi
       lengthM: l?.lengthM ?? 0, widthM: l?.widthM ?? 0, heightM: l?.heightM ?? 2.4,
       size: l?.size ?? null, confirmed: l?.confirmed ?? false,
       tiles: r.tiles, windows: l?.windows ?? [],
-      cupboard: l?.cupboard ? { question: l.cupboard.question, on: l.cupboard.on } : null,
-      cupboardInterior: l?.cupboardInterior ? { question: l.cupboardInterior.question, on: l.cupboardInterior.on } : null,
+      cupboard: l?.cupboard ? { question: l.cupboard.question, on: l.cupboard.on, count: l.cupboard.count } : null,
+      cupboardInterior: l?.cupboardInterior ? { question: l.cupboardInterior.question, on: l.cupboardInterior.on, count: l.cupboardInterior.count } : null,
+      roomType: l?.roomType ?? "", cupboardDoors: l?.cupboardDoors ?? null,
       spots: r.spots ?? [],
       extras: roomExtras[String(r.areaId)] ?? { featureWalls: 0, wallpaper: false, other: "" },
       garagePending: r.garagePending === true,
@@ -215,7 +222,9 @@ export function generalCards(i: QuoteInput): GeneralCard[] {
 
 /** The measure card for each room (§3 B1). */
 export function measureCards(i: QuoteInput): MeasureCard[] {
+  const firstBedroom = i.rooms.find((r) => r.roomType === "bedroom" && r.kind !== "side");
   return i.rooms.map((r, k) => ({
+    sameAs: firstBedroom && r.roomType === "bedroom" && r.areaId !== firstBedroom.areaId ? { areaId: firstBedroom.areaId, name: firstBedroom.name } : null,
     kind: "measure", id: `measure:${r.areaId}`, areaId: r.areaId, name: r.name, stage: `${r.name} · ${k + 1} of ${i.rooms.length}`,
     lengthM: r.lengthM, widthM: r.widthM, heightM: r.heightM,
     measured: r.size === "adjusted", typical: r.size !== "adjusted",
@@ -235,11 +244,14 @@ export function roomCards(i: QuoteInput): QuoteCard[] {
     if (i.jobKind === "trims") { out.push({ kind: "surfaces", id: `surfaces:${r.areaId}`, areaId: r.areaId, name: r.name, stage, room: r }); return; }
     out.push(measure[k]);
     out.push({ kind: "surfaces", id: `surfaces:${r.areaId}`, areaId: r.areaId, name: r.name, stage, room: r });
-    if (r.cupboard) out.push({ kind: "robe", id: `robe:${r.areaId}`, areaId: r.areaId, name: r.name, stage, room: r });
+    if (hasRobeCard(r)) out.push({ kind: "robe", id: `robe:${r.areaId}`, areaId: r.areaId, name: r.name, stage, room: r });
     out.push({ kind: "attention", id: `attention:${r.areaId}`, areaId: r.areaId, name: r.name, stage, room: r });
   });
   return out;
 }
+
+/** Item 4: the robe card is asked in a bedroom, where the card can price the doors or the walls inside — nowhere else. */
+export const hasRobeCard = (r: QuoteRoom): boolean => r.roomType === "bedroom" && (r.cupboard != null || r.cupboardInterior != null);
 
 /** §3 C — three cards per painted side (an outside job's whole stage: no whole-house cards, no last checks). */
 export function sideCards(i: QuoteInput): QuoteCard[] {
