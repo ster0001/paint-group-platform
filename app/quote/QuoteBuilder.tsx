@@ -70,6 +70,7 @@ import "./invoice-preview-print.css";
 import { saveWorkingScopeAction } from "./revisionActions";
 import { diffRevision, type RevisionState } from "@/lib/revision/diff";
 import { revertChange } from "@/lib/revision/revert";
+import { withSignedReversals } from "@/lib/revision/signedReversal";
 import { PAY_NOTE, revisionSaveWarnings } from "@/lib/revision/saveWarnings";
 
 type WorkOrderRow = {
@@ -1001,8 +1002,15 @@ export default function QuoteBuilder({
   // recomputes from the SAVED scope before any variation is written.
   const revisionDiff = useMemo(() => {
     if (!revision || !revisionBaseline) return null;
-    return diffRevision(revisionBaseline as RevisionState, revisionCurrentState, pricingCtx);
-  }, [revision, revisionBaseline, revisionCurrentState, pricingCtx]);
+    // A section whose SIGNED change was taken back out still owes the
+    // customer a credit — it stays on the list until that is drafted.
+    return withSignedReversals(
+      diffRevision(revisionBaseline as RevisionState, revisionCurrentState, pricingCtx),
+      revisionVariations,
+      revisionBaseline as RevisionState,
+      revisionCurrentState,
+    );
+  }, [revision, revisionBaseline, revisionCurrentState, pricingCtx, revisionVariations]);
 
   // Tom, 12–13 Oct 2026: before a revision save moves the contractor's hours
   // or their hourly RATE, say so — and where it goes. A rate change never goes

@@ -32,7 +32,9 @@ export type RevisionState = Record<string, unknown> & { blocks?: unknown };
 export type RevisionChange = {
   /** Stable ref for one-variation-per-change: "block:<id>" or "adjustments". */
   blockRef: string;
-  kind: "added" | "removed" | "changed" | "adjustments";
+  /** "reverted": a block with a SIGNED variation put back to the accepted
+   * scope — delta 0 here, credited by the draft (lib/revision/signedReversal). */
+  kind: "added" | "removed" | "changed" | "adjustments" | "reverted";
   title: string;
   detail: string;
   credit: boolean;

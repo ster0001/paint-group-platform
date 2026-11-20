@@ -53,7 +53,7 @@ import { ensureAccountAndProperty } from "@/lib/accounts/link";
 import { recordConsent } from "@/lib/accounts/consent";
 import { reconcileRoomAllowances, type AllowanceBlock } from "@/lib/wizard/allowances";
 import { builderContactFrom, upsertWizardContact } from "@/lib/wizard/contactCard";
-import { isTestEmail } from "@/lib/accounts/identity";
+import { isTestEmail, normaliseEmail } from "@/lib/accounts/identity";
 import { sendMagicLink } from "@/lib/portal/auth";
 import { automationOn, renderTemplate } from "@/lib/messaging/config";
 import { loadMessaging } from "@/lib/messaging/load";
@@ -1005,8 +1005,16 @@ export async function POST(request: Request) {
     // draft stays "abandoned", and the funnel would chase somebody who
     // finished. Found live on the very first real run (Tom's own, 30 Aug:
     // estimate 00:44:40, draft untouched after 00:44:41, converted never set).
+    // The gate's details ride along (19 Nov 2026): the draft autosave that would carry them
+    // skips a converted draft, and it usually lands after this — so Online now and Today
+    // named a priced customer by their suburb. Forward only, as the autosave writes them.
     db.from("wizard_drafts")
-      .update({ converted_at: new Date().toISOString(), estimate_id: estimateId })
+      .update({
+        converted_at: new Date().toISOString(), estimate_id: estimateId,
+        ...(state.contact.name.trim() ? { name: state.contact.name.trim() } : {}),
+        ...(normaliseEmail(state.contact.email) ? { email: normaliseEmail(state.contact.email) } : {}),
+        ...(state.contact.phone.trim() ? { phone: state.contact.phone.trim() } : {}),
+      })
       .eq("user_id", user.id)
       .is("converted_at", null)
       .then((r) => { if (r.error) reportError(r.error, { where: "wizard.submit.draftConvert", bestEffort: true }); }),

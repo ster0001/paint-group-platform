@@ -70,7 +70,7 @@ export default async function EstimatesPage({
       );
     } else if (view === "online") {
       await maybeSweep(createServiceClient());
-      const { data: rows, error } = await supabase.from("wizard_drafts").select(WIZARD_SESSION_COLUMNS).is("converted_at", null)
+      const { data: rows, error } = await supabase.from("wizard_drafts").select(WIZARD_SESSION_COLUMNS)
         .gte("last_seen_at", new Date(now.getTime() - 14 * 86_400_000).toISOString()).order("last_seen_at", { ascending: false }).limit(500);
       body = error ? (
         <div className="mt-4 rounded-lg border border-red-200 bg-red-50 p-6 text-sm text-red-800" data-testid="estimates-error">
