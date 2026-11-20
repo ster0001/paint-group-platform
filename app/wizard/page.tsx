@@ -42,5 +42,5 @@ export default async function WizardPage() {
     .sort();
   const substrates = substrateOptionsFromRates(rateItems ?? []);
 
-  return <WizardApp roomTypes={roomTypes} substrates={substrates} logoUrl={logoUrl} />;
+  return <WizardApp roomTypes={roomTypes} substrates={substrates} logoUrl={logoUrl} logoUrlDark={companyProfile.logoUrl || null} />;
 }

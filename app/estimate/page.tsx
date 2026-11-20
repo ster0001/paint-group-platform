@@ -322,6 +322,7 @@ export default async function CustomerWizardPage({
       segments={segments}
       mode="customer"
       logoUrl={company.logoUrlLight}
+      logoUrlDark={company.logoUrl || null}
       companyPhone={company.phone || null}
       estimatorName={estimatorName}
       trust={trust}

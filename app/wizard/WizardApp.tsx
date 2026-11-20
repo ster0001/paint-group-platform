@@ -181,7 +181,7 @@ const PROC_TIPS = [
   "Nothing is booked and nothing is charged until you say so.",
 ];
 
-export default function WizardApp({ roomTypes, substrates, mode = "internal", prefill, prefillState, prefillIsScopeSeed = false, logoUrl, companyPhone = null, estimatorName = null, trust = null, intent, resume = null, assisted = null, segments = DEFAULT_SEGMENTS, gateOrder = "details_first", exteriorTypicals = [], brand = "paintgroup" }: {
+export default function WizardApp({ roomTypes, substrates, mode = "internal", prefill, prefillState, prefillIsScopeSeed = false, logoUrl, companyPhone = null, estimatorName = null, trust = null, intent, resume = null, assisted = null, segments = DEFAULT_SEGMENTS, gateOrder = "details_first", exteriorTypicals = [], brand = "paintgroup", logoUrlDark = null }: {
   /** Paint Home brief §5: the shopfront this session came through — the host or the hand-off decided it (lib/wizard/brandServer.ts). Paint Group by default. */
   brand?: WizardBrand;
   /** Exterior wizard v2 (S2): the shape typicals (`exterior_typicals`); empty = the built-in list. */
@@ -198,6 +198,8 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
   mode?: "internal" | "customer";
   /** The Settings logo (logo 1) for the header — wordmark when unset. */
   logoUrl?: string | null;
+  /** The website's own mark (dark-background logo) for the phone header's dark bar. */
+  logoUrlDark?: string | null;
   /** The office number, for the reveal screen's "or just talk to us" line. */
   companyPhone?: string | null;
   /** C12: the `commercial_segments` rows, loaded by the page; the mirror when absent. */
@@ -2056,7 +2058,7 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
             quick={quick}
             outside={quick.jobType === "exterior" || quick.jobType === "both" ? outside : null}
             brand={brand}
-            logo={<Wordmark logoUrl={logoUrl} brand={brand} />}
+            logo={<Wordmark logoUrl={logoUrlDark} brand={brand} on="dark" />}
             onContactOpen={() => { sendWizardEvent("contact_opened", { step: "gate" }); setContactOpen("gate"); }}
             estimateId={reveal.estimateId}
             firstName={prefill?.name ?? state.contact.name}
@@ -2091,7 +2093,7 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
         ) : walking && outside.v2 && !sent && mobileShell ? (
           <MobileWalk
             v2={outside.v2} rows={exteriorTypicals} quick={quick} outside={outside}
-            logo={<Wordmark logoUrl={logoUrl} brand={brand} />}
+            logo={<Wordmark logoUrl={logoUrlDark} brand={brand} on="dark" />}
             at={walkAt} onAt={setWalkAt} busy={walkBusy} error={walkError}
             onChange={(v2) => setOutside({ v2 })}
             onBack={() => setWalking(false)}
@@ -2402,7 +2404,7 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
           />
           <MobileQuickLook
             brand={brand}
-            logo={<Wordmark logoUrl={logoUrl} brand={brand} />}
+            logo={<Wordmark logoUrl={logoUrlDark} brand={brand} on="dark" />}
             steps={quickSteps}
             step={quickStep}
             quick={quick}
@@ -2494,7 +2496,7 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
               />
               <MobileQuickLook
                 brand={brand}
-                logo={<Wordmark logoUrl={logoUrl} brand={brand} />}
+                logo={<Wordmark logoUrl={logoUrlDark} brand={brand} on="dark" />}
                 steps={quickSteps}
                 step={quickStep}
                 quick={quick}

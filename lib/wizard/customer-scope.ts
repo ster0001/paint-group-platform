@@ -66,7 +66,7 @@ export type CustomerScopeBundle =
   | {
       kind: "sides"; estimateId: string; initial: CustomerPayload; initialSides: SidesView; initialExterior: CustomerExteriorView | null;
       initialLadder: Ladder;
-      docs: EstimateDocuments; logoUrl: string | null; companyPhone: string | null;
+      docs: EstimateDocuments; logoUrl: string | null; logoUrlDark: string | null; companyPhone: string | null;
       phoneHours: string; customerPhone: string | null;
       /** C11 — the customer's suburb, said on the strip only when the estimator covers it. */
       customerSuburb: string | null;
@@ -82,7 +82,7 @@ export type CustomerScopeBundle =
   | {
       kind: "rooms"; estimateId: string; initial: CustomerPayload; initialRooms: CustomerScopeRoom[]; initialSides: SidesView | null;
       initialExterior: CustomerExteriorView | null; initialLadder: Ladder;
-      initialInteriorLoop: InteriorLoopView | null; roomTypes: string[]; liveRange: boolean; docs: EstimateDocuments; logoUrl: string | null; companyPhone: string | null;
+      initialInteriorLoop: InteriorLoopView | null; roomTypes: string[]; liveRange: boolean; docs: EstimateDocuments; logoUrl: string | null; logoUrlDark: string | null; companyPhone: string | null;
       phoneHours: string; customerPhone: string | null;
       /** C11 — the customer's suburb, said on the strip only when the estimator covers it. */
       customerSuburb: string | null;
@@ -193,6 +193,8 @@ export async function loadCustomerScope(db: SupabaseClient, estimate: EstimateRo
   // 5 Oct: the wizard family is light — the light-background logo leads.
   const headerProfile = (settingValue(ctx.settings, "company_profile") ?? {}) as { logoUrl?: string; logoUrlLight?: string };
   const headerLogoUrl = headerProfile.logoUrlLight || headerProfile.logoUrl || null;
+  // Tom, 20 Nov 2026: the quote stage's header is a dark bar like the website — it takes the website's own mark.
+  const headerLogoUrlDark = headerProfile.logoUrl?.trim() || null;
   const profile = (settingValue(ctx.settings, "company_profile") ?? {}) as { phone?: string; phoneHours?: string };
   const companyPhone = profile.phone?.trim() || null;
   // Tom, 8 Sep: "it needs to be clear that our lines are open from
@@ -267,7 +269,7 @@ export async function loadCustomerScope(db: SupabaseClient, estimate: EstimateRo
     return {
       kind: "sides", estimateId: id, initial: customer, initialSides: sides, initialExterior: customerExteriorView(blocks),
       initialLadder: ladder,
-      docs, logoUrl: headerLogoUrl, companyPhone, phoneHours, customerPhone, holdDays, sendTo, estimator, customerSuburb, initialCondition,
+      docs, logoUrl: headerLogoUrl, logoUrlDark: headerLogoUrlDark, companyPhone, phoneHours, customerPhone, holdDays, sendTo, estimator, customerSuburb, initialCondition,
     };
   }
 
@@ -285,7 +287,7 @@ export async function loadCustomerScope(db: SupabaseClient, estimate: EstimateRo
     kind: "rooms", estimateId: id, initial: customer, initialRooms: interiorRooms, initialSides: sides,
     initialExterior: customerExteriorView(blocks),
     initialLadder: ladder,
-    initialInteriorLoop: interiorLoop, roomTypes, liveRange: editorFlags.liveRange !== false, docs, logoUrl: headerLogoUrl,
+    initialInteriorLoop: interiorLoop, roomTypes, liveRange: editorFlags.liveRange !== false, docs, logoUrl: headerLogoUrl, logoUrlDark: headerLogoUrlDark,
     companyPhone, phoneHours, customerPhone, holdDays, sendTo, estimator, customerSuburb, initialCondition,
     // Phase 4: the systems the engine derived, ready to be shown back and
     // corrected. An estimate with no readable wizard snapshot (a staff-built

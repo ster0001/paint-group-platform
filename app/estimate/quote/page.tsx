@@ -99,7 +99,7 @@ export default async function QuoteStagePage({ searchParams }: { searchParams: P
         typicalRows={typicalRows}
         initialCornices={bundle.kind === "rooms" ? bundle.initialCornices : null}
         initialAccess={bundle.kind === "rooms" ? bundle.initialAccess : { answers: {}, asksLift: false }}
-        logoUrl={bundle.logoUrl}
+        logoUrl={bundle.logoUrlDark}
         estimator={bundle.estimator}
         companyPhone={bundle.companyPhone}
         customerSuburb={bundle.customerSuburb}
