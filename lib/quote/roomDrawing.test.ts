@@ -40,7 +40,7 @@ describe("quote stage v10 §4 — the room drawing as data", () => {
       areaId: 1, name: "Bed 1", lengthM: 3, widthM: 3, heightM: 2.4, size: null, confirmed: false,
       tiles: [tile("walls", true, { wallsPct: 50 }), tile("ceilings", true), tile("cornices", false), tile("skirting", true), tile("architraves", false), tile("doors", true, { count: 2, countable: true }), tile("windows", true, { count: 1, countable: true })],
       windows: [{ id: 9, label: "Windows", count: 3, sizeBand: "L" }],
-      cupboard: { question: "Paint the built-in robe doors?", on: true }, cupboardInterior: { question: "Inside?", on: false },
+      cupboard: { question: "Paint the built-in robe doors?", on: true, count: 2 }, cupboardInterior: { question: "Inside?", on: false, count: 1 }, roomType: "bedroom", cupboardDoors: null,
       spots: [{ surfaceId: 5, label: "Repair — Crack (patches)", prepHr: 1, fromCustomer: true, crewNote: "" }],
       extras: { featureWalls: 1, wallpaper: true, other: "" }, garagePending: false,
     };
