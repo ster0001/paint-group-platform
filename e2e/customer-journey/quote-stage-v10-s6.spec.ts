@@ -2,7 +2,7 @@ import { expect, type Page } from "@playwright/test";
 import { randomBytes } from "node:crypto";
 import { test } from "../helpers";
 import { serviceClient } from "../fixtures/woLoop";
-import { MONEY_RANGE, answerOutsideQuick, driveMobileQuickLook, driveNoPlanWizard, openQuickLook, fillQuickAddress, passOtpIfShown, gateDoor } from "./drive";
+import { MONEY_RANGE, answerOutsideQuick, driveMobileQuickLook, driveNoPlanWizard, openQuickLook, fillQuickAddress, passOtpIfShown, gateDoor, expectDarkHeader } from "./drive";
 
 /**
  * QUOTE STAGE v10 — session 6 (`docs/briefs/claude-code-brief-quote-stage-v10.md`
@@ -95,6 +95,8 @@ test.describe("quote stage v10 — session 6: outside and trims on a phone", () 
     await toGate(page, run);
     const stage = page.getByTestId("quote-stage");
     await expect(stage).toHaveAttribute("data-job-kind", "exterior");
+    await expectDarkHeader(page); // Tom, 20 Nov 2026: the mark on a dark bar, bigger, centred
+    await shot(page, "header-390");
     // C1 — how big is the front: across · high, the house drawn on the tile
     await expect(stage).toHaveAttribute("data-quote-card", /^side-size:/, { timeout: 15_000 });
     await expect(page.getByTestId("wzm-h1")).toHaveText(/^How big is the /);
@@ -202,6 +204,8 @@ test.describe("quote stage v10 — session 6: the desktop format and the keyboar
     await page.goto(`/estimate/quote?id=${id}`);
     const stage = page.getByTestId("quote-stage");
     await expect(stage).toBeVisible({ timeout: 30_000 });
+    await expectDarkHeader(page, { minLogo: 40 }); // Tom, 20 Nov 2026: the same dark bar on a laptop, the mark at 42px
+    await shot(page, "header-1280");
     // R8: the rails show, the phone's tiles row and band do not; the quote starts collapsed (D-Q6)
     await expect(page.getByTestId("q-rail-right")).toBeVisible();
     await expect(page.getByTestId("q-tiles")).toBeHidden();

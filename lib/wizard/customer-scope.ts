@@ -192,9 +192,9 @@ export async function loadCustomerScope(db: SupabaseClient, estimate: EstimateRo
       envelope: envelopeFor({ blocks: blocks as Parameters<typeof envelopeFor>[0]["blocks"], state: snap.success ? snap.data : null, ctx, adj: adjustmentsFrom(state), bands: bandsRow, widenPct: widen.widenPct, underPct: underPctFor(blocks, policyFromSettings(settingValue(ctx.settings, "wizard_policy"))), confirmed: loopState.states }),
     },
   );
-  // 5 Oct: the wizard family is light — the light-background logo leads.
-  const headerProfile = (settingValue(ctx.settings, "company_profile") ?? {}) as { logoUrl?: string; logoUrlLight?: string };
-  const headerLogoUrl = headerProfile.logoUrlLight || headerProfile.logoUrl || null;
+  // Tom, 20 Nov 2026: the wizard family's header is a dark bar like the website's — it takes the website's own mark (the dark-background logo).
+  const headerProfile = (settingValue(ctx.settings, "company_profile") ?? {}) as { logoUrl?: string };
+  const headerLogoUrl = headerProfile.logoUrl?.trim() || null;
   const profile = (settingValue(ctx.settings, "company_profile") ?? {}) as { phone?: string; phoneHours?: string };
   const companyPhone = profile.phone?.trim() || null;
   // Tom, 8 Sep: "it needs to be clear that our lines are open from
