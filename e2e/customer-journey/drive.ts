@@ -1,9 +1,23 @@
 import { expect, type Page } from "@playwright/test";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { serviceClient } from "../fixtures/woLoop";
+import { DEFAULT_BANDS } from "../../lib/wizard/policy";
 
 /** A money range like "$5,120 – $5,560". */
 export const MONEY_RANGE = /\$[\d,]+\s*–\s*\$[\d,]+/;
+
+/**
+ * Tom, 25 Oct 2026 (item 3): the guide range's top is never above the low end plus `guideMaxSpreadPct` (envelope.ts
+ * `capSpread`). While that cap is what sets the top, answering a question that lowers the dear end, or confirming a
+ * room, cannot show as a narrower range — and a confirm that raises the low end lifts the capped top with it. The
+ * specs that assert "narrows" accept "held at the cap" instead (⚑ listed for Tom: the cap hides S2's closing).
+ * Dollars in, the test stack's default cap (Settings → Tiers can change it).
+ */
+export const GUIDE_CAP_PCT = DEFAULT_BANDS.guideMaxSpreadPct;
+export function guideCapOf(lo: number): number { return lo * (1 + GUIDE_CAP_PCT / 100); }
+export function heldAtGuideCap(lo: number, hi: number): boolean {
+  return Math.abs(hi - guideCapOf(lo)) <= Math.max(50, lo * 0.01);
+}
 
 /**
  * The grouped laptop screens (shape and size together, one Painting page, …) exist only
@@ -21,6 +35,26 @@ export async function boldNoIfAsked(page: Page): Promise<void> {
   const screen = page.locator("[data-mobile-screen='bold']");
   try { await screen.waitFor({ state: "visible", timeout: 4_000 }); } catch { return; }
   await page.getByTestId("ql-bold-no").click();
+}
+
+/**
+ * The condition answer, wherever it is asked. On the one-question shell the condition STEP opens on Colours (and Bold
+ * after a colour change — go-live S5, M8), so the specs that tapped a condition chip straight after the rooms step walk
+ * those first, keeping their answers (the pressed colour, No to bold). On the grouped laptop the chip is on the page.
+ */
+export async function pickCondition(page: Page, condition: "good" | "wear" | "needs_work"): Promise<void> {
+  const chip = page.getByTestId(`ql-condition-${condition}`);
+  if (await onMobileShell(page)) {
+    const shell = page.getByTestId("wzm");
+    await expect(page.locator("[data-mobile-screen='colours'], [data-mobile-screen='bold'], [data-mobile-screen='condition']").first()).toBeVisible({ timeout: 30_000 });
+    for (let i = 0; i < 3 && (await shell.getAttribute("data-mobile-screen")) !== "condition"; i++) {
+      const at = await shell.getAttribute("data-mobile-screen");
+      if (at === "bold") await page.getByTestId("ql-bold-no").click();
+      else await page.locator("[data-mobile-screen] .wzm-screen [aria-pressed='true']").first().click();
+      await expect.poll(() => shell.getAttribute("data-mobile-screen"), { timeout: 10_000 }).not.toBe(at);
+    }
+  }
+  await chip.click();
 }
 
 export type DriveOptions = {
@@ -267,7 +301,9 @@ export async function hopToScopeIfOnQuote(page: Page): Promise<void> {
 
 /** The laptop's first door, then the details sheet when it comes, then the OLD editor (hopping off the quote stage). */
 export async function tightenToScope(page: Page, who: { name?: string; email?: string; mobile?: string } = {}): Promise<void> {
-  await page.getByTestId("door-tighten").click();
+  // the phone's gate (and the one-press laptop's) has one door, Get my quote range, where the laptop reveal has Tighten
+  if (await page.getByTestId("wzm-gate").count()) await gateDoor(page).click();
+  else await page.getByTestId("door-tighten").click();
   await passDetailsSheetIfShown(page, who);
 }
 
@@ -573,7 +609,9 @@ export async function mobileQuickNext(page: Page) {
       await expect(bar).toBeEnabled({ timeout: 30_000 });
       await bar.click();
     } else {
-      await page.locator("[data-mobile-screen] .wzm-screen [aria-pressed='true']").first().click();
+      // a single-choice screen with nothing chosen yet (an outside job's "What kind of home is it?") takes its first option
+      const pressed = page.locator("[data-mobile-screen] .wzm-screen [aria-pressed='true']");
+      await ((await pressed.count()) ? pressed : page.locator("[data-mobile-screen] .wzm-screen [aria-pressed]")).first().click();
     }
     const err = page.getByTestId("ql-error");
     await page.waitForTimeout(350); // the ~250ms auto-advance

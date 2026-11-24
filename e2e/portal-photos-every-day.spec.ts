@@ -157,7 +157,10 @@ test.describe("portal photos — every day, every property", () => {
     const hop = await page.request.get(src!, { maxRedirects: 0 });
     expect(hop.status()).toBe(307);
     expect(hop.headers()["location"]).toContain("/render/image/");
-    expect(hop.headers()["location"]).toContain("width=640");
+    // The width rides INSIDE the signed token now (Supabase storage, Nov 2026), not as a query string.
+    const signed = new URL(hop.headers()["location"]).searchParams.get("token") ?? "";
+    const claims = JSON.parse(Buffer.from(signed.split(".")[1] ?? "", "base64url").toString("utf8")) as { transformations?: string };
+    expect(claims.transformations ?? hop.headers()["location"]).toContain("width:640");
 
     // The qa-kind photo is refused by the same route, whatever size is asked for.
     const qa = await page.request.get(`/account/photo/${qaPhotoId}?size=thumb`, { maxRedirects: 0 });

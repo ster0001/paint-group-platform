@@ -8,10 +8,11 @@
  * the versioned draft, and the draft row carries the attribution.
  */
 import { test, expect } from "@playwright/test";
-import { fillQuickAddress, openQuickLook, quickNext } from "./drive";
+import { fillQuickAddress, openQuickLook, quickNext, DESKTOP_ONE_PRESS, GROUPED_LAPTOP_ONLY } from "./drive";
 import { serviceClient } from "../fixtures/woLoop";
 
 test("describe a job in the bubble → amber until confirmed; a tap and Continue confirm; the draft carries the attribution", async ({ page }) => {
+  test.skip(DESKTOP_ONE_PRESS, GROUPED_LAPTOP_ONLY);
   test.setTimeout(180_000);
   await openQuickLook(page);
 

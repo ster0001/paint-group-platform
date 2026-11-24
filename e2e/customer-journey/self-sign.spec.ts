@@ -59,10 +59,11 @@ async function measureAndConfirmEveryRoom(page: Page, metres: [number, number] =
     await card.scrollIntoViewIfNeeded();
     // The size row is in the question, prefilled (Tom, 25 Oct 2026, item 17); entering real
     // metres clears the assumed-dimension penalty that "Looks right" leaves in place.
-    const row = card.locator(".sd-mrow");
+    const row = card.locator("[data-testid^='size-form-']").first();
     await row.locator("input").first().fill(String(metres[0]));
     await row.locator("input").nth(1).fill(String(metres[1]));
-    await row.getByRole("button", { name: /Update size/ }).click();
+    // Tom, 28 Oct 2026: the size saves itself when you click out of the boxes — no Update size button
+    await row.locator("input").nth(1).blur();
     // The size must LAND before Confirm — a confirm on an unanswered size now opens the
     // read-back box (Tom, 14 Sep item 19) instead of posting.
     await expect(page.locator(".sd-saving")).toHaveCount(0, { timeout: 30_000 });

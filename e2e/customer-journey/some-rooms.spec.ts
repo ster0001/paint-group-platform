@@ -24,18 +24,22 @@ test("some rooms asks which rooms and seeds only those", async ({ page }) => {
   if (!shell) await page.getByTestId("ql-excl-none").click();
   await quickNext(page); // (the shell: the surfaces screen's Continue)
   await expect(page.locator("[data-quick-step='rooms']")).toBeVisible({ timeout: 30_000 });
-  const tiles = page.locator("[data-testid^='ql-room-']");
+  // the listed rooms only — the shell adds unticked extras (Garage, …) after them, which a tap ADDS
+  const tiles = page.locator("[data-testid^='ql-room-']:not([data-testid^='ql-room-extra-']):not([data-testid^='ql-room-added-'])");
   const n = await tiles.count();
   expect(n).toBeGreaterThan(4);
-  // Every room starts ticked; untick the last two. (Two bedrooms alone at two
-  // coats on the trims price under the $2,000 floor and land on the
-  // "we'll price it directly" page — correct, and not this journey.)
-  for (let i = n - 2; i < n; i++) await tiles.nth(i).click();
-  await expect(tiles.nth(0)).toHaveAttribute("aria-pressed", "true");
-  await expect(tiles.nth(n - 1)).toHaveAttribute("aria-pressed", "false");
+  // Set each tile, whatever it started as: the grouped laptop starts every room ticked; the shell's "Some rooms"
+  // starts with none ("You pick which, next"). Every room but the last two, then. (Two bedrooms alone at two coats on
+  // the trims price under the $2,000 floor and land on the "we'll price it directly" page — correct, not this journey.)
+  const setOn = async (i: number, on: boolean) => {
+    const t = tiles.nth(i);
+    if ((await t.getAttribute("aria-pressed")) !== String(on)) await t.click();
+    await expect(t).toHaveAttribute("aria-pressed", String(on));
+  };
+  for (let i = 0; i < n; i++) await setOn(i, i < n - 2);
   const kept = [await tiles.nth(0).innerText(), await tiles.nth(1).innerText()];
   // Nothing ticked is a gate, not a silent "all rooms".
-  for (let i = 0; i < n - 2; i++) await tiles.nth(i).click();
+  for (let i = 0; i < n; i++) await setOn(i, false);
   if (shell) {
     await expect(page.getByTestId("ql-why")).toContainText(/at least one room/i);
     await expect(page.getByTestId("ql-next")).toBeDisabled();
@@ -44,7 +48,7 @@ test("some rooms asks which rooms and seeds only those", async ({ page }) => {
     await page.getByTestId("ql-next").click();
     await expect(page.getByTestId("ql-error")).toContainText(/at least one room/i);
   }
-  for (let i = 0; i < n - 2; i++) await tiles.nth(i).click();
+  for (let i = 0; i < n - 2; i++) await setOn(i, true);
   await quickNext(page);
   await expect(page.locator("[data-quick-step='condition']")).toBeVisible({ timeout: 30_000 });
   await quickNext(page);

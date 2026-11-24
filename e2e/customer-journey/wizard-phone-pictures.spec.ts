@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { fillQuickAddress, openQuickLook, quickNext } from "./drive";
+import { fillQuickAddress, openQuickLook, quickNext, onMobileShell, GROUPED_LAPTOP_ONLY } from "./drive";
 
 /**
  * Tom, 25 Oct 2026 (evening, on his phone): "when clicking apartment or unit,
@@ -20,6 +20,9 @@ test("between 768 and 900px every kind of property draws its whole building insi
   const page = await ctx.newPage();
   try {
     await openQuickLook(page);
+    // the grouped screens' picture band (.wz-pic-art); the one-question shell draws its own picture, which
+    // wizard-mobile-v5-strip.spec.ts measures (the variants: unit, townhouse, two storeys)
+    test.skip(await onMobileShell(page), GROUPED_LAPTOP_ONLY);
     await fillQuickAddress(page);
     await quickNext(page);
     await expect(page.locator("[data-quick-step='place']")).toBeVisible({ timeout: 20_000 });

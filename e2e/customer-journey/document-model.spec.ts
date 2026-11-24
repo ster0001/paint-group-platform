@@ -19,6 +19,7 @@ const FIXTURES = "e2e/fixtures";
 
 test.describe("R1.3 document model", () => {
   test("floorplan intake is exactly one file — a second upload replaces", async ({ page }) => {
+    test.skip(DESKTOP_ONE_PRESS, GROUPED_LAPTOP_ONLY);
     test.setTimeout(120_000);
     // Tom, 14 Sep: the floorplan upload is on the quick look's place screen.
     await openQuickLook(page);

@@ -171,8 +171,7 @@ test.describe("Desktop one-press — the laptop takes the phone's screens (adden
     await page.keyboard.press("ArrowLeft");
     await at(page, "what");
     await page.getByTestId("ql-jobtype-exterior").click();
-    await at(page, "property");
-    await page.getByTestId("ql-kind-house").click();
+    // go-live S4 (M5): an outside job has no "What kind of place?" — Outside goes straight to the shape
     // an outside job: no bedrooms, no job, no rooms — the exterior brief's first screen, inside the same shell
     await at(page, "shape");
     await expect(pill(page, "home")).toHaveAttribute("data-state", "cur");
@@ -228,6 +227,9 @@ test.describe("Desktop one-press — the laptop takes the phone's screens (adden
     await at(page, "rooms");
     await page.keyboard.press("Enter");
     await at(page, "colours");
+    await page.keyboard.press("1");
+    // go-live S5 (M8): a colour change asks the bold question first — No is the first card
+    await at(page, "bold");
     await page.keyboard.press("1");
     await at(page, "condition");
     await page.keyboard.press("2");

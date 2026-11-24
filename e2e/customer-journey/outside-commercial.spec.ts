@@ -1,5 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
-import { openQuickLook, fillQuickAddress } from "./drive";
+import { openQuickLook, fillQuickAddress, DESKTOP_ONE_PRESS, GROUPED_LAPTOP_ONLY, onMobileShell } from "./drive";
 import { stepCount } from "../../lib/wizard/quick-look";
 
 const cap = (w: string) => w.charAt(0).toUpperCase() + w.slice(1);
@@ -27,14 +27,18 @@ async function startAt(page: Page, jobType: "interior" | "exterior" | "both", ur
 }
 
 async function toPlace(page: Page) {
-  await page.getByTestId("ql-next").click();
+  // the router: a job-type card advances itself
+  if (!(await onMobileShell(page))) await page.getByTestId("ql-next").click();
   // C8: a "both" job meets the choice screen first — price them yourself.
   const both = page.getByTestId("ql-both-self");
+  const place = page.locator("[data-quick-step='place']");
+  await expect(both.or(place).first()).toBeVisible({ timeout: 30_000 }); // the choice screen draws a beat after the tap
   if (await both.count()) await both.click();
-  await expect(page.locator("[data-quick-step='place']")).toBeVisible({ timeout: 30_000 });
+  await expect(place).toBeVisible({ timeout: 30_000 });
 }
 
 test("9.3(b) the screen-1 promise counts the real screens on every branch", async ({ page }) => {
+  test.skip(DESKTOP_ONE_PRESS, GROUPED_LAPTOP_ONLY);
   test.setTimeout(120_000);
   await openQuickLook(page);
   const sub = page.locator(".wz-quick .wz-sub").first();
@@ -52,6 +56,7 @@ test("9.3(b) the screen-1 promise counts the real screens on every branch", asyn
 });
 
 test("9.3(a) a ?mode=business visitor still sees the quick look", async ({ page }) => {
+  test.skip(DESKTOP_ONE_PRESS, GROUPED_LAPTOP_ONLY);
   test.setTimeout(120_000);
   // propertyKind is seeded commercial before the first render. The first
   // Continue used to exit the quick look entirely.
@@ -65,6 +70,7 @@ test("9.3(a) a ?mode=business visitor still sees the quick look", async ({ page 
 });
 
 test("home + inside reaches screen 3 of the quick look", async ({ page }) => {
+  test.skip(DESKTOP_ONE_PRESS, GROUPED_LAPTOP_ONLY);
   test.setTimeout(120_000);
   await startAt(page, "interior");
   await toPlace(page);
@@ -75,6 +81,7 @@ test("home + inside reaches screen 3 of the quick look", async ({ page }) => {
 });
 
 test("home + outside reaches the outside screen, and there are only three", async ({ page }) => {
+  test.skip(DESKTOP_ONE_PRESS, GROUPED_LAPTOP_ONLY);
   test.setTimeout(120_000);
   await startAt(page, "exterior");
   await page.getByTestId("ql-next").click();
@@ -95,6 +102,7 @@ test("home + outside reaches the outside screen, and there are only three", asyn
  * walks on to the segment's screens; outside and both leave from there.
  */
 test("C12: commercial + inside reaches the segment screen, and a range segment walks on", async ({ page }) => {
+  test.skip(DESKTOP_ONE_PRESS, GROUPED_LAPTOP_ONLY);
   test.setTimeout(120_000);
   await startAt(page, "interior");
   await toPlace(page);
@@ -107,6 +115,7 @@ test("C12: commercial + inside reaches the segment screen, and a range segment w
 });
 
 test("9.3(c) commercial + outside reaches the exterior brief from the segment screen, never domestic house questions", async ({ page }) => {
+  test.skip(DESKTOP_ONE_PRESS, GROUPED_LAPTOP_ONLY);
   test.setTimeout(120_000);
   await startAt(page, "exterior");
   await toPlace(page);
@@ -131,7 +140,7 @@ test("commercial + both reaches the exterior brief — one visit", async ({ page
   await startAt(page, "both");
   await toPlace(page);
   await page.getByTestId("ql-kind-commercial").click();
-  await page.getByTestId("ql-next").click();
+  if (!(await onMobileShell(page))) await page.getByTestId("ql-next").click(); // the router advances itself to the Space step
   await expect(page.locator("[data-quick-step='segment']")).toBeVisible({ timeout: 30_000 });
   await page.getByTestId("ql-segment-retail").click();
   await page.getByTestId("ql-next").click();

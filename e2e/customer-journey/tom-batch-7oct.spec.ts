@@ -15,7 +15,7 @@ import { driveNoPlanWizard, fillQuickAddress, openQuickLook, openScopeEditor, qu
 const cardNamed = (page: Page, name: string) => page.locator(".sc-rc[data-room]", { has: page.getByLabel(`Rename ${name}`, { exact: true }) }).first();
 const openCard = async (card: ReturnType<typeof cardNamed>) => { await card.locator(".il-hd").click().catch(() => undefined); };
 
-test("cupboards start answered: the kitchen's No and a bedroom's Yes (2 robe doors) are on before anyone taps", async ({ page }) => {
+test("cupboards start answered No (kitchen and robe doors) before anyone taps; a Yes on the robe counts 2 doors", async ({ page }) => {
   test.setTimeout(240_000);
   await driveNoPlanWizard(page);
   await openScopeEditor(page);
@@ -31,12 +31,13 @@ test("cupboards start answered: the kitchen's No and a bedroom's Yes (2 robe doo
   const bCup = bed.locator(".il-cup").first();
   await expect(bCup).toContainText(/robe doors/i);
   await expect(bCup).toHaveClass(/ok/);
+  // Tom, 25 Oct 2026 (item 5): every cupboard question starts as No — the robe doors too (applyCupboardDefaults).
+  await expect(bCup.getByRole("button", { name: "No", exact: true })).toHaveClass(/on/);
+  // One tap changes it — the default is an answer, not a lock — and a Yes counts two robe doors.
+  await bCup.getByRole("button", { name: "Yes", exact: true }).click();
+  await expect(page.locator(".sd-saving")).toHaveCount(0, { timeout: 30_000 });
   await expect(bCup.getByRole("button", { name: "Yes", exact: true })).toHaveClass(/on/);
   await expect(bCup.locator("b")).toHaveText("2");
-  // One tap changes it — the default is an answer, not a lock.
-  await bCup.getByRole("button", { name: "No", exact: true }).click();
-  await expect(page.locator(".sd-saving")).toHaveCount(0, { timeout: 30_000 });
-  await expect(bCup.getByRole("button", { name: "No", exact: true })).toHaveClass(/on/);
 });
 
 test("Add room by name alone opens the new room with its size boxes ready; a walk-in robe is 2 × 1.25 m; a room keeps its own ceiling height", async ({ page }) => {

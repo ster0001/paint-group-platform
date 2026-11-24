@@ -51,7 +51,9 @@ async function measureOneAndNarrow(page: Page, touch: boolean) {
   await page.waitForTimeout(1_600); // the band tweens ~1.4 s after an answer
   const after = await band(page);
   const settledAfter = Number(await page.getByTestId("q-band").or(page.getByTestId("q-rail-band")).first().getAttribute("data-settled"));
-  expect(after[1] - after[0], `the range narrows after a measured room (${before.join("–")} → ${after.join("–")})`).toBeLessThanOrEqual(before[1] - before[0]);
+  // as a share of the price: a measured size that is not the typical one moves the price itself, and the dollar width with it
+  const share = ([lo, hi]: [number, number]) => (hi - lo) / ((hi + lo) / 2);
+  expect(share(after), `the range narrows after a measured room (${before.join("–")} → ${after.join("–")})`).toBeLessThanOrEqual(share(before) + 0.001);
   expect(settledAfter, "the settled share rises").toBeGreaterThan(settledBefore);
 }
 /** The finished quote adds up: lines → Subtotal, Subtotal + GST → total, low and high, to the dollar; validity from Settings. */

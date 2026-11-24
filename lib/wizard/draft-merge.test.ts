@@ -1,5 +1,5 @@
-import { describe, expect, test } from "vitest";
-import { mergeDraftState, sameJson } from "./draft-merge";
+import { describe, expect, it, test } from "vitest";
+import { mergeDraftState, restampDraftBody, sameJson } from "./draft-merge";
 
 /**
  * C3 — what happens after a 409. The rule: server wins for confirmed fields,
@@ -139,5 +139,29 @@ describe("sameJson", () => {
     expect(sameJson({ a: [1, { b: 2 }] }, { a: [1, { b: 2 }] })).toBe(true);
     expect(sameJson({ a: 1 }, { a: 1, b: undefined })).toBe(false);
     expect(sameJson([1, 2], [2, 1])).toBe(false);
+  });
+});
+
+describe("restampDraftBody — a queued write carries the newest confirmed version (24 Nov 2026)", () => {
+  it("replaces a stale version with the one the server confirmed last", () => {
+    const body = JSON.stringify({ state: { contact: { name: "Drive Tester" } }, version: 1 });
+    expect(JSON.parse(restampDraftBody(body, 2))).toEqual({ state: { contact: { name: "Drive Tester" } }, version: 2 });
+  });
+  it("leaves the first write (no version yet) alone", () => {
+    const body = JSON.stringify({ state: {} });
+    expect(restampDraftBody(body, 3)).toBe(body);
+  });
+  it("leaves the body alone when nothing is confirmed yet", () => {
+    const body = JSON.stringify({ state: {}, version: 1 });
+    expect(restampDraftBody(body, null)).toBe(body);
+  });
+});
+
+describe("the 409 merge against the LAST CONFIRMED save keeps what was typed since (24 Nov 2026)", () => {
+  it("a contact typed after the confirmed save survives a server copy that never saw it", () => {
+    const confirmed = { contact: { name: "", email: "", phone: "" } };
+    const mine = { contact: { name: "Drive Tester", email: "d@example.com", phone: "0410 226 780" } };
+    const theirs = { contact: { name: "", email: "", phone: "" } };
+    expect(mergeDraftState(confirmed, mine, theirs).state).toEqual(mine);
   });
 });
