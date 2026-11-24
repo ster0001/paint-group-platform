@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { fillQuickAddress, MONEY_RANGE, openQuickLook, quickNext, passGateIfShown, tightenToScope } from "./drive";
+import { fillQuickAddress, MONEY_RANGE, openQuickLook, quickNext, passGateIfShown, tightenToScope, DESKTOP_ONE_PRESS, GROUPED_LAPTOP_ONLY } from "./drive";
 
 /**
  * C11 — the human moments and the reveal.
@@ -14,6 +14,7 @@ import { fillQuickAddress, MONEY_RANGE, openQuickLook, quickNext, passGateIfShow
  * invents a person: unnamed reads "Your estimator", never "Sarah".
  */
 test("the estimator strip is on the reveal, the tighten screen and the finish line — the same person on all three", async ({ page }) => {
+  test.skip(DESKTOP_ONE_PRESS, GROUPED_LAPTOP_ONLY);
   test.setTimeout(300_000);
   await openQuickLook(page);
   await fillQuickAddress(page);
@@ -60,6 +61,7 @@ test("the estimator strip is on the reveal, the tighten screen and the finish li
 });
 
 test("the footer line changes with the not-sures, and the offers appear at their moments", async ({ page }) => {
+  test.skip(DESKTOP_ONE_PRESS, GROUPED_LAPTOP_ONLY);
   test.setTimeout(300_000);
   await openQuickLook(page);
   await fillQuickAddress(page);

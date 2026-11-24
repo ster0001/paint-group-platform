@@ -22,7 +22,7 @@ import {
   type WizardState,
   type WizardSurfaceKey,
 } from "@/lib/wizard/state";
-import { mergeDraftState } from "@/lib/wizard/draft-merge";
+import { mergeDraftState, restampDraftBody } from "@/lib/wizard/draft-merge";
 
 /** What /api/wizard/draft hands back on a 409 (C3) — the server's copy, so the
  *  losing write can merge instead of guessing. */
@@ -1194,11 +1194,20 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
   /** Set below, once `state` and `setState` are in scope for the merge. */
   const onDraftConflictRef = useRef<((server: DraftConflict) => void) | null>(null);
   const inFlightRef = useRef(false);
-  const queuedRef = useRef<string | null>(null);
-  const queueDraftSave = useCallback(function send(body: string) {
-    if (inFlightRef.current) { queuedRef.current = body; return; }
+  const queuedRef = useRef<{ body: string; claims: Record<string, unknown> } | null>(null);
+  /**
+   * `claims` is the state this body carries. It becomes the merge ancestor only
+   * once the server CONFIRMS it (24 Nov 2026) — a write that loses its race never
+   * became the server's copy, so treating it as the common ancestor made every
+   * field typed since the last real save look "untouched", and the merge handed
+   * the customer's own name, email and mobile back to the server's blanks.
+   */
+  const queueDraftSave = useCallback(function send(rawBody: string, claims: Record<string, unknown>) {
+    if (inFlightRef.current) { queuedRef.current = { body: rawBody, claims }; return; }
     inFlightRef.current = true;
     const returning = returningRef.current;
+    // Stamped when it was built; the write in front of it may have moved the server on since (24 Nov 2026).
+    const body = restampDraftBody(rawBody, draftVersionRef.current);
     void fetch("/api/wizard/draft", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -1216,6 +1225,7 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
       const j = await res.json().catch(() => null) as { version?: number } | null;
       if (typeof j?.version === "number") {
         draftVersionRef.current = j.version;
+        draftBaseRef.current = claims;
         setConfirmedVersion(j.version);
         if (returning) returningRef.current = false;
       }
@@ -1223,7 +1233,7 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
       inFlightRef.current = false;
       const next = queuedRef.current;
       queuedRef.current = null;
-      if (next && !draftHaltRef.current) send(next);
+      if (next && !draftHaltRef.current) send(next.body, next.claims);
     });
   }, []);
 
@@ -1262,7 +1272,7 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
       ...(addressText ? { address: addressText.slice(0, 250) } : {}),
       ...(draftVersionRef.current != null ? { version: draftVersionRef.current } : {}),
       lastScreen: screenTag,
-    }));
+    }), state as unknown as Record<string, unknown>);
   }, [isCustomer, state, page, lastPage, intent?.mode, intent?.entrySource, addressText, queueDraftSave]);
   /**
    * C3 — where they actually are, as a word rather than a number. The funnel
@@ -1290,8 +1300,11 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
       if (typeof server.version === "number") draftVersionRef.current = server.version;
       const theirs = server.state;
       if (!theirs || typeof theirs !== "object") return;
+      // What the server holds at that version IS the last confirmed state — the next 409 merges against it.
+      const confirmedBase = draftBaseRef.current;
+      draftBaseRef.current = theirs as Record<string, unknown>;
       setState((current) => {
-        const base = draftBaseRef.current ?? (current as unknown as Record<string, unknown>);
+        const base = confirmedBase ?? (current as unknown as Record<string, unknown>);
         const { state: merged } = mergeDraftState(base, current as unknown as Record<string, unknown>, theirs);
         return merged as unknown as WizardState;
       });
@@ -1321,11 +1334,9 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
     const t = setTimeout(() => {
       if (draftHaltRef.current) return;
       savedRef.current = body;
-      // The state this write claims — and therefore the ancestor a later 409
-      // merges against. Captured BEFORE the request, because the customer keeps
-      // typing while it is in flight.
-      draftBaseRef.current = state as unknown as Record<string, unknown>;
-      queueDraftSave(body);
+      // The state this write claims — captured BEFORE the request, because the customer keeps
+      // typing while it is in flight. It becomes the 409 ancestor only once the server confirms it.
+      queueDraftSave(body, state as unknown as Record<string, unknown>);
     }, 2500);
     return () => clearTimeout(t);
   }, [state, page, lastPage, isCustomer, sessionWorthSaving, addressText, intent?.mode, intent?.entrySource, queueDraftSave, lastScreen]);

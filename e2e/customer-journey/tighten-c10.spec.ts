@@ -17,7 +17,9 @@ const FIXTURES = "e2e/fixtures";
  * climbs on each confirm and the range never widens — and ends narrower than
  * it started once the third room is in.
  */
-const width = (t: string) => { const m = t.replace(/,/g, "").match(/\$(\d+)\s*–\s*\$(\d+)/); return m ? Number(m[2]) - Number(m[1]) : NaN; };
+// The range's width as a share of its middle. The band is a percentage (go-live S2), so its DOLLAR width moves with the
+// middle — a cupboard answered No narrowed the band and still widened the dollars by $20 (24 Nov 2026). Rounded to a tenth.
+const width = (t: string) => { const m = t.replace(/,/g, "").match(/\$(\d+)\s*–\s*\$(\d+)/); if (!m) return NaN; const lo = Number(m[1]), hi = Number(m[2]); return Math.round(((hi - lo) / ((hi + lo) / 2)) * 1000) / 10; };
 
 test("confirm three rooms and flag a crack with a photo: the score climbs, the range never widens, the repair line is priced", async ({ page }) => {
   test.setTimeout(300_000);
@@ -54,10 +56,10 @@ test("confirm three rooms and flag a crack with a photo: the score climbs, the r
     await expect.poll(async () => (await scoreOf()) <= lastScore, { timeout: 20_000 }).toBe(true);
     lastScore = await scoreOf();
     const w = width((await range.textContent())!);
-    expect(w).toBeLessThanOrEqual(lastWidth);
+    expect(w, "the range never widens (as a share of its middle; 0.2 points for the rounding to $10)").toBeLessThanOrEqual(lastWidth + 0.2);
     lastWidth = w;
   }
-  expect(lastWidth).toBeLessThanOrEqual(startWidth);
+  expect(lastWidth).toBeLessThanOrEqual(startWidth + 0.2);
 
   // Flag a crack with a photo on the first room — a minor tag auto-prices (⚑6).
   const areaId = await cards.first().getAttribute("data-room");

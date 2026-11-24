@@ -4,9 +4,10 @@
  * to remove and "Add a room" (a type and a name). The submit honours the list.
  */
 import { test, expect } from "@playwright/test";
-import { fillQuickAddress, MONEY_RANGE, openQuickLook, quickNext, passGateIfShown, tightenToScope } from "./drive";
+import { fillQuickAddress, MONEY_RANGE, openQuickLook, quickNext, passGateIfShown, tightenToScope, DESKTOP_ONE_PRESS, GROUPED_LAPTOP_ONLY } from "./drive";
 
 test("the rooms are confirmed before the range: untick one, add one, and the editor shows exactly that", async ({ page }) => {
+  test.skip(DESKTOP_ONE_PRESS, GROUPED_LAPTOP_ONLY);
   test.setTimeout(240_000);
   await openQuickLook(page);
   await fillQuickAddress(page);

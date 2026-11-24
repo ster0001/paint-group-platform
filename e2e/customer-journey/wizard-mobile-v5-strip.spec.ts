@@ -248,11 +248,9 @@ test.describe("Wizard mobile v5 — the live strip, thumbnail and roller (sessio
     await open(page, "exterior");
     await at(page, "what");
     await page.getByTestId("ql-jobtype-exterior").tap();
-    await at(page, "property");
-    await expect(thumb(page)).toHaveAttribute("data-kind", "house");
-    await page.getByTestId("ql-kind-house").tap();
+    // go-live S4 (M5): an outside job has no "What kind of place?" — Outside goes straight to the shape
     await at(page, "shape");
-    await expect(page.getByTestId("wzm-ribbon-1")).toHaveText("Outside · House");
+    await expect(page.getByTestId("wzm-ribbon-1")).toHaveText("Outside");
     // Exterior on mobile v5 (S1): the shape and the size are screens of their own, each advancing itself,
     // and from the first shape the thumbnail is the DRAWN HOUSE (Elevation), not the placeholder.
     await page.getByTestId("ql-ext-type-ds").tap();

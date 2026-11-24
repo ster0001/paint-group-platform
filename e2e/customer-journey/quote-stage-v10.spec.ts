@@ -148,6 +148,8 @@ test.describe("quote stage v10 — session 1: the cards on a phone", () => {
     await page.getByTestId("q-opt-cornices-standard").tap();
     await card(page, "g:height");
     // D2 (go-live brief, 18 Nov 2026): the top of the range is priced at 3 m until a height is picked — the tap lowers it
+    // read once the cornices answer has saved (24 Nov 2026: read mid-save, the top was a stale $6,160 that the save then lifted to $6,880)
+    await expect(page.getByTestId("quote-stage")).toHaveAttribute("data-busy", "0", { timeout: 30_000 });
     const hiBeforeHeight = Number(await page.getByTestId("q-band").getAttribute("data-hi"));
     await page.getByTestId("q-opt-height-2.7").tap();
     await card(page, "g:doors");

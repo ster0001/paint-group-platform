@@ -3,6 +3,7 @@ import { randomBytes } from "node:crypto";
 import { contractorIdForEmail, createLoopFixture, destroyLoopFixture, serviceClient, type LoopFixture } from "../fixtures/woLoop";
 import { credentials, test } from "../helpers";
 import { morningBeforeDue } from "../../lib/automations/dateOffset";
+import { parseQuietHours, withinSendingHours } from "../../lib/automations/controls";
 
 /**
  * W3 + W4 (17 Nov 2026): the customer's texts before the job starts.
@@ -87,7 +88,9 @@ test.describe("Won stage W3 + W4", () => {
       return (rows ?? []).map((r) => r.body as string);
     };
     const now = new Date();
-    const cDue = morningBeforeDue(c.start, 5, now), sDue = morningBeforeDue(s.start, 2, now);
+    // Quiet hours hold a TEXT (decide.ts D1) — a run after the evening cut-off (24 Nov 2026, ~10 pm) sends nothing yet.
+    const open = withinSendingHours(now, parseQuietHours((base as { quietHours?: unknown }).quietHours));
+    const cDue = open && morningBeforeDue(c.start, 5, now), sDue = open && morningBeforeDue(s.start, 2, now);
     const cTexts = await texts(c.phone), sTexts = await texts(s.phone);
     if (cDue) {
       expect(cTexts).toHaveLength(1);

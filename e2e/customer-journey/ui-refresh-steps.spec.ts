@@ -597,9 +597,7 @@ test.describe("UI refresh S5 · home outside", () => {
     const router = await onMobileShell(page);
     await page.getByTestId("ql-jobtype-exterior").click();
     if (router) {
-      // the router: Outside advances itself to the place screen, and the place (House, pre-set) to the home step
-      await expect(page.locator("[data-mobile-screen='property']")).toBeVisible({ timeout: 20_000 });
-      await page.getByTestId("ql-kind-house").click();
+      // the router: Outside advances itself to the home step — go-live S4 (M5): no "What kind of place?" for an outside job
     } else {
       await quickNext(page);
       await quickNext(page);

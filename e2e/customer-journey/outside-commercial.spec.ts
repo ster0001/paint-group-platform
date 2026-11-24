@@ -1,5 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
-import { openQuickLook, fillQuickAddress } from "./drive";
+import { openQuickLook, fillQuickAddress, DESKTOP_ONE_PRESS, GROUPED_LAPTOP_ONLY } from "./drive";
 import { stepCount } from "../../lib/wizard/quick-look";
 
 const cap = (w: string) => w.charAt(0).toUpperCase() + w.slice(1);
@@ -35,6 +35,7 @@ async function toPlace(page: Page) {
 }
 
 test("9.3(b) the screen-1 promise counts the real screens on every branch", async ({ page }) => {
+  test.skip(DESKTOP_ONE_PRESS, GROUPED_LAPTOP_ONLY);
   test.setTimeout(120_000);
   await openQuickLook(page);
   const sub = page.locator(".wz-quick .wz-sub").first();
@@ -52,6 +53,7 @@ test("9.3(b) the screen-1 promise counts the real screens on every branch", asyn
 });
 
 test("9.3(a) a ?mode=business visitor still sees the quick look", async ({ page }) => {
+  test.skip(DESKTOP_ONE_PRESS, GROUPED_LAPTOP_ONLY);
   test.setTimeout(120_000);
   // propertyKind is seeded commercial before the first render. The first
   // Continue used to exit the quick look entirely.
@@ -65,6 +67,7 @@ test("9.3(a) a ?mode=business visitor still sees the quick look", async ({ page 
 });
 
 test("home + inside reaches screen 3 of the quick look", async ({ page }) => {
+  test.skip(DESKTOP_ONE_PRESS, GROUPED_LAPTOP_ONLY);
   test.setTimeout(120_000);
   await startAt(page, "interior");
   await toPlace(page);
@@ -75,6 +78,7 @@ test("home + inside reaches screen 3 of the quick look", async ({ page }) => {
 });
 
 test("home + outside reaches the outside screen, and there are only three", async ({ page }) => {
+  test.skip(DESKTOP_ONE_PRESS, GROUPED_LAPTOP_ONLY);
   test.setTimeout(120_000);
   await startAt(page, "exterior");
   await page.getByTestId("ql-next").click();
@@ -95,6 +99,7 @@ test("home + outside reaches the outside screen, and there are only three", asyn
  * walks on to the segment's screens; outside and both leave from there.
  */
 test("C12: commercial + inside reaches the segment screen, and a range segment walks on", async ({ page }) => {
+  test.skip(DESKTOP_ONE_PRESS, GROUPED_LAPTOP_ONLY);
   test.setTimeout(120_000);
   await startAt(page, "interior");
   await toPlace(page);
@@ -107,6 +112,7 @@ test("C12: commercial + inside reaches the segment screen, and a range segment w
 });
 
 test("9.3(c) commercial + outside reaches the exterior brief from the segment screen, never domestic house questions", async ({ page }) => {
+  test.skip(DESKTOP_ONE_PRESS, GROUPED_LAPTOP_ONLY);
   test.setTimeout(120_000);
   await startAt(page, "exterior");
   await toPlace(page);

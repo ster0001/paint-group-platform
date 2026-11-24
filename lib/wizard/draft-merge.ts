@@ -121,3 +121,26 @@ export function mergeDraftState(base: Json, mine: Json, theirs: Json): DraftMerg
   const merged = walk(base, mine, theirs, []);
   return { state: isObj(merged) ? merged : {}, tookFromServer, keptMine };
 }
+
+/**
+ * A queued draft write, re-stamped with the version the server confirmed LAST.
+ *
+ * 24 Nov 2026: a body is built (and stamped) when it is queued, but it is sent
+ * only once the write in flight has answered — by then the server is on the
+ * NEXT version, so the queued body lost the race against its own tab's previous
+ * save: a 409 with no other writer. The merge that followed took the server's
+ * blank contact over the name, email and mobile the customer had just typed, and
+ * the gate refused "Please fill in your name, email and mobile number" on a
+ * screen showing all three. A body with no version (the first write) is left as
+ * it is; a body that is not JSON is never ours and is sent unchanged.
+ */
+export function restampDraftBody(body: string, version: number | null): string {
+  if (version == null) return body;
+  try {
+    const parsed: unknown = JSON.parse(body);
+    if (!isObj(parsed) || !Object.prototype.hasOwnProperty.call(parsed, "version")) return body;
+    return JSON.stringify({ ...parsed, version });
+  } catch {
+    return body;
+  }
+}

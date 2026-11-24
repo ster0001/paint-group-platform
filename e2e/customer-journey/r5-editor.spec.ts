@@ -27,8 +27,12 @@ test.describe("R5 customer scope editor", () => {
     // Confirm two rooms properly; the width must never grow, and two
     // confirms must narrow it. Before R5 the number sat still through an
     // entire walk-through.
+    // Go-live S2 (D1, 18 Nov 2026): the range closes in steps (15 → 12 → 8), so two confirms of a whole house need not
+    // reach the next step — confirm room after room until it does (or the rooms run out), never widening on the way.
     const walk: number[] = [start];
-    for (let i = 0; i < 2; i++) {
+    for (let i = 0; i < 12; i++) {
+      if (walk[walk.length - 1] < start) break;
+      if (!(await page.locator(".sc-rc").filter({ has: page.locator(".il-confirm") }).count())) break;
       // The open card is the one the confirm loop is currently on (it
       // auto-advances and scrolls after each confirm).
       const card = page.locator(".sc-rc").filter({ has: page.locator(".il-confirm") }).first();
@@ -50,7 +54,7 @@ test.describe("R5 customer scope editor", () => {
     for (let i = 1; i < walk.length; i++) {
       expect(walk[i], `confirming room ${i} must never widen the range (${walk.join(" → ")})`).toBeLessThanOrEqual(walk[i - 1]);
     }
-    expect(walk[walk.length - 1], `two confirms must narrow the range (${walk.join(" → ")})`).toBeLessThan(walk[0]);
+    expect(walk[walk.length - 1], `confirming rooms must narrow the range (${walk.join(" → ")})`).toBeLessThan(walk[0]);
   });
 
   test("the header, the progress bar and the score stay put while scrolling", async ({ page }) => {

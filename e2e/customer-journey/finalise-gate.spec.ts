@@ -49,7 +49,8 @@ test("two buttons, the estimator up top, and the finalise prompt when questions 
   await expect(page.getByTestId("reach-visit")).toBeVisible();
   await expect(page.getByTestId("reach-callback")).toBeVisible();
   await page.getByTestId("book-back").click();
-  await expect(page).toHaveURL(/\/estimate\/scope\?id=/, { timeout: 60_000 });
+  // Go-live C2: "back" is the customer's editor — the quote stage while it is on, the scope page behind the kill switch
+  await expect(page).toHaveURL(/\/estimate\/(scope|quote)\?id=/, { timeout: 60_000 });
 });
 
 test("everything answered: the estimate sends itself and the page lights up", async ({ page }) => {

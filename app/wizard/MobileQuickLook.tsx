@@ -688,7 +688,9 @@ export default function MobileQuickLook({
           )}
 
           {current.id === "code" && otp && otpOn && (
-            <OtpCode otp={otp} on={otpOn} />
+            // "Wrong number? Change it" goes BACK to the details (24 Nov 2026): the handler only reset the code, so the link
+            // left the customer on the code screen with a number they had just said was wrong
+            <OtpCode otp={otp} on={{ ...otpOn, onChange: () => { otpOn.onChange(); if (sub > 0) setSub(sub - 1); } }} />
           )}
 
           {current.heading == null && <div className="wzm-generic">{renderStep()}</div>}
