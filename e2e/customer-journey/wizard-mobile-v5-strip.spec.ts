@@ -227,6 +227,8 @@ test.describe("Wizard mobile v5 — the live strip, thumbnail and roller (sessio
       await expect(thumb(page)).toHaveAttribute("data-colour", c);
       await shot(page, `colour-${c}`);
       await page.getByTestId("wzm-back").tap();
+      // a colour change came through the bold screen, so Back lands there first
+      if (c !== "same") { await at(page, "bold"); await page.getByTestId("wzm-back").tap(); }
       await at(page, "colours");
     }
     await page.getByTestId("ql-colours-new").tap();

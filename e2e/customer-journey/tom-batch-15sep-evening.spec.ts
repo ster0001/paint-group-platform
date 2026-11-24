@@ -1,6 +1,6 @@
 import { expect, type Page } from "@playwright/test";
 import { createClient } from "@supabase/supabase-js";
-import { MONEY_RANGE, openQuickLook, fillQuickAddress, quickNext, passGateIfShown, tightenToScope, onMobileShell } from "./drive";
+import { MONEY_RANGE, openQuickLook, fillQuickAddress, quickNext, passGateIfShown, tightenToScope, onMobileShell, pickCondition } from "./drive";
 import { credentials, signIn, test } from "../helpers";
 
 /**
@@ -98,7 +98,8 @@ test("3 · the exclusions are inline under the preset, and 2 · bold asks which 
   }
   await passGateIfShown(page); // S6: the details-first question sits before the range
   await expect(page.getByTestId("reveal-range")).toContainText(MONEY_RANGE, { timeout: 90_000 });
-  if (shell) await expect(page.getByTestId("reveal-restatement")).toContainText(/a much lighter or bolder colour on the walls/i);
+  // the shell's Yes marks every group that is changing, so the bold colour is "throughout" (quick-look.ts boldSentence)
+  if (shell) await expect(page.getByTestId("reveal-restatement")).toContainText(/a much lighter or bolder colour throughout/i);
   else await expect(page.getByTestId("reveal-restatement")).toContainText(/a much lighter or bolder colour on the walls and new colours on the doors and trims and window frames/i);
   const doLines = page.getByTestId("what-we-do");
   // Go-live H3 (19 Nov 2026): the badge counts the TOPCOATS and names the undercoat — "2 coats + undercoat", as the sentence says.
@@ -135,7 +136,7 @@ test("1 · two bedrooms added on the rooms step arrive as two rooms with their o
   }
   await expect(page.getByTestId("ql-room-added-1")).toBeVisible();
   await quickNext(page);
-  await page.getByTestId("ql-condition-good").click();
+  await pickCondition(page, "good");
   await quickNext(page);
   const id = await toEditor(page);
   const added = page.locator(".sc-rc[data-room]", { hasText: /^Bedroom/ });

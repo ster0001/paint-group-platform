@@ -3,7 +3,7 @@ import { randomBytes } from "node:crypto";
 import { test } from "../helpers";
 import { serviceClient } from "../fixtures/woLoop";
 import { readFileSync } from "node:fs";
-import { MONEY_RANGE, driveMobileQuickLook, driveNoPlanWizard, openQuickLook, fillQuickAddress, passOtpIfShown, gateDoor } from "./drive";
+import { MONEY_RANGE, driveMobileQuickLook, driveNoPlanWizard, openQuickLook, fillQuickAddress, passOtpIfShown, gateDoor, heldAtGuideCap } from "./drive";
 /** D-Q5: `lib/wizard/spotPhoto.ts SPOT_PHOTO_MAX_BYTES` (not imported — that module loads the browser client). */
 const SPOT_PHOTO_MAX_BYTES = 25 * 1024 * 1024; // Tom, 5 Nov: any phone-sized photo — the adapter's own limit
 
@@ -149,11 +149,25 @@ test.describe("quote stage v10 — session 1: the cards on a phone", () => {
     await card(page, "g:height");
     // D2 (go-live brief, 18 Nov 2026): the top of the range is priced at 3 m until a height is picked — the tap lowers it
     // read once the cornices answer has saved (24 Nov 2026: read mid-save, the top was a stale $6,160 that the save then lifted to $6,880)
-    await expect(page.getByTestId("quote-stage")).toHaveAttribute("data-busy", "0", { timeout: 30_000 });
-    const hiBeforeHeight = Number(await page.getByTestId("q-band").getAttribute("data-hi"));
+    // 25 Nov: data-busy can read "0" before the cornices save has even started (the tap's save is queued), so the top
+    // is read once it has held still across two reads a beat apart, with nothing saving
+    let hiBeforeHeight = 0;
+    await expect.poll(async () => {
+      const a = Number(await page.getByTestId("q-band").getAttribute("data-hi"));
+      await page.waitForTimeout(1_500);
+      const b = Number(await page.getByTestId("q-band").getAttribute("data-hi"));
+      hiBeforeHeight = b;
+      return a === b && (await page.getByTestId("quote-stage").getAttribute("data-busy")) === "0";
+    }, { timeout: 30_000 }).toBe(true);
     await page.getByTestId("q-opt-height-2.7").tap();
     await card(page, "g:doors");
-    await expect.poll(async () => Number(await page.getByTestId("q-band").getAttribute("data-hi")), { timeout: 30_000 }).toBeLessThan(hiBeforeHeight);
+    // …unless the guide cap (Tom, 25 Oct) sets the top: the height closes, the low end rises from its 2.4 m pricing, and
+    // the capped top rises with it (drive.ts heldAtGuideCap — ⚑ listed for Tom in the PR)
+    await expect.poll(async () => {
+      const band = page.getByTestId("q-band");
+      const [lo, hi] = [Number(await band.getAttribute("data-lo")) / 100, Number(await band.getAttribute("data-hi")) / 100];
+      return hi < hiBeforeHeight / 100 || heldAtGuideCap(lo, hi);
+    }, { timeout: 30_000, message: `the top must come down from ${hiBeforeHeight / 100}, or sit at the guide cap` }).toBe(true);
     await expect(page.getByTestId("q-card-doors").locator("button")).toHaveCount(2);
     await expect(page.getByTestId("q-opt-doors-panel").locator("svg")).toHaveCount(1);
     await page.getByTestId("q-opt-doors-panel").tap();

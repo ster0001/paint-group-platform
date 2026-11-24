@@ -20,11 +20,14 @@ import { toSidesEditor } from "./exterior-v2-drive";
  * before a screen exists. 13 is the staff builder's panel.)
  */
 
-const PHONE = uniquePhone();
+/** A fresh number per walk: one number shared by the file's tests read the PREVIOUS test's texted code (the latest
+ *  text to that number until this walk's lands) — "That code has expired" (24 Nov 2026). */
+let PHONE = uniquePhone();
 
 /** Tom, 25 Oct 2026: the old upload route is staff-only — the editor is reached from the drawn
  *  house's range (Tighten). The gate's own phone field is what the call-back form copies. */
 async function driveExteriorWizard(page: Page) {
+  PHONE = uniquePhone();
   await toSidesEditor(page, { email: `e2e-8sep-${Date.now()}@example.com`, mobile: PHONE });
 }
 

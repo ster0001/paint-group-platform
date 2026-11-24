@@ -130,7 +130,9 @@ test.describe("customer updates queue — surface milestones", () => {
 
     // Still one draft — now about both. Polled, not slept: the bundle is written after the ticks land, and a fixed
     // 2.5 s read it before the ceilings joined on a busy test stack (red since late Oct).
-    await expect.poll(async () => (((await updates("surface_milestone"))[0]?.milestones ?? []) as unknown[]).length, { timeout: 20_000 }).toBe(2);
+    let seen: UpdateRow[] = [];
+    await expect.poll(async () => { seen = await updates("surface_milestone"); return ((seen[0]?.milestones ?? []) as unknown[]).length; }, { timeout: 20_000 }).toBe(2)
+      .catch((e: unknown) => { throw new Error(`the ceilings did not join the walls' draft — rows: ${JSON.stringify(seen.map((r) => ({ status: r.status, created_at: r.created_at, milestones: r.milestones })))}\n${String(e)}`); });
     const rows = await updates("surface_milestone");
     expect(rows).toHaveLength(1);
     expect(rows[0].milestones).toEqual([{ group: "walls", state: "prepped" }, { group: "ceilings", state: "prepped" }]);

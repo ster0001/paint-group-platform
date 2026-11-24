@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { driveNoPlanWizard, fillQuickAddress, MONEY_RANGE, openQuickLook, openScopeEditor, quickNext, passGateIfShown } from "./drive";
+import { driveNoPlanWizard, fillQuickAddress, MONEY_RANGE, openQuickLook, openScopeEditor, quickNext, passGateIfShown, pickCondition, hopToScopeIfOnQuote } from "./drive";
 import { serviceClient } from "../fixtures/woLoop";
 
 const FIXTURES = "e2e/fixtures";
@@ -99,7 +99,7 @@ test("one 'anything we've missed' card, extras per room, no pets, and the assume
   // 14 Sep (evening): confirm the rooms — the starter list, accepted as it is.
   await expect(page.locator("[data-quick-step='rooms']")).toBeVisible({ timeout: 30_000 });
   await quickNext(page);
-  await page.getByTestId("ql-condition-good").click();
+  await pickCondition(page, "good");
   await quickNext(page);
   await passGateIfShown(page); // S6: the details-first question sits before the range
   await expect(page.getByTestId("reveal-range")).toContainText(MONEY_RANGE, { timeout: 90_000 });
@@ -107,9 +107,11 @@ test("one 'anything we've missed' card, extras per room, no pets, and the assume
   // The reveal's assume list deep-links into the editor.
   await page.getByTestId("reveal-assumed-toggle").click();
   const link = page.getByTestId("reveal-assumed-link-rooms");
-  await expect(link).toHaveAttribute("href", /#rooms$/);
+  // go-live (18 Nov): the laptop's doors lead to the quote stage, where the rooms are measured; the old editor's #rooms before
+  await expect(link).toHaveAttribute("href", /#rooms$|\/estimate\/quote\?id=/);
   await link.click();
-  await page.waitForURL(/\/estimate\/scope/);
+  await page.waitForURL(/\/estimate\/(scope|quote)/);
+  await hopToScopeIfOnQuote(page); // this test reads the old editor the stage replaces, until the removal release
   // It lands with the first unconfirmed room open — its confirm button on screen.
   await expect(page.locator(".sc-rc[data-room] .il-confirm").first()).toBeVisible({ timeout: 60_000 });
   const estimateId = new URL(page.url()).searchParams.get("id")!;

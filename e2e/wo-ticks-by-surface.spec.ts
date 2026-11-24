@@ -164,7 +164,7 @@ test.describe("work order ticks — By surface", () => {
     // Walls in one tap; Ceilings one room at a time, as the same painter.
     const bulk = await rpcAsJson<{ ok?: boolean; count?: number; surface_ids?: string[] }>(creds!, "wo_tick_surface_group",
       { p_work_order_id: fixture!.workOrderId, p_group_code: "walls", p_to: "prepped" });
-    expect(bulk.ok).toBe(true);
+    expect(bulk.ok, `wo_tick_surface_group answered ${JSON.stringify(bulk)}`).toBe(true);
     expect(bulk.count).toBe(3);
 
     const ceilings = fixture!.surfaces.filter((s) => s.label === "Ceilings");

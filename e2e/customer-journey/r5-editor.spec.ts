@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { driveNoPlanWizard, openScopeEditor } from "./drive";
+import { driveNoPlanWizard, openScopeEditor, heldAtGuideCap, GUIDE_CAP_PCT } from "./drive";
 
 /**
  * R5 (Tom, 20 Aug 2026) — the five things he asked for on the scope editor,
@@ -54,7 +54,16 @@ test.describe("R5 customer scope editor", () => {
     for (let i = 1; i < walk.length; i++) {
       expect(walk[i], `confirming room ${i} must never widen the range (${walk.join(" → ")})`).toBeLessThanOrEqual(walk[i - 1]);
     }
-    expect(walk[walk.length - 1], `confirming rooms must narrow the range (${walk.join(" → ")})`).toBeLessThan(walk[0]);
+    // …unless the guide cap (Tom, 25 Oct) is what sets the top: then the width sits at the cap however many rooms are
+    // confirmed (drive.ts heldAtGuideCap) — ⚑ listed for Tom in the PR
+    if (walk[walk.length - 1] === walk[0]) {
+      const m = ((await page.locator(".sc-r").first().textContent()) ?? "").match(/\$([\d,]+)\s*–\s*\$([\d,]+)/);
+      expect(m, "the editor shows a range").toBeTruthy();
+      const [lo, hi] = [Number(m![1].replace(/,/g, "")), Number(m![2].replace(/,/g, ""))];
+      expect(heldAtGuideCap(lo, hi), `confirming rooms must narrow the range (${walk.join(" → ")}), or the ${GUIDE_CAP_PCT}% guide cap holds it ($${lo}–$${hi})`).toBe(true);
+    } else {
+      expect(walk[walk.length - 1], `confirming rooms must narrow the range (${walk.join(" → ")})`).toBeLessThan(walk[0]);
+    }
   });
 
   test("the header, the progress bar and the score stay put while scrolling", async ({ page }) => {

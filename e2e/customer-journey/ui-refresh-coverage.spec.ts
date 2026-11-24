@@ -1,5 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
-import { driveNoPlanWizard, fillQuickAddress, MONEY_RANGE, openQuickLook, openScopeEditor, passGateIfShown, quickNext, answerOutsideQuick, tightenToScope } from "./drive";
+import { driveNoPlanWizard, fillQuickAddress, MONEY_RANGE, openQuickLook, openScopeEditor, passGateIfShown, quickNext, answerOutsideQuick, tightenToScope, onMobileShell } from "./drive";
 
 /**
  * Wizard UI refresh — "Nothing left behind" (brief §10; run sheet S8).
@@ -123,8 +123,8 @@ test.describe("UI refresh · nothing left behind (1440px, as a customer)", () =>
     await openQuickLook(page);
     await fillQuickAddress(page);
     await page.getByTestId("ql-jobtype-exterior").click();
-    await quickNext(page);
-    await quickNext(page);
+    // the router: Outside advances itself to the home step (go-live S4, M5: no place step for an outside job)
+    if (!(await onMobileShell(page))) { await quickNext(page); await quickNext(page); }
     // Exterior wizard v2: the outside answers on whichever screens the flag puts there (S3); lands on Which sides.
     await answerOutsideQuick(page);
     await newShellStep(page, "sides");

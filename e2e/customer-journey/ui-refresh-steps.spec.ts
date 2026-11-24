@@ -65,7 +65,9 @@ async function toPlace(page: Page, jobType?: "exterior" | "both") {
     await expect(page.locator("[data-quick-step='both']")).toBeVisible({ timeout: 20_000 });
     await page.getByTestId("ql-both-self").click();
   }
-  await expect(page.locator("[data-quick-step='place']")).toBeVisible({ timeout: 20_000 });
+  // go-live S4 (M5): on the router an outside job's home-type screen says what kind of place it is — no place step
+  const first = router && jobType === "exterior" ? "home" : "place";
+  await expect(page.locator(`[data-quick-step='${first}']`)).toBeVisible({ timeout: 20_000 });
 }
 
 async function toSegment(page: Page) {
@@ -435,8 +437,8 @@ test.describe("UI refresh S3 · the range screen, every path", () => {
     await openQuickLook(page);
     await fillQuickAddress(page);
     await page.getByTestId("ql-jobtype-exterior").click();
-    await quickNext(page);
-    await quickNext(page);
+    // the router: Outside advances itself to the home step (go-live S4, M5: no place step for an outside job)
+    if (!(await onMobileShell(page))) { await quickNext(page); await quickNext(page); }
     await answerOutsideQuick(page); // the outside answers on whichever screens the flag puts there (S3); lands on Which sides
     await quickNext(page);
     await passGateIfShown(page);
@@ -706,7 +708,8 @@ test.describe("UI refresh S5 · home outside", () => {
     await expect(page.getByTestId("gate-range")).toHaveText(MONEY_RANGE, { timeout: 90_000 });
     await fits();
     await gateDoor(page).click();
-    await expect(page.getByTestId("ext-walk")).toBeVisible({ timeout: 20_000 });
+    // go-live: Get my exact price opens the quote stage (a size card per side), the walk's successor
+    await expect(page.getByTestId("ext-walk").or(page.getByTestId("quote-stage")).first()).toBeVisible({ timeout: 30_000 });
     await fits();
     await ctx.close();
   });

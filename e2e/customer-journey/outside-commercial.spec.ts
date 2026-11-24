@@ -1,5 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
-import { openQuickLook, fillQuickAddress, DESKTOP_ONE_PRESS, GROUPED_LAPTOP_ONLY } from "./drive";
+import { openQuickLook, fillQuickAddress, DESKTOP_ONE_PRESS, GROUPED_LAPTOP_ONLY, onMobileShell } from "./drive";
 import { stepCount } from "../../lib/wizard/quick-look";
 
 const cap = (w: string) => w.charAt(0).toUpperCase() + w.slice(1);
@@ -27,11 +27,14 @@ async function startAt(page: Page, jobType: "interior" | "exterior" | "both", ur
 }
 
 async function toPlace(page: Page) {
-  await page.getByTestId("ql-next").click();
+  // the router: a job-type card advances itself
+  if (!(await onMobileShell(page))) await page.getByTestId("ql-next").click();
   // C8: a "both" job meets the choice screen first — price them yourself.
   const both = page.getByTestId("ql-both-self");
+  const place = page.locator("[data-quick-step='place']");
+  await expect(both.or(place).first()).toBeVisible({ timeout: 30_000 }); // the choice screen draws a beat after the tap
   if (await both.count()) await both.click();
-  await expect(page.locator("[data-quick-step='place']")).toBeVisible({ timeout: 30_000 });
+  await expect(place).toBeVisible({ timeout: 30_000 });
 }
 
 test("9.3(b) the screen-1 promise counts the real screens on every branch", async ({ page }) => {
@@ -137,7 +140,7 @@ test("commercial + both reaches the exterior brief — one visit", async ({ page
   await startAt(page, "both");
   await toPlace(page);
   await page.getByTestId("ql-kind-commercial").click();
-  await page.getByTestId("ql-next").click();
+  if (!(await onMobileShell(page))) await page.getByTestId("ql-next").click(); // the router advances itself to the Space step
   await expect(page.locator("[data-quick-step='segment']")).toBeVisible({ timeout: 30_000 });
   await page.getByTestId("ql-segment-retail").click();
   await page.getByTestId("ql-next").click();

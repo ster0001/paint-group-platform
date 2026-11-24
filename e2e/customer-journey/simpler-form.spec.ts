@@ -84,7 +84,8 @@ test.describe("the quick look", () => {
     await expect(basis).toContainText(/4.bedroom/i);
     await expect(basis).toContainText(/same colours/i);
     await expect(page.getByTestId("gate-exact").or(page.getByTestId("door-tighten")).first()).toBeVisible();
-    await expect(page.getByTestId("gate-book").or(page.getByTestId("door-book")).first()).toBeVisible();
+    // the gate's "Or book a time with … first" (gate-visit) on the ask variant; Book a visit on the bigger one
+    await expect(page.getByTestId("gate-visit").or(page.getByTestId("gate-book")).or(page.getByTestId("door-book")).first()).toBeVisible();
     // "Keep this estimate" asks for an email — so it is offered only when the
     // details question did not already take one (range first).
     if (gateShown) await expect(page.getByTestId("door-keep")).toHaveCount(0);
@@ -98,9 +99,9 @@ test.describe("the quick look", () => {
       const ctx = await browser.newContext({ ...devices["iPhone 13"] });
       const page = await ctx.newPage();
       await driveNoPlanWizard(page, { bedrooms, stopAtReveal: true });
-      const text = await page.getByTestId("reveal-range").innerText();
+      const text = await page.getByTestId("reveal-range").or(page.getByTestId("gate-range")).first().innerText(); // a phone: the gate
       totals[bedrooms] = Number(text.split("–")[0].replace(/[^0-9]/g, ""));
-      await expect(page.getByTestId("reveal-restatement")).toContainText(`${bedrooms}-bedroom`);
+      await expect(page.getByTestId("reveal-restatement").or(page.getByTestId("gate-basis")).first()).toContainText(`${bedrooms}-bedroom`);
       await ctx.close();
     }
     expect(totals[5]).toBeGreaterThan(totals[2]);
