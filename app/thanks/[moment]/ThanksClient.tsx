@@ -3,7 +3,7 @@
 import { useEffect } from "react";
 import { track } from "@/lib/analytics";
 import { CONSENT_COOKIE, parseConsent } from "@/lib/marketing/consent";
-import { loadAdTags, type AdTagIds } from "@/lib/marketing/adTags";
+import { loadAdTags, pushSuccessToDataLayer, type AdTagIds } from "@/lib/marketing/adTags";
 import type { SuccessMoment } from "@/lib/marketing/success";
 
 /**
@@ -16,7 +16,10 @@ export default function ThanksClient({ moment, back, background, tags, brandName
 }) {
   useEffect(() => {
     track("success_page", { moment, background });
-    if (parseConsent(document.cookie) === "analytics") loadAdTags(tags);
+    if (parseConsent(document.cookie) === "analytics") {
+      loadAdTags(tags);
+      pushSuccessToDataLayer(moment, background); // Tag Manager's trigger (Paint Home's container, lib/marketing/gtm.ts)
+    }
     if (background) return;
     const t = window.setTimeout(() => window.location.replace(back), 1800);
     return () => window.clearTimeout(t);
