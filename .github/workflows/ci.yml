@@ -326,6 +326,9 @@ jobs:
           NEXT_PUBLIC_EXTERIOR_V2: "1"
           # Desktop one-press wizard (addendum, 5 Nov 2026): the same rule.
           NEXT_PUBLIC_WIZARD_DESKTOP_ONEPRESS: "1"
+          # As production (25 Nov 2026): Paint Home's Google tag setting holds the Tag Manager container id, which the
+          # success pages must leave to the container (e2e/marketing/painthome-gtm.spec.ts test 3). A public id, not a secret.
+          NEXT_PUBLIC_GOOGLE_TAG_ID_PAINTHOME: "GTM-MRW23TH"
         run: npm run build
 
       - name: Customer journey · role RLS · ledger parity · work order UX

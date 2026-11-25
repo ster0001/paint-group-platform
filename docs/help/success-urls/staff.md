@@ -14,6 +14,15 @@ Your ad platforms count a conversion when a page with a known address loads. Eac
   - `NEXT_PUBLIC_GOOGLE_TAG_ID`: the Google tag (`AW-…` for Google Ads, or `G-…` for Analytics)
   - `NEXT_PUBLIC_META_PIXEL_ID`: the Meta pixel
   - `NEXT_PUBLIC_GOOGLE_TAG_ID_PAINTHOME` and `NEXT_PUBLIC_META_PIXEL_ID_PAINTHOME`: Paint Home's own
+- A Tag Manager container id (`GTM-…`) is not a Google tag. Paint Home's container (`GTM-MRW23TH`) loads on every Paint Home page by itself, so a `GTM-…` id typed into a Google tag box is left alone rather than loaded twice.
+
+## Paint Home: counting in Tag Manager
+Each success page tells Paint Home's Tag Manager container which moment it was. It sends one event called `pg_success`, carrying the moment's name in `success_moment` (for example `lead`, `visit`, `call-tap`, `accepted`). Set up a conversion in the container like this:
+1. Variables → New → **Data Layer Variable**, name `success_moment`.
+2. Triggers → New → **Custom Event**, event name `pg_success`. Fire on "Some custom events" where `success_moment` equals `lead` (one trigger per moment you bid on).
+3. Tags → New → your Google Ads conversion or Meta tag, fired by that trigger. Publish the container.
+
+The event is sent only after the visitor presses **Allow analytics**, and once per moment (most moments count behind the page). A "Page View" trigger on Page URL contains `/thanks/lead?` also works, but the custom event is clearer and never confuses `/thanks/call` with `/thanks/call-tap`.
 
 ## The pages
 | Moment | Address | What the customer sees |
@@ -38,6 +47,7 @@ The thank-you page shows the brand name, one line and a **Back** button. It retu
 
 ## If something goes wrong
 - **No conversions in Google Ads.** Check the tag id is set in Vercel and the site was redeployed after. Then open a success page in a private window, press **Allow analytics**, and use Google's Tag Assistant to see the tag load.
+- **Tag Manager shows no `pg_success`.** Open Tag Assistant's preview on painthome.com.au, press **Allow analytics**, and trigger a success (or open `/thanks/lead?bg=1` in that preview session). The event appears in the preview's timeline. Publishing the container is a separate step in Tag Manager.
 - **Counts look low.** Visitors who chose **Only what's needed** load no ad tags, by design. Our own events still record them.
 
 ## Related
