@@ -10,8 +10,8 @@ export default function PainterCard({ n, name, meta, quote, photoPath = null, pl
 }) {
   return (
     <div className="pc" data-ev="painter_card" data-todo={placeholder ? "9.3" : undefined} onClick={() => track("painter_card", { n })} role="presentation">
-      <span className="av" aria-hidden="true">
-        {photoPath && <Image src={showcaseMediaUrl(photoPath)} alt="" width={64} height={64} className="av-img" />}
+      <span className="av">
+        {photoPath && <Image src={showcaseMediaUrl(photoPath)} alt={`${name}, painter`} width={64} height={64} className="av-img" />}
       </span>
       <b>{name}</b><span className="meta">{meta}</span>{quote && <q>{quote}</q>}
     </div>

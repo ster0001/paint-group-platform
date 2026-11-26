@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import LegalPage, { legalContext } from "../_components/LegalPage";
+import { pageSeo } from "@/lib/marketing/seo";
 import { ACL_LINE, WARRANTY_TERMS_VERSION, warrantyClauses, warrantyLimit, warrantyPromise } from "@/lib/warranty/terms";
 
 /**
@@ -10,8 +11,8 @@ import { ACL_LINE, WARRANTY_TERMS_VERSION, warrantyClauses, warrantyLimit, warra
 export const dynamic = "force-dynamic";
 
 export async function generateMetadata(): Promise<Metadata> {
-  const { brand } = await legalContext();
-  return { title: `Workmanship warranty | ${brand.name}`, description: `The two-year workmanship warranty on every job ${brand.name} completes.`, robots: { index: true, follow: true } };
+  const { brand, audience } = await legalContext();
+  return { title: `Workmanship warranty | ${brand.name}`, description: `The two-year workmanship warranty on every job ${brand.name} completes.`, robots: { index: true, follow: true }, ...pageSeo(audience, brand, "/warranty") };
 }
 
 export default async function WarrantyPage() {

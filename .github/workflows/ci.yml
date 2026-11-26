@@ -379,6 +379,8 @@ jobs:
           # in N days: the ✕ and Text the crew (12 Nov 2026) — none of the three ran in CI before.
           # Paint Home Tag Manager (25 Nov 2026): GTM-MRW23TH after "Allow analytics", never on Paint Group.
           # The website chat asks for contact details and counts them as one lead (26 Nov 2026).
+          # Paint Home SEO foundations (26 Nov 2026): /work indexable with its own canonical, the sitemap against
+          # each page's metadata, the old WordPress redirects, the branded 404 — and the launch plumbing beside it.
           npx playwright test e2e/customer-journey e2e/wo-rls.spec.ts e2e/account-rls.spec.ts e2e/ledger-parity.spec.ts e2e/trade-org-rls.spec.ts e2e/trade-walk-a.spec.ts \
             e2e/wo-ticks-by-surface.spec.ts e2e/wo-customer-updates.spec.ts e2e/wo-customer-notes.spec.ts \
             e2e/automation-morning-defect.spec.ts \
@@ -387,7 +389,8 @@ jobs:
             e2e/estimates-list.spec.ts \
             e2e/estimate-signed-pdf.spec.ts e2e/pc-close-off.spec.ts e2e/pc-quiet-site.spec.ts \
             e2e/revision-signed-taken-out.spec.ts \
-            e2e/marketing/painthome-gtm.spec.ts e2e/marketing/site-chat-lead.spec.ts
+            e2e/marketing/painthome-gtm.spec.ts e2e/marketing/site-chat-lead.spec.ts \
+            e2e/marketing/painthome-seo.spec.ts e2e/marketing/painthome-launch.spec.ts
 
       # C7c acceptance: "a full run leaves the count it started with, ±0".
       # global-setup logged the count before and global-teardown deleted this

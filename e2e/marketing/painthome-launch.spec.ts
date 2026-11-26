@@ -9,6 +9,8 @@ import { test } from "../helpers";
  *  2. the Paint Home sitemap lists its own pages only — never a job page,
  *     whose canonical is Paint Group's (⚑ P9); the homes sitemap still lists
  *     its job pages
+ * The full list (home, /work, the three legal pages) and the check of each
+ * address against its page's metadata is e2e/marketing/painthome-seo.spec.ts.
  */
 test.describe("Paint Home — launch plumbing (session 6)", () => {
   let phRoot = "";

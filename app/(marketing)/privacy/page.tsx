@@ -1,13 +1,14 @@
 import type { Metadata } from "next";
 import LegalPage, { legalContext } from "../_components/LegalPage";
+import { pageSeo } from "@/lib/marketing/seo";
 import { PRIVACY_VERSION, privacySections } from "@/lib/marketing/legal";
 
 /** /privacy — the brand's privacy policy (lib/marketing/legal.ts). Reads the host, so it renders per request. */
 export const dynamic = "force-dynamic";
 
 export async function generateMetadata(): Promise<Metadata> {
-  const { brand } = await legalContext();
-  return { title: `Privacy policy | ${brand.name}`, description: `How ${brand.name} collects, uses and protects your personal information.`, robots: { index: true, follow: true } };
+  const { brand, audience } = await legalContext();
+  return { title: `Privacy policy | ${brand.name}`, description: `How ${brand.name} collects, uses and protects your personal information.`, robots: { index: true, follow: true }, ...pageSeo(audience, brand, "/privacy") };
 }
 
 // PRIVACY_VERSION is a calendar date, not a moment: read it at UTC midday in UTC, so no zone offset is written down.

@@ -61,6 +61,16 @@ export async function publishedShowcaseJobs(): Promise<ShowcaseJob[]> {
   return rows(data);
 }
 
+/**
+ * The jobs Paint Home's /work lists (and its home page's suburb list, its
+ * ItemList): homes only, never a commercial job (Paint Home brief §3–4).
+ * One rule, so the page, the schema and the sitemap cannot disagree.
+ * ⚑ D2: a per-job "show on Paint Home" flag replaces this if Tom replaces P9.
+ */
+export function paintHomeJobs(jobs: ShowcaseJob[]): ShowcaseJob[] {
+  return jobs.filter((j) => j.property_type === "home");
+}
+
 export async function showcaseJobBySlug(slug: string): Promise<ShowcaseJob | null> {
   const db = publicClient();
   if (!db) return null;

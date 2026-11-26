@@ -21,12 +21,17 @@ import { getSiteCopy } from "@/lib/marketing/siteCopy";
 import { audiencePrefix, commercialDomain, otherAudienceHref, residentialOrigin, type Audience } from "@/lib/marketing/audience";
 import { text } from "@/lib/marketing/copy";
 import type { SiteCopy } from "@/lib/marketing/copy/schema";
-import { brandView, type Brand } from "@/lib/marketing/brand";
+import { brandView } from "@/lib/marketing/brand";
 import { getBrand } from "@/lib/marketing/brandServer";
 import type { GhostExample } from "@/lib/marketing/ghostEstimator";
 import { isScope } from "@/lib/marketing/estimateLink";
 import { policyFromSettings } from "@/lib/wizard/policy";
 import { getSettingValue } from "@/lib/marketing/brandServer";
+import { pageSeo } from "@/lib/marketing/seo";
+import { localBusinessLd, suburbsServed } from "@/lib/marketing/structuredData";
+import { OFFICE_HOURS } from "@/lib/messaging/officeHours";
+import { paintHomeJobs, publishedShowcaseJobs } from "@/lib/showcase/queries";
+import { showcaseMediaUrl } from "@/lib/showcase/format";
 
 /**
  * Session 8 — ONE homepage, two audiences. `app/(marketing)/page.tsx`
@@ -85,9 +90,6 @@ function copyFor(c: SiteCopy, audience: Audience) {
   };
 }
 
-/** Paint Home's index switch is its own (brief §7): PAINTHOME_INDEXABLE=1, independent of SITE_INDEXABLE. */
-const paintHomeIndexable = () => process.env.PAINTHOME_INDEXABLE === "1";
-
 export async function homeMetadata(audience: Audience): Promise<Metadata> {
   const [siteCopy, brand] = await Promise.all([getSiteCopy(audience), getBrand(audience)]);
   const c = copyFor(siteCopy, audience);
@@ -95,10 +97,8 @@ export async function homeMetadata(audience: Audience): Promise<Metadata> {
     return {
       title: c.meta.title,
       description: c.meta.description,
-      // §7: its own canonical, OG image and index switch; the images resolve against its domain.
-      metadataBase: new URL(brand.url),
-      alternates: { canonical: `${brand.url}/` },
-      robots: { index: paintHomeIndexable(), follow: paintHomeIndexable() },
+      // §7: its own canonical, OG image and index switch; the images resolve against its domain (lib/marketing/seo.ts).
+      ...pageSeo(audience, brand, "/"),
     };
   }
   return {
@@ -109,24 +109,8 @@ export async function homeMetadata(audience: Audience): Promise<Metadata> {
   };
 }
 
-/** The schema.org LocalBusiness for a brand: Paint Home is its own `@id` under Paint Group's (brief §3). */
-export function localBusinessLd(brand: Brand, serviceType: string, url: string) {
-  return {
-    "@context": "https://schema.org",
-    "@type": "LocalBusiness",
-    "@id": brand.localBusinessId,
-    name: brand.name,
-    telephone: brand.phoneDisplay,
-    areaServed: "Melbourne, Victoria",
-    address: { "@type": "PostalAddress", addressLocality: "Melbourne", addressRegion: "VIC", addressCountry: "AU" },
-    serviceType,
-    url,
-    ...(brand.parentBusinessId ? { parentOrganization: { "@type": "Organization", "@id": brand.parentBusinessId, name: "Paint Group" } } : {}),
-  };
-}
-
 export default async function HomePage({ audience }: { audience: Audience }) {
-  const [content, logoUrl, siteCopy, brand, policyRow] = await Promise.all([getWebsiteContent(), getSiteLogo(), getSiteCopy(audience), getBrand(audience), audience === "painthome" ? getSettingValue("wizard_policy") : Promise.resolve(null)]);
+  const [content, logoUrl, siteCopy, brand, policyRow, phJobs] = await Promise.all([getWebsiteContent(), getSiteLogo(), getSiteCopy(audience), getBrand(audience), audience === "painthome" ? getSettingValue("wizard_policy") : Promise.resolve(null), audience === "painthome" ? publishedShowcaseJobs() : Promise.resolve([])]);
   // Paint Home brief §4–5: its cards never exceed the phone-close tier — the
   // Settings value wizard_policy.paintHomeCapCents (its own number since 27 Oct 2026; ⚑ P7 had tied it to the remote-confirmation cap).
   const maxHighCents = audience === "painthome" ? policyFromSettings(policyRow).paintHomeCapCents : null;
@@ -139,7 +123,15 @@ export default async function HomePage({ audience }: { audience: Audience }) {
   const business = audience === "business";
   const painthome = audience === "painthome";
   const pageUrl = painthome ? `${brand.url}/` : business && commercialDomain() ? `https://${commercialDomain()}/` : "https://paintgroup.com.au/";
-  const ld = localBusinessLd(brand, c.meta.serviceType, pageUrl);
+  const heroPhoto = painthome ? (content.heroPhotoPaintHome ?? content.heroPhoto) : business ? (content.heroPhotoBusiness ?? content.heroPhoto) : content.heroPhoto;
+  // SEO foundations (26 Nov 2026): Paint Home's block carries the office hours (the one clock), its logo, a photo,
+  // its email and the suburbs of the jobs its /work lists. Never a rating: the reviews shown are Paint Group's.
+  const ld = localBusinessLd(brand, c.meta.serviceType, pageUrl, painthome ? {
+    hours: OFFICE_HOURS,
+    logoUrl: `${brand.url}/painthome/logo-light.png`,
+    imageUrl: heroPhoto ? showcaseMediaUrl(heroPhoto) : `${brand.url}/painthome/opengraph-image`,
+    suburbs: suburbsServed(paintHomeJobs(phJobs)),
+  } : null);
   // `--brand-primary` is the one token Settings → Brands drives; the rest of
   // Paint Home's palette is the `[data-brand="painthome"]` block in marketing.css.
   const brandStyle = { "--brand-primary": brand.primaryColour } as CSSProperties;
@@ -148,7 +140,7 @@ export default async function HomePage({ audience }: { audience: Audience }) {
       <div className="shopfront" data-brand={brand.key} style={brandStyle}>
         <Nav logoUrl={logoUrl} copy={c.nav} brand={brand} />
         <main data-audience={audience}>
-          <Hero heroPhoto={painthome ? (content.heroPhotoPaintHome ?? content.heroPhoto) : business ? (content.heroPhotoBusiness ?? content.heroPhoto) : content.heroPhoto} copy={c.hero} />
+          <Hero heroPhoto={heroPhoto} copy={c.hero} />
           <HowItWorks copy={c.steps} brand={brand} />
           <RealJobs audience={audience} copy={c.jobs} prefix={prefix} maxHighCents={maxHighCents} />
           {business && <Trade copy={c.trade} promoted />}

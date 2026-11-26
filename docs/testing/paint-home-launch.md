@@ -25,7 +25,7 @@ The site is live at painthome.com.au and hidden from search. This is the order t
 ## The flip
 
 - Vercel → Settings → Environment Variables: `PAINTHOME_INDEXABLE` = `1` (Production). Redeploy.
-- Check: `curl -sI https://painthome.com.au/ | grep -i x-robots` shows `all`; `https://painthome.com.au/robots.txt` allows `/` and names `https://painthome.com.au/sitemap.xml`; the sitemap lists `/` and `/work` only (the job pages' canonical is Paint Group's, P9).
+- Check: `curl -sI https://painthome.com.au/ | grep -i x-robots` shows `all`; `https://painthome.com.au/robots.txt` allows `/` and names `https://painthome.com.au/sitemap.xml`; the sitemap lists `/`, `/work`, `/privacy`, `/terms` and `/warranty` (SEO foundations, 26 Nov 2026), and no job page (their canonical is Paint Group's, P9).
 - Paint Group's own flip (`SITE_INDEXABLE=1`) is separate and unchanged.
 - Google Search Console: add the painthome.com.au property, submit the sitemap, confirm the LocalBusiness with `parentOrganization` → Paint Group in the Rich Results test.
 

@@ -48,7 +48,7 @@ export default async function Reviews({ featuredVideoJobId = null, featuredVideo
   // Search Console (28 Oct 2026): uploadDate is required — the day the link was added (written by the
   // Settings save; an older row reads as today until it is saved again). One builder for every video.
   const directLd = direct && directRef ? videoObjectLd({
-    name: direct.caption || "A Paint Group customer",
+    name: direct.caption || (poweredBy ? "A customer talks about their painting job" : "A Paint Group customer"),
     description: direct.transcript ? direct.transcript.slice(0, 300) : direct.caption || "A customer talks about their painting job.",
     thumbnailUrl: [direct.posterPath ? showcaseMediaUrl(direct.posterPath) : directRef.thumbnailUrl],
     embedUrl: directRef.embedUrl,

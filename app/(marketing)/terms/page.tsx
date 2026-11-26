@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import LegalPage, { legalContext } from "../_components/LegalPage";
+import { pageSeo } from "@/lib/marketing/seo";
 import { getSettingValue } from "@/lib/marketing/brandServer";
 import { termsForBrand } from "@/lib/marketing/legal";
 
@@ -11,8 +12,8 @@ import { termsForBrand } from "@/lib/marketing/legal";
 export const dynamic = "force-dynamic";
 
 export async function generateMetadata(): Promise<Metadata> {
-  const { brand } = await legalContext();
-  return { title: `Terms and conditions | ${brand.name}`, description: `The terms that apply when ${brand.name} quotes for and carries out your painting.`, robots: { index: true, follow: true } };
+  const { brand, audience } = await legalContext();
+  return { title: `Terms and conditions | ${brand.name}`, description: `The terms that apply when ${brand.name} quotes for and carries out your painting.`, robots: { index: true, follow: true }, ...pageSeo(audience, brand, "/terms") };
 }
 
 export default async function TermsPage() {

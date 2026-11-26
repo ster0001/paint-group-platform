@@ -17,6 +17,8 @@ const FIELDS: Array<{ key: keyof BrandSettings["painthome"]; label: string; hint
   { key: "phoneDisplay", label: "Phone number", hint: "As shown on the site; the tel: link is derived from it." },
   { key: "legalLine", label: "Legal line", hint: "The footer's legal entity line." },
   { key: "primaryColour", label: "Accent colour", hint: "Hex. Drives --brand on every page of this brand." },
+  { key: "facebookUrl", label: "Facebook page", hint: "The full address. Tells Google this profile belongs to this brand." },
+  { key: "instagramUrl", label: "Instagram profile", hint: "The full address. Tells Google this profile belongs to this brand." },
 ];
 
 export default function BrandsSettings({ initial }: { initial: BrandSettings }) {
@@ -63,7 +65,7 @@ export default function BrandsSettings({ initial }: { initial: BrandSettings }) 
                 {FIELDS.map((f) => (
                   <label key={f.key} className="text-xs text-gray-600">
                     {f.label}
-                    <input className={input} value={settings[b][f.key]} placeholder={d[f.key]} onChange={(e) => set(b, f.key, e.target.value)} data-testid={`brand-${b}-${f.key}`} />
+                    <input className={input} value={settings[b][f.key]} placeholder={f.key === "facebookUrl" ? "https://www.facebook.com/…" : f.key === "instagramUrl" ? "https://www.instagram.com/…" : d[f.key]} onChange={(e) => set(b, f.key, e.target.value)} data-testid={`brand-${b}-${f.key}`} />
                     <span className="mt-0.5 block text-[11px] text-gray-400">{f.hint}</span>
                   </label>
                 ))}

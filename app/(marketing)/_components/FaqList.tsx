@@ -10,7 +10,7 @@ export default function FaqList({ entries }: { entries: FaqEntry[] }) {
     <div className="faq" data-testid="faq">
       {entries.map((f, i) => (
         <details key={f.q} onToggle={(e) => { if ((e.currentTarget as HTMLDetailsElement).open) track("faq_open", { index: i }); }}>
-          <summary data-ev="faq_open">{f.q}</summary>
+          <summary data-ev="faq_open"><h3>{f.q}</h3></summary>
           <Md src={f.a} />
         </details>
       ))}

@@ -13,7 +13,7 @@ import { JOB_TYPE_LABEL, type ShowcaseJob } from "@/lib/showcase/schema";
  * fires `job_card` with the slug. Used on the homepage, /work and the
  * project page's "More jobs" block.
  */
-export default function JobCard({ job, priority = false, prefix = "" }: { job: ShowcaseJob; priority?: boolean; prefix?: string }) {
+export default function JobCard({ job, priority = false, prefix = "", heading: Heading = "h3" }: { job: ShowcaseJob; priority?: boolean; prefix?: string; /** /work lists jobs straight under its H1, so the name is an H2 there (SEO foundations, 26 Nov 2026). */ heading?: "h2" | "h3" }) {
   const price = job.price_low_cents != null && job.price_high_cents != null
     ? formatPriceRange(job.price_low_cents, job.price_high_cents) : "";
   const meta = [job.suburb, job.completed_on ? `completed ${formatCompletedOn(job.completed_on)}` : ""].filter(Boolean).join(" · ");
@@ -22,7 +22,7 @@ export default function JobCard({ job, priority = false, prefix = "" }: { job: S
       <div className="img">
         {job.hero_path && (
           <Image
-            src={showcaseMediaUrl(job.hero_path)} alt={`${job.title}, ${job.suburb}`} fill
+            src={showcaseMediaUrl(job.hero_path)} alt={`${job.title} in ${job.suburb}, finished`} fill
             sizes="(min-width: 960px) 33vw, 100vw" priority={priority}
             style={{ objectFit: "cover" }}
           />
@@ -30,7 +30,7 @@ export default function JobCard({ job, priority = false, prefix = "" }: { job: S
       </div>
       <div className="body">
         <div className="top">
-          <h3>{job.title}</h3>
+          <Heading className="job-name">{job.title}</Heading>
           {job.days_on_site != null && <span className="meta">{job.days_on_site} day{job.days_on_site === 1 ? "" : "s"} on site</span>}
         </div>
         <span className="meta">{JOB_TYPE_LABEL[job.job_type]} · {meta}</span>

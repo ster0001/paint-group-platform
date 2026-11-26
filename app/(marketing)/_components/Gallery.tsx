@@ -4,6 +4,7 @@ import Image from "next/image";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { showcaseMediaUrl } from "@/lib/showcase/format";
 import type { GalleryKind } from "@/lib/showcase/schema";
+import { galleryAlt } from "@/lib/showcase/alt";
 
 type Item = { path: string; caption: string; kind: GalleryKind };
 
@@ -12,7 +13,8 @@ type Item = { path: string; caption: string; kind: GalleryKind };
  * a small tag; tap opens a lightbox with captions and keyboard navigation
  * (← → Escape), focus returned to the thumbnail on close.
  */
-export default function Gallery({ items, title }: { items: Item[]; title: string }) {
+export default function Gallery({ items, title, suburb = "" }: { items: Item[]; title: string; suburb?: string }) {
+  const altOf = (it: Item, i: number) => galleryAlt({ title, suburb }, it, i, items.length);
   const [open, setOpen] = useState<number | null>(null);
   const lastThumb = useRef<HTMLButtonElement | null>(null);
   const dialogRef = useRef<HTMLDivElement | null>(null);
@@ -49,7 +51,7 @@ export default function Gallery({ items, title }: { items: Item[]; title: string
             aria-label={`${it.kind}${it.caption ? `: ${it.caption}` : ""}, open photo ${i + 1} of ${items.length}`}
             onClick={(e) => { lastThumb.current = e.currentTarget; setOpen(i); }}
           >
-            <Image src={showcaseMediaUrl(it.path)} alt={it.caption || `${title}, ${it.kind}`} width={800} height={600} sizes="(min-width: 960px) 33vw, 50vw" />
+            <Image src={showcaseMediaUrl(it.path)} alt={altOf(it, i)} width={800} height={600} sizes="(min-width: 960px) 33vw, 50vw" />
             <span className="pp-tag mono">{it.kind}</span>
           </button>
         ))}
@@ -62,7 +64,7 @@ export default function Gallery({ items, title }: { items: Item[]; title: string
           onClick={(e) => { if (e.target === e.currentTarget) close(); }}
         >
           <div className="pp-lightbox-body">
-            <Image src={showcaseMediaUrl(current.path)} alt={current.caption || `${title}, ${current.kind}`} width={1600} height={1200} sizes="100vw" priority />
+            <Image src={showcaseMediaUrl(current.path)} alt={altOf(current, open)} width={1600} height={1200} sizes="100vw" priority />
             <div className="pp-lightbox-bar">
               <span className="mono">{current.kind}</span>
               <span>{current.caption}</span>

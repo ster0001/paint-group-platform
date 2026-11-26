@@ -43,6 +43,10 @@ export type Brand = {
   /** schema.org LocalBusiness `@id` — Paint Home's is its own, with `parentOrganization` → Paint Group's (§3). */
   localBusinessId: string;
   parentBusinessId: string | null;
+  /** schema.org `priceRange` on the LocalBusiness block (SEO foundations, 26 Nov 2026). A band, never a figure. Blank = left out. */
+  priceRange: string;
+  /** The brand's own social profiles, for schema.org `sameAs`. Empty until Tom enters them in Settings → Brands. */
+  sameAs: string[];
 };
 
 export const PAINT_GROUP_BUSINESS_ID = "https://paintgroup.com.au/#business";
@@ -67,6 +71,8 @@ export const BRAND_DEFAULTS: Record<BrandKey, Brand> = {
     inkColour: "#0a0b0d",
     localBusinessId: PAINT_GROUP_BUSINESS_ID,
     parentBusinessId: null,
+    priceRange: "",
+    sameAs: [],
   },
   painthome: {
     key: "painthome",
@@ -87,6 +93,9 @@ export const BRAND_DEFAULTS: Record<BrandKey, Brand> = {
     inkColour: "#2E3A3D",
     localBusinessId: `https://${PAINTHOME_DEFAULT_DOMAIN}/#business`,
     parentBusinessId: PAINT_GROUP_BUSINESS_ID,
+    priceRange: "$$",
+    // ⚑ Tom to confirm the two addresses; none is guessed here.
+    sameAs: [],
   },
 };
 
@@ -106,18 +115,23 @@ export const brandEditableSchema = z.object({
   phoneDisplay: z.string().trim().max(24).regex(/^[\d+][\d ]*$|^$/, "Digits and spaces only.").default(""),
   legalLine: z.string().trim().max(160).default(""),
   primaryColour: z.string().trim().regex(/^#[0-9a-fA-F]{6}$|^$/, "A hex colour, like #17F9F1.").default(""),
+  // SEO foundations (26 Nov 2026): the brand's own profiles, listed in its LocalBusiness block as `sameAs`.
+  facebookUrl: z.string().trim().max(200).regex(/^https:\/\/(www\.)?facebook\.com\/[^\s]+$|^$/, "A Facebook page address, starting https://www.facebook.com/").default(""),
+  instagramUrl: z.string().trim().max(200).regex(/^https:\/\/(www\.)?instagram\.com\/[^\s]+$|^$/, "An Instagram profile address, starting https://www.instagram.com/").default(""),
 });
 export type BrandEditable = z.infer<typeof brandEditableSchema>;
 
+const EMPTY_BRAND_EDITABLE: BrandEditable = { domain: "", phoneDisplay: "", legalLine: "", primaryColour: "", facebookUrl: "", instagramUrl: "" };
+
 export const brandSettingsSchema = z.object({
-  paintgroup: brandEditableSchema.default({ domain: "", phoneDisplay: "", legalLine: "", primaryColour: "" }),
-  painthome: brandEditableSchema.default({ domain: "", phoneDisplay: "", legalLine: "", primaryColour: "" }),
+  paintgroup: brandEditableSchema.default(EMPTY_BRAND_EDITABLE),
+  painthome: brandEditableSchema.default(EMPTY_BRAND_EDITABLE),
 });
 export type BrandSettings = z.infer<typeof brandSettingsSchema>;
 
 export const EMPTY_BRAND_SETTINGS: BrandSettings = {
-  paintgroup: { domain: "", phoneDisplay: "", legalLine: "", primaryColour: "" },
-  painthome: { domain: "", phoneDisplay: "", legalLine: "", primaryColour: "" },
+  paintgroup: EMPTY_BRAND_EDITABLE,
+  painthome: EMPTY_BRAND_EDITABLE,
 };
 
 /** Tolerant: an older or partial row still renders; garbage renders the defaults. */
@@ -142,6 +156,7 @@ export function brandFor(audience: Audience, settings: BrandSettings = EMPTY_BRA
     legalLine: e.legalLine || base.legalLine,
     primaryColour: HEX.test(e.primaryColour) ? e.primaryColour : base.primaryColour,
     localBusinessId: key === "painthome" ? `https://${domain}/#business` : base.localBusinessId,
+    sameAs: [e.facebookUrl, e.instagramUrl].filter(Boolean).length ? [e.facebookUrl, e.instagramUrl].filter(Boolean) : base.sameAs,
   };
 }
 

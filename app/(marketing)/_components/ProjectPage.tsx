@@ -72,7 +72,7 @@ export default function ProjectPage({ job, related = [], preview = false }: {
           {job.gallery.length > 0 && (
             <section className="pp-block" aria-labelledby="pp-gal">
               <h2 id="pp-gal">Before, during, after</h2>
-              <Gallery items={job.gallery} title={job.title} />
+              <Gallery items={job.gallery} title={job.title} suburb={job.suburb} />
             </section>
           )}
 

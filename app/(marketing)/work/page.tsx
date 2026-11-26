@@ -6,7 +6,9 @@ import { audiencePrefix, otherAudienceHref } from "@/lib/marketing/audience";
 import Footer from "../_sections/Footer";
 import CallBar from "../_sections/CallBar";
 import WorkList from "./WorkList";
-import { publishedShowcaseJobs } from "@/lib/showcase/queries";
+import { paintHomeJobs, publishedShowcaseJobs } from "@/lib/showcase/queries";
+import { canonicalUrl, pageSeo } from "@/lib/marketing/seo";
+import { breadcrumbLd, jobItemListLd } from "@/lib/marketing/structuredData";
 import { AudienceProvider } from "../_components/Audience";
 import { brandView } from "@/lib/marketing/brand";
 import { getBrand } from "@/lib/marketing/brandServer";
@@ -23,10 +25,14 @@ export const dynamic = "force-dynamic";
 
 // Go-live check, 25 Nov 2026: the title carries the request's brand (it read "| Paint Group" on painthome.com.au).
 export async function generateMetadata(): Promise<Metadata> {
-  const brand = await getBrand(await getAudience());
+  const audience = await getAudience();
+  const brand = await getBrand(audience);
   return {
     title: `Real jobs, real prices | ${brand.name}`,
     description: "Finished painting jobs across Melbourne with the real price of each one, inc. GST.",
+    // SEO foundations (26 Nov 2026): on Paint Home this page is its own in search — its own canonical and
+    // the brand's index switch (it used to inherit the marketing layout's noindex). Paint Group: unchanged.
+    ...pageSeo(audience, brand, "/work"),
   };
 }
 
@@ -40,6 +46,12 @@ export default async function WorkPage() {
   // Paint Home (brief §3–4): its brand on the nav and footer, no link to the
   // other site, and the list opens on homes — it never shows a commercial job.
   const painthome = audience === "painthome";
+  const listed = painthome ? paintHomeJobs(jobs) : jobs;
+  // Breadcrumb and the list of job pages, for Paint Home (the page Google may index).
+  const ld = painthome ? [
+    breadcrumbLd([{ name: brand.name, url: canonicalUrl(brand, "/") }, { name: "Real jobs, real prices", url: canonicalUrl(brand, "/work") }]),
+    jobItemListLd(brand.url, listed),
+  ] : [];
   return (
     <AudienceProvider audience={audience} brand={brandView(brand)}>
     <div className="shopfront" data-brand={brand.key}>
@@ -55,12 +67,13 @@ export default async function WorkPage() {
               </p>
             </div>
           </div>
-          <WorkList jobs={painthome ? jobs.filter((j) => j.property_type === "home") : jobs} initialProperty={audience === "business" ? "business" : painthome ? "home" : "all"} prefix={prefix} showProperty={!painthome} />
+          <WorkList jobs={listed} initialProperty={audience === "business" ? "business" : painthome ? "home" : "all"} prefix={prefix} showProperty={!painthome} />
         </div>
       </main>
       <Footer brand={brand} prefix={prefix} />
       <CallBar />
     </div>
+    {ld.map((block, i) => <script key={i} type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(block) }} />)}
     </AudienceProvider>
   );
 }

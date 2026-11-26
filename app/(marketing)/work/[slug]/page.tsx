@@ -14,6 +14,7 @@ import { videoObjectLd, videoUploadDateFor } from "@/lib/marketing/videoLd";
 import { AudienceProvider } from "../../_components/Audience";
 import { brandView } from "@/lib/marketing/brand";
 import { getBrand } from "@/lib/marketing/brandServer";
+import { breadcrumbLd } from "@/lib/marketing/structuredData";
 
 /**
  * /work/[slug] — one showcase job through THE template (brief §4.4c).
@@ -32,7 +33,7 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   // Go-live check, 25 Nov 2026: the title and description carry the request's brand.
   const audience = await getAudience();
   const brandName = (await getBrand(audience)).name;
-  if (!job) return { title: `Job not found | ${brandName}` };
+  if (!job) return { title: `Page not found | ${brandName}` };
   const price = job.price_low_cents != null && job.price_high_cents != null ? formatPriceRange(job.price_low_cents, job.price_high_cents) : "";
   const title = `${job.title} in ${job.suburb}${price ? `, ${price}` : ""} | ${brandName}`;
   const description = job.summary || job.scope_line || `${job.title} in ${job.suburb}, painted by ${brandName}.`;
@@ -80,9 +81,13 @@ export default async function WorkJobPage({ params }: { params: Promise<{ slug: 
     image: job.hero_path ? [showcaseMediaUrl(job.hero_path)] : undefined,
     datePublished: job.published_at ?? undefined,
     dateModified: job.updated_at || undefined,
-    author: { "@type": "Organization", name: "Paint Group" },
-    publisher: { "@type": "Organization", name: "Paint Group" },
+    // SEO foundations (26 Nov 2026): the brand whose site this is, not always "Paint Group".
+    author: { "@type": "Organization", name: brand.name },
+    publisher: { "@type": "Organization", name: brand.name },
   };
+  // The trail home → /work → this job, on this site's own addresses.
+  const site = painthome ? brand.url : audience === "business" && domain ? `https://${domain}` : (residentialOrigin() ?? brand.url);
+  const crumbsLd = breadcrumbLd([{ name: brand.name, url: `${site}/` }, { name: "Real jobs, real prices", url: `${site}/work` }, { name: `${job.title} in ${job.suburb}`, url: `${site}/work/${job.slug}` }]);
 
   // VideoObject when the job carries a video (Tom, 5 Sep): name, description,
   // thumbnail, upload date (the job's publish date), the privacy-enhanced embed
@@ -110,6 +115,7 @@ export default async function WorkJobPage({ params }: { params: Promise<{ slug: 
         <CallBar />
       </div>
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(crumbsLd) }} />
       {videoLd && <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(videoLd) }} />}
     </AudienceProvider>
   );

@@ -25,7 +25,7 @@ export default function ClosingCta({ copy }: { copy: CtaCopy }) {
       <div className="wrap">
         <h2>{copy.h2}</h2>
         <div className="cta-field"><AddressField where="bottom" showChips={audience === "business"} labels={copy.labels} onSubmit={submit} /></div>
-        <p>or call <TelLink where="bottom" className="tel">{brand.phoneDisplay}</TelLink>. {copy.callLine}</p>
+        <p id="contact">or call <TelLink where="bottom" className="tel">{brand.phoneDisplay}</TelLink>. {copy.callLine}</p>
       </div>
     </section>
   );

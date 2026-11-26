@@ -38,7 +38,7 @@ export default function WorkList({ jobs, initialProperty = "all", prefix = "", s
         </p>
       ) : (
         <div className="jobs" data-testid="work-grid">
-          {shown.map((j, i) => <JobCard key={j.id} job={j} priority={i < 3} prefix={prefix} />)}
+          {shown.map((j, i) => <JobCard key={j.id} job={j} priority={i < 3} prefix={prefix} heading="h2" />)}
         </div>
       )}
     </>

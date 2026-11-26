@@ -38,8 +38,9 @@ export default function Hero({ heroPhoto = null, copy }: { heroPhoto?: string | 
   return (
     <section className="hero" id="top">
       {heroPhoto && (
-        <div className="hero-photo" aria-hidden="true" data-testid="hero-photo">
-          <Image src={showcaseMediaUrl(heroPhoto)} alt="" fill priority sizes="100vw" style={{ objectFit: "cover", objectPosition: "center 40%" }} />
+        <div className="hero-photo" data-testid="hero-photo">
+          {/* SEO foundations (26 Nov 2026): the largest image on the page says what it is. */}
+          <Image src={showcaseMediaUrl(heroPhoto)} alt={`A freshly painted Melbourne home, by ${brand.name}`} fill priority sizes="100vw" style={{ objectFit: "cover", objectPosition: "center 40%" }} />
         </div>
       )}
       <div className="stage">

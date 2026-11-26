@@ -117,6 +117,8 @@ html:has(.mk) { scroll-behavior: smooth; }
 .mk .job:hover { transform: translateY(-4px); box-shadow: 0 24px 50px rgba(0, 0, 0, .12); }
 .mk .job .img { position: relative; aspect-ratio: 4 / 3; background: linear-gradient(135deg, #C9C2B4, #E7E3DA); }
 .mk .job .body { padding: 20px 24px 24px; display: grid; gap: 10px; }
+/* SEO foundations (26 Nov 2026): on /work the job name is an H2; it keeps the card's H3 look. */
+.mk .job .job-name { font-size: clamp(20px, 2vw, 26px); letter-spacing: -.015em; line-height: 1.15; max-width: none; }
 .mk .job .top { display: flex; justify-content: space-between; gap: 12px; align-items: baseline; }
 .mk .job .meta { font-family: var(--font-martian), ui-monospace, monospace; font-size: 12px; color: var(--color-tmut); }
 .mk .job .price { font-family: var(--font-martian), ui-monospace, monospace; font-size: clamp(22px, 2.2vw, 28px); letter-spacing: -.02em; }
@@ -330,6 +332,8 @@ html:has(.mk) { scroll-behavior: smooth; }
 .mk .faq details { border-bottom: 1px solid var(--color-lline); }
 .mk .faq summary { list-style: none; cursor: pointer; padding: 20px 0; font-size: clamp(18px, 1.6vw, 21px); font-weight: 600; letter-spacing: -.01em; display: flex; justify-content: space-between; gap: 16px; }
 .mk .faq summary::-webkit-details-marker { display: none; }
+/* The question is an H3 for the outline; the summary still decides how it looks. */
+.mk .faq summary h3 { font: inherit; letter-spacing: inherit; line-height: inherit; margin: 0; }
 .mk .faq summary::after { content: '+'; font-weight: 400; color: var(--color-tmut); }
 .mk .faq details[open] summary::after { content: '–'; }
 .mk .faq p { padding: 0 0 20px; color: var(--color-tmut); font-size: 17px; max-width: 64ch; }

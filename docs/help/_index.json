@@ -739,6 +739,8 @@
         "app/(marketing)/painthome/page.tsx",
         "app/(marketing)/_sections/Hero.tsx",
         "app/(marketing)/_sections/Footer.tsx",
+        "app/(marketing)/_components/NotFoundView.tsx",
+        "lib/marketing/legacyRedirects.ts",
         "app/wizard/Reveal.tsx",
         "lib/wizard/brand.ts"
       ]
@@ -762,6 +764,11 @@
         "lib/messaging/brand.ts",
         "lib/marketing/brand.ts",
         "lib/marketing/audience.ts",
+        "lib/marketing/seo.ts",
+        "lib/marketing/legacyRedirects.ts",
+        "lib/marketing/structuredData.ts",
+        "app/sitemap.xml/route.ts",
+        "app/not-found.tsx",
         "lib/marketing/copy/painthome.ts",
         "app/(marketing)/painthome/page.tsx",
         "app/(app)/settings/BrandsSettings.tsx",

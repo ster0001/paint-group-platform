@@ -19,6 +19,7 @@ export default function VideoEmbed({ url, caption, posterPath, transcript, testI
   const ref = parseVideoUrl(url);
   if (!ref) return null;
   const poster = posterPath ? showcaseMediaUrl(posterPath) : ref.thumbnailUrl;
+  const posterAlt = caption ? `Video still: ${caption}` : "Video still: a customer talks about their painting job";
   return (
     <figure className="video" data-testid={testId} data-provider={ref.provider}>
       <div className="video-frame">
@@ -31,7 +32,7 @@ export default function VideoEmbed({ url, caption, posterPath, transcript, testI
           <button type="button" className="video-play" onClick={() => setPlaying(true)} aria-label={`Play video${caption ? `: ${caption}` : ""}`} data-testid={`${testId}-play`}>
             {poster && (
               // eslint-disable-next-line @next/next/no-img-element
-              posterPath ? <Image src={poster} alt="" fill sizes="(min-width: 960px) 640px, 100vw" style={{ objectFit: "cover" }} /> : <img src={poster} alt="" loading="lazy" />
+              posterPath ? <Image src={poster} alt={posterAlt} fill sizes="(min-width: 960px) 640px, 100vw" style={{ objectFit: "cover" }} /> : <img src={poster} alt={posterAlt} loading="lazy" />
             )}
             <span className="video-btn" aria-hidden="true"><svg width="26" height="26" viewBox="0 0 26 26"><path d="M8 5v16l13-8z" fill="currentColor" /></svg></span>
           </button>

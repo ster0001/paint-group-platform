@@ -21,6 +21,8 @@
  * the audience and has no `painthome` arm renders the `home` arm (brief
  * §3): Paint Home is the residential experience with different words.
  */
+import { legacyRedirectFor } from "./legacyRedirects";
+
 export const AUDIENCES = ["home", "business", "painthome"] as const;
 export type Audience = (typeof AUDIENCES)[number];
 
@@ -92,6 +94,9 @@ export function resolveAudience(
     // /painthome on the host itself has one canonical form, the root; the
     // route's own files (/painthome/opengraph-image, /painthome/icon) stay.
     if (pathname === PAINTHOME_PREFIX) return { audience: "painthome", redirect: `https://${painthome}/`, rewrite: null };
+    // SEO foundations (26 Nov 2026): the old WordPress site's addresses go to the page that replaced them.
+    const legacy = legacyRedirectFor(pathname);
+    if (legacy) return { audience: "painthome", redirect: `https://${painthome}${legacy}`, rewrite: null };
     return { audience: "painthome", redirect: null, rewrite: null };
   }
   if (isPhPath) {

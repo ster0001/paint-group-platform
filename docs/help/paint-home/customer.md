@@ -3,7 +3,7 @@ feature: paint-home
 role: customer
 title: Paint Home — pricing your home online
 summary: Paint Home is for apartments, units, townhouses and smaller homes; you type your address, answer a few questions, see a price range in about ten minutes, and one short call confirms it. The painters, the guarantee and the insurance are the same ones behind Paint Group, which powers Paint Home.
-sources: app/(marketing)/painthome/page.tsx, app/(marketing)/_sections/Hero.tsx, app/(marketing)/_sections/Footer.tsx, app/wizard/Reveal.tsx, lib/wizard/brand.ts
+sources: app/(marketing)/painthome/page.tsx, app/(marketing)/_sections/Hero.tsx, app/(marketing)/_sections/Footer.tsx, app/(marketing)/_components/NotFoundView.tsx, lib/marketing/legacyRedirects.ts, app/wizard/Reveal.tsx, lib/wizard/brand.ts
 ---
 
 ## What this is for
@@ -30,6 +30,7 @@ Everything we send about a Paint Home job comes from Paint Home: the estimate, t
 ## If something goes wrong
 - **My job is larger than a few rooms.** Enter the address anyway. If it is more than can be priced from your phone, the price screen says so and offers a site visit instead of a call. Everything you have entered is kept; the Paint Group team, who look after larger jobs, will be in touch.
 - **I would rather talk first.** The phone number is at the top of every page and in the bar at the bottom on a phone. Mon to Fri, 8am to 5pm.
+- **I followed an old link and the page was not there.** Links to the previous Paint Home site (the guarantee, the portfolio, the contact page) now open the matching page on the new one. Any other address shows a "That page isn't here" page with a button to the home page and one to real jobs and prices.
 
 ## Related
 - The estimator itself works the same way as on paintgroup.com.au.
