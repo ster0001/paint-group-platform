@@ -14,6 +14,8 @@
  *   TWILIO_ACCOUNT_SID / TWILIO_AUTH_TOKEN / TWILIO_FROM — SMS sender (number in E.164, or alphanumeric ID)
  */
 
+import { unsubscribeHeaders, withEmailUnsubscribe, withSmsOptOut } from "./optOut";
+import { unsubscribeUrl } from "@/lib/campaigns/send";
 import { htmlToPlain, newReplyToken, recordMessage, replyAddress, resolveAccount, type MessageContext } from "./record";
 import { marketingRefusal } from "./consent";
 import { createServiceClient } from "@/lib/supabase/service";
@@ -40,7 +42,17 @@ export type DeliveryResult =
  * is going to — the way the STOP reply itself matched them. For marketing
  * the lookup fails CLOSED: a "no" we could not read is not a yes.
  */
-async function customerSwitchedOff(ctx: MessageContext | undefined, channel: NotifyChannel, address?: string | null): Promise<string | null> {
+/**
+ * Who a send is to, and whether it may go. `off` is the reason it may not (null = send); `accountId` is the
+ * account found on the way — a marketing email needs it for its unsubscribe link (26 Nov 2026).
+ */
+async function customerGate(ctx: MessageContext | undefined, channel: NotifyChannel, address?: string | null): Promise<{ off: string | null; accountId: string | null }> {
+  let found: string | null = null;
+  const off = await customerSwitchedOff(ctx, channel, address, (id) => { found = id; });
+  return { off, accountId: found };
+}
+
+async function customerSwitchedOff(ctx: MessageContext | undefined, channel: NotifyChannel, address: string | null | undefined, onAccount: (id: string) => void): Promise<string | null> {
   if (ctx?.skipRecord) return null;
   const type = notifyTypeOfKind(ctx?.kind);
   const marketing = ctx?.marketing === true;
@@ -63,6 +75,7 @@ async function customerSwitchedOff(ctx: MessageContext | undefined, channel: Not
       accountId = await resolveAccount(svc, channel === "sms" ? { phone: address } : { email: address });
     }
     if (!accountId) return null;
+    onAccount(accountId);
     const { data, error } = await svc.from("accounts").select("notify_prefs, permit_email, permit_sms, marketing_unsubscribed_at").eq("id", accountId).maybeSingle();
     if (error) { if (marketing) throw error; return null; }
     const row = (data ?? {}) as { notify_prefs?: unknown; permit_email?: string | null; permit_sms?: string | null; marketing_unsubscribed_at?: string | null };
@@ -112,13 +125,26 @@ export async function sendEmail(opts: {
   // thread (reply+<token>@…) instead of a mailbox the platform cannot see.
   const routedReplyTo = replyAddress(token);
   const recipients = recipientList(opts.to);
-  const off = await customerSwitchedOff(opts.ctx, "email", recipients[0] ?? null);
+  const gate = await customerGate(opts.ctx, "email", recipients[0] ?? null);
+  let off = gate.off;
+  // A marketing email carries its own unsubscribe link and the one-click headers (26 Nov 2026,
+  // lib/messaging/optOut.ts). The link is the account's own; with no account to unsubscribe it does not go.
+  let html = opts.html;
+  let headers: Record<string, string> | undefined;
+  if (!off && opts.ctx?.marketing === true) {
+    if (!gate.accountId) off = "Marketing email with no customer account for its unsubscribe link — not sent.";
+    else {
+      const url = unsubscribeUrl(gate.accountId);
+      html = withEmailUnsubscribe(html, url);
+      headers = unsubscribeHeaders(url);
+    }
+  }
   const result: DeliveryResult = off ? { status: "suppressed", message: off }
     : recipients.length === 0 ? { status: "error", message: "No email address to send to." }
-    : await sendEmailRaw({ ...opts, to: recipients, replyTo: routedReplyTo ?? opts.replyTo });
+    : await sendEmailRaw({ ...opts, html, headers, to: recipients, replyTo: routedReplyTo ?? opts.replyTo });
   await recordMessage({
     channel: "email", direction: "out", subject: opts.subject,
-    body: htmlToPlain(opts.html), bodyHtml: opts.html,
+    body: htmlToPlain(html), bodyHtml: html,
     provider: "resend", providerMessageId: result.status === "sent" ? result.id ?? null : null,
     status: result.status === "sent" ? "sent" : result.status === "not_configured" ? "not_configured" : result.status === "suppressed" ? "suppressed" : "failed",
     // The row is the FIRST address (the account match reads it); the rest ride meta.
@@ -171,6 +197,7 @@ async function sendEmailRaw(opts: {
   replyTo?: string;
   attachments?: { filename: string; content: string; contentType?: string }[];
   from?: string;
+  headers?: Record<string, string>;
 }): Promise<DeliveryResult> {
   if (!emailConfigured()) return { status: "not_configured" };
   try {
@@ -186,6 +213,7 @@ async function sendEmailRaw(opts: {
         subject: opts.subject,
         html: opts.html,
         ...(opts.replyTo ? { reply_to: opts.replyTo } : {}),
+        ...(opts.headers ? { headers: opts.headers } : {}),
         ...(opts.attachments?.length
           ? {
               attachments: opts.attachments.map((a) => ({
@@ -209,10 +237,12 @@ async function sendEmailRaw(opts: {
 }
 
 export async function sendSms(opts: { to: string; body: string; ctx?: MessageContext }): Promise<DeliveryResult> {
-  const off = await customerSwitchedOff(opts.ctx, "sms", opts.to);
-  const result: DeliveryResult = off ? { status: "suppressed", message: off } : await sendSmsRaw(opts);
+  const { off } = await customerGate(opts.ctx, "sms", opts.to);
+  // A marketing text ends "Reply STOP to opt out" unless it already says STOP (26 Nov 2026, lib/messaging/optOut.ts).
+  const body = opts.ctx?.marketing === true ? withSmsOptOut(opts.body) : opts.body;
+  const result: DeliveryResult = off ? { status: "suppressed", message: off } : await sendSmsRaw({ to: opts.to, body });
   await recordMessage({
-    channel: "sms", direction: "out", body: opts.body,
+    channel: "sms", direction: "out", body,
     provider: "twilio", providerMessageId: result.status === "sent" ? result.id ?? null : null,
     status: result.status === "sent" ? "sent" : result.status === "not_configured" ? "not_configured" : result.status === "suppressed" ? "suppressed" : "failed",
     toAddress: opts.to, fromAddress: process.env.TWILIO_FROM ?? null,

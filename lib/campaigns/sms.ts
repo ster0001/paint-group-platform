@@ -28,7 +28,9 @@ import { sendSms } from "@/lib/messaging/send";
  *  letter wearing the wrong envelope. */
 export const SMS_MAX_CHARS = 320;
 
-export const SMS_OPT_OUT = "Reply STOP to opt out";
+/** One wording for every marketing text — campaigns and the marketing automations (lib/messaging/optOut.ts). */
+import { SMS_OPT_OUT } from "@/lib/messaging/optOut";
+export { SMS_OPT_OUT };
 
 /**
  * An Australian mobile, into E.164.
