@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { SUCCESS_MOMENT_KEYS, isSuccessMoment, safeBack, thanksHref } from "./success";
+import { SUCCESS_MOMENT_KEYS, isSuccessMoment, leadKey, safeBack, thanksHref } from "./success";
 import { adTagIdsFor } from "./adTags";
 import { MARKETING_EVENT_NAMES } from "@/lib/analytics";
 
@@ -20,5 +20,22 @@ describe("success URLs", () => {
   });
   it("ad tags come only from the environment, per brand", () => {
     expect(adTagIdsFor("home")).toEqual({ metaPixelId: process.env.NEXT_PUBLIC_META_PIXEL_ID ?? "", googleTagId: process.env.NEXT_PUBLIC_GOOGLE_TAG_ID ?? "" });
+  });
+});
+
+/** The lead moment (26 Nov 2026): one per mobile number, and the number never travels. */
+describe("leadKey", () => {
+  it("the same mobile in any format is the same lead", () => {
+    const k = leadKey("0412 345 678");
+    expect(k).toMatch(/^m[a-z0-9]+$/);
+    for (const v of ["0412345678", "+61 412 345 678", "61412345678", "(04) 1234-5678"]) expect(leadKey(v)).toBe(k);
+    expect(leadKey("0412 345 679")).not.toBe(k);
+  });
+  it("carries none of the digits", () => {
+    expect(leadKey("0412345678")).not.toContain("0412345678");
+    expect(leadKey("0412345678")).not.toContain("412345678");
+  });
+  it("no number, no lead", () => {
+    for (const v of ["", null, undefined, "abc", "1234567"]) expect(leadKey(v)).toBeNull();
   });
 });

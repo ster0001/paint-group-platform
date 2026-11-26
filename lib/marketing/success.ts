@@ -80,6 +80,36 @@ export function countInBackground(moment: SuccessMoment, onceKey: string): void 
   window.setTimeout(() => f.remove(), 15_000);
 }
 
+/**
+ * A lead (26 Nov 2026, the GTM tracking brief): contact details the server has
+ * ACCEPTED — the wizard's verified mobile, the talk-to-us sheet, a call-back
+ * box, the visit booking's details. One `pg_success` / `success_moment: lead`
+ * per mobile number per browser, ever: the key lives in localStorage, so a
+ * refresh, a second form, or the same person coming back never counts twice.
+ * The number itself goes nowhere — the key is a hash, and the data layer
+ * carries only the moment. Null for anything that is not a phone number.
+ */
+export function leadKey(mobile: string | null | undefined): string | null {
+  let d = (mobile ?? "").replace(/\D/g, "");
+  if (d.startsWith("61") && d.length === 11) d = `0${d.slice(2)}`;
+  if (d.length < 8 || d.length > 15) return null;
+  let h = 0x811c9dc5; // FNV-1a, 32-bit: a fingerprint, not a secret
+  for (let i = 0; i < d.length; i++) { h ^= d.charCodeAt(i); h = Math.imul(h, 0x01000193) >>> 0; }
+  return `m${h.toString(36)}`;
+}
+
+/** Call only AFTER the server said yes. Counts the lead once per mobile per browser (see leadKey). */
+export function countLead(mobile: string | null | undefined): void {
+  countLeadKey(leadKey(mobile));
+}
+
+/** The same, from a key the server computed (the website chat hands back `lead`, never the number). */
+export function countLeadKey(k: string | null | undefined): void {
+  if (!k || !/^m[a-z0-9]{1,13}$/.test(k) || typeof window === "undefined") return;
+  try { if (window.localStorage.getItem(`pg-lead:${k}`)) return; window.localStorage.setItem(`pg-lead:${k}`, "1"); } catch { /* storage blocked: the session guard below still holds */ }
+  countInBackground("lead", k);
+}
+
 /** After a tap on a tel: link — the dialler has opened; count the call. */
 export function afterTelTap(back: string = here()): void {
   if (typeof window === "undefined") return;

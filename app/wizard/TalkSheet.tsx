@@ -1,7 +1,7 @@
 "use client";
 
 import { useBackdropClose } from "@/lib/ui/useBackdropClose";
-import { countInBackground } from "@/lib/marketing/success";
+import { countInBackground, countLead } from "@/lib/marketing/success";
 import { useEffect, useState } from "react";
 
 /**
@@ -87,12 +87,12 @@ export default function TalkSheet({ open, mode, onClose, estimateId, prefill, ha
   async function afterDetails() {
     if (!validDet) { setErr(needAddress ? "Please fill in your name, address, email and mobile number." : "Please fill in your name, email and mobile number."); return; }
     if (mode === "visit" || mode === "call") {
-      if (await post("/api/visits/request", { kind: mode, ...contact, note: det.note.trim() || undefined })) { onContact?.({ name: contact.name, email: contact.email, mobile: contact.mobile }); setStage("sent"); countInBackground(mode === "call" ? "call" : "visit", `${mode}:${clientId}`); }
+      if (await post("/api/visits/request", { kind: mode, ...contact, note: det.note.trim() || undefined })) { onContact?.({ name: contact.name, email: contact.email, mobile: contact.mobile }); setStage("sent"); countInBackground(mode === "call" ? "call" : "visit", `${mode}:${clientId}`); countLead(contact.mobile); }
       return;
     }
     if (mode === "details") {
       // Success URL (Tom, 18 Nov 2026): the details given on the range-first path are a lead.
-      if (await post("/api/visits/details", contact)) { countInBackground("lead", contact.mobile); onDone?.(contact); }
+      if (await post("/api/visits/details", contact)) { countLead(contact.mobile); onDone?.(contact); }
       return;
     }
     setStage("message");
@@ -101,7 +101,7 @@ export default function TalkSheet({ open, mode, onClose, estimateId, prefill, ha
     if (!msg.trim()) { setErr("Please write your message first."); return; }
     const body: Record<string, unknown> = { clientId, body: msg.trim() };
     if (!hasContact) body.contact = contact;
-    if (await post("/api/visits/message", body)) { setStage("sent"); countInBackground("message", clientId); }
+    if (await post("/api/visits/message", body)) { setStage("sent"); countInBackground("message", clientId); if (!hasContact) countLead(contact.mobile); }
   }
 
   const fld = (label: string, key: "name" | "address" | "email" | "mobile", type = "text", ph = "") => (

@@ -3,10 +3,15 @@
 import { useEffect, useRef, useState } from "react";
 import { useLiveConversation } from "@/app/estimate/assist/useLiveConversation";
 import { BRAND_DEFAULTS } from "@/lib/marketing/brand";
+import { countLeadKey } from "@/lib/marketing/success";
 import "./chat.css";
 
 type Msg = { id: string; role: "user" | "assistant" | "staff" | "system"; text: string; createdAt: string };
-type Snap = { conversationId: string; status: string; handoff: { status: string } | null; transcript: Msg[] };
+/**
+ * `contactNeeded` / `asked` / `lead` (Tom, 26 Nov 2026): the chat asks for contact details when we have none, and
+ * a response that carries `lead` is a NEW capture — counted once as a conversion (lib/marketing/success.ts).
+ */
+type Snap = { conversationId: string; status: string; handoff: { status: string } | null; transcript: Msg[]; contactNeeded?: boolean; asked?: boolean; lead?: string | null };
 
 const KEY = "pg-wizard-chat";
 const PAINTHOME_NAME = BRAND_DEFAULTS.painthome.name;
@@ -44,6 +49,8 @@ export default function ChatWidget({ ready, place = "wizard", ensureSession, bra
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [unread, setUnread] = useState(0);
+  const [contact, setContact] = useState({ name: "", email: "", phone: "" });
+  const [contactErr, setContactErr] = useState<string | null>(null);
   const seen = useRef(0);
   const endRef = useRef<HTMLDivElement | null>(null);
 
@@ -107,7 +114,23 @@ export default function ChatWidget({ ready, place = "wizard", ensureSession, bra
       const j = await res.json().catch(() => ({}));
       if (!res.ok) { setError(j.error ?? "That didn't go through."); return; }
       setSnap(j as Snap);
+      countLeadKey((j as Snap).lead); // details typed into the message: a new capture only
     } catch { setError("That didn't go through — check the connection."); }
+    finally { setBusy(false); }
+  }
+
+  async function sendContact() {
+    if (!snap || busy) return;
+    const c = { name: contact.name.trim(), email: contact.email.trim(), phone: contact.phone.trim() };
+    if (!/.+@.+\..+/.test(c.email) || c.phone.replace(/\D/g, "").length < 8) { setContactErr("Your email and mobile, please."); return; }
+    setBusy(true); setContactErr(null);
+    try {
+      const res = await fetch("/api/agent/website", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "contact", conversationId: snap.conversationId, ...(c.name ? { name: c.name } : {}), email: c.email, phone: c.phone }) });
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok) { setContactErr(j.error ?? "That didn't save — try again."); return; }
+      setSnap(j as Snap);
+      countLeadKey((j as Snap).lead); // the server said yes, and it was new
+    } catch { setContactErr("That didn't save — check the connection."); }
     finally { setBusy(false); }
   }
 
@@ -132,6 +155,15 @@ export default function ChatWidget({ ready, place = "wizard", ensureSession, bra
                 <span>{m.text}</span>
               </div>
             ))}
+            {snap?.contactNeeded && snap.asked && (
+              <form className="wz-chat-contact" data-testid="wz-chat-contact" onSubmit={(e) => { e.preventDefault(); void sendContact(); }}>
+                <input value={contact.name} onChange={(e) => setContact({ ...contact, name: e.target.value })} placeholder="Your name" aria-label="Your name" autoComplete="name" disabled={busy} data-testid="wz-chat-contact-name" />
+                <input type="email" value={contact.email} onChange={(e) => setContact({ ...contact, email: e.target.value })} placeholder="Email" aria-label="Email" autoComplete="email" disabled={busy} data-testid="wz-chat-contact-email" />
+                <input type="tel" inputMode="tel" value={contact.phone} onChange={(e) => setContact({ ...contact, phone: e.target.value })} placeholder="Mobile" aria-label="Mobile" autoComplete="tel" disabled={busy} data-testid="wz-chat-contact-phone" />
+                <button type="submit" disabled={busy} data-testid="wz-chat-contact-send">Send my details</button>
+                {contactErr && <p className="wz-chat-err" role="alert">{contactErr}</p>}
+              </form>
+            )}
             {error && <p className="wz-chat-err" role="alert">{error}</p>}
             <div ref={endRef} />
           </div>

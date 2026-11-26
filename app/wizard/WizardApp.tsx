@@ -74,7 +74,7 @@ import Wordmark from "./Wordmark";
 import { allowedForBrand, type WizardBrand } from "@/lib/wizard/brand";
 import { brandFor } from "@/lib/marketing/brand";
 import { breakpointNow, markScopeFromGate, sendWizardEvent, stepCompletedBy } from "@/lib/wizard/wizardEvents";
-import { countInBackground } from "@/lib/marketing/success";
+import { countInBackground, countLead } from "@/lib/marketing/success";
 import ChatWidget from "./ChatWidget";
 import WizardHeader from "./WizardHeader";
 import { UI_FLAGS } from "@/lib/wizard/ui-flags";
@@ -1661,7 +1661,7 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
     setError(null);
     setOtp((o) => ({ ...o, busy: true, error: null }));
     const r = await otpSend(c.phone, state.brand);
-    if (r.status === "verified") { otpVerifiedRef.current = digits; countInBackground("lead", digits); setOtp((o) => ({ ...o, phase: "idle", busy: false })); return "verified"; }
+    if (r.status === "verified") { otpVerifiedRef.current = digits; countLead(digits); setOtp((o) => ({ ...o, phase: "idle", busy: false })); return "verified"; }
     if (r.status === "sent") { setOtp({ phase: "code", masked: r.masked || maskMobile(digits), mobile: digits, code: "", error: null, busy: false, sentAt: Date.now() }); return "sent"; }
     if (r.status === "too_soon") {
       // a code for this number is already on its way (a reload, a double tap): the code screen, with the wait shown
@@ -1682,7 +1682,7 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
       if (r.status === "ok") {
         otpVerifiedRef.current = digits;
         // Success URL (Tom, 18 Nov 2026): the details are given and the mobile proven — a lead, counted behind the page.
-        countInBackground("lead", digits);
+        countLead(digits);
         setOtp((o) => ({ ...o, phase: "idle", busy: false, code: "", error: null }));
         quickNext();
         return;
