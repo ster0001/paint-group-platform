@@ -52,10 +52,16 @@ You need a staff login. Texts need a mobile number and email needs an address on
 Every automation added from 11 Nov 2026 arrives **Off**. Nothing new sends until you switch it on here. Automations that were already on the list keep the state they had.
 
 ## When a customer says no to marketing (11 Nov 2026)
-Some automations are **marketing**: a message the customer did not ask for, sent to bring them back. Today that is **Abandoned wizard — pick up where you left off** and the three lead messages below. A marketing message is not sent, and is recorded in Messages as **suppressed** with the reason, when the customer:
+Some automations are **marketing**: a message the customer did not ask for, sent to bring them back. That is **Abandoned wizard — pick up where you left off**, the lead messages (L1–L7), the quote messages (E2–E12), **R1 — review request**, the anniversaries (R3, R4) and the quarterly **R5** nurture. A marketing message is not sent, and is recorded in Messages as **suppressed** with the reason, when the customer:
 - replied **STOP** to any of our texts,
 - unsubscribed from marketing, or
 - is marked as not wanting marketing texts or email on their customer record (that channel only).
+
+**Every marketing message says how to opt out (26 Nov 2026).** You don't need to write it into the wording:
+- a marketing **text** ends *Reply STOP to opt out.* (unless your wording already mentions STOP);
+- a marketing **email** ends *Don't want these emails? Unsubscribe.*, with the customer's own one-click link, and mail apps show their own unsubscribe button for it.
+- A marketing email to someone we have no customer record for is not sent, because there would be no link to unsubscribe them. Messages shows it as **suppressed**.
+- The previews in Settings show your wording without the line; it is added as each message goes.
 
 Everything else on this list — their estimate, visit times, job updates, invoices, receipts — is a service message and still goes; the customer's own switches in their account still apply to those. If we cannot check a customer's answer (a lookup fails), a marketing message is held back rather than sent.
 

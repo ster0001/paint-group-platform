@@ -1174,6 +1174,8 @@ export const AUTOMATIONS: Automation[] = [
   // ---- recorded, not yet sent ---------------------------------------------
   {
     key: "review_request", name: "R1 — review request (text)", audience: "customer", channels: ["sms"], kind: "automatic",
+    // 26 Nov 2026: asking for a review is a commercial message — never to someone who said STOP, and it says how to.
+    consent: "marketing",
     defaultOff: true, defaultChannel: "sms", capExempt: true, sendKind: "review_request",
     trigger: "The morning after a job is signed off (from 9 am): one text asking for a Google review, with the brand's review link. Not sent when staff already asked (PC Command's review box), or when that brand has no review link set below. Recorded as asked on the job.",
     templates: [

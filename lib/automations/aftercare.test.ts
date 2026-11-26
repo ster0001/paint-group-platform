@@ -24,9 +24,8 @@ describe("R1 / R3 / R4", () => {
     expect(reviewLinkFor({ ...DEFAULT_MESSAGING, googleReviewLink: "https://g.page/r/abc" }, "painthome")).toBeNull();
     expect(reviewLinkFor({ ...DEFAULT_MESSAGING, googleReviewLink: "g.page/r/abc" }, "paintgroup")).toBeNull();
   });
-  it("R1 is now a real text, off and transactional; R3 and R4 are marketing", () => {
-    expect(automationByKey("review_request")).toMatchObject({ kind: "automatic", channels: ["sms"], defaultOff: true });
-    expect(automationByKey("review_request")!.consent).toBeUndefined();
+  it("R1 is a real text, off by default; R1, R3 and R4 are marketing (R1 since 26 Nov 2026: a review ask is commercial)", () => {
+    expect(automationByKey("review_request")).toMatchObject({ kind: "automatic", channels: ["sms"], defaultOff: true, consent: "marketing" });
     for (const k of ["anniversary_12", "anniversary_24"]) expect(automationByKey(k)).toMatchObject({ defaultOff: true, consent: "marketing" });
   });
 });
