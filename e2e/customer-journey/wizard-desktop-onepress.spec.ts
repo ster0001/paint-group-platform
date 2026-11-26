@@ -36,6 +36,8 @@ const HEADINGS: Record<ScreenId, string> = {
   job: "What's the job?", surfaces: "What's being painted?", rooms: "We're painting these rooms", colours: "Colours?",
   condition: "How are the walls looking?", living: "Anyone living there while we paint?", details: "Where shall we send your range?", code: "Enter the code we texted",
 };
+/** Laptop screens too long for one 768px screen (measured, not asserted) — see the fold test at the foot. */
+const FOLD_LONG: string[] = [];
 const run = randomBytes(3).toString("hex");
 const suburb = `E2E OnePress ${run}`;
 
@@ -134,6 +136,17 @@ test.describe("Desktop one-press — the laptop takes the phone's screens (adden
     await expect(page.getByTestId("ql-next")).toHaveText("Show my range");
     await expect(page.getByTestId("ql-next")).toBeDisabled();
     await page.getByTestId("gate-name").fill("One Press");
+    // Tom, 26 Nov 2026: emptying the mobile or the email leaves the cursor where it is (it used to jump to the name)
+    for (const id of ["gate-mobile", "gate-email"]) {
+      await page.getByTestId(id).click();
+      await page.keyboard.type("04");
+      await page.waitForTimeout(250);
+      await expect(page.getByTestId(id)).toBeFocused();
+      await page.keyboard.press("Backspace");
+      await page.keyboard.press("Backspace");
+      await page.waitForTimeout(250);
+      await expect(page.getByTestId(id)).toBeFocused();
+    }
     await page.getByTestId("gate-mobile").fill(`04${String(Date.now()).slice(-8).replace(/(\d{2})(\d{3})(\d{3})/, "$1 $2 $3")}`);
     await page.getByTestId("gate-email").fill(`onepress.${run}@example.com`);
     await expect(page.getByTestId("ql-next")).toBeEnabled();
@@ -320,6 +333,9 @@ test.describe("Desktop one-press — the laptop takes the phone's screens (adden
     await page.getByTestId("ql-next").click();
     await at(page, "colours");
     await expect(sofar.locator("li[data-step]")).toHaveCount(4); // address, place, job, rooms
+    // Tom, 26 Nov 2026: the small print says the coats
+    await expect(page.getByTestId("ql-colours-same")).toContainText("Typically 1 coat");
+    await expect(page.getByTestId("ql-colours-new")).toContainText("(Typically 2 coats.) Also tick this if it's a colour match that hasn't been painted in a long time, or you think it needs 2 coats");
     // Change on the place: back to its first question, the answers still there
     await sofar.getByTestId("ql-sofar-change-place").click();
     await at(page, "property");
@@ -327,6 +343,18 @@ test.describe("Desktop one-press — the laptop takes the phone's screens (adden
     await page.getByTestId("ql-kind-townhouse").click();
     await at(page, "beds");
     await expect(page.getByTestId("ql-bedrooms-2")).toHaveAttribute("aria-pressed", "true");
+  });
+
+  test("6 · a reload says Welcome back ONCE (26 Nov 2026: the shell and the router each drew the banner)", async ({ page }) => {
+    await openLaptop(page);
+    await page.getByTestId("ql-jobtype-interior").click();
+    await at(page, "property");
+    await page.getByTestId("ql-kind-townhouse").click();
+    await at(page, "beds");
+    await page.reload();
+    await expect(page.locator("[data-ready='1']")).toBeAttached({ timeout: 20_000 });
+    await expect(page.getByTestId("wz-resume").first()).toContainText("Welcome back", { timeout: 20_000 });
+    await expect(page.getByTestId("wz-resume")).toHaveCount(1);
   });
 
   test("7 · the phone (390 × 780) is unchanged: its own header and strip, no rail, no key numbers", async ({ browser }) => {
@@ -369,5 +397,109 @@ test.describe("Desktop one-press — Paint Home", () => {
     await page.keyboard.press("1");
     await at(page, "property");
     await expect(page.locator("[data-testid='wzm'] .wzm-screen .wzm-opt")).toHaveCount(3);
+  });
+});
+
+/**
+ * Tom, 26 Nov 2026: on a laptop the whole question sits above the fold where it can — the heading, every answer and
+ * the Continue button, with no scrolling, on a 1366 × 768 screen (the common small laptop). Screens that cannot fit
+ * without hurting the layout are named in LONG and only measured.
+ */
+const fold = (page: Page) => page.evaluate(() => {
+  const root = document.querySelector("[data-testid='wzm']");
+  if (!root) return { bottom: -1, view: window.innerHeight };
+  const els = [...root.querySelectorAll(".wzm-screen .wzm-opt, .wzm-screen .wzm-chip, .wzm-screen input, .wzm-screen .wz-card, [data-testid='ql-next']")]
+    .filter((el) => (el as HTMLElement).offsetParent !== null);
+  const bottom = Math.max(0, ...els.map((el) => el.getBoundingClientRect().bottom + window.scrollY));
+  return { bottom: Math.round(bottom), view: window.innerHeight };
+});
+
+test.describe("Desktop one-press — the question sits above the fold (26 Nov 2026)", () => {
+  test.skip(!db, "needs SUPABASE_SERVICE_ROLE_KEY");
+  test.use({ viewport: { width: 1366, height: 768 } });
+  const LONG = new Set<string>(FOLD_LONG);
+
+  test("8 · every answer and Continue are on screen without scrolling at 1366 × 768", async ({ page }) => {
+    await openLaptop(page);
+    const seen: Record<string, { bottom: number; view: number }> = {};
+    const measure = async (id: string) => {
+      await at(page, id);
+      await page.waitForTimeout(450); // the screen's slide-in
+      seen[id] = await fold(page);
+    };
+    await measure("what");
+    await page.getByTestId("ql-jobtype-interior").click();
+    await measure("property");
+    await page.getByTestId("ql-kind-house").click();
+    await measure("beds");
+    await page.getByTestId("ql-bedrooms-4").click();
+    await measure("storeys");
+    await page.getByTestId("ql-storeys-double").click();
+    await measure("job");
+    await page.getByTestId("ql-scope-whole").click();
+    await measure("surfaces");
+    await page.getByTestId("ql-next").click();
+    await measure("rooms");
+    await page.getByTestId("ql-next").click();
+    await measure("colours");
+    await page.getByTestId("ql-colours-new").click();
+    await measure("bold");
+    await page.getByTestId("ql-bold-no").click();
+    await measure("condition");
+    await page.getByTestId("ql-condition-needs_work").click();
+    await measure("living");
+    await page.getByTestId("ql-occupied-no").click();
+    await measure("details");
+    console.log("FOLD " + JSON.stringify(seen));
+    for (const [id, m] of Object.entries(seen)) {
+      if (LONG.has(id)) continue;
+      expect(m.bottom, `${id}: the last answer or Continue ends at ${m.bottom}px on a ${m.view}px screen`).toBeLessThanOrEqual(m.view);
+    }
+  });
+  test("9 · outside: the nine shapes, each side, and the range card after the code all sit above the fold", async ({ page }) => {
+    await openLaptop(page);
+    await page.getByTestId("ql-jobtype-exterior").click();
+    await at(page, "shape");
+    await page.waitForTimeout(450);
+    const shape = await fold(page);
+    expect(shape.bottom, `shape ends at ${shape.bottom}px`).toBeLessThanOrEqual(shape.view);
+    // no name is cut off by its neighbour: three across, the drawing over the name
+    await expect(page.getByTestId("ql-ext-type").locator(".wzm-opt")).toHaveCount(9);
+    const screenNow = () => page.getByTestId("wzm").getAttribute("data-mobile-screen");
+    // walk on with whatever is pre-picked (or the first card), Continue where there is one
+    for (let i = 0; i < 30; i++) {
+      const id = await screenNow();
+      if (id === "details") break;
+      if (id?.startsWith("s-")) {
+        await page.waitForTimeout(450);
+        const side = await fold(page);
+        expect(side.bottom, `${id} ends at ${side.bottom}px`).toBeLessThanOrEqual(side.view);
+      }
+      const next = page.getByTestId("ql-next");
+      if (await next.isVisible().catch(() => false)) await next.click();
+      else await page.locator(".wzm-screen .wzm-opt.on, .wzm-screen .wzm-opt").first().click();
+      await expect.poll(screenNow, { timeout: 15_000 }).not.toBe(id);
+    }
+    await at(page, "details");
+    await page.getByTestId("gate-name").fill("Fold Outside");
+    await page.getByTestId("gate-mobile").fill(`04${String(Date.now()).slice(-8)}`);
+    await page.getByTestId("gate-email").fill(`fold.${run}@example.com`);
+    await page.getByTestId("ql-next").click();
+    await passOtpIfShown(page);
+    await expect(page.getByTestId("reveal")).toBeVisible({ timeout: 90_000 });
+    await page.waitForTimeout(900); // the roller
+    const card = await page.locator("[data-testid='reveal'] .wz-rv-card").evaluate((el) => Math.round(el.getBoundingClientRect().bottom + window.scrollY));
+    expect(card, `the range card ends at ${card}px on a 768px screen`).toBeLessThanOrEqual(768);
+    await expect(page.getByTestId("reveal-dock-tighten")).toBeInViewport();
+    // the quote stage: the drawing sits on the RIGHT, over the sides list, and the question has the room it left
+    await page.getByTestId("reveal-dock-tighten").click();
+    await expect(page.getByTestId("quote-stage")).toBeVisible({ timeout: 60_000 });
+    const box = async (sel: string) => (await page.locator(sel).first().boundingBox())!;
+    const main = await box("[data-testid='quote-stage'] > .wzm-main");
+    const pic = await box("[data-testid='q-rail-room']");
+    const list = await box("[data-testid='q-rail-right']");
+    expect(pic.x, "the drawing is right of the question").toBeGreaterThanOrEqual(main.x + main.width - 1);
+    expect(pic.y + pic.height, "the drawing is above the sides list").toBeLessThanOrEqual(list.y + 20);
+    expect(main.width, "the question column is wider than the old 640px").toBeGreaterThan(700);
   });
 });

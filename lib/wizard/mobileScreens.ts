@@ -195,11 +195,13 @@ export function mobileProgress(index: number, total: number): number {
   return Math.round((Math.max(0, Math.min(index, total)) / total) * 55);
 }
 
+/** Tom, 26 Nov 2026: the small print says the coats — same = typically 1, new = typically 2, and New is also the
+ * answer for a colour match that needs 2 (an old or tired finish). Wording only: the pricing already counts them so. */
 /** §2 — the three colour answers, derived from (and written back to) the quick look's colour tiles. */
 export type ColourChoice = "new" | "same" | "deciding";
 export const COLOUR_CHOICES: Array<{ value: ColourChoice; label: string; hint: string }> = [
-  { value: "new", label: "New colours", hint: "A change — we allow for an undercoat" },
-  { value: "same", label: "Same colours", hint: "A fresh coat of what's there" },
+  { value: "new", label: "New colours", hint: "(Typically 2 coats.) Also tick this if it's a colour match that hasn't been painted in a long time, or you think it needs 2 coats" },
+  { value: "same", label: "Same colours", hint: "A fresh coat of what's there. Typically 1 coat" },
   { value: "deciding", label: "Still deciding", hint: "We'll allow for new colours" },
 ];
 export function colourChoiceOf(q: Pick<QuickLook, "changing" | "undecided" | "scope" | "excluded">): ColourChoice {

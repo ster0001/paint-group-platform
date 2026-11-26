@@ -42,7 +42,7 @@ On a phone (any screen narrower than about 770px) the same questions come one at
 6. **What's the job?** — The whole interior, Some rooms, or Doors, windows and trims.
 7. **What's being painted?** — the surfaces as chips, pre-ticked from the job you chose (Doors, windows and trims pre-ticks skirtings, doors and window frames only). Each tick rolls that surface's paint on in the little picture (and off again when you untick); the strip's second line counts the surfaces ticked. Untick anything we are not painting, then **Continue**.
 8. **We're painting these rooms** (or **Which rooms?** after Some rooms, which pre-ticks the first two) — the rooms we have guessed from your bedrooms and storeys, each a chip you can untick; Study, Ensuite and Garage are offered unticked; **+ Another room** adds one by name. **Continue** waits until at least one room is ticked.
-9. **Colours?** — New colours, Same colours, or Still deciding (priced as new colours).
+9. **Colours?** — New colours, Same colours, or Still deciding (priced as new colours). The small print under each says the coats: **Same colours** is typically 1 coat; **New colours** is typically 2 coats — and is also the one to pick if it is a colour match that has not been painted in a long time, or you think it needs 2 coats. The outside colours question carries the same small print.
 10. **How are the walls looking?** — Good, just tired · Some wear · Needs work.
 11. **Anyone living there while we paint?** — No, it'll be empty · Yes, we'll be there.
 12. **Where shall we send your range?** — your full name (first and last), mobile and email; a line under them says the details are for your price and so we can discuss your quote. **Show my range** lights up once the three are in and texts a six-digit code to the mobile.
@@ -90,6 +90,7 @@ On a phone (any screen narrower than about 770px) the same questions come one at
 - **Option cards are named for screen readers** by the question above them.
 
 ## Changes on 5 Nov 2026
+- **Laptop layout (26 Nov 2026).** Each question, its answers and Continue fit on one screen without scrolling on a normal laptop; the home shapes show three across. After the code, the range card shows the figure, each side and **Get my quote range** on one screen. On the quote stage the drawing of your house or room sits on the right, above the list of sides or rooms, so the question has more room. A ticked garage door is listed as **Garage door** — just the door, no walls or trims.
 - **One question at a time on a laptop.** The laptop asks the phone's twelve screens one at a time inside its two-column layout, with the keys 1–5 / Enter / ← and small key numbers on the cards; the range screen asks **Want the detailed number?** with **Get my detailed price** as the first door. See *Steps*, step 2.
 - **A texted code before the price.** After your name, mobile and email, we text a six-digit code to the mobile and the range shows only once it is entered — on a phone and on a laptop. Send it again waits a minute; Wrong number? Change it goes back to the details. See *On a phone*, step 12a.
 

@@ -363,12 +363,15 @@ export default function MobileQuickLook({
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [desktop, autoNow]);
-  // the name is focused when the details open (brief §1.3)
+  // the name is focused when the details open (brief §1.3). Tom, 26 Nov 2026: ONCE, on arriving — the effect used to
+  // hang off the `desktop` prop object, which WizardApp rebuilds when the rail's words change (emptying the mobile or
+  // the email does that), so clearing either box threw the cursor back into the name.
+  const onDesktop = !!desktop;
   useEffect(() => {
-    if (!desktop || current.id !== "details") return;
+    if (!onDesktop || current.id !== "details") return;
     const t = setTimeout(() => rootRef.current?.querySelector<HTMLInputElement>("[data-testid='gate-name']")?.focus(), 60);
     return () => clearTimeout(t);
-  }, [desktop, current.id]);
+  }, [onDesktop, current.id]);
   // how many cards this screen offers, for the hint ("1 2 3 choose")
   const [optCount, setOptCount] = useState(0);
   useLayoutEffect(() => {

@@ -261,6 +261,9 @@ test.describe("on a phone: About it is one card per screen (exterior mobile v5, 
     // colours, then access with the lift note, then Each side
     await at(page, "a-colours");
     await expect(page.getByTestId("wzm-h1")).toHaveText("Colours?");
+    // Tom, 26 Nov 2026: the small print says the coats
+    await expect(page.getByTestId("ql-ext-colour-same")).toContainText("Typically 1 coat");
+    await expect(page.getByTestId("ql-ext-colour-new")).toContainText("(Typically 2 coats.) Also tick this if it's a colour match that hasn't been painted in a long time, or you think it needs 2 coats");
     await page.getByTestId("ql-ext-colour-new").tap();
     await at(page, "a-access");
     await expect(page.getByTestId("wzm-h1")).toHaveText("Getting around the house");

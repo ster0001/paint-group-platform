@@ -144,8 +144,8 @@ export const EXT_WINDOW_TYPES: Choice<ExteriorWindowType>[] = [
 ];
 
 export const EXT_COLOURS: Choice<ExteriorColour>[] = [
-  { value: "same", label: "The same colours again", hint: "Colour-matched — a freshen up" },
-  { value: "new", label: "New colours", hint: "Two coats, standard preparation" },
+  { value: "same", label: "The same colours again", hint: "Colour-matched, a freshen up. Typically 1 coat" },
+  { value: "new", label: "New colours", hint: "(Typically 2 coats.) Also tick this if it's a colour match that hasn't been painted in a long time, or you think it needs 2 coats" },
   { value: "bold", label: "Going much lighter", hint: "An undercoat first, then two coats" },
 ];
 

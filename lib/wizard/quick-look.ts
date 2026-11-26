@@ -202,8 +202,8 @@ export function boldPictureSurfaces(q: Parameters<typeof boldGroupsOf>[0]): stri
 }
 
 export const COLOUR_INTENTS: Choice<ColourIntent>[] = [
-  { value: "same", label: "The same colours again", hint: "Colour-matched — a freshen up" },
-  { value: "new", label: "New colours", hint: "Two coats, standard preparation" },
+  { value: "same", label: "The same colours again", hint: "Colour-matched, a freshen up. Typically 1 coat" },
+  { value: "new", label: "New colours", hint: "(Typically 2 coats.) Also tick this if it's a colour match that hasn't been painted in a long time, or you think it needs 2 coats" },
   { value: "bold", label: "Going much lighter, or a bold colour", hint: "An undercoat first, then two coats" },
 ];
 

@@ -208,6 +208,18 @@ describe("colour feeds the same derivation (⚑51), and What we'll do is exterio
     expect(lines.at(-1)?.sentence).toMatch(/Equipment hire.*rotten timber.*not visible from the ground/);
     for (const l of lines) expect(l.group).toBe("exterior");
   });
+
+  it("a ticked garage door is the door only — no walls, no trims, no 'a person confirms' (Tom, 26 Nov 2026)", () => {
+    const door = exteriorWhatWeDo(applyExteriorQuickLook(q({ elements: ["body"], materials: ["render"], colour: "new", standalone: ["garage_door"] }), base()));
+    const line = door.find((l) => l.title === "Garage door");
+    expect(line?.sentence).toMatch(/^Just the garage door/);
+    expect(line?.sentence).toMatch(/No walls or trims/);
+    expect(line?.review).toBe(false);
+    expect(door.some((l) => /shed/i.test(l.title))).toBe(false);
+    const shed = exteriorWhatWeDo(applyExteriorQuickLook(q({ elements: ["body"], materials: ["render"], colour: "new", standalone: ["shed"] }), base()));
+    expect(shed.find((l) => l.title === "Shed or garage building")?.review).toBe(true);
+    expect(shed.some((l) => l.title === "Garage door")).toBe(false);
+  });
 });
 
 describe("a both job keeps its interior ticks", () => {
