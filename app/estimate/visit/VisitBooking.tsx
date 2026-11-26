@@ -1,6 +1,6 @@
 "use client";
 
-import { countInBackground } from "@/lib/marketing/success";
+import { countInBackground, countLead } from "@/lib/marketing/success";
 import { editorHref } from "@/lib/wizard/ui-flags";
 import { useEffect, useState } from "react";
 import type { OfferedDay } from "@/lib/visits/schedule";
@@ -110,6 +110,7 @@ export default function VisitBooking(props: {
     const r = await post("/api/visits/details", { name: det.name, email: det.email, mobile: det.mobile, ...(props.hasAddress ? {} : { street: det.address }) });
     if (!r.ok) { setErr(r.error); return; }
     setHasContact(true);
+    countLead(det.mobile); // the details are in (26 Nov 2026: a lead, once per mobile)
     if (props.zone === "out_of_area") { setScreen("message"); return; }
     if (notBookable) { setScreen("request"); return; }
     await refresh();
@@ -130,6 +131,7 @@ export default function VisitBooking(props: {
     const r = await post("/api/visits/message", body);
     if (!r.ok) { setErr(r.error); return; }
     setScreen("message_sent");
+    if (!hasContact) countLead(det.mobile);
     countInBackground("message", clientId);
   }
 

@@ -1,7 +1,7 @@
 "use client";
 
 import { useBackdropClose } from "@/lib/ui/useBackdropClose";
-import { countCallTap, countInBackground } from "@/lib/marketing/success";
+import { countCallTap, countInBackground, countLead } from "@/lib/marketing/success";
 import { useEffect, useState } from "react";
 
 /**
@@ -75,6 +75,7 @@ export default function SaveAndBookSheet({
       // Success URLs (Tom, 18 Nov 2026): saved for later; and a visit when a slot was booked with it.
       countInBackground("saved", `save:${email.trim().toLowerCase()}`);
       if (j.booked) countInBackground("visit", `save:${email.trim().toLowerCase()}`);
+      countLead(mobile); // a lead only when a mobile came with the email (26 Nov 2026)
       onSaved?.();
     } catch {
       setError("That didn't save — check your connection and try again.");

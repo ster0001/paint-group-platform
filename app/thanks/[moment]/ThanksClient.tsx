@@ -15,8 +15,13 @@ export default function ThanksClient({ moment, back, background, tags, brandName
   moment: SuccessMoment; back: string; background: boolean; tags: AdTagIds; brandName: string; title: string; line: string; phoneTel: string;
 }) {
   useEffect(() => {
-    track("success_page", { moment, background });
-    if (parseConsent(document.cookie) === "analytics") {
+    // A refresh of the page is not a second success (26 Nov 2026): the first load marks its own URL `done=1`,
+    // and a load that finds the mark records and pushes nothing. The hidden frame's URL is never reloaded.
+    const url = new URL(window.location.href);
+    const repeat = !background && url.searchParams.get("done") === "1";
+    if (!background && !repeat) { url.searchParams.set("done", "1"); window.history.replaceState(window.history.state, "", url); }
+    if (!repeat) track("success_page", { moment, background });
+    if (!repeat && parseConsent(document.cookie) === "analytics") {
       loadAdTags(tags);
       pushSuccessToDataLayer(moment, background); // Tag Manager's trigger (Paint Home's container, lib/marketing/gtm.ts)
     }
