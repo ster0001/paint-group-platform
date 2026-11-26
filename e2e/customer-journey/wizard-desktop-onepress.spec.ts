@@ -501,5 +501,21 @@ test.describe("Desktop one-press — the question sits above the fold (26 Nov 20
     expect(pic.x, "the drawing is right of the question").toBeGreaterThanOrEqual(main.x + main.width - 1);
     expect(pic.y + pic.height, "the drawing is above the sides list").toBeLessThanOrEqual(list.y + 20);
     expect(main.width, "the question column is wider than the old 640px").toBeGreaterThan(700);
+    // Tom, 26 Nov 2026: no two boxes touch — on every card of the first side, each chip, counter and option keeps a gap
+    const touching = () => page.evaluate(() => {
+      const els = [...document.querySelectorAll(".wzm-screen .wzm-chip, .wzm-screen .wzm-step, .wzm-screen .wzm-opt, .wzm-screen .wzm-field")]
+        .filter((el) => (el as HTMLElement).offsetParent !== null).map((el) => ({ n: el.getAttribute("data-testid") ?? el.className, r: el.getBoundingClientRect() }));
+      const bad: string[] = [];
+      for (let i = 0; i < els.length; i++) for (let j = i + 1; j < els.length; j++) {
+        const a = els[i].r, b = els[j].r;
+        const dx = Math.max(a.left, b.left) - Math.min(a.right, b.right), dy = Math.max(a.top, b.top) - Math.min(a.bottom, b.bottom);
+        if (dx < 5 && dy < 5) bad.push(`${els[i].n} / ${els[j].n} (${Math.round(dx)}, ${Math.round(dy)})`);
+      }
+      return bad;
+    });
+    expect(await touching(), "the size card").toEqual([]);
+    await page.getByTestId("wzm-foot").getByRole("button").first().click();
+    await expect(page.getByTestId("q-side-parts")).toBeVisible({ timeout: 20_000 });
+    expect(await touching(), "On this side").toEqual([]);
   });
 });
