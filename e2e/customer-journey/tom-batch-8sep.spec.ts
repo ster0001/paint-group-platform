@@ -216,6 +216,8 @@ test("Tom, 8 Sep evening: the estimate's chat bubble is on the website too", asy
   await page.goto("/");
   const bubble = page.getByTestId("wz-chat-bubble");
   await expect(bubble, "the bubble renders before any session exists").toBeVisible({ timeout: 30_000 });
+  // 26 Nov 2026: the cookie sheet sits above the bubble until a choice is made (it covered the sheet's buttons).
+  await page.getByTestId("consent-decline").click();
 
   // Nobody is signed in yet — a marketing visitor who never opens the chat
   // must not become an anonymous user, so the session is made on the tap.
