@@ -40,3 +40,31 @@
    the mobile call bar, which is 56px tall. */
 .wz-chat.site { bottom: 20px; }
 @media (max-width: 720px) { .wz-chat.site { bottom: 76px; } }
+
+/* The details form under the chat's question (26 Nov 2026). */
+.wz-chat-contact { display: grid; gap: 6px; margin: 4px 0 8px; padding: 10px; border-radius: 12px; background: rgba(127,127,127,.08); }
+.wz-chat-contact input { font: inherit; font-size: 16px; padding: 8px 10px; border-radius: 8px; border: 1px solid rgba(127,127,127,.35); background: #fff; color: #1f1f1f; min-width: 0; }
+.wz-chat-contact button { font: inherit; padding: 9px 12px; border-radius: 8px; border: 0; background: #1f1f1f; color: #fff; cursor: pointer; }
+.wz-chat-contact button:disabled { opacity: .6; cursor: default; }
+
+/* Tom, 26 Nov 2026: on the website the bubble was hard to read — it is now a glowing violet with white writing,
+   a colour nothing else on either site uses (teal/cyan, ink, sage, blush, amber, clay, emerald), so it reads as
+   "talk to us" at a glance. White on #6D28D9 is 7.1:1, on #7C3AED 5.7:1 — AA for its 14px bold label. The label
+   stays on phones here (the wizard keeps its icon-only bubble). The glow breathes; reduced motion keeps it still. */
+.wz-chat.site .wz-chat-bubble {
+  background: #7C3AED; color: #fff; border: 1px solid rgba(255,255,255,.35);
+  text-shadow: 0 1px 1px rgba(0,0,0,.25);
+  box-shadow: 0 0 0 3px rgba(124,58,237,.25), 0 0 22px 4px rgba(139,92,246,.75), 0 10px 30px rgba(0,0,0,.35);
+  animation: wz-chat-glow 2.6s ease-in-out infinite;
+}
+.wz-chat.site .wz-chat-bubble:hover, .wz-chat.site .wz-chat-bubble:focus-visible { background: #6D28D9; }
+.wz-chat.site .wz-chat-bubble:focus-visible { outline: 3px solid #fff; outline-offset: 3px; }
+@keyframes wz-chat-glow {
+  0%, 100% { box-shadow: 0 0 0 3px rgba(124,58,237,.25), 0 0 18px 2px rgba(139,92,246,.6), 0 10px 30px rgba(0,0,0,.35); }
+  50% { box-shadow: 0 0 0 5px rgba(124,58,237,.3), 0 0 32px 8px rgba(139,92,246,.9), 0 10px 30px rgba(0,0,0,.35); }
+}
+@media (prefers-reduced-motion: reduce) { .wz-chat.site .wz-chat-bubble { animation: none; } }
+@media (max-width: 720px) {
+  .wz-chat.site .wz-chat-bubble-lbl { display: inline; }
+  .wz-chat.site .wz-chat-bubble { padding: 11px 16px; }
+}

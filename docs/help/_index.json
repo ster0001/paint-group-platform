@@ -1344,6 +1344,28 @@
       "sources": []
     },
     {
+      "feature": "website-chat",
+      "role": "customer",
+      "title": "Chat with us from the website or the online estimate",
+      "summary": "The chat bubble in the corner of the Paint Group and Paint Home websites and the online estimate reaches our office; after your first message it asks for your name, email and mobile so we can come back to you, even out of hours.",
+      "path": "docs/help/website-chat/customer.md",
+      "walkthrough": null,
+      "media": [],
+      "verified_at_commit": null,
+      "sources": []
+    },
+    {
+      "feature": "website-chat",
+      "role": "staff",
+      "title": "What the website chat asks for, and where the details land",
+      "summary": "The website and online-estimate chat asks a visitor for name, email and mobile after their first message when we have none on file (in the closed reply out of hours); the details file or find their account, link the chat to it, add a \"Left their name, email and mobile\" note to their timeline, and count once as a lead in Tag Manager.",
+      "path": "docs/help/website-chat/staff.md",
+      "walkthrough": null,
+      "media": [],
+      "verified_at_commit": null,
+      "sources": []
+    },
+    {
       "feature": "work-orders",
       "role": "contractor",
       "title": "Run a job from the first tick to the customer's signature",

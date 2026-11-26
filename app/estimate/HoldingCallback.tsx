@@ -1,6 +1,6 @@
 "use client";
 
-import { countInBackground, countCallTap } from "@/lib/marketing/success";
+import { countInBackground, countCallTap, countLead } from "@/lib/marketing/success";
 import { useState } from "react";
 
 /**
@@ -31,10 +31,12 @@ export default function HoldingCallback({ address, companyPhone }: { address: st
         body: JSON.stringify({ name: name.trim(), phone: phone.trim(), email: email.trim(), address: address.trim() || undefined }),
       });
       const j = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string };
-      if (!res.ok && j.error) { setError(j.error); return; }
+      // Any refusal is a failure (26 Nov 2026): a 5xx with no message used to fall through to "sent" — and count a lead.
       if (res.status === 429) { setError("That's a few requests in a row — give it a minute, or ring us."); return; }
+      if (!res.ok || j.ok === false) { setError(j.error || "That didn't go through — try again, or ring us."); return; }
       setSent(true);
       countInBackground("call", `holding:${phone.trim()}`);
+      countLead(phone);
     } catch {
       setError("That didn't go through — check the connection and try again, or ring us.");
     } finally {

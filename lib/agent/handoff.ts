@@ -86,4 +86,17 @@ export const RESUME_TEXT = "They've stepped away — I can keep going from here,
 export const websiteGreeting = (brandName: string) => `Hi — you're talking to ${brandName}. Ask us anything about your estimate and one of the team will answer here. You can keep filling in the questions while you wait.`;
 
 export const CLOSED_TEXT = (nextOpening: string | null) => `We're closed just now${nextOpening ? ` — a person is next available ${nextOpening}` : ""}. I can keep going with you now, or arrange a callback: morning, afternoon, or any time?`;
+/**
+ * The website chat asks for contact details once per conversation when we have none (Tom, 26 Nov 2026).
+ * In hours it asks while a person picks the chat up; out of hours the closed reply asks instead of offering a
+ * slot, so the office has someone to ring when it opens. Each starts with a fixed lead-in so the route can tell
+ * it has already asked (CONTACT_ASK_LEADS).
+ */
+export const CONTACT_ASK_TEXT = "While someone picks this up — what's your name, email and mobile? Then we can come back to you even if you have to go.";
+export const CLOSED_CONTACT_TEXT = (nextOpening: string | null) => `We're closed just now${nextOpening ? ` — a person is next available ${nextOpening}` : ""}. Leave your name, email and mobile and we'll come back to you as soon as we open.`;
+export const CONTACT_THANKS_TEXT = (firstName: string | null) => `Thanks${firstName ? ` ${firstName}` : ""} — we've got your details and the team will come back to you.`;
+export const CONTACT_ASK_LEADS = ["While someone picks this up — what's your name, email and mobile?", "Leave your name, email and mobile and we'll come back to you"];
+export const isContactAsk = (text: string) => CONTACT_ASK_LEADS.some((l) => text.includes(l));
+/** The thank-you is the conversation's own record that it captured details: never ask again, never count again. */
+export const isContactThanks = (text: string) => text.includes("we've got your details and the team will come back to you");
 export const ESCALATED_TEXT = "Sorry — no one has been able to pick this up yet. I can arrange a callback instead (morning, afternoon, or any time), or keep going with you here.";
