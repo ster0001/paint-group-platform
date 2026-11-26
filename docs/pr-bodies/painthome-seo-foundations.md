@@ -25,7 +25,12 @@ D2 / P9 · D6 title and H1 (already editable: Settings → Website copy → Pain
 
 ## Proof
 
-PROOF_PLACEHOLDER
+- Unit: 464 files, 4,538 passed, 2 skipped (`npm test`), including the new `lib/marketing/seo.test.ts`. Golden tests green.
+- Lint: `npx eslint --max-warnings 4 .` → 0 errors, 4 warnings (all four were there before).
+- e2e on the C1 test stack, 27 Nov: `e2e/marketing/painthome-seo.spec.ts` 16/16 (8 tests × phone 390 × 780 and laptop 1470) and `e2e/marketing/painthome-launch.spec.ts` 2/2. Both are now on the CI list.
+- `e2e/marketing/painthome.spec.ts` run alongside: tests 1, 1b, 2 green; **3, 4 and 5 red**. Read from the failures, none comes from this change: 3 = the staff chat dock is open over the Brands Save button (waiting chats left in the test project); 4 = a leftover row already holds `featured_rank_painthome = 1` (unique key 23505); 5 = the copy preview's `src` is `?preview=0`, not `/painthome?…`. Not checked against `main`. That spec is not on the CI list.
+- `PAINTHOME_INDEXABLE` is not set on the test stack, so the e2e proves the canonical and that robots follows the switch (noindex there). "index, follow" with the switch on is proven by the unit test and is to be read on the live page after deploy (manual check, step 1).
+- Lighthouse (mobile, live site, 26 Nov, before this change): `/` score 58, LCP 3.8 s (the hero photo, already `priority` and preloaded), TBT 2,640 ms of which about 2.8 s of main-thread time is unattributed; `/work/2-bedroom-apartment-malvern-east` score 99, LCP 2.0 s. The 13-second reading did not reproduce. No one-line fix; the blocking time needs its own look.
 
 Manual check: `docs/testing/painthome-seo-foundations-manual.md`.
 
