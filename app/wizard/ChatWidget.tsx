@@ -2,12 +2,14 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useLiveConversation } from "@/app/estimate/assist/useLiveConversation";
+import { BRAND_DEFAULTS } from "@/lib/marketing/brand";
 import "./chat.css";
 
 type Msg = { id: string; role: "user" | "assistant" | "staff" | "system"; text: string; createdAt: string };
 type Snap = { conversationId: string; status: string; handoff: { status: string } | null; transcript: Msg[] };
 
 const KEY = "pg-wizard-chat";
+const PAINTHOME_NAME = BRAND_DEFAULTS.painthome.name;
 
 /**
  * Tom, 8 Sep 2026: the chat bubble in the bottom-left corner of the online
@@ -16,17 +18,10 @@ const KEY = "pg-wizard-chat";
  * and Realtime brings the reply here. The conversation id is kept in the
  * browser so a reload picks the same thread up.
  */
-export default function ChatWidget({ ready, place = "wizard", ensureSession, onDescribe, brandName = "Paint Group" }: {
+export default function ChatWidget({ ready, place = "wizard", ensureSession, brandName = "Paint Group" }: {
   ready: boolean;
   /** Paint Home brief §5 / wizard mobile v5 R10: whose chat this is — the panel's name and the label on every reply. */
   brandName?: string;
-  /**
-   * C16 (a): "describe it" lives behind the bubble. When the host is on the
-   * quick look it hands over a function that reads a paragraph and fills the
-   * screens in (amber until confirmed); the bubble shows the describe box.
-   * Absent = the bubble is the direct line to a person and nothing else.
-   */
-  onDescribe?: (text: string) => Promise<{ reply: string } | null>;
   /**
    * Where it is mounted — the marketing site sits above its own call bar.
    * "header" (UI refresh S1, ⚑ 10): the wizard's header carries it as an icon
@@ -49,18 +44,6 @@ export default function ChatWidget({ ready, place = "wizard", ensureSession, onD
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [unread, setUnread] = useState(0);
-  const [describeText, setDescribeText] = useState("");
-  const [describing, setDescribing] = useState(false);
-  const [describeReply, setDescribeReply] = useState<string | null>(null);
-  async function describe() {
-    if (!onDescribe || describing || describeText.trim().length < 12) return;
-    setDescribing(true); setDescribeReply(null);
-    try {
-      const r = await onDescribe(describeText.trim());
-      setDescribeReply(r?.reply ?? "That didn't go through — try again in a moment.");
-      if (r) setDescribeText("");
-    } finally { setDescribing(false); }
-  }
   const seen = useRef(0);
   const endRef = useRef<HTMLDivElement | null>(null);
 
@@ -78,7 +61,7 @@ export default function ChatWidget({ ready, place = "wizard", ensureSession, onD
       // a 403 here is "not signed in yet", so try again briefly.
       let res: Response | null = null, j: { error?: string } & Partial<Snap> = {};
       for (let attempt = 0; attempt < 4; attempt++) {
-        res = await fetch("/api/agent/website", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "start", ...(saved ? { conversationId: saved } : {}) }) });
+        res = await fetch("/api/agent/website", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "start", brand: brandName === PAINTHOME_NAME ? "painthome" : "paintgroup", ...(saved ? { conversationId: saved } : {}) }) });
         j = await res.json().catch(() => ({}));
         if (res.status !== 403) break;
         await new Promise((r) => setTimeout(r, 1500));
@@ -152,20 +135,6 @@ export default function ChatWidget({ ready, place = "wizard", ensureSession, onD
             {error && <p className="wz-chat-err" role="alert">{error}</p>}
             <div ref={endRef} />
           </div>
-          {onDescribe && (
-            <div className="wz-describe" data-testid="wz-describe">
-              <label htmlFor="wz-describe-text" style={{ fontSize: 13, fontWeight: 600 }}>Or describe the job and we&rsquo;ll fill the screens in</label>
-              <textarea id="wz-describe-text" value={describeText} onChange={(e) => setDescribeText(e.target.value)} disabled={describing}
-                placeholder="e.g. 3-bed weatherboard in Kew, walls and ceilings, new colours, a bit of wear" data-testid="wz-describe-text" />
-              <div className="wz-describe-row">
-                <button type="button" onClick={() => void describe()} disabled={describing || describeText.trim().length < 12} data-testid="wz-describe-go">
-                  {describing ? "Reading…" : "Fill it in"}
-                </button>
-                <span className="wz-chat-note" style={{ margin: 0 }}>Anything we fill in stays marked as ours until you confirm it.</span>
-              </div>
-              {describeReply && <p className="wz-chat-note" role="status" data-testid="wz-describe-reply">{describeReply}</p>}
-            </div>
-          )}
           <form className="wz-chat-input" onSubmit={(e) => { e.preventDefault(); void send(); }}>
             <input value={text} onChange={(e) => setText(e.target.value)} placeholder="Type a message…" aria-label="Message" disabled={busy || !snap} data-testid="wz-chat-text" />
             <button type="submit" disabled={busy || !snap || !text.trim()} data-testid="wz-chat-send">Send</button>

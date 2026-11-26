@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { track } from "@/lib/analytics";
 import { loadClarity } from "@/lib/marketing/clarity";
 import { consentCookie, parseConsent, type Consent } from "@/lib/marketing/consent";
+import { CONSENT_CHANGED_EVENT } from "@/lib/marketing/consentEvents";
 
 /**
  * Tom's consent spec (4 Sep): a bottom sheet, two buttons — `Only what's
@@ -42,6 +43,8 @@ export default function ConsentSheet() {
     setOpen(false);
     track("consent_choice", { choice });
     if (choice === "analytics") loadClarity();
+    // Tag Manager (Paint Home) listens for this from the root layout.
+    window.dispatchEvent(new Event(CONSENT_CHANGED_EVENT));
     // "Only what's needed" after a previous "Allow": the tag is already on this
     // page; it is simply not loaded again on the next one. No PII was ever sent.
   }
@@ -52,7 +55,7 @@ export default function ConsentSheet() {
       <div className="consent-body">
         <p id="consent-h" className="consent-t">Cookies</p>
         <p className="consent-p">
-          We use a small first-party cookie so the site works. If you allow it, we also use Microsoft Clarity to see how the page is used, with click maps and anonymous recordings, so we can make it clearer. Your address is never sent to Clarity.
+          We use a small first-party cookie so the site works. If you allow it, we also use Microsoft Clarity and Google to see how the site is used and which ads bring people here, with click maps and anonymous recordings, so we can make it clearer. Your address is never sent to them.
         </p>
         <div className="consent-btns">
           <button ref={declineRef} type="button" className="btn btn-ghost" onClick={() => choose("essential")} data-testid="consent-decline">Only what&rsquo;s needed</button>

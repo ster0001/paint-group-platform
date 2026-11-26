@@ -7,7 +7,9 @@ type Msg = { id: string; role: "user" | "assistant" | "staff" | "system"; text: 
 
 const QUICK = ["What's included in my estimate?", "How much is the deposit and when do I pay?", "Can someone come out and look at it?"];
 
-export default function SupportView({ conversationId, estimateId, shareToken, initialTranscript, companyPhone = null, compact = false }: {
+export default function SupportView({ conversationId, estimateId, shareToken, initialTranscript, companyPhone = null, compact = false, brandName = "Paint Group" }: {
+  /** Part B (26 Nov 2026): the estimate's own brand names the person on the chat. */
+  brandName?: string;
   conversationId: string; estimateId: string; shareToken: string | null; initialTranscript: Msg[]; companyPhone?: string | null;
   /** The floating widget (7 Sep): no portal links — the customer is already on their estimate. */
   compact?: boolean;
@@ -40,12 +42,12 @@ export default function SupportView({ conversationId, estimateId, shareToken, in
   return (
     <div className="card" data-testid="support" data-status={status}>
       {status === "handed_off" && (
-        <p className="sub" data-testid="sp-status">{handoff?.status === "active" || handoff?.status === "claimed" ? "A person from Paint Group is with you now." : "Waiting for a person — your messages are saved and they'll see them."}</p>
+        <p className="sub" data-testid="sp-status">{handoff?.status === "active" || handoff?.status === "claimed" ? `A person from ${brandName} is with you now.` : "Waiting for a person — your messages are saved and they'll see them."}</p>
       )}
       <div className="msgs" data-testid="sp-log" style={{ maxHeight: "55vh", overflow: "auto" }}>
         {transcript.map((m) => (
           <div key={m.id} className={`msg ${m.role === "user" ? "mine" : "theirs"}`} data-testid={`sp-msg-${m.role}`}>
-            {m.role === "staff" && <div className="sub">Paint Group</div>}
+            {m.role === "staff" && <div className="sub">{brandName}</div>}
             <div className="msg-body">{m.text}</div>
           </div>
         ))}

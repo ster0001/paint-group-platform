@@ -1,9 +1,25 @@
 "use client";
 
-import { useCallback } from "react";
+import { useCallback, useSyncExternalStore } from "react";
 import ChatWidget from "@/app/wizard/ChatWidget";
 import { createClient as createBrowserClient } from "@/lib/supabase/client";
 import { establishSession } from "@/lib/wizard/session";
+import { BRAND_DEFAULTS } from "@/lib/marketing/brand";
+
+/**
+ * Part B (go-live finish brief, 26 Nov 2026): the bubble said "Paint Group" on
+ * painthome.com.au. It is mounted by the layout, OUTSIDE each page's
+ * AudienceProvider (the layout stays static — it reads no header), so it
+ * reads the brand where the provider publishes it: `data-audience` on the
+ * document, followed if it ever changes.
+ */
+const subscribeAudience = (cb: () => void) => {
+  const mo = new MutationObserver(cb);
+  mo.observe(document.documentElement, { attributes: true, attributeFilter: ["data-audience"] });
+  return () => mo.disconnect();
+};
+const brandNameNow = () => BRAND_DEFAULTS[document.documentElement.dataset.audience === "painthome" ? "painthome" : "paintgroup"].name;
+const brandNameServer = () => BRAND_DEFAULTS.paintgroup.name;
 
 /**
  * Tom, 8 Sep 2026: "can we link the same chat bot as we have on the wizard
@@ -21,6 +37,7 @@ import { establishSession } from "@/lib/wizard/session";
  * rather than a spinner.
  */
 export default function SiteChat() {
+  const brandName = useSyncExternalStore(subscribeAudience, brandNameNow, brandNameServer);
   const ensureSession = useCallback(async () => {
     const supabase = createBrowserClient();
     const outcome = await establishSession(async () => {
@@ -32,5 +49,5 @@ export default function SiteChat() {
     return outcome.phase === "ready";
   }, []);
 
-  return <ChatWidget ready={false} place="site" ensureSession={ensureSession} />;
+  return <ChatWidget ready={false} place="site" ensureSession={ensureSession} brandName={brandName} />;
 }

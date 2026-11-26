@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { companyForBrand, entityForBrand, fromForBrand, messageBrandOf, publicOriginFor, PAINTHOME_EMAIL_LOGO_PATH } from "./brand";
+import { companyForBrand, documentCompanyForBrand, entityForBrand, fromForBrand, messageBrandOf, publicOriginFor, PAINTHOME_EMAIL_LOGO_PATH } from "./brand";
 
 describe("the messaging brand parameter (paint-home brief §5)", () => {
   const company = { name: "Paint Group", email: "email@paintgroup.com.au", phone: "03 8840 9414", logoUrl: "https://x/logo.png", logoUrlEmail: "https://x/logo-email.png", estimatorName: "Sarah Reid" };
@@ -16,6 +16,15 @@ describe("the messaging brand parameter (paint-home brief §5)", () => {
     expect(ph.estimatorName).toBe("Sarah Reid");
     expect(ph.email).toBe("email@paintgroup.com.au");
     expect(companyForBrand(company, "paintgroup")).toBe(company);
+  });
+  it("the estimate a customer reads shows Paint Home's email and the landline; sending keeps the office mailbox", () => {
+    const doc = documentCompanyForBrand({ ...company, estimatorPhone: "0400 000 000" }, "painthome");
+    expect(doc.email).toBe("hello@painthome.com.au");
+    expect(doc.estimatorPhone).toBe("03 8840 9414");
+    expect(doc.name).toBe("Paint Home");
+    const pg = { ...company, estimatorPhone: "0400 000 000" };
+    expect(documentCompanyForBrand(pg, "paintgroup")).toBe(pg);
+    expect(companyForBrand(company, "painthome").email).toBe("email@paintgroup.com.au");
   });
   it("the From header keeps the verified mailbox and changes the display name only", () => {
     expect(fromForBrand("painthome", "Paint Group <email@paintgroup.com.au>")).toBe("Paint Home <email@paintgroup.com.au>");

@@ -39,6 +39,8 @@ describe("wording", () => {
   it("the mono line reads 'x of y · time · last active'", () => {
     expect(journeyLine({ furthestPage: 3, pagesTotal: 6, activeSeconds: 540, lastActiveAt: mins(120) }, now)).toBe("3 of 6 · 9 min · last active 2h ago");
     expect(journeyLine({ furthestPage: 1, pagesTotal: 6, activeSeconds: 30, lastActiveAt: mins(0) }, now)).toBe("1 of 6 · <1 min · last active just now");
+    // go-live check, 25 Nov 2026: never a page past the total
+    expect(journeyLine({ furthestPage: 6, pagesTotal: 5, activeSeconds: 30, lastActiveAt: mins(0) }, now)).toBe("5 of 5 · <1 min · last active just now");
   });
   it("a pre-migration row still reads, and the steps sum to the seconds", () => {
     const j = journeyFromRow({ id: "d1", job_type: "interior", step_times: { "1": 30, "2": 90, junk: "x" }, furthest_page: 2, active_seconds: 120 });

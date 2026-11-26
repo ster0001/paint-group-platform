@@ -73,7 +73,8 @@ test.describe("Paint Home — brand and words (sessions 1–2)", () => {
     await expect(page.getByTestId("reviews-powered-by")).toContainText("Powered by Paint Group · reviews on Google");
     await expect(page.getByTestId("footer-bigger-jobs")).toHaveAttribute("href", /\/estimate\?.*brand=painthome/);
     expect(await page.locator("a[href*='paintgroup.com.au']").count()).toBe(0);
-    await expect(page.locator("#live")).toContainText("This month at Paint Home");
+    // Tom, 25 Nov 2026: no "this month" tiles on Paint Home until the figures are real.
+    await expect(page.locator("#live")).toHaveCount(0);
 
     // the words (§4 AC): ten FAQs with the two new ones; Paint Group exactly four
     // times (nav small print, reviews credit, the FAQ sentence, footer); none of
@@ -114,6 +115,34 @@ test.describe("Paint Home — brand and words (sessions 1–2)", () => {
     expect(q.get("src")).toBe("painthome_home_hero");
     // the wizard stayed on the Paint Home host (⚑ P5)
     expect(new URL(page.url()).host).toMatch(/^painthome\.localhost/);
+  });
+
+  test("1b · the chat on Paint Home says Paint Home — home, /work, a legal page — and Paint Group's still says Paint Group", async ({ page, browser, baseURL }) => {
+    test.setTimeout(120_000);
+    // Go-live finish brief, Part B (26 Nov 2026): the bubble, the panel and its first automatic message.
+    const chatText = async (p: Page, url: string) => {
+      await p.goto(url);
+      await dismiss(p);
+      await p.getByTestId("wz-chat-bubble").click();
+      const panel = p.getByTestId("wz-chat-panel");
+      await expect(panel.getByTestId("wz-chat-assistant").first()).toBeVisible({ timeout: 40_000 });
+      const label = (await panel.getAttribute("aria-label")) ?? "";
+      return `${label}\n${(await p.getByTestId("wz-chat").textContent()) ?? ""}`;
+    };
+    // A fresh visitor per page, so each one is greeted (a saved thread keeps the words it was opened with).
+    for (const path of ["", "work", "privacy"]) {
+      const ctx = await browser.newContext({ viewport: { width: 375, height: 812 }, isMobile: true, hasTouch: true });
+      const p = await ctx.newPage();
+      const text = await chatText(p, `${phRoot}${path}`);
+      expect(text, `chat on /${path}`).toContain("Chat with Paint Home");
+      expect(text, `chat on /${path}`).toContain("you're talking to Paint Home.");
+      expect(text, `chat on /${path}`).not.toContain("Paint Group");
+      await ctx.close();
+    }
+    const pg = await chatText(page, `${baseURL}/`);
+    expect(pg).toContain("Chat with Paint Group");
+    expect(pg).toContain("you're talking to Paint Group.");
+    expect(pg).not.toContain("Paint Home");
   });
 
   test("2 · the Paint Group site is untouched; /painthome on a dev host serves Paint Home locally; a Paint Home 404 is Paint Home's", async ({ page, request, baseURL }) => {

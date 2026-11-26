@@ -21,10 +21,14 @@ import { getBrand } from "@/lib/marketing/brandServer";
 // renders per request rather than ISR. It is one query and a list.
 export const dynamic = "force-dynamic";
 
-export const metadata: Metadata = {
-  title: "Real jobs, real prices | Paint Group",
-  description: "Finished painting jobs across Melbourne with the real price of each one, inc. GST.",
-};
+// Go-live check, 25 Nov 2026: the title carries the request's brand (it read "| Paint Group" on painthome.com.au).
+export async function generateMetadata(): Promise<Metadata> {
+  const brand = await getBrand(await getAudience());
+  return {
+    title: `Real jobs, real prices | ${brand.name}`,
+    description: "Finished painting jobs across Melbourne with the real price of each one, inc. GST.",
+  };
+}
 
 export default async function WorkPage() {
   // Session 8: the audience comes from the proxy's header (this page is
@@ -51,7 +55,7 @@ export default async function WorkPage() {
               </p>
             </div>
           </div>
-          <WorkList jobs={painthome ? jobs.filter((j) => j.property_type === "home") : jobs} initialProperty={audience === "business" ? "business" : painthome ? "home" : "all"} prefix={prefix} />
+          <WorkList jobs={painthome ? jobs.filter((j) => j.property_type === "home") : jobs} initialProperty={audience === "business" ? "business" : painthome ? "home" : "all"} prefix={prefix} showProperty={!painthome} />
         </div>
       </main>
       <Footer brand={brand} prefix={prefix} />

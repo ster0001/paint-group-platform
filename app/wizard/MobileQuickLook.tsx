@@ -716,7 +716,7 @@ export default function MobileQuickLook({
           {whyNot && (!canContinue || busy) && <p className="wzm-why" data-testid="ql-why" role="status">{whyNot}</p>}
           {localWhy && !(whyNot && (!canContinue || busy)) && <p className="wzm-why" data-testid="ql-why" role="status">{localWhy}</p>}
           {/* Go-live S4 (M3): the consent line sits ABOVE the button, in the bar, so the button never covers it */}
-          {current.id === "details" && <p className="wzm-note wzm-consent" data-testid="gate-consent">By entering these details you agree to receive pricing for your property from {brandFor(brand === "painthome" ? "painthome" : "home").name}, and we may contact you to discuss your quote.</p>}
+          {current.id === "details" && <p className="wzm-note wzm-consent" data-testid="gate-consent">By entering these details you agree to receive pricing for your property from {brandFor(brand === "painthome" ? "painthome" : "home").name}, and we may contact you to discuss your quote. <a href="/privacy" target="_blank" rel="noopener">Privacy policy</a></p>}
           {/* Desktop one-press: Continue is never silently unavailable (UI refresh S1) — the missing answer is named */}
           {desktop && current.id === "rooms" && ticked === 0 && <p className="wzm-why" data-testid="ql-why" role="status">Tick at least one room, or add one.</p>}
           <button key={error ?? "ok"} type="button" className={`wzm-cta ${error ? "wz-shake" : ""}`} disabled={!ready || !canContinue || busy || Boolean(otp?.busy)} data-testid="ql-next"
