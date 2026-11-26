@@ -38,6 +38,8 @@ for (const size of SIZES) {
 
       // The details, typed the way a person types — across autosaves and the heartbeat.
       await page.getByTestId("talk-name").pressSequentially("Slow Typer", { delay: 120 });
+      // Before an address is on the estimate the sheet asks for it too.
+      if (await page.getByTestId("talk-address").count()) await page.getByTestId("talk-address").fill("9 Slow Street, Kew");
       await page.getByTestId("talk-email").pressSequentially("slow.typer@example.com", { delay: 120 });
       await page.getByTestId("talk-mobile").pressSequentially("0412 000 778", { delay: 120 });
       await page.waitForTimeout(16_000); // one heartbeat and an autosave pass

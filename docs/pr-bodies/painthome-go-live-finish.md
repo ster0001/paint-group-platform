@@ -13,7 +13,9 @@ The 25 Nov session's uncommitted changes matched the brief's file list. One fix:
 
 ### Tests
 - `npx tsc --noEmit`: clean. `npx eslint --max-warnings 4 .`: 0 errors, 4 warnings (pre-existing). `npm test`: 456 files, 4,474 passed.
-- e2e: see the PR checks.
+- e2e on the test stack (26 Nov): `talk-sheet-stays` laptop + phone pass (failed before the fix); `gate.spec.ts` details-step messages pass; `painthome.spec.ts` 1, 1b (chat), 2, 3 pass; `visit-requests`, `wizard-mobile-v5-contact` pass.
+- Red, in code this PR does not touch (main's e2e job is already red at 337bd02): `painthome.spec.ts` 4 (showcase cards) and 5 (Settings copy preview `src`), `gate.spec.ts` gate report export (503), `reach-and-chat` footer visit door (texted code expired).
+- Not run: the full customer-journey suite.
 
 ### Flagged
 - `painthome-go-live-check-25nov.md` was not on the Mac; Tom said go ahead without it.

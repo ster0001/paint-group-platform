@@ -77,7 +77,8 @@ test.describe("S6 — the gate", () => {
       await expect(gate.getByText("Last question")).toBeVisible();
       await expect(gate.getByRole("heading", { name: "Where shall we send your estimate?" })).toBeVisible();
       await expect(gate.getByText("Enter your details to see your guide price. We will save your estimate so you can come back to it.")).toBeVisible();
-      await expect(gate.getByTestId("gate-consent")).toContainText(/agree to receive pricing/);
+      // The grouped laptop gate carries the optional news tick and the privacy line (the consent sentence is the phone's).
+      await expect(gate.getByTestId("gate-privacy")).toContainText("Privacy policy");
       const go = gate.getByRole("button", { name: "Show my guide price" });
       await expect(go).toBeVisible();
       // Nothing without the details.
