@@ -23,6 +23,7 @@ export default async function MarketingNotFound() {
     <AudienceProvider audience={audience} brand={brandView(brand)}>
       <div className="shopfront" data-brand={brand.key}>
         <Nav logoUrl={logoUrl} brand={brand} copy={{ links: [{ label: "Real jobs, real prices", href: "/work" }, { label: "How it works", href: "/#how" }, { label: "Reviews", href: "/#reviews" }], otherLabel: "", otherHref: "", cta: "See my price", prefix }} />
+        <title>{`Page not found | ${brand.name}`}</title>
         <main className="sec light" style={{ minHeight: "60svh" }}>
           <div className="wrap">
             <div className="mono" style={{ color: "var(--color-tmut)", marginBottom: 12 }}>404</div>

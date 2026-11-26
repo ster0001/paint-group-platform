@@ -27,7 +27,7 @@ export function heldAtGuideCap(lo: number, hi: number): boolean {
  * instead of timing out at 2–5 minutes, twice (18 Nov 2026: ~20 such tests kept main's
  * e2e job running for hours).
  */
-export const DESKTOP_ONE_PRESS = process.env.NEXT_PUBLIC_WIZARD_DESKTOP_ONEPRESS === "1";
+export const DESKTOP_ONE_PRESS = process.env.NEXT_PUBLIC_WIZARD_DESKTOP_ONEPRESS !== "0";
 export const GROUPED_LAPTOP_ONLY = "the grouped laptop screens — desktop one-press is on here, and the phone blocks drive its screens";
 
 /** Go-live S5 (M8): the phone's bold screen follows "New colours" / "Still deciding" — answer No if it is showing, carry on if not. */

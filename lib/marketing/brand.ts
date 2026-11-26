@@ -28,6 +28,8 @@ export type Brand = {
   phoneDisplay: string;
   phoneTel: string;
   hoursLine: string;
+  /** The address a customer writes to, as shown on this brand's legal pages and estimates (Tom, 25 Nov 2026). */
+  email: string;
   /** The footer's legal entity line. */
   legalLine: string;
   /** The small-print credit (reviews, footer; Tom, 25 Oct: not beside the nav logo) — Paint Home only. */
@@ -57,6 +59,7 @@ export const BRAND_DEFAULTS: Record<BrandKey, Brand> = {
     phoneDisplay: PHONE_DISPLAY,
     phoneTel: PHONE_TEL,
     hoursLine: HOURS_LINE,
+    email: "info@paintgroup.com.au",
     legalLine: "",
     poweredBy: null,
     sinceTemplate: "with Paint Group since {year}",
@@ -75,6 +78,8 @@ export const BRAND_DEFAULTS: Record<BrandKey, Brand> = {
     phoneDisplay: PHONE_DISPLAY,
     phoneTel: PHONE_TEL,
     hoursLine: HOURS_LINE,
+    // Tom, 25 Nov 2026: Paint Home's own mailbox; the landline is shared.
+    email: "hello@painthome.com.au",
     legalLine: "Enlvn Pty Ltd trading as Paint Home",
     poweredBy: "Paint Group",
     sinceTemplate: "painting with us since {year}",

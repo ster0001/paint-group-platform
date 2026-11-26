@@ -50,7 +50,7 @@ import QuickLook from "./QuickLook";
 import MobileQuickLook from "./MobileQuickLook";
 import type { OtpHandlers, OtpUi } from "./OtpCode";
 import { otpSend, otpVerify } from "@/lib/wizard/otpClient";
-import { maskMobile, normaliseMobile } from "@/lib/wizard/otpFormat";
+import { gateContactProblem, maskMobile, normaliseMobile } from "@/lib/wizard/otpFormat";
 import MobileGate from "./MobileGate";
 import MobileWalk from "./MobileWalk";
 import { editorHref, quoteStageV10On, wizardDesktopOnePressOn } from "@/lib/wizard/ui-flags";
@@ -397,43 +397,6 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
       // C16 (a): a tap on a field the assistant filled in confirms it.
       assistant: confirmAssistantFields(s.assistant, Object.keys(patch)),
     }));
-  };
-
-  /**
-   * C16 (a) — "describe it", behind the chat bubble. The route reads the
-   * paragraph and answers with quick-look fields; they land on the state
-   * like taps and ride the ordinary autosave through the versioned draft
-   * (C3). Every field it filled is named on `state.assistant.wrote` and shows
-   * amber until the customer confirms it. Nothing is written server-side.
-   */
-  const describeJob = async (text: string): Promise<{ reply: string } | null> => {
-    try {
-      // The anonymous session can be a beat behind the first tap (the chat's
-      // own start has the same retry): a 403 here is "not signed in yet".
-      let res: Response | null = null;
-      let j: { quick?: QuickLookAnswers; wrote?: string[]; reply?: string; error?: string } = {};
-      for (let attempt = 0; attempt < 4; attempt++) {
-        res = await fetch("/api/wizard/describe", {
-          method: "POST", headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ text, quick }),
-        });
-        j = (await res.json().catch(() => ({}))) as typeof j;
-        if (res.status !== 403) break;
-        await new Promise((r) => setTimeout(r, 1500));
-      }
-      if (!res || !res.ok || !j.quick) return j.error ? { reply: j.error } : null;
-      const q = j.quick;
-      const wrote = j.wrote ?? [];
-      setState((s) => ({
-        ...s,
-        quickLook: { ...q, colour: colourFromChanges(q) },
-        jobType: q.jobType,
-        assistant: wrote.length ? { wrote, at: new Date().toISOString(), source: "describe" } : s.assistant,
-      }));
-      return { reply: j.reply ?? "" };
-    } catch {
-      return null;
-    }
   };
 
   /**
@@ -1687,8 +1650,9 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
   /** Continue on the details: text the code, or learn the mobile is already verified for this draft. */
   async function otpBegin(): Promise<"sent" | "verified" | "failed"> {
     const c = state.contact;
-    if (!(c.name.trim().length >= 2 && /.+@.+\..+/.test(c.email.trim()) && c.phone.replace(/\D/g, "").length >= 10)) {
-      setError("Please fill in your name, email and mobile number.");
+    const gateProblem = gateContactProblem(c);
+    if (gateProblem) {
+      setError(gateProblem.message);
       return "failed";
     }
     const digits = normaliseMobile(c.phone);
@@ -1757,8 +1721,9 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
     // S6 (R5): the gate — the last question. Nothing is revealed without it, and the server checks too.
     if (quickStep === "gate") {
       const c = state.contact;
-      if (!(c.name.trim().length >= 2 && /.+@.+\..+/.test(c.email.trim()) && c.phone.replace(/\D/g, "").length >= 10)) {
-        setError("Please fill in your name, email and mobile number.");
+      const gateProblem = gateContactProblem(c);
+      if (gateProblem) {
+        setError(gateProblem.message);
         return;
       }
       // Tom, 5 Nov 2026: and the texted code, before anything is priced. The code screen's own
@@ -2350,7 +2315,7 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
           at={quickStep}
           done={screen === "processing"}
           phone={companyPhone}
-          chat={UI_FLAGS.chatInHeader ? <ChatWidget ready={ready} place="header" onDescribe={quickActive ? describeJob : undefined} brandName={brandName} /> : undefined}
+          chat={UI_FLAGS.chatInHeader ? <ChatWidget ready={ready} place="header" brandName={brandName} /> : undefined}
           onSaveBook={screen !== "processing" ? openBook : undefined}
         />
       ) : (
@@ -2660,7 +2625,7 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
           {nav.note && <span className="wz-navnote">{nav.note}</span>}
         </nav>
       )}
-      {isCustomer && !(newShell && UI_FLAGS.chatInHeader) && <ChatWidget ready={ready} onDescribe={quickActive ? describeJob : undefined} brandName={brandName} />}
+      {isCustomer && !(newShell && UI_FLAGS.chatInHeader) && <ChatWidget ready={ready} brandName={brandName} />}
     </div>
   );
 }

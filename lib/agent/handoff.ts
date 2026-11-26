@@ -79,5 +79,11 @@ export function handoffSummary(input: {
 }
 
 export const RESUME_TEXT = "They've stepped away — I can keep going from here, or leave it here. What would you like?";
+/**
+ * The website chat's automatic first message, in the shopfront's name (go-live
+ * finish brief, Part B, 26 Nov 2026: it said "Paint Group" on painthome.com.au).
+ */
+export const websiteGreeting = (brandName: string) => `Hi — you're talking to ${brandName}. Ask us anything about your estimate and one of the team will answer here. You can keep filling in the questions while you wait.`;
+
 export const CLOSED_TEXT = (nextOpening: string | null) => `We're closed just now${nextOpening ? ` — a person is next available ${nextOpening}` : ""}. I can keep going with you now, or arrange a callback: morning, afternoon, or any time?`;
 export const ESCALATED_TEXT = "Sorry — no one has been able to pick this up yet. I can arrange a callback instead (morning, afternoon, or any time), or keep going with you here.";

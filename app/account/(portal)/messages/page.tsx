@@ -63,7 +63,7 @@ export default async function MessagesPage() {
             <div className="job-main">
               <div className="addr">{t.title}</div>
               <div className={`meta${t.unread > 0 ? " unread" : ""}`} data-testid="thread-preview">
-                {`${last.direction === "customer" ? "You" : (last.author_name?.trim() || "Paint Group")}: ${preview(last.body)}`}
+                {`${last.direction === "customer" ? "You" : (last.author_name?.trim() || t.staffName)}: ${preview(last.body)}`}
               </div>
             </div>
             <div className="job-side">

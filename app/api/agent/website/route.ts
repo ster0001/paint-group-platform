@@ -3,7 +3,8 @@ import { z } from "zod";
 import { agentActor, agentDb, displayText } from "@/lib/agent/session";
 import { SupabaseAgentStore, loadAgentSettings } from "@/lib/agent/store-supabase";
 import { supportHoursState } from "@/lib/agent/scope-tools";
-import { CLOSED_TEXT, onDutyNumbers } from "@/lib/agent/handoff";
+import { CLOSED_TEXT, onDutyNumbers, websiteGreeting } from "@/lib/agent/handoff";
+import { wizardBrandName } from "@/lib/wizard/brandServer";
 import { sendAutomation } from "@/lib/automations/dispatch";
 import { logCrmEvent } from "@/lib/crm/events";
 import { reportError } from "@/lib/monitoring/report";
@@ -27,11 +28,9 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const bodySchema = z.discriminatedUnion("action", [
-  z.object({ action: z.literal("start"), conversationId: z.string().uuid().optional() }),
+  z.object({ action: z.literal("start"), conversationId: z.string().uuid().optional(), brand: z.enum(["paintgroup", "painthome"]).optional() }),
   z.object({ action: z.literal("say"), conversationId: z.string().uuid(), text: z.string().trim().min(1).max(2000) }),
 ]);
-
-const GREETING = "Hi — you're talking to Paint Group. Ask us anything about your estimate and one of the team will answer here. You can keep filling in the questions while you wait.";
 
 export async function POST(request: Request) {
   const actor = await agentActor();
@@ -79,7 +78,9 @@ export async function POST(request: Request) {
       }
       const accountId = await accountFor();
       const conv = await store.createConversation({ accountId, propertyId: null, estimateId: null, channel: "website", mode: "support", view: "customer", createdBy: actor.userId, anonToken: null, externalThreadId: null });
-      await store.appendMessage({ conversationId: conv.id, role: "assistant", content: GREETING, modelId: null, tokensIn: 0, tokensOut: 0 });
+      await store.appendMessage({ conversationId: conv.id, role: "assistant", // Part B (26 Nov 2026): the greeting names the shopfront the visitor is on — the request's host,
+        // or the brand the wizard says it is wearing (a ?brand=painthome preview on another host).
+        content: websiteGreeting(await wizardBrandName(body.brand)), modelId: null, tokensIn: 0, tokensOut: 0 });
       return NextResponse.json(await snapshot(conv.id));
     }
 

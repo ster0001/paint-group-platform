@@ -5,6 +5,7 @@ The site is live at painthome.com.au and hidden from search. This is the order t
 ## Before the flip (Tom)
 
 1. **Clarity.** Create a second Clarity project, "Paint Home". In Vercel → Settings → Environment Variables add `NEXT_PUBLIC_CLARITY_ID_PAINTHOME` = its id (Production + Preview). Redeploy. Paint Group's `NEXT_PUBLIC_CLARITY_ID` stays as it is; each site loads only its own project, and only after "Allow analytics".
+1a. **Google Tag Manager.** Container `GTM-MRW23TH` is in the code (`lib/marketing/gtm.ts`) and loads on every painthome.com.au page — homepage, wizard, thanks pages — only after "Allow analytics". Nothing to set in Vercel. In GTM: Preview → painthome.com.au → tap **Allow analytics** on the cookie sheet, or Tag Assistant sees nothing. If GTM also fires a Google Ads/Analytics tag, leave `NEXT_PUBLIC_GOOGLE_TAG_ID_PAINTHOME` unset so the thanks pages don't count a conversion twice. To switch it off without a code change: `NEXT_PUBLIC_GTM_ID_PAINTHOME=off`, redeploy.
 2. **Resend.** Add painthome.com.au as a sending domain in Resend and verify it. Until then Paint Home emails come from the Paint Group mailbox with "Paint Home" as the display name, which is deliberate and works.
 3. **Settings → Brands.** Check the Paint Home phone number (P10: Paint Group's 1300 for launch) and the legal line.
 4. **Settings → Showcase jobs.** Give three home jobs priced at or under $25,000 the Paint Home rank 1–3 (P4: real anonymised jobs).

@@ -11,7 +11,7 @@ import { loadPackBundle } from "./pack-load";
 import AssistantDrawer from "./AssistantDrawer";
 import ImportedHistory, { type ImportedHistoryRow } from "./ImportedHistory";
 import { DEFAULT_COMPANY, type CompanyProfile } from "./company";
-import { companyForBrand } from "@/lib/messaging/brand";
+import { documentCompanyForBrand } from "@/lib/messaging/brand";
 import EstimateFunnelBar from "./EstimateFunnelBar";
 import { DEFAULT_INCLUSION_TEMPLATES, DEFAULT_EXCLUSION_TEMPLATES, INCLUSION_TEMPLATES_KEY, EXCLUSION_TEMPLATES_KEY, type InclusionTemplate } from "@/lib/estimate/inclusionTemplates";
 import { parseBackTo } from "@/lib/navigation/backTo";
@@ -141,7 +141,7 @@ export default async function QuotePage({
   // Estimates tab session 6 (R3): a Paint Home estimate wears Paint Home's name, phone and marks here too,
   // the same overlay /e applies — never a Paint Group logo on a Paint Home estimate.
   const estimateBrand = (estimateRes.data as { brand?: string | null } | null)?.brand === "painthome" ? "painthome" : "paintgroup";
-  const company: CompanyProfile = companyForBrand(company0, estimateBrand);
+  const company: CompanyProfile = documentCompanyForBrand(company0, estimateBrand);
   // "What's included" templates — fall back to built-in defaults until customised.
   const inclusionRow = settingsRows.find((s) => s.key === INCLUSION_TEMPLATES_KEY);
   const inclusionTemplates: InclusionTemplate[] = Array.isArray(inclusionRow?.value) && (inclusionRow!.value as unknown[]).length

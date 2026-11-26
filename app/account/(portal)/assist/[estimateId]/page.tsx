@@ -2,6 +2,8 @@ import Link from "next/link";
 import { openSupportSession } from "@/lib/agent/session";
 import { getCompanyContact } from "@/lib/portal/data";
 import SupportView from "./SupportView";
+import { estimateBrandByToken } from "@/lib/estimate/brandByToken";
+import { brandRecord } from "@/lib/messaging/brand";
 
 /**
  * /account/assist/[estimateId] — SUPPORT MODE (assistant brief §3.3, S6).
@@ -23,7 +25,7 @@ export default async function SupportPage({ params }: { params: Promise<{ estima
       <Link href={`/account/messages/${session.estimateId}`} className="note" style={{ display: "inline-block", marginBottom: 14 }}>← Messages</Link>
       <h1>{session.title}</h1>
       <p className="note" style={{ marginBottom: 12 }}>{session.disclosure}</p>
-      <SupportView conversationId={session.conversationId} estimateId={session.estimateId} shareToken={session.shareToken} initialTranscript={session.transcript} companyPhone={company.phone || null} />
+      <SupportView conversationId={session.conversationId} estimateId={session.estimateId} shareToken={session.shareToken} initialTranscript={session.transcript} companyPhone={company.phone || null} brandName={brandRecord(session.shareToken ? await estimateBrandByToken(session.shareToken) : "paintgroup").name} />
     </div>
   );
 }

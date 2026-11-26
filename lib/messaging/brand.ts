@@ -41,6 +41,20 @@ export function companyForBrand<T extends CompanyForMessages>(company: T, brand:
 }
 
 /**
+ * The company block a CUSTOMER READS on a Paint Home estimate (the builder's
+ * header and the sent document): `companyForBrand`, plus Paint Home's own
+ * email and the shared landline in place of the estimator's mobile (Tom,
+ * 25 Nov 2026). Display only — the send sites keep `companyForBrand`, so
+ * reply-to and calendar organiser addresses stay the office mailbox that
+ * the inbound route and Google Workspace know.
+ */
+export function documentCompanyForBrand<T extends CompanyForMessages & { estimatorPhone?: string }>(company: T, brand: MessageBrand): T {
+  if (brand !== "painthome") return company;
+  const b = brandRecord(brand);
+  return { ...companyForBrand(company, brand), email: b.email, estimatorPhone: b.phoneDisplay };
+}
+
+/**
  * The From header. The sending domain stays the one verified with Resend
  * (EMAIL_FROM's mailbox); Paint Home changes the DISPLAY name only — a
  * Paint Home sender domain is ⚑ for Tom (verify painthome.com.au in Resend).

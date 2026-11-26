@@ -17,8 +17,27 @@ export function adTagIdsFor(audience: string | null | undefined): AdTagIds {
 }
 
 const ID = /^[A-Za-z0-9-]{4,40}$/;
+/**
+ * A Tag Manager container id (GTM-…) is not a Google tag: gtag.js wants G- / AW- / GT-. A container set here (Paint
+ * Home's production Google tag setting held GTM-MRW23TH, 25 Nov 2026) is loaded by lib/marketing/gtm.ts on every page,
+ * so the success page leaves it to the container rather than loading it a second, broken time.
+ */
+export const isGtmContainerId = (id: string): boolean => /^GTM-/i.test(id.trim());
 
 type Fbq = ((...args: unknown[]) => void) & { queue?: unknown[]; loaded?: boolean; version?: string; push?: unknown };
+
+/**
+ * Tells Google Tag Manager which success moment this page is (Tom, 25 Nov 2026): one `pg_success` event with the
+ * moment's name, so a container trigger is "Custom Event pg_success" (and `success_moment` equals …) rather than a URL
+ * rule per page. Call only after "Allow analytics". Pushed before or after the container loads alike: Tag Manager
+ * works through the data layer in order when it arrives.
+ */
+export function pushSuccessToDataLayer(moment: string, background: boolean): void {
+  if (typeof window === "undefined") return;
+  const w = window as Window & { dataLayer?: unknown[] };
+  w.dataLayer = w.dataLayer ?? [];
+  w.dataLayer.push({ event: "pg_success", success_moment: moment, success_background: background });
+}
 
 /** Idempotent. Loads each configured tag once and fires its page view. */
 export function loadAdTags(ids: AdTagIds): { meta: boolean; google: boolean } {
@@ -36,7 +55,7 @@ export function loadAdTags(ids: AdTagIds): { meta: boolean; google: boolean } {
     w.fbq!("track", "PageView");
     out.meta = true;
   }
-  if (ID.test(ids.googleTagId) && !document.querySelector('script[src*="googletagmanager.com/gtag/js"]')) {
+  if (ID.test(ids.googleTagId) && !isGtmContainerId(ids.googleTagId) && !document.querySelector('script[src*="googletagmanager.com/gtag/js"]')) {
     w.dataLayer = w.dataLayer ?? [];
     w.gtag = w.gtag ?? function (...a: unknown[]) { w.dataLayer!.push(a); };
     const s = document.createElement("script");

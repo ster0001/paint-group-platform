@@ -58,10 +58,11 @@ export function editorHref(estimateId: string, cardAnchor?: string | null): stri
  * Tom 5 Nov 2026): on a laptop the quick look keeps its two-column shell but
  * mounts the phone's one-question router inside it — the same screens, copy
  * and skip rules, single choices advancing themselves, a keyboard layer.
- * OFF until `NEXT_PUBLIC_WIZARD_DESKTOP_ONEPRESS=1` (ON on the test project;
- * Tom flips production in Vercel), the exterior-v2 precedent at its
- * introduction. Read at call time so a test can stub it.
+ * ON by default since 26 Nov 2026 (Tom: "turn on the changes we made to
+ * convert the desktop site to mobile") — the quote stage's precedent. The
+ * one way back to the grouped laptop page is `NEXT_PUBLIC_WIZARD_DESKTOP_ONEPRESS=0`
+ * in Vercel and a redeploy. Read at call time so a test can stub it.
  */
 export function wizardDesktopOnePressOn(): boolean {
-  return process.env.NEXT_PUBLIC_WIZARD_DESKTOP_ONEPRESS === "1";
+  return process.env.NEXT_PUBLIC_WIZARD_DESKTOP_ONEPRESS !== "0";
 }

@@ -5,6 +5,7 @@ import { sendAutomation } from "@/lib/automations/dispatch";
 import { DEFAULT_COMPANY, type CompanyProfile, type Contact } from "@/app/quote/company";
 import { siteUrl } from "@/lib/invoicing/pdf";
 import { emailLogoUrl } from "@/lib/messaging/logo";
+import { companyForBrand, fromForBrand, messageBrandOf } from "@/lib/messaging/brand";
 
 /**
  * A staff reply on the estimate chat — ONE implementation (Tom, 20 Sep) for
@@ -35,13 +36,16 @@ export async function postStaffChatReply(
 
   // 2. notify the customer, best-effort.
   const [{ data: est, error: estErr }, { data: settingsRows, error: setErr }] = await Promise.all([
-    supabase.from("estimates").select("share_token, builder_state").eq("id", estimateId).single(),
+    supabase.from("estimates").select("share_token, builder_state, brand").eq("id", estimateId).single(),
     supabase.from("settings").select("key, value").in("key", ["company_profile", MESSAGING_KEY]),
   ]);
   // The message is posted; a failed lookup here only costs the notification.
   if (estErr || setErr) return { ok: true, delivery: { email: { status: "error", message: `Posted, but the customer could not be notified: ${(estErr ?? setErr)!.message}` } } };
   const rows = (settingsRows as { key: string; value: unknown }[] | null) ?? [];
-  const company: CompanyProfile = { ...DEFAULT_COMPANY, ...((rows.find((r) => r.key === "company_profile")?.value as Partial<CompanyProfile>) ?? {}) };
+  // Part B (26 Nov 2026): a Paint Home estimate's customer is told in Paint Home's name — the text,
+  // the email's header, logo and From display name. The reply-to stays the office mailbox.
+  const brand = messageBrandOf((est as { brand?: unknown } | null)?.brand);
+  const company: CompanyProfile = companyForBrand({ ...DEFAULT_COMPANY, ...((rows.find((r) => r.key === "company_profile")?.value as Partial<CompanyProfile>) ?? {}) }, brand);
   const chatMessaging: MessagingSettings = { ...DEFAULT_MESSAGING, ...((rows.find((r) => r.key === MESSAGING_KEY)?.value as Partial<MessagingSettings>) ?? {}) };
   const contact = ((est?.builder_state as { contact?: Contact } | null)?.contact ?? null);
   const outcome: DeliveryOutcome = {};
@@ -58,6 +62,7 @@ export async function postStaffChatReply(
       email: {
         subject: renderTemplate(chatMessaging.chatReplySubject, chatVars),
         replyTo: company.email || undefined,
+        ...(brand === "painthome" ? { from: fromForBrand(brand) } : {}),
         html: buildChatEmailHtml({
           message: body, link,
           companyName: company.name,
