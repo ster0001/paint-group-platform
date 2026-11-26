@@ -2455,7 +2455,8 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
         </div>
       ) : (
         <div className={quickActive ? "wz-wrap wz-wrap--stage" : "wz-wrap wz-wrap--pages"}>
-          {resumed && (
+          {/* 26 Nov 2026: on the one-press laptop the router draws this banner in its own column — drawn here too it showed twice */}
+          {resumed && !desktopOnePress && (
             <div className="wz-resume" data-testid="wz-resume">
               <span>Welcome back — {resumed}. Everything you answered is still here.</span>
               <button type="button" className="wz-linkish" onClick={startAgain} data-testid="wz-start-again">Start again</button>

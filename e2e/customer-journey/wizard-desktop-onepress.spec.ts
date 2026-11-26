@@ -329,6 +329,18 @@ test.describe("Desktop one-press — the laptop takes the phone's screens (adden
     await expect(page.getByTestId("ql-bedrooms-2")).toHaveAttribute("aria-pressed", "true");
   });
 
+  test("6 · a reload says Welcome back ONCE (26 Nov 2026: the shell and the router each drew the banner)", async ({ page }) => {
+    await openLaptop(page);
+    await page.getByTestId("ql-jobtype-interior").click();
+    await at(page, "property");
+    await page.getByTestId("ql-kind-townhouse").click();
+    await at(page, "beds");
+    await page.reload();
+    await expect(page.locator("[data-ready='1']")).toBeAttached({ timeout: 20_000 });
+    await expect(page.getByTestId("wz-resume").first()).toContainText("Welcome back", { timeout: 20_000 });
+    await expect(page.getByTestId("wz-resume")).toHaveCount(1);
+  });
+
   test("7 · the phone (390 × 780) is unchanged: its own header and strip, no rail, no key numbers", async ({ browser }) => {
     const ctx = await browser.newContext({ viewport: { width: 390, height: 780 }, isMobile: true, hasTouch: true });
     const page = await ctx.newPage();
