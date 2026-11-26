@@ -2722,6 +2722,10 @@
 .wz .wzm-step .stp button { width: 44px; height: 44px; border-radius: 50%; border: 1.5px solid var(--line); background: var(--panel2); font-size: 22px; line-height: 1; color: var(--heading); font-family: inherit; cursor: pointer; }
 .wz .wzm-step .stp b { min-width: 48px; text-align: center; font-size: 18px; font-variant-numeric: tabular-nums; }
 .wz .wzm-steps .wzm-chips { margin-top: 4px; }
+/* Tom, 26 Nov 2026: no two boxes touch. A row of chips, the counters and the next row of chips sat flush against
+   each other on a side's card (phone and laptop) — every such neighbour gets the chips' own 10px between them. */
+.wz .wzm-screen .wzm-chips + .wzm-steps, .wz .wzm-screen .wzm-steps + .wzm-chips, .wz .wzm-screen .wzm-chips + .wzm-chips,
+.wz .wzm-screen .wzm-steps + .wzm-steps, .wz .wzm-screen .wzm-sidetabs + .wzm-chips { margin-top: 10px; }
 
 /* ── EXTERIOR ON MOBILE v5 — S4: Each side, one screen a side (plan §2 9a–9d, §3): the side tabs, the Not painting switch, the sheet's compass. ── */
 .wz .wzm-sidetabs { display: flex; gap: 6px; margin: -6px 0 14px; }
