@@ -29,6 +29,9 @@ test.describe("S3 — book a site visit as an anonymous customer", () => {
   test.afterAll(async () => { await cleanupCustomers(db!, customers); await restore(); });
 
   test("range → details → calendar → code → booked; the slot is gone for the next customer", async ({ browser }) => {
+    // A whole wizard walk, the texted code, then the visit pages — more than the suite's 60 s on a loaded CI runner
+    // (25 Nov 2026: this test "timed out" at 60 s while its own wait for the range still had 90 s to run).
+    test.setTimeout(240_000);
     const sb = db!;
     const a = await startCustomer(browser, "a");
     customers.push(a);

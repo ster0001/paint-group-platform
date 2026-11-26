@@ -41,6 +41,7 @@ test.describe("After the job R1 + R3", () => {
     }
     for (const j of jobs) {
       await db.from("automation_claims").delete().eq("entity_id", j.fx.workOrderId);
+      await db.from("automation_holds").delete().eq("estimate_id", j.fx.estimateId);
       await db.from("review_requests").delete().eq("work_order_id", j.fx.workOrderId);
       await db.from("warranties").delete().eq("work_order_id", j.fx.workOrderId);
       await db.from("estimate_messages").delete().eq("estimate_id", j.fx.estimateId);
@@ -90,14 +91,23 @@ test.describe("After the job R1 + R3", () => {
     const now = new Date();
     const r1Due = morningBeforeDue(r.signedOn, -1, now);
     const r3Due = morningBeforeDue(today(), 0, now);
-    const { data: sms } = await db!.from("messages").select("body").eq("to_address", e164(r.phone)).eq("channel", "sms").eq("direction", "out");
+    // The review text, SENT or HELD for the morning: between 8pm and 8am Melbourne a customer text waits in
+    // `automation_holds` (decision D1). CI runs at any hour — a run that started at 8:16pm found no message and went red.
+    const reviewTexts = async () => {
+      const { data: sent, error: e1 } = await db!.from("messages").select("body").eq("to_address", e164(r.phone)).eq("channel", "sms").eq("direction", "out");
+      if (e1) throw new Error(e1.message);
+      const { data: held, error: e2 } = await db!.from("automation_holds").select("sms_body").eq("estimate_id", r.fx.estimateId).eq("automation_key", "review_request");
+      if (e2) throw new Error(e2.message);
+      return [...(sent ?? []).map((m) => ({ body: m.body as string })), ...(held ?? []).map((h) => ({ body: (h.sms_body as string | null) ?? "" }))];
+    };
+    const sms = await reviewTexts();
     const { data: asked } = await db!.from("review_requests").select("sent_via").eq("work_order_id", r.fx.workOrderId);
     if (r1Due) {
       expect(sms).toHaveLength(1);
-      expect((sms![0] as { body: string }).body).toContain(`Hi AfterR, thanks for having us at R After Street. If you were happy with the work, a Google review would mean a lot: ${REVIEW}`);
+      expect(sms[0].body).toContain(`Hi AfterR, thanks for having us at R After Street. If you were happy with the work, a Google review would mean a lot: ${REVIEW}`);
       expect(asked).toEqual([{ sent_via: "automation" }]);
     } else {
-      expect(sms ?? []).toHaveLength(0);
+      expect(sms).toHaveLength(0);
     }
     const { data: chat } = await db!.from("estimate_messages").select("body").eq("estimate_id", y.fx.estimateId);
     if (r3Due) {
@@ -106,7 +116,7 @@ test.describe("After the job R1 + R3", () => {
     } else expect(chat ?? []).toHaveLength(0);
 
     expect((await sweep()).status()).toBe(200);
-    expect((await db!.from("messages").select("id").eq("to_address", e164(r.phone)).eq("channel", "sms")).data ?? []).toHaveLength(r1Due ? 1 : 0);
+    expect(await reviewTexts()).toHaveLength(r1Due ? 1 : 0);
     expect((await db!.from("estimate_messages").select("id").eq("estimate_id", y.fx.estimateId)).data ?? []).toHaveLength(r3Due ? 1 : 0);
   });
 });

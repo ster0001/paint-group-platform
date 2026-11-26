@@ -41,7 +41,9 @@ export async function loadRoles(supabase: SupabaseClient): Promise<DashboardRole
   return effectiveRoles({ isOwner: false, roles });   // the master already comes back as all five from Postgres
 }
 
-export type LoadFailure = { where: string; message: string };
+/** `truncated` marks a read that WORKED but hit its row ceiling — the screen says so beside the figures; it is not an error
+ *  (26 Nov 2026: a busy month's 20,000 funnel events made every funnel CSV export answer 503). */
+export type LoadFailure = { where: string; message: string; truncated?: true };
 
 /** The window a period range can touch: the comparison period through the range, a day wide each side in UTC — never a written-down offset. */
 function windowOf(range: Range): { fromIso: string; toIso: string } {
@@ -74,6 +76,8 @@ async function fetchPages<T>(query: (from: number, to: number) => PromiseLike<{ 
   return { data: out, truncated: true };
 }
 
+/** A read that hit its ceiling: said on the screen, never sent to the error monitor, never a refusal. */
+const ceiling = (failures: LoadFailure[], where: string, message: string) => { failures.push({ where, message, truncated: true }); };
 const failure = (failures: LoadFailure[], where: string, e: unknown) => {
   reportError(e, { where: `reporting.${where}` });
   failures.push({ where, message: e instanceof Error ? e.message : typeof e === "object" && e && "message" in e ? String((e as { message: unknown }).message) : String(e) });
@@ -307,7 +311,7 @@ async function loadFunnelSlice(supabase: SupabaseClient, range: Range, failures:
   const { fromIso, toIso } = windowOf(range);
   const drafts = await pageAll<DraftRow>((from, to) => supabase.from("wizard_drafts").select("id, started_at, email, estimate_id, converted_at, last_seen_at, gate_version, gate_shown_at, gate_completed_at, range_shown_at, range_option, brand, job_type, visits, accounts(lead_source)")
     .gte("started_at", fromIso).lte("started_at", toIso).order("started_at", { ascending: false }).order("id").range(from, to), 10);
-  if (drafts.truncated) failure(failures, "wizard sessions", new Error("more than 10,000 sessions in the window — the funnel counts the newest 10,000"));
+  if (drafts.truncated) ceiling(failures, "wizard sessions", "more than 10,000 sessions in the window — the funnel counts the newest 10,000");
   if (drafts.error) { failure(failures, "wizard sessions", drafts.error); return { drafts: [], estimates: [] }; }
   const rows = drafts.data;
   const estIds = [...new Set(rows.map((d) => d.estimate_id).filter((x): x is string => Boolean(x)))];
@@ -319,20 +323,20 @@ async function loadFunnelSlice(supabase: SupabaseClient, range: Range, failures:
   const web = await pageAll<WebRow>((from, to) => realOnly(supabase.from("crm_events").select("occurred_at, payload")).eq("type", "web_event")
     .gte("occurred_at", fromIso).lte("occurred_at", toIso).order("occurred_at", { ascending: false }).order("id").range(from, to), 10);
   if (web.error) failure(failures, "website events", web.error);
-  if (web.truncated) failure(failures, "website events", new Error("more than 10,000 website events in the window — the shopfront row counts the newest 10,000"));
+  if (web.truncated) ceiling(failures, "website events", "more than 10,000 website events in the window — the shopfront row counts the newest 10,000");
   // Wizard mobile v5 §8: the wizard's own events (the session id rides in the payload), for gate → exact and contact → booked. Newest 10,000.
   type WizRow = { type: string; occurred_at: string; payload: { sessionId?: string; cta?: string; from?: string } | null };
   const wiz = await pageAll<WizRow>((from, to) => realOnly(supabase.from("crm_events").select("type, occurred_at, payload")).in("type", [...WIZARD_RATE_EVENT_TYPES])
     .gte("occurred_at", fromIso).lte("occurred_at", toIso).order("occurred_at", { ascending: false }).order("id").range(from, to), 10);
   if (wiz.error) failure(failures, "wizard events", wiz.error);
-  if (wiz.truncated) failure(failures, "wizard events", new Error("more than 10,000 wizard events in the window — the rates count the newest 10,000"));
+  if (wiz.truncated) ceiling(failures, "wizard events", "more than 10,000 wizard events in the window — the rates count the newest 10,000");
   // Estimates tab session 5: the Funnel view's events — step views and completions, ranges, what came after.
   // Keyed by `wizard_draft_id` (session 1), or the payload's sessionId on older rows. Newest 20,000 of the window.
   type FunnelRead = { type: string; occurred_at: string; wizard_draft_id: string | null; payload: { sessionId?: string; step?: string; range_low?: number; range_high?: number; breakpoint?: string } | null };
   const fun = await pageAll<FunnelRead>((from, to) => realOnly(supabase.from("crm_events").select("type, occurred_at, wizard_draft_id, payload")).in("type", [...FUNNEL_EVENT_TYPES])
     .gte("occurred_at", fromIso).lte("occurred_at", toIso).order("occurred_at", { ascending: false }).order("id").range(from, to), 20);
   if (fun.error) failure(failures, "funnel events", fun.error);
-  if (fun.truncated) failure(failures, "funnel events", new Error("more than 20,000 funnel events in the window — the Funnel counts the newest 20,000"));
+  if (fun.truncated) ceiling(failures, "funnel events", "more than 20,000 funnel events in the window — the Funnel counts the newest 20,000");
   const bandsRes = await supabase.from("settings").select("value").eq("key", "funnel_price_bands").maybeSingle();
   if (bandsRes.error) failure(failures, "price bands", bandsRes.error);
   const num = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? v : null);
