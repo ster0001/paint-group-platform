@@ -84,7 +84,7 @@ export default function AssistantWidget({ estimateId = null, lift = 0, brandName
               <>
                 <p className="sub">{session.disclosure}</p>
                 <SupportView conversationId={session.conversationId} estimateId={session.estimateId} shareToken={session.shareToken}
-                  initialTranscript={session.transcript} companyPhone={session.companyPhone} compact />
+                  initialTranscript={session.transcript} companyPhone={session.companyPhone} compact brandName={brandName} />
               </>
             )}
           </div>

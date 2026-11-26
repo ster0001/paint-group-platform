@@ -292,7 +292,7 @@ export default function CustomerEstimate({
   const chatUi = (
     <ChatPanel
       chat={chat}
-      staffName="Paint Group"
+      staffName={snap.company?.name || "Paint Group"}
       relTime={relTime}
       intro={interactive ? <>Ask us anything about your estimate. We&apos;ll reply here and let you know by text and email.</> : <>Preview: your customer asks their questions here, and the answers land in the same thread.</>}
     />

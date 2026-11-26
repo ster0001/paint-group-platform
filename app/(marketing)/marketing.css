@@ -556,3 +556,10 @@ html:has(.mk) { scroll-behavior: smooth; }
   .mk .hero .field .btn { flex: 1 0 100%; width: 100%; padding: 15px 16px; font-size: 16px; }
   .mk .hero .fieldwrap .suggest { position: absolute; left: 0; right: 0; top: 100%; z-index: 20; margin-top: 6px; box-shadow: 0 18px 40px rgba(0, 0, 0, .45); }
 }
+
+/* Legal pages (/privacy, /terms, /warranty) — go-live check, 25 Nov 2026. */
+.mk .legal .legal-body { max-width: 70ch; margin-top: 28px; font-size: 16px; line-height: 1.65; color: var(--color-tink); }
+.mk .legal .legal-body h2 { font-size: 20px; font-weight: 600; margin: 32px 0 8px; }
+.mk .legal .legal-body p { margin: 0 0 14px; }
+.mk .legal .legal-body ul { margin: 0 0 14px; padding-left: 22px; list-style: disc; }
+.mk .legal .legal-body li { margin: 0 0 6px; }

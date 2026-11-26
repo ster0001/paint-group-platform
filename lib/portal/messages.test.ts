@@ -26,3 +26,12 @@ describe("groupThreads — one thread per sent estimate, with the unread count",
     expect(t.unread).toBe(0);
   });
 });
+
+describe("who an unnamed reply is from (go-live finish brief, Part B)", () => {
+  it("a Paint Home estimate's thread says Paint Home; any other says Paint Group", () => {
+    const [ph] = groupThreads([{ ...est("p"), brand: "painthome" }], [], new Set());
+    const [pg] = groupThreads([est("g")], [], new Set());
+    expect(ph.staffName).toBe("Paint Home");
+    expect(pg.staffName).toBe("Paint Group");
+  });
+});

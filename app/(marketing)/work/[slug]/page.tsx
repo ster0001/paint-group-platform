@@ -29,13 +29,15 @@ export const dynamic = "force-dynamic";
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
   const { slug } = await params;
   const job = await showcaseJobBySlug(slug);
-  if (!job) return { title: "Job not found | Paint Group" };
+  // Go-live check, 25 Nov 2026: the title and description carry the request's brand.
+  const audience = await getAudience();
+  const brandName = (await getBrand(audience)).name;
+  if (!job) return { title: `Job not found | ${brandName}` };
   const price = job.price_low_cents != null && job.price_high_cents != null ? formatPriceRange(job.price_low_cents, job.price_high_cents) : "";
-  const title = `${job.title} in ${job.suburb}${price ? `, ${price}` : ""} | Paint Group`;
-  const description = job.summary || job.scope_line || `${job.title} in ${job.suburb}, painted by Paint Group.`;
+  const title = `${job.title} in ${job.suburb}${price ? `, ${price}` : ""} | ${brandName}`;
+  const description = job.summary || job.scope_line || `${job.title} in ${job.suburb}, painted by ${brandName}.`;
   // Paint Home brief §7 (⚑ P9): a job page seen on Paint Home keeps ONE
   // canonical, the Paint Group URL, so the two sites never compete in search.
-  const audience = await getAudience();
   const canonical = audience === "painthome" ? `${residentialOrigin() ?? "https://paintgroup.com.au"}/work/${job.slug}` : undefined;
   return {
     title,

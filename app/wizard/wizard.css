@@ -3039,3 +3039,7 @@
 .wz .wz-top .wz-mprog, .wz .wz-top .wzm-tiles--head { background: var(--ink); }
 .wz .wz-top .wz-mprog { padding-top: 10px; }
 .wz .wz-top .wzm-tiles--head { padding-top: 10px; }
+
+/* Go-live check, 25 Nov 2026: the privacy line on the details step. */
+.wz .wz-privacy { margin: -10px 0 20px; }
+.wz .wz-privacy a, .wz .wzm-consent a { color: inherit; text-decoration: underline; }

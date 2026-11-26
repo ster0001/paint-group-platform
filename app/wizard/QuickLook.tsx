@@ -163,6 +163,12 @@ export default function QuickLook({
   const [sideAt, setSideAt] = useState<ExteriorSideKey>("front");
   // A commercial property fetches its screens now, before the segment step shows.
   useEffect(() => { if (quick.propertyKind === "commercial") void commercialScreens(); }, [quick.propertyKind]);
+  // Go-live check, 25 Nov 2026: the error line sits above the heading, so on a scrolled page it was
+  // off screen and Continue seemed to do nothing. Bring it into view whenever it changes.
+  useEffect(() => {
+    if (!error) return;
+    document.querySelector('[data-testid="ql-error"]')?.scrollIntoView({ block: "center", behavior: "smooth" });
+  }, [error]);
   /** Tom, 14 Sep (evening): the "anything NOT being painted?" popup, open right after a preset is picked. */
   // Tom, 15 Sep (late): an outside job ends on the sides screen, not the outside screen.
   // S6: with a gate, the question before it says so, and the gate is the last screen.
@@ -761,6 +767,7 @@ export default function QuickLook({
           <label className="wz-chint wz-consent" data-testid="gate-marketing">
             <input type="checkbox" checked={gate.marketing} onChange={(e) => gate.onMarketing(e.target.checked)} /> Send me occasional news and offers from {brandFor(brand === "painthome" ? "painthome" : "home").name} (optional)
           </label>
+          <p className="wz-chint wz-privacy" data-testid="gate-privacy">We use your details to prepare and save your estimate. <a href="/privacy" target="_blank" rel="noopener">Privacy policy</a></p>
         </>
       )}
       {/* UI refresh S1: Back and Continue sit INSIDE the column on a laptop and

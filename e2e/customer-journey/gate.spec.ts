@@ -82,9 +82,24 @@ test.describe("S6 — the gate", () => {
       await expect(go).toBeVisible();
       // Nothing without the details.
       await go.click();
-      await expect(page.locator(".wz-err")).toContainText("Please fill in your name, email and mobile number.");
+      // Go-live check, 25 Nov 2026: the line names the field that is wrong, is on screen, and nothing is sent.
+      const err = page.getByTestId("ql-error");
+      await expect(err).toContainText("Please enter your full name.");
+      let otpCalls = 0;
+      page.on("request", (r) => { if (r.method() === "POST" && /\/api\/wizard\/(otp|submit)/.test(r.url())) otpCalls += 1; });
       await page.getByTestId("gate-name").fill("Gate Tester");
+      await page.getByTestId("gate-email").fill("gate.tester");
+      await page.getByTestId("gate-mobile").fill("03 9840 1234");
+      await go.click();
+      await expect(err).toContainText("Please enter a valid email address, like name@example.com.");
+      await expect(err).toBeInViewport();
       await page.getByTestId("gate-email").fill(email);
+      await go.click();
+      await expect(err).toContainText("That looks like a landline. We need a mobile number to text your code.");
+      await expect(err).toBeInViewport();
+      expect(otpCalls, "a details step that is wrong sends nothing").toBe(0);
+      // The privacy line sits above the button and opens /privacy.
+      await expect(gate.getByRole("link", { name: "Privacy policy" })).toHaveAttribute("href", "/privacy");
       await page.getByTestId("gate-mobile").fill("0400 123 456");
       await go.click();
     }

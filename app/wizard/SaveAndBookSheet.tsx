@@ -1,5 +1,6 @@
 "use client";
 
+import { useBackdropClose } from "@/lib/ui/useBackdropClose";
 import { countCallTap, countInBackground } from "@/lib/marketing/success";
 import { useEffect, useState } from "react";
 
@@ -38,6 +39,8 @@ export default function SaveAndBookSheet({
   const [slot, setSlot] = useState<string | null>(null);
   const [busy, setBusy] = useState<"book" | "call" | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // A press must start AND end on the backdrop to close the sheet — a drag out of a field never does (26 Nov 2026).
+  const backdrop = useBackdropClose(onClose);
   const [done, setDone] = useState<{ booked: boolean; emailed: boolean; bookingProblem: string | null } | null>(null);
 
   useEffect(() => {
@@ -81,7 +84,7 @@ export default function SaveAndBookSheet({
   }
 
   return (
-    <div className="wz-sheetback" role="dialog" aria-modal="true" aria-label="Save and book a person" data-testid="save-and-book" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+    <div className="wz-sheetback" role="dialog" aria-modal="true" aria-label="Save and book a person" data-testid="save-and-book" {...backdrop}>
       <div className="wz-sheet">
         {/* UI refresh S8: close in the corner — the sheet pattern (brief §7.12). */}
         <button type="button" className="wz-sheet-x" aria-label="Close" onClick={onClose}>×</button>

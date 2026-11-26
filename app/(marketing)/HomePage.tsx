@@ -154,7 +154,9 @@ export default async function HomePage({ audience }: { audience: Audience }) {
           {business && <Trade copy={c.trade} promoted />}
           <PromiseSection variationPhotos={content.promisePhotos} copy={c.promise} />
           <Story photos={content.storyPhotos} copy={c.story} />
-          <LiveStrip heading={c.live} />
+          {/* Tom, 25 Nov 2026: Paint Home launches without the "this month" tiles — they are placeholder
+              figures (lib/marketing/liveStats.ts) and the brand has no month behind it yet. Back when they are real. */}
+          {!painthome && <LiveStrip heading={c.live} />}
           <Painters painters={content.painters} copy={c.painters} brand={brand} />
           {audience === "home" && <Trade copy={c.trade} />}
           <Reviews featuredVideoJobId={content.featuredVideoJobId} featuredVideo={content.featuredVideo} audience={audience} copy={c.reviews} poweredBy={brand.poweredBy} />

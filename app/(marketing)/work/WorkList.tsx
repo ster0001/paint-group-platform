@@ -6,7 +6,7 @@ import JobCard from "../_components/JobCard";
 import { JOB_TYPES, JOB_TYPE_LABEL, type JobType, type PropertyType, type ShowcaseJob } from "@/lib/showcase/schema";
 
 /** The /work grid with its two chip rows (same Chip as the hero). Client-side only — no URL state needed. */
-export default function WorkList({ jobs, initialProperty = "all", prefix = "" }: { jobs: ShowcaseJob[]; initialProperty?: PropertyType | "all"; prefix?: string }) {
+export default function WorkList({ jobs, initialProperty = "all", prefix = "", showProperty = true }: { jobs: ShowcaseJob[]; initialProperty?: PropertyType | "all"; prefix?: string; /** Paint Home shows homes only, so the Homes / Businesses row is not drawn there (25 Nov 2026). */ showProperty?: boolean }) {
   const [type, setType] = useState<JobType | "all">("all");
   const [property, setProperty] = useState<PropertyType | "all">(initialProperty);
 
@@ -24,12 +24,12 @@ export default function WorkList({ jobs, initialProperty = "all", prefix = "" }:
           <Chip pressed={type === "all"} onClick={() => setType("all")}>All</Chip>
           {typesPresent.map((t) => <Chip key={t} pressed={type === t} onClick={() => setType(t)}>{JOB_TYPE_LABEL[t]}</Chip>)}
         </div>
-        <div className="chips" role="group" aria-label="Property">
+        {showProperty && <div className="chips" role="group" aria-label="Property">
           <span className="mono" style={{ color: "var(--color-tmut)" }}>For</span>
           <Chip pressed={property === "all"} onClick={() => setProperty("all")}>All</Chip>
           <Chip pressed={property === "home"} onClick={() => setProperty("home")}>Homes</Chip>
           <Chip pressed={property === "business"} onClick={() => setProperty("business")}>Businesses</Chip>
-        </div>
+        </div>}
       </div>
 
       {shown.length === 0 ? (
