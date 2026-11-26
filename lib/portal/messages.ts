@@ -1,5 +1,6 @@
 import { reportError } from "@/lib/monitoring/report";
 import { createServiceClient } from "@/lib/supabase/service";
+import { brandRecord, messageBrandOf } from "@/lib/messaging/brand";
 
 /**
  * The portal Messages tab — the SAME conversation the estimate page's live
@@ -38,6 +39,8 @@ export type PortalThread = {
   lastAt: string | null;
   /** Staff replies the customer has not opened yet (G2). */
   unread: number;
+  /** Who a reply with no named author is from — the estimate's own brand (Part B, 26 Nov 2026). */
+  staffName: string;
 };
 
 type ThreadEstimate = {
@@ -47,6 +50,7 @@ type ThreadEstimate = {
   share_token: string | null;
   sent_at: string | null;
   created_at: string;
+  brand?: string | null;
 };
 
 /** Pure grouping: one thread per SENT estimate (a draft has no customer
@@ -76,6 +80,7 @@ export function groupThreads(
         messages: msgs,
         lastAt: msgs.length ? msgs[msgs.length - 1].created_at : null,
         unread: unreadByEstimate.get(e.id) ?? 0,
+        staffName: brandRecord(messageBrandOf(e.brand)).name,
       };
     })
     .sort((a, b) => (b.lastAt ?? "").localeCompare(a.lastAt ?? ""));
@@ -89,7 +94,7 @@ export async function getPortalThreads(accountIds: string[]): Promise<PortalThre
 
   const { data: estimates, error: estError } = await svc
     .from("estimates")
-    .select("id, title, status, share_token, sent_at, created_at")
+    .select("id, title, status, share_token, sent_at, created_at, brand")
     .in("account_id", accountIds)
     .order("created_at", { ascending: false })
     .limit(50);

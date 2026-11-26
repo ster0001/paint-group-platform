@@ -115,3 +115,12 @@ describe("handoff — turns", () => {
     expect(h.scope.events.some((e) => e.type === "callback_requested")).toBe(true);
   });
 });
+
+describe("the website chat's first message (go-live finish brief, Part B)", () => {
+  it("names the shopfront the visitor is on, and never the other one", async () => {
+    const { websiteGreeting } = await import("./handoff");
+    expect(websiteGreeting("Paint Home")).toContain("you're talking to Paint Home.");
+    expect(websiteGreeting("Paint Home")).not.toContain("Paint Group");
+    expect(websiteGreeting("Paint Group")).toContain("you're talking to Paint Group.");
+  });
+});

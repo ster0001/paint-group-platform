@@ -32,3 +32,25 @@ export function resendWaitSeconds(sentAt: number | null, now = Date.now()): numb
   if (sentAt == null) return 0;
   return Math.max(0, Math.ceil((sentAt + OTP_RESEND_GAP_S * 1000 - now) / 1000));
 }
+
+/**
+ * The details step, said field by field (go-live check, 25 Nov 2026: one
+ * line — "Please fill in your name, email and mobile number" — was shown
+ * with all three filled in). Null when the three are good; otherwise the
+ * FIRST thing wrong and which field it is, so the screen can say it where
+ * the customer is looking. The server checks again.
+ */
+export type GateField = "name" | "email" | "phone";
+export function gateContactProblem(c: { name: string; email: string; phone: string }): { field: GateField; message: string } | null {
+  if (c.name.trim().length < 2) return { field: "name", message: "Please enter your full name." };
+  if (!c.email.trim()) return { field: "email", message: "Please enter your email address." };
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(c.email.trim())) return { field: "email", message: "Please enter a valid email address, like name@example.com." };
+  const raw = c.phone.replace(/[\s().-]/g, "");
+  if (!raw) return { field: "phone", message: "Please enter your mobile number." };
+  if (!normaliseMobile(c.phone)) {
+    return /^0[2378]\d{8}$/.test(raw) || /^\+?61[2378]\d{8}$/.test(raw)
+      ? { field: "phone", message: "That looks like a landline. We need a mobile number to text your code." }
+      : { field: "phone", message: "Please enter an Australian mobile number, starting 04." };
+  }
+  return null;
+}

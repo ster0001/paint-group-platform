@@ -119,7 +119,10 @@ export type JourneyBits = { furthestPage: number; pagesTotal: number; activeSeco
 
 /** §5 the mono line under the pill. */
 export function journeyLine(j: JourneyBits, now: Date): string {
-  return `${j.furthestPage} of ${j.pagesTotal} · ${fmtActive(j.activeSeconds)} · last active ${agoShort(j.lastActiveAt, now)}`;
+  // Go-live check, 25 Nov 2026: the list read "6 of 5" and "7 of 6" — the page after the last counted one
+  // (the range, the code screen) is still the journey's end, never a page past it.
+  const page = j.pagesTotal > 0 ? Math.min(j.furthestPage, j.pagesTotal) : j.furthestPage;
+  return `${page} of ${j.pagesTotal} · ${fmtActive(j.activeSeconds)} · last active ${agoShort(j.lastActiveAt, now)}`;
 }
 
 /** The serialisable journey a staff screen shows (pill, line, drawer). */

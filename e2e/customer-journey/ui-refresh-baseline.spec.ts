@@ -163,7 +163,9 @@ test.describe("ui refresh baseline screenshots", () => {
         let page = await newPage(browser, width);
         await openQuickLook(page);
         await page.getByTestId("wz-chat-bubble").click();
-        await expect(page.getByTestId("wz-describe")).toBeVisible({ timeout: 15_000 });
+        await expect(page.getByTestId("wz-chat-panel")).toBeVisible({ timeout: 15_000 });
+        // Tom, 26 Nov 2026: the "describe the job" box is gone from the chat — it is the line to a person, nothing else.
+        await expect(page.getByTestId("wz-describe")).toHaveCount(0);
         await shot(page, width, "20-chat");
         await page.context().close();
 

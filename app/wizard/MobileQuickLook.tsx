@@ -636,7 +636,7 @@ export default function MobileQuickLook({
               <label className="wzm-field"><span>Email</span>
                 <input type="email" inputMode="email" value={contact.email} placeholder="For your quote" autoComplete="email" data-testid="gate-email" onChange={(e) => onContact({ ...contact, email: e.target.value })} /></label>
               {/* Tom, 5 Nov 2026: no marketing tick — the details are for the price and the follow-up, said plainly */}
-              <p className="wzm-note wzm-consent" data-testid="gate-consent">By entering these details you agree to receive pricing for your property from {brandFor(brand === "painthome" ? "painthome" : "home").name}, and we may contact you to discuss your quote.</p>
+              <p className="wzm-note wzm-consent" data-testid="gate-consent">By entering these details you agree to receive pricing for your property from {brandFor(brand === "painthome" ? "painthome" : "home").name}, and we may contact you to discuss your quote. <a href="/privacy" target="_blank" rel="noopener">Privacy policy</a></p>
             </>
           )}
 

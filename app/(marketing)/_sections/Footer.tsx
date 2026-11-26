@@ -6,9 +6,10 @@ import { estimateHref } from "@/lib/marketing/estimateLink";
 
 /**
  * §4.14 — as the prototype. Service and legal pages are not in this brief
- * (⚑9.8 covers the suburb/service pages); those links stay `#` with a
- * data-todo so nothing is silently filled. "Cookie settings" reopens the
- * consent sheet.
+ * (⚑9.8 covers the suburb/service pages); Paint Group's service links stay
+ * `#` with a data-todo so nothing is silently filled. The three legal links
+ * go to /privacy, /terms and /warranty (25 Nov 2026). "Cookie settings"
+ * reopens the consent sheet.
  *
  * Paint Home (brief §4, footer row): its own block — the full mark, the
  * tagline, the one "Powered by Paint Group" credit and the Enlvn legal line;
@@ -30,9 +31,10 @@ export default function Footer({ brand = BRAND_DEFAULTS.paintgroup, prefix = "" 
         </div>
         <div>
           <b>Services</b>
-          <a href="#" data-todo="9.8">Apartments &amp; units</a>
-          <a href="#" data-todo="9.8">Interiors</a>
-          <a href="#" data-todo="9.8">Exteriors</a>
+          {/* Go-live check, 25 Nov 2026: these three went to `#`. Until the service pages exist they start the estimate. */}
+          <Link href={estimateHref("", "home", { src: "painthome_home_footer", brand: "painthome" })}>Apartments &amp; units</Link>
+          <Link href={estimateHref("", "home", { src: "painthome_home_footer", brand: "painthome" })}>Interiors</Link>
+          <Link href={estimateHref("", "home", { src: "painthome_home_footer", brand: "painthome" })}>Exteriors</Link>
           <Link href={estimateHref("", "home", { src: "painthome_home_footer", brand: "painthome" })} data-testid="footer-bigger-jobs">Bigger jobs</Link>
         </div>
         <div>
@@ -40,13 +42,13 @@ export default function Footer({ brand = BRAND_DEFAULTS.paintgroup, prefix = "" 
           <Link href={`${prefix}/work`}>Real jobs, real prices</Link>
           <a href="#reviews">Reviews</a>
           <a href="#faq">Questions</a>
-          <a href="#" data-todo="9.8">Contact</a>
+          <a href={`mailto:${brand.email}`} data-testid="footer-contact">Contact</a>
         </div>
         <div>
           <b>Legal</b>
-          <a href="#" data-todo="9.8">Privacy</a>
-          <a href="#" data-todo="9.8">Terms</a>
-          <a href="#" data-todo="9.8">Warranty</a>
+          <Link href={`${prefix}/privacy`}>Privacy</Link>
+          <Link href={`${prefix}/terms`}>Terms</Link>
+          <Link href={`${prefix}/warranty`}>Warranty</Link>
           <CookieSettingsLink />
         </div>
       </footer>
@@ -77,9 +79,9 @@ export default function Footer({ brand = BRAND_DEFAULTS.paintgroup, prefix = "" 
       </div>
       <div>
         <b>LEGAL</b>
-        <a href="#" data-todo="9.8">Privacy</a>
-        <a href="#" data-todo="9.8">Terms</a>
-        <a href="#" data-todo="9.8">Warranty</a>
+        <Link href={`${prefix}/privacy`}>Privacy</Link>
+        <Link href={`${prefix}/terms`}>Terms</Link>
+        <Link href={`${prefix}/warranty`}>Warranty</Link>
         <CookieSettingsLink />
       </div>
     </footer>

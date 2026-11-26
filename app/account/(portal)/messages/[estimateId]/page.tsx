@@ -3,6 +3,7 @@ import { notFound, redirect } from "next/navigation";
 import { getPortalContext } from "@/lib/portal/data";
 import { getPortalThreads, markPortalThreadOpened } from "@/lib/portal/messages";
 import { createServiceClient } from "@/lib/supabase/service";
+import { brandRecord, messageBrandOf } from "@/lib/messaging/brand";
 import { sendPortalMessageAction } from "../actions";
 
 export const dynamic = "force-dynamic";
@@ -44,10 +45,10 @@ export default async function MessageThreadPage({
     // dead end — the compose action runs its own ownership check anyway.
     const svc = createServiceClient();
     const owned = svc
-      ? (await svc.from("estimates").select("id, title, status")
+      ? (await svc.from("estimates").select("id, title, status, brand")
           .eq("id", estimateId)
           .in("account_id", ctx.accounts.map((a) => a.id))
-          .maybeSingle()).data as { id: string; title: string | null; status: string } | null
+          .maybeSingle()).data as { id: string; title: string | null; status: string; brand?: string | null } | null
       : null;
     if (!owned) notFound();
     thread = {
@@ -59,6 +60,7 @@ export default async function MessageThreadPage({
       messages: [],
       lastAt: null,
       unread: 0,
+      staffName: brandRecord(messageBrandOf(owned.brand)).name,
     };
   }
   // Opening the thread is reading it (G2) — after the read, so the page the
@@ -107,7 +109,7 @@ export default async function MessageThreadPage({
               <div className="msg-bubble">
                 <div className="msg-body">{m.body}</div>
                 <div className="msg-meta">
-                  {m.direction === "customer" ? "You" : (m.author_name?.trim() || "Paint Group")}
+                  {m.direction === "customer" ? "You" : (m.author_name?.trim() || thread.staffName)}
                   {" · "}
                   {timeFmt.format(new Date(m.created_at))}
                 </div>

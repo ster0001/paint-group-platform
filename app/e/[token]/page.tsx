@@ -1,5 +1,5 @@
 import type React from "react";
-import { companyForBrand } from "@/lib/messaging/brand";
+import { companyForBrand, documentCompanyForBrand } from "@/lib/messaging/brand";
 import { estimateBrandByToken } from "@/lib/estimate/brandByToken";
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
@@ -43,11 +43,11 @@ export default async function Page({
   // the document chrome. The snapshot is the sent record and is not rewritten; the brand is laid
   // over its company block at render, from the estimate's own column (one service read by token).
   const estimateBrand = await estimateBrandByToken(token);
-  const brandCo = companyForBrand({ name: snap0.company?.name ?? "", phone: snap0.company?.phone ?? "", logoUrl: snap0.company?.logoUrl ?? "", logoUrlLight: snap0.company?.logoUrlLight ?? "" }, estimateBrand);
+  const brandCo = documentCompanyForBrand({ name: snap0.company?.name ?? "", phone: snap0.company?.phone ?? "", logoUrl: snap0.company?.logoUrl ?? "", logoUrlLight: snap0.company?.logoUrlLight ?? "", email: snap0.company?.email ?? "", estimatorPhone: snap0.company?.estimatorPhone ?? "" }, estimateBrand);
   // Tom, 25 Oct 2026: the card prefers `logoUrlLight` (EstimateHeader), so the overlay must replace THAT too —
   // otherwise the snapshot's Paint Group light logo won over the Paint Home mark.
   const snap: Partial<CustomerSnapshot> = estimateBrand === "painthome" && snap0.company
-    ? { ...snap0, company: { ...snap0.company, name: brandCo.name ?? snap0.company.name, phone: brandCo.phone ?? snap0.company.phone, logoUrl: brandCo.logoUrl ?? snap0.company.logoUrl, logoUrlLight: brandCo.logoUrlLight ?? snap0.company.logoUrlLight } }
+    ? { ...snap0, company: { ...snap0.company, name: brandCo.name ?? snap0.company.name, phone: brandCo.phone ?? snap0.company.phone, logoUrl: brandCo.logoUrl ?? snap0.company.logoUrl, logoUrlLight: brandCo.logoUrlLight ?? snap0.company.logoUrlLight, email: brandCo.email ?? snap0.company.email, estimatorPhone: brandCo.estimatorPhone ?? snap0.company.estimatorPhone } }
     : snap0;
 
   // Signed changes + adjusted total (accepted jobs; null before the 20261120

@@ -23,7 +23,7 @@ export const PAINTHOME_COPY: SiteCopy = {
   hero: {
     kicker: "Melbourne · priced online · confirmed by phone",
     h1: "Your qualified\nlocal painters.",
-    lead: "Apartments, units and smaller homes, inside and out. Enter your address, tell us what needs painting, and see your price today. We confirm it on one short call. No site visit, no waiting.",
+    lead: "Apartments, units and smaller homes, inside and out. Enter your address, tell us what needs painting, and see your price today. We confirm it on one short call. Most jobs need no site visit.",
     talk_line: "Apartments, units, townhouses and smaller homes. One room or the whole place. Prefer to talk first?",
     chip_home: "", chip_business: "",
     chip_interior: "Inside", chip_exterior: "Outside", chips_label: "Painting",
@@ -38,7 +38,7 @@ export const PAINTHOME_COPY: SiteCopy = {
   how_it_works: {
     h2: "How it works.",
     step_1_title: "Price it online",
-    step_1_body: "Your address, the rooms, roughly how big. Add photos if you have them. Your price appears on screen in about ten minutes.",
+    step_1_body: "Your address, the rooms, roughly how big. Add photos if you have them. A guide range appears in a couple of minutes; the full price takes about ten.",
     step_2_title: "We confirm it by phone",
     step_2_body: "One five-minute call to check the details. Your price is then set. No site visit for most jobs.",
     step_3_title: "Choose your start date",
@@ -63,7 +63,7 @@ export const PAINTHOME_COPY: SiteCopy = {
     row_1_heading: "Your painter finds rotten timber behind the fascia. Here's what happens next.",
     row_1_note: "Declined extras are recorded on your completion report. Nothing lands on the invoice that you didn't tap Approve on.",
     row_2_title: "Your price is confirmed by a person",
-    row_2_sub: "One short call. After that, the number doesn't change.",
+    row_2_sub: "One short call. Your price is then confirmed in writing.",
     row_2_heading: "Your range gets tighter with every answer. Then we sign it off together.",
     row_2_note: "Every price is signed off by one of our people before it's booked: a call for apartments, units and smaller jobs, a visit for larger or older homes. What we sign off together is what goes on the invoice.",
     row_3_title: "You approve the work before you pay",
@@ -95,7 +95,7 @@ export const PAINTHOME_COPY: SiteCopy = {
   live: { heading: "This month at Paint Home" },
   painters: {
     h2: "Who does the work.",
-    lead: "Our own painters. Qualified, insured, and used to working in occupied homes. You'll know who's coming before the date is confirmed.",
+    lead: "Our trusted network of painters. Quality-checked, insured, and used to working in occupied homes. You'll know who's coming before the date is confirmed.",
     rule_1: "Your requirements are documented and given to your painter before day one.",
     rule_2: "The finish you're paying for is specified, room by room.",
     rule_3: "Daily photos from the site.",
@@ -116,7 +116,7 @@ export const PAINTHOME_COPY: SiteCopy = {
     q_3: "Is the price on screen my final price?",
     a_3: "It's a real range, and it gets tighter as you answer. The final price is confirmed with you by one of our people on a short call before anything is booked. Most Paint Home jobs don't need a site visit. Once it's signed off, that's the number on your invoice; anything extra found on site is priced and approved by you first.",
     q_4: "Who does the painting?",
-    a_4: "Our own painters, who are quality-checked, fully insured and used to working in people's homes. You'll see who's coming in your account before the start date is confirmed.",
+    a_4: "Painters from our trusted network, who are quality-checked, fully insured and used to working in people's homes. You'll see who's coming in your account before the start date is confirmed.",
     q_5: "My job is larger than a few rooms. Can you still help?",
     a_5: "Enter the address anyway. If it's more than can be priced online, such as a full heritage house, work needing scaffold or a commercial property, we'll say so and pass you to the right team, with everything you've entered carried across.",
     q_6: "How soon can you start?",
@@ -136,7 +136,7 @@ export const PAINTHOME_COPY: SiteCopy = {
   },
   meta: {
     title_tag: "Paint Home | Your qualified local painters",
-    meta_description: "Apartments, units and smaller homes across Melbourne, priced online in about ten minutes and confirmed on one short call. No site visit, no waiting.",
+    meta_description: "Apartments, units and smaller homes across Melbourne, priced online in about ten minutes and confirmed on one short call. Most jobs need no site visit.",
     service_type: "Residential painting",
   },
 };
