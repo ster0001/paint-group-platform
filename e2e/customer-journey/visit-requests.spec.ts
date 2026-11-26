@@ -47,6 +47,9 @@ test.describe("S4 — requests, pre-arranged, out of area, Speak with us, messag
   });
 
   test("Sorrento never sees the calendar; the time request lands on Today, due the end of the next working day", async ({ browser, page }) => {
+    // A whole wizard walk, the texted code, then the visit pages — more than the suite's 60 s on a loaded CI runner
+    // (25 Nov 2026: this test "timed out" at 60 s while its own wait for the range still had 90 s to run).
+    test.setTimeout(240_000);
     const c = await startCustomer(browser, "sorrento", "Sorrento", "3943");
     customers.push(c);
     await c.page.getByTestId("door-book").click();

@@ -199,7 +199,12 @@ test.describe("quote stage v10 — session 1: the cards on a phone", () => {
     // D1: every whole-house question answered, no room settled → the half-width is the wide band (15%)
     const halfWidth = async () => { const lo = Number(await page.getByTestId("q-band").getAttribute("data-lo")); const hi = Number(await page.getByTestId("q-band").getAttribute("data-hi")); return ((hi - lo) / 2) / ((hi + lo) / 2) * 100; };
     await expect.poll(halfWidth, { timeout: 30_000 }).toBeGreaterThanOrEqual(14);
-    expect(await halfWidth()).toBeLessThanOrEqual(16.5);
+    // …or the guide cap sets the top (low end + 40% is a 16.67% half-width; drive.ts heldAtGuideCap — ⚑ listed for Tom)
+    {
+      const lo = Number(await page.getByTestId("q-band").getAttribute("data-lo")) / 100, hi = Number(await page.getByTestId("q-band").getAttribute("data-hi")) / 100;
+      const hw = await halfWidth();
+      expect(hw <= 16.5 || heldAtGuideCap(lo, hi), `half-width ${hw.toFixed(2)}% (${lo} to ${hi} dollars) is neither the 15% band nor the guide cap`).toBe(true);
+    }
     const w = page.getByTestId("q-measure-w");
     const typicalW = await w.getAttribute("placeholder");
     expect(Number(typicalW)).toBeGreaterThan(0);

@@ -53,7 +53,11 @@ export async function GET(request: Request) {
 
   try {
     const { input, failures } = await loadMetricInput(supabase, range, now, [def.section], { userId: user.id, who: parsed.data.who, family: parsed.data.family ?? null, q: parsed.data.q ?? null }, roles);
-    if (failures.length) return NextResponse.json({ error: "a read failed", failures }, { status: 503 });
+    // A read that FAILED refuses the export; a read that only hit its row ceiling does not — the file carries the
+    // newest rows, as the screen does, and says so in a header.
+    const failed = failures.filter((f) => !f.truncated);
+    if (failed.length) return NextResponse.json({ error: "a read failed", failures: failed }, { status: 503 });
+    const capped = failures.filter((f) => f.truncated).map((f) => f.where);
     const d = parsed.data;
     const filtered = d.brand || d.device || d.job || d.src
       ? { ...input, funnelFilter: { brand: d.brand ?? null, device: d.device ?? null, jobType: d.job ?? null, leadSource: d.src ?? null } }
@@ -67,6 +71,7 @@ export async function GET(request: Request) {
         "Cache-Control": "no-store",
         "X-Metric-Value": String(result.value),
         "X-Metric-Rows": String(result.rows.length),
+        ...(capped.length ? { "X-Metric-Capped": capped.join(", ") } : {}),
       },
     });
   } catch (e) {
