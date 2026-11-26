@@ -34,7 +34,7 @@ The event is sent only after the visitor presses **Allow analytics**, and once p
 | Sent a message or email | `/thanks/message` | Nothing (counted behind the page; the estimate chat counts the first message) |
 | Accepted an estimate | `/thanks/accepted` | Nothing. They stay on their signed estimate, so they can download it |
 | Paid the deposit | `/thanks/deposit-paid` | A short thank-you on the way back from the card payment, then their invoice |
-| Gave their details and proved their mobile (a lead) | `/thanks/lead` | Nothing (counted behind the page) |
+| Gave their contact details (a lead): proved their mobile in the wizard, the talk-to-us sheet, a call-back box, the visit booking's details, Save & book with a mobile, or the website chat | `/thanks/lead` | Nothing (counted behind the page). Once per mobile number in that browser, so a second form or a reload never counts again |
 | Saved the estimate for later (Keep this estimate, Save and come back later) | `/thanks/saved` | Nothing (counted behind the page) |
 | Settled their quote range (the end of the quote stage) | `/thanks/quote` | Nothing (counted behind the page) |
 | Sent the estimate to their estimator (Finalise, a commercial brief) | `/thanks/sent` | Nothing (counted behind the page) |
@@ -48,6 +48,7 @@ The thank-you page shows the brand name, one line and a **Back** button. It retu
 ## If something goes wrong
 - **No conversions in Google Ads.** Check the tag id is set in Vercel and the site was redeployed after. Then open a success page in a private window, press **Allow analytics**, and use Google's Tag Assistant to see the tag load.
 - **Tag Manager shows no `pg_success`.** Open Tag Assistant's preview on painthome.com.au, press **Allow analytics**, and trigger a success (or open `/thanks/lead?bg=1` in that preview session). The event appears in the preview's timeline. Publishing the container is a separate step in Tag Manager.
+- **A thank-you page refreshed.** A reload of a visible thanks page records and sends nothing the second time.
 - **Counts look low.** Visitors who chose **Only what's needed** load no ad tags, by design. Our own events still record them.
 
 ## Related

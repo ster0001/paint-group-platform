@@ -100,8 +100,12 @@ export function leadKey(mobile: string | null | undefined): string | null {
 
 /** Call only AFTER the server said yes. Counts the lead once per mobile per browser (see leadKey). */
 export function countLead(mobile: string | null | undefined): void {
-  const k = leadKey(mobile);
-  if (!k || typeof window === "undefined") return;
+  countLeadKey(leadKey(mobile));
+}
+
+/** The same, from a key the server computed (the website chat hands back `lead`, never the number). */
+export function countLeadKey(k: string | null | undefined): void {
+  if (!k || !/^m[a-z0-9]{1,13}$/.test(k) || typeof window === "undefined") return;
   try { if (window.localStorage.getItem(`pg-lead:${k}`)) return; window.localStorage.setItem(`pg-lead:${k}`, "1"); } catch { /* storage blocked: the session guard below still holds */ }
   countInBackground("lead", k);
 }

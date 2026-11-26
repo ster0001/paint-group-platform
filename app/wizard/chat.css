@@ -40,3 +40,9 @@
    the mobile call bar, which is 56px tall. */
 .wz-chat.site { bottom: 20px; }
 @media (max-width: 720px) { .wz-chat.site { bottom: 76px; } }
+
+/* The details form under the chat's question (26 Nov 2026). */
+.wz-chat-contact { display: grid; gap: 6px; margin: 4px 0 8px; padding: 10px; border-radius: 12px; background: rgba(127,127,127,.08); }
+.wz-chat-contact input { font: inherit; font-size: 16px; padding: 8px 10px; border-radius: 8px; border: 1px solid rgba(127,127,127,.35); background: #fff; color: #1f1f1f; min-width: 0; }
+.wz-chat-contact button { font: inherit; padding: 9px 12px; border-radius: 8px; border: 0; background: #1f1f1f; color: #fff; cursor: pointer; }
+.wz-chat-contact button:disabled { opacity: .6; cursor: default; }
