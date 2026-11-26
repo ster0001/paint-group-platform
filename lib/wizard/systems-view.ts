@@ -566,7 +566,10 @@ export function exteriorWhatWeDo(
   if (house && el.eaves) lines.push(base("Eaves", `The underside of the overhang, dusted and washed, then ${sys.coats === 1 ? "one coat" : `${sys.coats} coats`} of a flat exterior finish.`));
   if (ext.extras.fence || ext.targets.includes("fence")) lines.push(base("Fence", "Brushed or sprayed depending on the fence, both sides where they are yours."));
   if (ext.extras.deck || ext.targets.includes("deck")) lines.push(base("Deck or floor", "Cleaned and prepared, then a deck coating in the number of coats the product needs.", true));
-  if (ext.targets.includes("shed") || el.garage) lines.push(base("Garage or shed", "Priced like the house — walls, trims and the door on it.", true));
+  // Tom, 26 Nov 2026: a ticked garage door is the DOOR and nothing else (it is priced from the rate card's "Garage Door"
+  // row) — it used to share the shed's line, which promised walls and trims nobody priced and asked for a person to confirm.
+  if (el.garage) lines.push(base("Garage door", `Just the garage door: cleaned, sanded and ${sys.coats === 1 ? "one coat" : `${sys.coats} coats`}. No walls or trims around it.`));
+  if (ext.targets.includes("shed")) lines.push(base("Shed or garage building", "Priced like the house — walls, trims and the door on it.", true));
   if (ext.targets.includes("wall")) lines.push(base("Boundary or retaining wall", "Measured on site — no rate for it from a form.", true));
   lines.push({
     group: "exterior", title: "Not included", coats: 0, undercoat: false, review: false,
