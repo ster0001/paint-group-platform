@@ -1,19 +1,5 @@
 import { describe, expect, it } from "vitest";
-import {
-  DEFAULT_PAINT_SYSTEMS,
-  DEFAULT_SURFACE_FLAGS,
-  PAINT_SYSTEMS_KEY,
-  SYSTEM_GROUPS,
-  colourIntentFromTier,
-  conditionBandFromDamageTier,
-  deriveSystem, fillCoatsPhrase,
-  groupForSubstrate,
-  paintSystemsFrom,
-  systemsForSurfaces,
-  type ColourIntent,
-  type SystemAnswers,
-  type SystemGroup,
-} from "./systems";
+import { DEFAULT_PAINT_SYSTEMS, DEFAULT_SURFACE_FLAGS, PAINT_SYSTEMS_KEY, SYSTEM_GROUPS, colourIntentFromTier, conditionBandFromDamageTier, deriveSystem, fillCoatsPhrase, groupForSubstrate, paintSystemsFrom, systemsForSurfaces, type ColourIntent, type SystemAnswers, type SystemGroup, coatWordsAgree, reconcileCoatWords, topcoatsOf } from "./systems";
 import { coatMultiplier, hoursPerUnit } from "./engine";
 import type { RateItem } from "./types";
 
@@ -585,5 +571,39 @@ describe("C9 — 'what's changing colour?' decides the intent per group", () => 
   it("one coat stays unreachable for a group that is changing, whichever way it was named", () => {
     const sabotaged = paintSystemsFrom({ walls: { new: { coats: 1, undercoat: false, sentence: "one" } } });
     expect(deriveSystem("walls", answers({ colourIntent: "same", intents: { walls: "new" } }), sabotaged).coats).toBe(2);
+  });
+});
+
+describe("go-live H3 (18 Nov 2026) — no line states a coat count different from its badge", () => {
+  const intents = ["same", "new", "bold"] as const;
+  const conditions = ["good", "wear", "work"] as const;
+  it("every group × colour answer × condition × the flags that apply × a ceiling getting a colour × the paint questions: the words agree with the topcoats", () => {
+    let checked = 0;
+    for (const group of SYSTEM_GROUPS) {
+      const flags = DEFAULT_PAINT_SYSTEMS.surfaceFlags.filter((f) => f.groups.includes(group)).map((f) => f.key);
+      for (const intent of intents) for (const condition of conditions) for (const ceilingsChangingColour of [false, true]) for (const darkToLight of [false, true])
+        for (const flag of [null, ...flags]) for (const glossTrims of [undefined, "yes", "no", "unsure"] as const) for (const ceilingsMarked of [false, true]) {
+          const s = deriveSystem(group, answers({ colourIntent: intent, condition, ceilingsChangingColour, darkToLight, glossTrims, ceilingsMarked, flags: flag ? { [group]: [flag] } : {} } as Partial<SystemAnswers>));
+          expect(coatWordsAgree(s.sentence, s.coats, s.undercoat), `${group}/${intent}/${condition}/ceilCol=${ceilingsChangingColour}/d2l=${darkToLight}/flag=${flag}/gloss=${glossTrims}/marked=${ceilingsMarked}: "${s.sentence}" vs ${s.coats} coats${s.undercoat ? " + undercoat" : ""}`).toBe(true);
+          checked++;
+        }
+    }
+    expect(checked).toBeGreaterThan(1000);
+  });
+  it("a ceiling getting a colour says two coats, a white-again ceiling one, the marked ceiling the Settings number", () => {
+    expect(deriveSystem("ceilings", answers({ colourIntent: "new", ceilingsChangingColour: false })).sentence).toContain("one coat");
+    const colour = deriveSystem("ceilings", answers({ colourIntent: "new", ceilingsChangingColour: true }));
+    expect(colour.coats).toBe(2);
+    expect(colour.sentence).toContain("two coats");
+    expect(colour.sentence).not.toMatch(/one coat/i);
+    const marked3 = deriveSystem("ceilings", answers({ ceilingsMarked: true }), { ...DEFAULT_PAINT_SYSTEMS, ceilingsMarkedCoats: 3 });
+    expect(marked3.coats).toBe(3);
+    expect(marked3.sentence).toContain("three coats");
+  });
+  it("reconcileCoatWords keeps the sentence's own adjective and case, and counts topcoats under an undercoat", () => {
+    expect(reconcileCoatWords("One fresh coat of white.", 2, false)).toBe("Two fresh coats of white.");
+    expect(reconcileCoatWords("A sealer first, then two full coats.", 4, true)).toBe("A sealer first, then three full coats.");
+    expect(reconcileCoatWords("Then an undercoat and two coats.", 3, true)).toBe("Then an undercoat and two coats.");
+    expect(topcoatsOf(3, true)).toBe(2);
   });
 });

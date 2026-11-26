@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { fillQuickAddress, MONEY_RANGE, openQuickLook, quickNext, passGateIfShown, tightenToScope } from "./drive";
+import { fillQuickAddress, MONEY_RANGE, openQuickLook, quickNext, passGateIfShown, tightenToScope, onMobileShell } from "./drive";
 
 /**
  * C9 — What's changing colour, the details screen, What we'll do.
@@ -20,12 +20,21 @@ test("doors and trims changing, then water over oil: the panel gains the underco
 
   // Screen 3: the colour block. Every tile starts ticked (Tom, 14 Sep) —
   // doors and trims are already changing. No coat picker anywhere.
-  await expect(page.getByTestId("ql-changing")).toBeVisible();
+  const shell = await onMobileShell(page); // desktop one-press (19 Nov 2026): the phone's screens on the laptop
   await expect(page.locator('[data-testid^="ql-colour-"]')).toHaveCount(0);
-  await expect(page.getByTestId("ql-changing-trims")).toHaveAttribute("aria-pressed", "true");
+  if (!shell) {
+    await expect(page.getByTestId("ql-changing")).toBeVisible();
+    await expect(page.getByTestId("ql-changing-trims")).toHaveAttribute("aria-pressed", "true");
+  }
   await quickNext(page);
   await expect(page.locator("[data-quick-step='rooms']")).toBeVisible({ timeout: 30_000 }); // 14 Sep (evening): confirm the rooms
   await quickNext(page);
+  if (shell) {
+    // the shell: New colours (doors and trims changing), not going bold, then the condition
+    await expect(page.getByTestId("ql-colours-new")).toHaveAttribute("aria-pressed", "true");
+    await page.getByTestId("ql-colours-new").click();
+    await page.getByTestId("ql-bold-no").click();
+  }
   await page.getByTestId("ql-condition-wear").click();
   await quickNext(page);
 
@@ -91,13 +100,17 @@ test("nothing ticked is the same colour: one coat on the walls, and no undercoat
   await page.getByTestId("ql-kind-house").click();
   await quickNext(page);
   // Every tile starts ticked (Tom, 14 Sep) — "nothing ticked" means unticking all three.
-  for (const k of ["walls", "ceilings", "trims", "windows"]) {
-    await page.getByTestId(`ql-changing-${k}`).click();
-    await expect(page.getByTestId(`ql-changing-${k}`)).toHaveAttribute("aria-pressed", "false");
+  const shell = await onMobileShell(page);
+  if (!shell) {
+    for (const k of ["walls", "ceilings", "trims", "windows"]) {
+      await page.getByTestId(`ql-changing-${k}`).click();
+      await expect(page.getByTestId(`ql-changing-${k}`)).toHaveAttribute("aria-pressed", "false");
+    }
   }
   await quickNext(page);
   await expect(page.locator("[data-quick-step='rooms']")).toBeVisible({ timeout: 30_000 }); // 14 Sep (evening): confirm the rooms
   await quickNext(page);
+  if (shell) await page.getByTestId("ql-colours-same").click(); // the shell's "Same colours" is the same answer, one tap
   await page.getByTestId("ql-condition-good").click();
   await quickNext(page);
   await passGateIfShown(page); // S6: the details-first question sits before the range

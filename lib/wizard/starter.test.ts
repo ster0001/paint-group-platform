@@ -107,11 +107,12 @@ describe("starterExtraction → buildDraft", () => {
     const rooms = starterRoomList(basics());
     const x = starterExtraction(rooms, [], { heightM: null, bedrooms: 3 });
     const draft = buildDraft(x, RULES, []);
-    // 3 beds + bathroom + laundry own-side doors, hallway carries 3 hall sides
+    // 3 beds + bathroom + laundry own-side doors; go-live M9 (⚑ D7): the hall carries the hall side of every door that
+    // opens onto it (those five) plus the inside of the front door — six
     const doorDeferred = draft.deferred.filter((d) => /door/.test(d.what));
-    expect(doorDeferred.reduce((n, d) => n + d.count, 0)).toBe(8);
+    expect(doorDeferred.reduce((n, d) => n + d.count, 0)).toBe(11);
     const hall = doorDeferred.find((d) => d.room === "Hall & Entry");
-    expect(hall?.count).toBe(3);
+    expect(hall?.count).toBe(6);
   });
 
   it("wet areas are marked and an unsure height rides as null", () => {

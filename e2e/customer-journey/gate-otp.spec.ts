@@ -86,7 +86,7 @@ test.describe("Wizard gate — the texted code", () => {
     expect(error).toBeNull();
     expect(rows?.length).toBe(1);
     expect(rows?.[0]?.consumed_at).not.toBeNull();
-    expect(rows?.[0]?.attempts).toBe(1);
+    expect(rows?.[0]?.attempts).toBe(2); // the wrong try and the right one — `wizard_otp_verify` counts both
     expect(rows?.[0]?.code_hash).not.toContain(code);
   });
 

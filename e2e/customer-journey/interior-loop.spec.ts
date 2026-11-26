@@ -59,7 +59,9 @@ test("R3 interior loop: L×W size question, confirm walk, dw check, sweep — ac
       await expect(card.getByPlaceholder("length m")).toHaveValue(/^\d+(\.\d+)?$/);
       await card.getByPlaceholder("length m").fill("20");
       await card.getByPlaceholder("width m").fill("3.8");
-      await card.getByRole("button", { name: "Update size" }).click();
+      // Tom, 28 Oct 2026: the size saves itself when you click out of the boxes — there is no "Update size" button
+      await expect(card.getByRole("button", { name: "Update size" })).toHaveCount(0);
+      await card.getByPlaceholder("width m").blur();
       await expect(page.locator(".sc-toast")).toContainText(/15 × 3.8.*1–15/, { timeout: 30_000 });
       await expect(card.locator(".il-size")).toContainText("updated by you");
     } else {

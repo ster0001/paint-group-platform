@@ -60,6 +60,10 @@ export default async function QuoteStagePage({ searchParams }: { searchParams: P
 
   const bundle = await loadCustomerScope(db, estimate as EstimateRow);
   if (bundle.kind === "holding") return <Holding line={bundle.line} />;
+  // 20 Nov 2026: a job that is BOTH inside and outside keeps the stacked editor (rooms, then sides). The stage walks either
+  // the rooms or the sides, never both — sent here, a both job would be measured inside only, its outside priced but never
+  // shown or sized. `e2e/customer-journey/both-stacked.spec.ts` holds the door to the stacked editor.
+  if (bundle.kind === "rooms" && (bundle.initialSides?.sides.length ?? 0) > 0) redirect(`/estimate/scope?id=${encodeURIComponent(id)}`);
   const brand = (estimate as { brand?: string | null }).brand === "painthome" ? "painthome" as const : await wizardBrand();
   // §5: the quote's prepared-for block — the account the session filed, and the address the wizard holds.
   const accountId = (estimate as { account_id?: string | null }).account_id ?? null;
@@ -98,6 +102,7 @@ export default async function QuoteStagePage({ searchParams }: { searchParams: P
         v2={v2}
         typicalRows={typicalRows}
         initialCornices={bundle.kind === "rooms" ? bundle.initialCornices : null}
+        initialGeneral={bundle.kind === "rooms" ? bundle.initialGeneral : null}
         initialAccess={bundle.kind === "rooms" ? bundle.initialAccess : { answers: {}, asksLift: false }}
         logoUrl={bundle.logoUrl}
         estimator={bundle.estimator}
@@ -106,6 +111,7 @@ export default async function QuoteStagePage({ searchParams }: { searchParams: P
         preparedFor={preparedFor}
         quoteNo={quoteNumber(bundle.estimateId, brand)}
         quoteDate={quoteDate}
+        holdDays={bundle.holdDays}
       />
     </div>
   );

@@ -1,7 +1,7 @@
 import { test, expect, devices, type Page } from "@playwright/test";
 import { stepsFor, type QuickLook } from "../../lib/wizard/quick-look";
 import { STEP_LABELS } from "../../app/wizard/stepRail";
-import { driveNoPlanWizard, fillQuickAddress, openQuickLook, openScopeEditor, passGateIfShown, quickNext, MONEY_RANGE, answerOutsideQuick, openTalk, lookAtEverySide, onMobileShell, tightenToScope } from "./drive";
+import { driveNoPlanWizard, fillQuickAddress, openQuickLook, openScopeEditor, passGateIfShown, quickNext, MONEY_RANGE, answerOutsideQuick, openTalk, lookAtEverySide, onMobileShell, tightenToScope, setParts, gateDoor } from "./drive";
 
 /**
  * Wizard UI refresh, S1 — the shell, on every path (brief §7.1, §7.7, §10).
@@ -65,7 +65,9 @@ async function toPlace(page: Page, jobType?: "exterior" | "both") {
     await expect(page.locator("[data-quick-step='both']")).toBeVisible({ timeout: 20_000 });
     await page.getByTestId("ql-both-self").click();
   }
-  await expect(page.locator("[data-quick-step='place']")).toBeVisible({ timeout: 20_000 });
+  // go-live S4 (M5): on the router an outside job's home-type screen says what kind of place it is — no place step
+  const first = router && jobType === "exterior" ? "home" : "place";
+  await expect(page.locator(`[data-quick-step='${first}']`)).toBeVisible({ timeout: 20_000 });
 }
 
 async function toSegment(page: Page) {
@@ -356,6 +358,7 @@ test.describe("UI refresh · on a real phone (iPhone 13 emulation) no screen is 
     await quickNext(page);
     await at("colours");
     await page.getByTestId("ql-colours-new").click();
+    await page.getByTestId("ql-bold-no").click(); // S5 M8: a colour change asks the bold question first
     await at("condition");
     await page.getByTestId("ql-condition-wear").click();
     await at("living");
@@ -434,8 +437,8 @@ test.describe("UI refresh S3 · the range screen, every path", () => {
     await openQuickLook(page);
     await fillQuickAddress(page);
     await page.getByTestId("ql-jobtype-exterior").click();
-    await quickNext(page);
-    await quickNext(page);
+    // the router: Outside advances itself to the home step (go-live S4, M5: no place step for an outside job)
+    if (!(await onMobileShell(page))) { await quickNext(page); await quickNext(page); }
     await answerOutsideQuick(page); // the outside answers on whichever screens the flag puts there (S3); lands on Which sides
     await quickNext(page);
     await passGateIfShown(page);
@@ -493,7 +496,7 @@ test.describe("UI refresh S3 · the range screen, every path", () => {
     expect(w.sw).toBeLessThanOrEqual(390);
     expect(w.vw).toBeLessThanOrEqual(390);
     // Wizard mobile v5 (S4): on a phone the range is the gate, its one door on the sticky bar.
-    await expect(page.getByTestId("gate-bar-exact")).toBeVisible();
+    await expect(gateDoor(page)).toBeVisible();
     await ctx.close();
   });
 });
@@ -596,9 +599,7 @@ test.describe("UI refresh S5 · home outside", () => {
     const router = await onMobileShell(page);
     await page.getByTestId("ql-jobtype-exterior").click();
     if (router) {
-      // the router: Outside advances itself to the place screen, and the place (House, pre-set) to the home step
-      await expect(page.locator("[data-mobile-screen='property']")).toBeVisible({ timeout: 20_000 });
-      await page.getByTestId("ql-kind-house").click();
+      // the router: Outside advances itself to the home step — go-live S4 (M5): no "What kind of place?" for an outside job
     } else {
       await quickNext(page);
       await quickNext(page);
@@ -619,7 +620,8 @@ test.describe("UI refresh S5 · home outside", () => {
     test.skip(await onMobileShell(page), "desktop one-press: the laptop's exterior screens are addendum session 2");
     const pic = page.getByTestId("ql-picture").getByTestId("pic-outside");
     await expect(pic).toBeVisible();
-    // Nothing pre-ticked: the walls and frames are grey.
+    // go-live S4 (H2): the usual parts come pre-ticked — cleared so the picture starts grey
+    await setParts(page, []);
     await expect(pic.locator(".e[data-e='walls']")).toHaveAttribute("data-on", "0");
     await page.getByTestId("ext-part-walls").click();
     await expect(pic.locator(".e[data-e='walls']")).toHaveAttribute("data-on", "1");
@@ -683,7 +685,7 @@ test.describe("UI refresh S5 · home outside", () => {
     await toPaint(page);
     await fits();
     // Exterior on mobile v5 (S2–S4): Painting is four screens; the deck is on the last; About it and Each side are their own screens.
-    await page.getByTestId("ext-part-walls").click();
+    await setParts(page, ["walls"]); // go-live S4 (H2): the usual parts come pre-ticked
     for (const id of ["p-win", "p-ver", "p-around"]) { await page.getByTestId("ql-next").click(); await expect(page.locator(`[data-mobile-screen='${id}']`)).toBeVisible({ timeout: 10_000 }); }
     await page.getByTestId("ext-extra-deck").click();
     await fits();
@@ -705,8 +707,9 @@ test.describe("UI refresh S5 · home outside", () => {
     // Exterior on mobile v5 (S5, S6): the phone's gate, and Get my exact price is the walk around the house.
     await expect(page.getByTestId("gate-range")).toHaveText(MONEY_RANGE, { timeout: 90_000 });
     await fits();
-    await page.getByTestId("gate-bar-exact").click();
-    await expect(page.getByTestId("ext-walk")).toBeVisible({ timeout: 20_000 });
+    await gateDoor(page).click();
+    // go-live: Get my exact price opens the quote stage (a size card per side), the walk's successor
+    await expect(page.getByTestId("ext-walk").or(page.getByTestId("quote-stage")).first()).toBeVisible({ timeout: 30_000 });
     await fits();
     await ctx.close();
   });

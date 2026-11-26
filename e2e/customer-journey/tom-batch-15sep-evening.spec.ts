@@ -1,6 +1,6 @@
 import { expect, type Page } from "@playwright/test";
 import { createClient } from "@supabase/supabase-js";
-import { MONEY_RANGE, openQuickLook, fillQuickAddress, quickNext, passGateIfShown, tightenToScope } from "./drive";
+import { MONEY_RANGE, openQuickLook, fillQuickAddress, quickNext, passGateIfShown, tightenToScope, onMobileShell, pickCondition } from "./drive";
 import { credentials, signIn, test } from "../helpers";
 
 /**
@@ -39,7 +39,28 @@ const toEditor = async (page: Page) => {
 test("3 · the exclusions are inline under the preset, and 2 · bold asks which groups", async ({ page }) => {
   test.setTimeout(240_000);
   await toJob(page);
+  const shell = await onMobileShell(page);
   await page.getByTestId("ql-scope-whole").click();
+  if (shell) {
+    // Desktop one-press (19 Nov 2026): the laptop runs the phone's screens — the SURFACES screen is the positive
+    // list (every surface ticked; unticking the window frames takes them out), and the bold question is its own
+    // screen after New colours, a Yes marking every group that is changing (no "Which ones?" on a phone).
+    await expect(page.locator("[data-mobile-screen='surfaces']")).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByTestId("ql-surface-windows")).toHaveAttribute("aria-pressed", "true");
+    await page.getByTestId("ql-surface-windows").click();
+    await expect(page.getByTestId("ql-surface-windows")).toHaveAttribute("aria-pressed", "false");
+    await page.getByTestId("ql-surface-windows").click();
+    await expect(page.getByTestId("ql-surface-windows")).toHaveAttribute("aria-pressed", "true");
+    await quickNext(page);
+    await expect(page.locator("[data-quick-step='rooms']")).toBeVisible({ timeout: 30_000 });
+    await quickNext(page);
+    await expect(page.locator("[data-mobile-screen='bold']")).toHaveCount(0);
+    await page.getByTestId("ql-colours-new").click();
+    await expect(page.locator("[data-mobile-screen='bold']")).toBeVisible({ timeout: 20_000 });
+    await page.getByTestId("ql-bold-yes").click();
+    await page.getByTestId("ql-condition-good").click();
+    await quickNext(page);
+  } else {
   // Inline, not a dialog; a tile says "the lot".
   await expect(page.getByTestId("ql-excl")).toBeVisible();
   await expect(page.getByRole("dialog")).toHaveCount(0);
@@ -74,12 +95,16 @@ test("3 · the exclusions are inline under the preset, and 2 · bold asks which 
   await quickNext(page);
   await page.getByTestId("ql-condition-good").click();
   await quickNext(page);
+  }
   await passGateIfShown(page); // S6: the details-first question sits before the range
   await expect(page.getByTestId("reveal-range")).toContainText(MONEY_RANGE, { timeout: 90_000 });
-  await expect(page.getByTestId("reveal-restatement")).toContainText(/a much lighter or bolder colour on the walls and new colours on the doors and trims and window frames/i);
+  // the shell's Yes marks every group that is changing, so the bold colour is "throughout" (quick-look.ts boldSentence)
+  if (shell) await expect(page.getByTestId("reveal-restatement")).toContainText(/a much lighter or bolder colour throughout/i);
+  else await expect(page.getByTestId("reveal-restatement")).toContainText(/a much lighter or bolder colour on the walls and new colours on the doors and trims and window frames/i);
   const doLines = page.getByTestId("what-we-do");
-  await expect(doLines).toContainText(/Walls\s*3 coats \+ undercoat/);
-  await expect(doLines).not.toContainText(/Skirtings, architraves and doors\s*3 coats/);
+  // Go-live H3 (19 Nov 2026): the badge counts the TOPCOATS and names the undercoat — "2 coats + undercoat", as the sentence says.
+  await expect(doLines).toContainText(/Walls\s*2 coats \+ undercoat/);
+  if (!shell) await expect(doLines).not.toContainText(/Skirtings, architraves and doors\s*(3 coats|2 coats \+ undercoat)/);
   const id = await toEditor(page);
   // Tom, 25 Oct 2026 (item 4): the editor asks NOTHING about dark to light again — the quick
   // look's answer is the one answer, and it is on the estimate (below).
@@ -88,8 +113,13 @@ test("3 · the exclusions are inline under the preset, and 2 · bold asks which 
     const db = createClient(url, serviceKey);
     const { data } = await db.from("estimates").select("builder_state").eq("id", id).single();
     const cond = (data!.builder_state as { wizard?: { state?: { condition?: { boldGroups?: Record<string, boolean>; darkToLightSurfaces?: string[] } } } }).wizard?.state?.condition;
-    expect(cond?.boldGroups).toEqual({ walls: true, ceilings: false, trims: false, windows: false });
-    expect(cond?.darkToLightSurfaces).toEqual(["walls"]);
+    if (shell) {
+      expect(cond?.boldGroups).toEqual({ walls: true, ceilings: true, trims: true, windows: true });
+      expect(cond?.darkToLightSurfaces).toContain("walls");
+    } else {
+      expect(cond?.boldGroups).toEqual({ walls: true, ceilings: false, trims: false, windows: false });
+      expect(cond?.darkToLightSurfaces).toEqual(["walls"]);
+    }
   }
 });
 
@@ -106,7 +136,7 @@ test("1 · two bedrooms added on the rooms step arrive as two rooms with their o
   }
   await expect(page.getByTestId("ql-room-added-1")).toBeVisible();
   await quickNext(page);
-  await page.getByTestId("ql-condition-good").click();
+  await pickCondition(page, "good");
   await quickNext(page);
   const id = await toEditor(page);
   const added = page.locator(".sc-rc[data-room]", { hasText: /^Bedroom/ });

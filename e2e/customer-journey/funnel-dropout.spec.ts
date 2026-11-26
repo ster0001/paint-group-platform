@@ -1,6 +1,6 @@
 import { test, expect } from "@playwright/test";
 import { createClient } from "@supabase/supabase-js";
-import { driveNoPlanWizard } from "./drive";
+import { driveNoPlanWizard, DESKTOP_ONE_PRESS, GROUPED_LAPTOP_ONLY } from "./drive";
 
 /**
  * C15 · the drop-out funnel's spine, as an anonymous customer.
@@ -46,6 +46,7 @@ test.describe("the wizard drop-out funnel", () => {
   });
 
   test("abandoning the quick look leaves an open draft — with progress, and no contact", async ({ page }) => {
+    test.skip(DESKTOP_ONE_PRESS, GROUPED_LAPTOP_ONLY);
     await page.goto("/estimate");
     await expect(page.locator("[data-quick-step='start']")).toBeVisible({ timeout: 20_000 });
     await page.getByPlaceholder(/Your address/).fill("14 Acacia Street, Northcote");

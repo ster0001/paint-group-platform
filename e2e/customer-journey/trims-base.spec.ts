@@ -8,7 +8,7 @@
  * marks the trims line for a person, and tells the customer we'll check.
  */
 import { test, expect } from "@playwright/test";
-import { fillQuickAddress, MONEY_RANGE, openQuickLook, quickNext, passGateIfShown, tightenToScope } from "./drive";
+import { fillQuickAddress, MONEY_RANGE, openQuickLook, quickNext, passGateIfShown, tightenToScope, heldAtGuideCap, GUIDE_CAP_PCT } from "./drive";
 
 const parseRange = (text: string): [number, number] => {
   const m = text.replace(/,/g, "").match(/\$(\d+)\s*–\s*\$(\d+)/);
@@ -65,7 +65,12 @@ test("oil-based new paint closes the question at two coats and narrows the range
   // Tom, 14 Sep (items 10/11): the words say what was priced — oil-based, two coats.
   await expect(trims).toContainText(/two coats of oil-based enamel/i, { timeout: 30_000 });
   await expect(page.getByTestId("what-we-do").getByTestId("what-we-do-doors")).toContainText(/mask off or remove hardware, followed by two coats of oil-based enamel/i);
-  await expect.poll(async () => parseRange((await range.textContent()) ?? "")[1], { timeout: 30_000 }).toBeLessThan(hi0);
+  // the top comes down — unless the guide cap (Tom, 25 Oct) is what sets it, before and after (drive.ts heldAtGuideCap)
+  const capped = heldAtGuideCap(lo0, hi0);
+  await expect.poll(async () => {
+    const [lo, hi] = parseRange((await range.textContent()) ?? "");
+    return hi < hi0 || (capped && heldAtGuideCap(lo, hi));
+  }, { timeout: 30_000, message: `the range must narrow or stay held at the ${GUIDE_CAP_PCT}% guide cap (was $${lo0}–$${hi0})` }).toBe(true);
   expect(parseRange((await range.textContent()) ?? "")[0]).toBeGreaterThanOrEqual(lo0);
 });
 

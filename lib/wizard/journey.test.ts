@@ -44,7 +44,7 @@ describe("wording", () => {
   });
   it("a pre-migration row still reads, and the steps sum to the seconds", () => {
     const j = journeyFromRow({ id: "d1", job_type: "interior", step_times: { "1": 30, "2": 90, junk: "x" }, furthest_page: 2, active_seconds: 120 });
-    expect(j.bucket).toBe("online_now");
+    expect(j.bucket).toBe("dropped"); // go-live M10: a row with no bucket is never "Online now"
     expect(j.outcome).toBe("none");
     const steps = journeySteps(j);
     expect(steps.length).toBe(6);

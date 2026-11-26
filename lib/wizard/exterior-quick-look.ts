@@ -1,5 +1,5 @@
 import { defaultExterior, exteriorElements, exteriorSurfaceKeys, type ExteriorV2, type WizardExterior, type WizardState } from "./state";
-import { exteriorV2Answered, paintedSides, worstCondition } from "./exterior-model";
+import { PART_LABEL, exteriorV2Answered, paintedSides, worstCondition } from "./exterior-model";
 import { typicalFor } from "./exterior-typicals";
 import { isExteriorSubstrateKey } from "@/lib/estimate/substrates";
 import type { Choice } from "./quick-look";
@@ -425,8 +425,13 @@ export function exteriorQuickLookFromState(ext: WizardExterior | null | undefine
 const label = <T extends string>(choices: Choice<T>[], v: T) => choices.find((c) => c.value === v)?.label ?? v;
 const joinList = (parts: string[]) => parts.join(", ").replace(/, ([^,]*)$/, " and $1");
 
-export function exteriorRestatement(q: ExteriorQuickLook): string {
-  const onHouse = q.elements.map((e) => label(EXT_ELEMENTS, e).toLowerCase().replace("the body of the house", "the walls"));
+export function exteriorRestatement(raw: ExteriorQuickLook): string {
+  // Go-live S4 (M7): the basis lists what is TICKED on the drawn house — the v1 fields on a live draft can lag the
+  // ticks (they are derived at submit), so the house's own parts are read here, in its own words, gable and verandah included.
+  const q = raw.v2 && exteriorV2Answered(raw.v2) ? quickLookFromV2(raw.v2, raw) : raw;
+  const onHouse = q.v2 && exteriorV2Answered(q.v2)
+    ? q.v2.parts.filter((p) => p !== "garage").map((p) => PART_LABEL[p].toLowerCase().replace(/^the /, "")).map((w, i) => (i === 0 ? `the ${w}` : w))
+    : q.elements.map((e) => label(EXT_ELEMENTS, e).toLowerCase().replace("the body of the house", "the walls"));
   const own = q.standalone.map((s) => label(EXT_STANDALONE, s).toLowerCase());
   const what = joinList([...onHouse, ...own]) || "the outside";
   const mats = q.elements.includes("body") && q.materials.length && !q.materials.includes("unsure")

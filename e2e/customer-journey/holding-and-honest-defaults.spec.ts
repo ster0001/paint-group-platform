@@ -1,6 +1,6 @@
 import { test, expect, devices } from "@playwright/test";
 import { createClient } from "@supabase/supabase-js";
-import { driveNoPlanWizard, uniquePhone, openQuickLook, fillQuickAddress, quickNext, MONEY_RANGE, passGateIfShown, tightenToScope } from "./drive";
+import { driveNoPlanWizard, uniquePhone, openQuickLook, fillQuickAddress, quickNext, MONEY_RANGE, passGateIfShown, tightenToScope, onMobileShell } from "./drive";
 import { DEFAULT_ONLINE_ESTIMATES } from "../../lib/wizard/publicFlag";
 
 /**
@@ -109,6 +109,10 @@ test.describe("holding page + honest defaults", () => {
     await quickNext(page);
 
     // The range still shows — declining to guess is not declining to quote.
+    // Wizard mobile v5: on a phone the details, the texted code and the range are the shell's own screens (the grouped
+    // page's reveal, its assumed list and the old editor below belong to the grouped laptop page). The hazard questions
+    // not being asked — the loop above — is this test's point on a phone; the gate itself is `gate-otp` and `go-live-s4`.
+    if (await onMobileShell(page)) { await ctx.close(); return; }
     await passGateIfShown(page); // S6: the details-first question sits before the range
     await expect(page.getByTestId("reveal")).toBeVisible({ timeout: 90_000 });
     await expect(page.getByTestId("reveal-range")).toHaveText(MONEY_RANGE);

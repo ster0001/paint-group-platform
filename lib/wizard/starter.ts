@@ -33,7 +33,9 @@ export const FALLBACK_TYPICALS: Record<string, { L: number; W: number }> = {
   kitchen: { L: 4.0, W: 4.0 },
   bathroom: { L: 2.0, W: 1.5 },
   laundry: { L: 2.0, W: 1.5 },
-  hallway: { L: 6.0, W: 2.0 },
+  /** Tom, 20 Nov 2026: a hallway is 5 × 1.25 m, an ensuite 2 × 1.5 m — an ensuite sizes from its own row, whatever the bathroom's says. */
+  hallway: { L: 5.0, W: 1.25 },
+  ensuite: { L: 2.0, W: 1.5 },
   wc: { L: 1.25, W: 1.0 },
   garage: { L: 6.0, W: 4.0 },
   study: { L: 3.0, W: 3.0 },
@@ -107,7 +109,7 @@ export function starterRoomList(basics: WizardBasics): StarterRoom[] {
   // Phase 3 (6 Sep plan): three taps instead of assumptions — the second
   // bathroom is the ensuite, then WC, garage and study when ticked.
   for (let i = 2; i <= Math.min(4, basics.bathrooms ?? 1); i++) {
-    rooms.push({ name: i === 2 ? "Ensuite" : `Bathroom ${i}`, roomType: "bathroom", storey: up });
+    rooms.push({ name: i === 2 ? "Ensuite" : `Bathroom ${i}`, roomType: "bathroom", ...(i === 2 ? { sizeType: "ensuite" } : {}), storey: up });
   }
   if (basics.separateToilet) rooms.push({ name: "WC", roomType: "wc", storey: "Ground" });
   if (basics.study) rooms.push({ name: "Study", roomType: "study", storey: "Ground" });
@@ -133,12 +135,21 @@ function typicalOpenings(roomType: string, bedrooms: number): { doors: number; w
     case "living": return { doors: 0, windows: 2 };
     case "open_plan_kitchen_living": return { doors: 0, windows: 3 };
     case "kitchen": return { doors: 0, windows: 1 };
-    case "bathroom": return { doors: 1, windows: 1 };
+    case "bathroom": case "ensuite": return { doors: 1, windows: 1 };
     case "laundry": return { doors: 1, windows: 0 };
     case "hallway": return { doors: bedrooms, windows: 0 };
     case "wc": return { doors: 1, windows: 0 };
     default: return { doors: 0, windows: 0 };
   }
+}
+
+/**
+ * M9 — the doors a hall or landing carries: one for every room on its storey whose typical openings include a door (each
+ * such room opens onto the hall), plus the inside of the front door on the ground floor.
+ */
+export function hallDoors(rooms: readonly StarterRoom[], storey: StarterRoom["storey"]): number {
+  const onto = rooms.filter((r) => r.storey === storey && r.roomType !== "hallway" && typicalOpenings(r.sizeType ?? r.roomType, 0).doors > 0).length;
+  return onto + (storey === "Ground" ? 1 : 0);
 }
 
 const unknownDoor = {
@@ -188,7 +199,9 @@ export function starterExtraction(
     ceiling_height_m: opts.heightM,
     rooms: rooms.map((r) => {
       const size = typicalSize(r.sizeType ?? r.roomType, typicals);
-      const openings = typicalOpenings(r.sizeType ?? r.roomType, opts.bedrooms);
+      // Go-live brief M9 (⚑ D7, 18 Nov 2026): a hall carries the hall side of every door that opens onto it, plus the
+      // inside of the front door — not just the bedroom doors.
+      const openings = r.roomType === "hallway" ? { doors: hallDoors(rooms, r.storey), windows: 0 } : typicalOpenings(r.sizeType ?? r.roomType, opts.bedrooms);
       return {
         name_on_plan: r.name,
         normalised_type: r.roomType as Extraction["rooms"][number]["normalised_type"],

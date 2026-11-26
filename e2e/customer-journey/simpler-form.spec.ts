@@ -40,55 +40,55 @@ test.describe("the quick look", () => {
     // job; the screen-1 upload link is only offered for an outside job.
     await expect(ways.getByTestId("entry-upload")).toHaveCount(0);
 
-    // An address is the one thing screen 1 insists on — without a postcode
-    // the service-area check would hand the job off for our own reasons.
-    await page.getByTestId("ql-next").click();
-    await expect(page.getByTestId("ql-error")).toContainText(/address/i);
+    // Wizard mobile v5 / desktop one-press (19 Nov 2026): an iPhone is the phone's one-question shell — a single
+    // choice advances itself, so the walk is taps, not Continues. An address is the one thing screen 1 insists on:
+    // without a postcode the job stays on screen 1 (the service-area check would hand it off for our own reasons).
+    await page.getByTestId("ql-jobtype-interior").click();
+    await page.waitForTimeout(600);
+    await expect(page.locator("[data-quick-step='start']")).toBeVisible();
     await page.getByPlaceholder(/Your address/).fill("14 Acacia Street, Northcote");
     await page.getByPlaceholder("Suburb").fill("Murrumbeena");
     await page.getByPlaceholder("Postcode").fill("3163");
-    await page.getByTestId("ql-next").click();
+    await page.getByTestId("ql-jobtype-interior").click();
 
-    await expect(page.locator("[data-quick-step='place']")).toBeVisible();
+    await expect(page.locator("[data-quick-step='place']")).toBeVisible({ timeout: 20_000 });
+    await page.getByTestId("ql-kind-house").click();
     await page.getByTestId("ql-bedrooms-4").click();
-    await page.getByTestId("ql-next").click();
+    await page.getByTestId("ql-storeys-single").click();
 
-    await expect(page.locator("[data-quick-step='job']")).toBeVisible();
-    // C9: untick = the same colour; since 14 Sep every tile starts ticked, so
-    // "the same colours" means unticking all three.
-    for (const k of ["walls", "ceilings", "trims", "windows"]) await page.getByTestId(`ql-changing-${k}`).click();
-    await page.getByTestId("ql-next").click();
+    await expect(page.locator("[data-quick-step='job']")).toBeVisible({ timeout: 20_000 });
+    await page.getByTestId("ql-scope-whole").click();
+    await page.getByTestId("ql-next").click(); // the surfaces screen, as it is
     // 14 Sep (evening): confirm the rooms before the gate — the starter list, as it is.
     await expect(page.locator("[data-quick-step='rooms']")).toBeVisible({ timeout: 30_000 });
     await page.getByTestId("ql-next").click();
 
-    await expect(page.locator("[data-quick-step='condition']")).toBeVisible();
-    await expect(page.getByTestId("ql-next")).toHaveText(/See my guide range|Continue to the last question/);
+    await expect(page.locator("[data-quick-step='condition']")).toBeVisible({ timeout: 20_000 });
+    // C9: "the same colours" is one tap on the shell (the grouped laptop unticked four tiles).
+    await page.getByTestId("ql-colours-same").click();
+    await page.getByTestId("ql-condition-wear").click();
+    await page.getByTestId("ql-occupied-no").click();
 
-    // ⚑1: nothing on the four screens has asked who they are.
+    // ⚑1: nothing on the screens so far has asked who they are.
     await expect(page.locator(".wz-crow input")).toHaveCount(0);
     await expect(page.getByText(/Who should we send your estimate to/)).toHaveCount(0);
 
-    await page.getByTestId("ql-next").click();
     // S6: under "details first" the one contact question comes here, then the range.
     const gateShown = await passGateIfShown(page);
 
-    // The reveal: a RANGE, their own answers read back, and three doors.
-    await expect(page.getByTestId("reveal")).toBeVisible({ timeout: 90_000 });
-    await expect(page.getByTestId("reveal-range")).toHaveText(MONEY_RANGE);
-    await expect(page.getByTestId("reveal-restatement")).toContainText("4-bedroom");
-    await expect(page.getByTestId("reveal-restatement")).toContainText("the same colours");
-    for (const door of ["door-tighten", "door-book"]) {
-      await expect(page.getByTestId(door)).toBeVisible();
-    }
+    // The range: on a phone it is the gate screen — a RANGE, the answers read back as the basis, and the doors.
+    const reveal = page.getByTestId("reveal").or(page.getByTestId("wzm-gate"));
+    await expect(reveal).toBeVisible({ timeout: 90_000 });
+    await expect(page.getByTestId("reveal-range").or(page.getByTestId("gate-range"))).toHaveText(MONEY_RANGE);
+    const basis = page.getByTestId("reveal-restatement").or(page.getByTestId("gate-basis"));
+    await expect(basis).toContainText(/4.bedroom/i);
+    await expect(basis).toContainText(/same colours/i);
+    await expect(page.getByTestId("gate-exact").or(page.getByTestId("door-tighten")).first()).toBeVisible();
+    // the gate's "Or book a time with … first" (gate-visit) on the ask variant; Book a visit on the bigger one
+    await expect(page.getByTestId("gate-visit").or(page.getByTestId("gate-book")).or(page.getByTestId("door-book")).first()).toBeVisible();
     // "Keep this estimate" asks for an email — so it is offered only when the
     // details question did not already take one (range first).
     if (gateShown) await expect(page.getByTestId("door-keep")).toHaveCount(0);
-    else await expect(page.getByTestId("door-keep")).toBeVisible();
-    // Every assumption we made for them is listed, not hidden.
-    await page.getByTestId("reveal-assumed-toggle").click();
-    await expect(page.getByTestId("reveal-assumed-hazards")).toBeVisible();
-    await expect(page.getByTestId("reveal-assumed-rooms")).toBeVisible();
     await ctx.close();
   });
 
@@ -99,9 +99,9 @@ test.describe("the quick look", () => {
       const ctx = await browser.newContext({ ...devices["iPhone 13"] });
       const page = await ctx.newPage();
       await driveNoPlanWizard(page, { bedrooms, stopAtReveal: true });
-      const text = await page.getByTestId("reveal-range").innerText();
+      const text = await page.getByTestId("reveal-range").or(page.getByTestId("gate-range")).first().innerText(); // a phone: the gate
       totals[bedrooms] = Number(text.split("–")[0].replace(/[^0-9]/g, ""));
-      await expect(page.getByTestId("reveal-restatement")).toContainText(`${bedrooms}-bedroom`);
+      await expect(page.getByTestId("reveal-restatement").or(page.getByTestId("gate-basis")).first()).toContainText(`${bedrooms}-bedroom`);
       await ctx.close();
     }
     expect(totals[5]).toBeGreaterThan(totals[2]);

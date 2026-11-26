@@ -236,8 +236,7 @@ test.describe("Wizard mobile v5 — the phone's screens (session 2)", () => {
     await at(page, "what");
     // outside: the place, then the exterior v2 steps as they are
     await page.getByTestId("ql-jobtype-exterior").tap();
-    await at(page, "property");
-    await page.getByTestId("ql-kind-house").tap();
+    // go-live S4 (M5): an outside job has no "What kind of place?" — Outside goes straight to the shape
     // Exterior on mobile v5 (S1): the home step is three screens of its own — the shape first, no Continue bar
     await at(page, "shape");
     await expect(page.locator("[data-quick-step='home']")).toBeVisible();
@@ -315,6 +314,7 @@ test.describe("Wizard mobile v5 — the phone's screens (session 2)", () => {
     await page.getByTestId("ql-next").tap();
     await check("colours", false);
     await page.getByTestId("ql-colours-deciding").tap();
+    await page.getByTestId("ql-bold-no").tap(); // S5 M8: a colour change asks the bold question first
     await check("condition", false);
     await page.getByTestId("ql-condition-needs_work").tap();
     await check("living", false);

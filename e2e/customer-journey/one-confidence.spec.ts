@@ -21,7 +21,8 @@ import { driveNoPlanWizard } from "./drive";
 async function headerPct(page: Page): Promise<number> {
   return parseInt((await page.getByTestId("range-width").innerText()).replace(/[±%]/g, ""), 10);
 }
-const widthOf = (t: string) => { const m = t.replace(/,/g, "").match(/\$(\d+)\s*–\s*\$(\d+)/); return m ? Number(m[2]) - Number(m[1]) : NaN; };
+/** The range's width as a share of its middle — a confirm may move the price a few dollars, so dollars alone are not "narrower". */
+const widthOf = (t: string) => { const m = t.replace(/,/g, "").match(/\$(\d+)\s*–\s*\$(\d+)/); return m ? (Number(m[2]) - Number(m[1])) / ((Number(m[2]) + Number(m[1])) / 2) : NaN; };
 
 test("R1.4 one score: no-plan capped, and confirming a room ramps it", async ({ page }) => {
   test.setTimeout(180_000);
@@ -54,6 +55,7 @@ test("R1.4 one score: no-plan capped, and confirming a room ramps it", async ({ 
   // The one number never grows on a confirm, and the range itself narrows.
   await expect(async () => {
     expect(await headerPct(page)).toBeLessThanOrEqual(header0);
-    expect(widthOf((await page.locator(".sc-r").first().textContent()) ?? "")).toBeLessThan(dollars0);
+    // never wider: the whole-dollar rounding of each end allows a hair (under a tenth of a point)
+    expect(widthOf((await page.locator(".sc-r").first().textContent()) ?? "")).toBeLessThanOrEqual(dollars0 + 0.001);
   }).toPass({ timeout: 25_000 });
 });

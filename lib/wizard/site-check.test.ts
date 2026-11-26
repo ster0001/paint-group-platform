@@ -46,7 +46,7 @@ describe("the exterior reasons survive the move", () => {
   test("an exterior job with no exterior answers needs a person", () => {
     expect(requiresSiteCheck({ state: state({ jobType: "exterior", exterior: null }) })).toBe(true);
   });
-  test("double storey", () => { expect(requiresSiteCheck({ state: ext({ storeys: "double" }) })).toBe(true); });
+  test("double storey is priced, not a reason for a person (Tom, 19 Nov 2026)", () => { expect(requiresSiteCheck({ state: ext({ storeys: "double" }) })).toBe(false); });
   test("peeling", () => { expect(requiresSiteCheck({ state: ext({ condition: "peeling" }) })).toBe(true); });
   test("access equipment", () => { expect(requiresSiteCheck({ state: ext({ accessEquipment: ["scaffold"] }) })).toBe(true); });
   test("a metal fence", () => {

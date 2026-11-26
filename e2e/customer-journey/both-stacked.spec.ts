@@ -1,5 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
-import { MONEY_RANGE, driveNoPlanWizard, passOtpIfShown } from "./drive";
+import { MONEY_RANGE, driveNoPlanWizard, passOtpIfShown, setParts, gateDoor } from "./drive";
 
 /**
  * Batch 4 — "Both" jobs get the STACKED editor (Tom's ruling on the parity
@@ -83,6 +83,7 @@ test.describe("on a phone: a both job is inside then outside, one gate (exterior
     await page.getByTestId("ql-next").tap();
     await at(page, "colours");
     await page.getByTestId("ql-colours-new").tap();
+    await page.getByTestId("ql-bold-no").tap(); // S5 M8: a colour change asks the bold question first
     await at(page, "condition");
     await page.getByTestId("ql-condition-good").tap();
     await at(page, "living");
@@ -97,11 +98,11 @@ test.describe("on a phone: a both job is inside then outside, one gate (exterior
     await expect(page.getByTestId("wzm-ribbon-1")).toContainText("Weatherboard home");
     await page.getByTestId("ql-ext-size-md").tap();
     await at(page, "p-house");
-    await page.getByTestId("ext-part-walls").tap();
-    await page.getByTestId("ext-part-fascias").tap();
-    await expect(page.getByTestId("wzm-ribbon-2")).toHaveText("2 parts ticked · tap to see");
+    await setParts(page, ["walls", "fascias"]); // go-live S4 (H2): the usual parts come pre-ticked — set the exact two
     await page.getByTestId("ql-next").tap();
     await at(page, "p-win");
+    await setParts(page, ["walls", "fascias"]);
+    await expect(page.getByTestId("wzm-ribbon-2")).toHaveText("2 parts ticked · tap to see");
     await page.getByTestId("ql-next").tap();
     await at(page, "p-ver");
     await page.getByTestId("ql-next").tap();
@@ -132,7 +133,7 @@ test.describe("on a phone: a both job is inside then outside, one gate (exterior
     await expect(page.getByTestId("gate-part-exterior")).toContainText(MONEY_RANGE);
     await expect(page.getByTestId("gate-basis")).toContainText(/Outside:/);
     await expect(page.getByTestId("gate-fine")).toContainText(/scaffolding or a lift/);
-    await expect(page.getByTestId("gate-block-ask")).toContainText(/room by room, then side by side/);
+    await expect(page.getByTestId("gate-block-ask")).toContainText(/room by room, then side by side/i); // go-live S4 (H7): "Room by room, then side by side, about 15 minutes."
     await expect(page.getByTestId("gate-exact")).toContainText("Inside, then outside");
     expect(await gate.innerText()).not.toMatch(/±|within \d+%|Guide ·|Detailed/);
     await page.getByTestId("gate-included").locator("summary").tap();
@@ -141,7 +142,7 @@ test.describe("on a phone: a both job is inside then outside, one gate (exterior
     await expect(page.getByTestId("gate-included-outside")).toBeVisible();
     await expect(page.getByTestId("ext-range-front")).toBeVisible();
     // Get my exact price on a both job: the stacked editor — rooms, then the sides
-    await page.getByTestId("gate-bar-exact").tap();
+    await gateDoor(page).tap();
     await expect(page).toHaveURL(/\/estimate\/scope\?id=/, { timeout: 30_000 });
     await expect(page.locator("[data-ready='1']")).toBeAttached({ timeout: 30_000 });
     expect(await page.locator(".sc-rc[data-room]").count()).toBeGreaterThan(2);

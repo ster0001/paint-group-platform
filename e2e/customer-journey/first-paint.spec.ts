@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { openQuickLook, fillQuickAddress, quickNext } from "./drive";
+import { openQuickLook, fillQuickAddress, quickNext, DESKTOP_ONE_PRESS, GROUPED_LAPTOP_ONLY } from "./drive";
 
 /**
  * The wizard's first paint (Lighthouse mobile ≥ 90 on /estimate and
@@ -30,6 +30,7 @@ import { openQuickLook, fillQuickAddress, quickNext } from "./drive";
  *     restored screen still, and the step after it rises in as before.
  */
 test("the first screen paints without another origin's stylesheet, supabase-js, or the entrance", async ({ page, request, baseURL }) => {
+  test.skip(DESKTOP_ONE_PRESS, GROUPED_LAPTOP_ONLY);
   const origin = new URL(baseURL!).origin;
   const foreignCss: string[] = [];
   page.on("request", (r) => {
@@ -70,6 +71,7 @@ test("the first screen paints without another origin's stylesheet, supabase-js, 
 });
 
 test("a resumed step paints still, and the step after it rises in", async ({ page }) => {
+  test.skip(DESKTOP_ONE_PRESS, GROUPED_LAPTOP_ONLY);
   await openQuickLook(page);
   await fillQuickAddress(page);
   await quickNext(page);

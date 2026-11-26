@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { driveNoPlanWizard, setStylesInEditor, openScopeEditor } from "./drive";
+import { driveNoPlanWizard, setStylesInEditor, openScopeEditor, DESKTOP_ONE_PRESS, GROUPED_LAPTOP_ONLY } from "./drive";
 import { toSidesEditor } from "./exterior-v2-drive";
 
 /**
@@ -92,6 +92,7 @@ test("doors carry their frame/architrave answer, core tiles are always there, an
 
 test("exterior: every item can be taken off, and there is no accept-online button", async ({ page }) => {
   test.setTimeout(300_000);
+  test.skip(DESKTOP_ONE_PRESS, GROUPED_LAPTOP_ONLY); // go-live S4 (M5): under one-press an outside job has no place screen — the shell path is proven by the phone blocks and go-live-s4.spec
   // v2 phase 2: the job type is a chip on the quick look's first screen, and
   // the answer reaches the state as it is tapped — so the upload route it hands
   // to offers facade photos and a listing, never a floorplan.

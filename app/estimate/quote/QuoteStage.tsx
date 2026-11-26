@@ -18,6 +18,7 @@ import { assertCustomerShape } from "@/lib/wizard/contract";
 import { breakpointNow, sendWizardEvent } from "@/lib/wizard/wizardEvents";
 import { countInBackground } from "@/lib/marketing/success";
 import { quoteCards, quoteProgress, quoteRoomsFrom, quoteSidesFrom, typicalRoomNames, type AttentionCard, type GeneralAnswers, type GeneralCard, type JobKind, type MeasureCard, type QuoteRoom, type RobeCard, type RoomsCard, type SideAttentionCard, type SideOnCard, type SideSizeCard, type SurfacesCard } from "@/lib/quote/cards";
+import { checkRoomSize, checkSideSize, parseMetres, type RoomDims, type SizeCheck } from "@/lib/quote/sizeCheck";
 import type { SidesView } from "@/lib/wizard/sides";
 import type { ExteriorV2 } from "@/lib/wizard/state";
 import type { ExteriorTypicalRow } from "@/lib/wizard/exterior-typicals";
@@ -36,6 +37,7 @@ import { lineState } from "@/lib/quote/quote";
 import { DOOR_DRAWINGS, WINDOW_DRAWINGS } from "@/app/estimate/scope/StyleTiles";
 import Wordmark from "@/app/wizard/Wordmark";
 import MobileContact from "@/app/wizard/MobileContact";
+import TalkSheet from "@/app/wizard/TalkSheet";
 
 /**
  * QUOTE STAGE v10 — the shell and the cards (brief §2 mobile, §3; the
@@ -73,7 +75,7 @@ const DRAWING: Record<NonNullable<GeneralCard["options"][number]["drawing"]>, Re
   "win-casement": WINDOW_DRAWINGS.casement, "win-sash": WINDOW_DRAWINGS.sash, "win-colonial": WINDOW_DRAWINGS.colonial, "win-winder": WINDOW_DRAWINGS.winder,
 };
 
-export default function QuoteStage({ brand, estimateId, initial, jobKind, initialScopeRooms, initialLoop, catalogue, initialRoomExtras, initialExtras, roomTypes, plan, initialSides, v2, typicalRows, initialCornices, initialAccess, logoUrl, estimator, companyPhone, customerSuburb, preparedFor, quoteNo, quoteDate }: {
+export default function QuoteStage({ brand, estimateId, initial, jobKind, initialScopeRooms, initialLoop, catalogue, initialRoomExtras, initialExtras, roomTypes, plan, initialSides, v2, typicalRows, initialCornices, initialAccess, logoUrl, estimator, companyPhone, customerSuburb, preparedFor, quoteNo, quoteDate, holdDays, initialGeneral = null }: {
   brand: WizardBrand;
   estimateId: string;
   initial: CustomerPayload;
@@ -94,6 +96,8 @@ export default function QuoteStage({ brand, estimateId, initial, jobKind, initia
   /** R6: the customer's own floorplan, when one was uploaded (signed URL from `estimateDocuments`); null = no plan tile. */
   plan: EstimateDocument | null;
   initialCornices: "none" | "standard" | "decorative" | null;
+  /** 19 Nov 2026: the other whole-house answers as stored — a reload or a return never asks them again. */
+  initialGeneral?: { doors: string | null; windows: string | null; paintBase: string | null; glossTrims: string | null } | null;
   initialAccess: { answers: SiteAccess; asksLift: boolean };
   logoUrl: string | null;
   estimator: Estimator;
@@ -103,12 +107,15 @@ export default function QuoteStage({ brand, estimateId, initial, jobKind, initia
   preparedFor: PreparedFor;
   quoteNo: string;
   quoteDate: string;
+  /** Go-live D5: how long the quote stands — Settings `wizard_hold_days`. */
+  holdDays: number;
 }) {
   const router = useRouter();
   const [quoteOpen, setQuoteOpen] = useState(false);
   // the room sheet is open FOR a card: moving to another card closes it without an effect
   const [roomOpenFor, setRoomOpenFor] = useState<string | null>(null);
   const [planOpen, setPlanOpen] = useState(false);
+  const [messageOpen, setMessageOpen] = useState(false); // Tom, 20 Nov 2026: "Send us a message" is on the Contact sheet on every card, the finished quote included
   const [saveOpen, setSaveOpen] = useState(false); // Tom, 5 Nov: "Save estimate — you can come back to it at any time"
   const [payload, setPayload] = useState<Payload>(initial);
   const [scopeRooms, setScopeRooms] = useState<CustomerScopeRoom[]>(initialScopeRooms);
@@ -122,7 +129,14 @@ export default function QuoteStage({ brand, estimateId, initial, jobKind, initia
   const [v2State, setV2State] = useState<ExteriorV2 | null>(v2);
   const [railQuoteOpen, setRailQuoteOpen] = useState(false); // D-Q6: the desktop quote starts collapsed
   const rooms = useMemo(() => (jobKind === "exterior" ? quoteSidesFrom(sidesView) : quoteRoomsFrom(scopeRooms, loop, roomExtras)), [jobKind, sidesView, scopeRooms, loop, roomExtras]);
-  const [general, setGeneral] = useState<GeneralAnswers>({ cornices: initialCornices });
+  // 19 Nov 2026: every whole-house answer the server already holds starts answered — a reload used to show "5 to go"
+  // over a finished quote. The height is answered when no room's height is assumed and the rooms agree on one.
+  const [general, setGeneral] = useState<GeneralAnswers>(() => {
+    const heights = [...new Set(rooms.filter((r) => r.kind !== "side").map((r) => r.heightM))];
+    const h = heights.length === 1 ? heights[0] : null;
+    const height = initial.heightUnconfirmed || h == null ? null : h >= 3 ? "3" : h === 2.7 ? "2.7" : h === 2.4 ? "2.4" : "varies";
+    return { cornices: initialCornices, height, doors: initialGeneral?.doors ?? null, windows: initialGeneral?.windows ?? null, paintBase: initialGeneral?.paintBase ?? null, glossTrims: initialGeneral?.glossTrims ?? null };
+  });
   const [access, setAccess] = useState<SiteAccess>(initialAccess.answers);
   const [index, setIndex] = useState(0);
   const [busy, setBusy] = useState(false);
@@ -135,7 +149,7 @@ export default function QuoteStage({ brand, estimateId, initial, jobKind, initia
   const who = estimator.name?.trim().split(/\s+/)[0] ?? "your estimator";
   // §5 (R4): the quote writes itself — the document, the tile's words and the band's share, all from the server's payload.
   const generalToGo = cards.filter((c) => c.kind === "general" && c.value == null).length;
-  const doc = quoteDocument({ payload, rooms, preparedFor, number: quoteNo, date: quoteDate, generalToGo });
+  const doc = quoteDocument({ payload, rooms, preparedFor, number: quoteNo, date: quoteDate, generalToGo, validDays: holdDays });
   const summary = quoteSummary(rooms, generalToGo);
   // The band's "N% settled" is the QUOTE's share — lines settled over lines (the S1 proof on C1: the engine's
   // `confirmedShare` is the tree's confirm-loop share and does not move when a room is sized).
@@ -321,9 +335,28 @@ export default function QuoteStage({ brand, estimateId, initial, jobKind, initia
             <button type="button" className="wzq-rail-plan" onClick={() => setPlanOpen(true)} data-testid="q-rail-plan" aria-label="Your floorplan. Tap a room to jump to it."><img src={plan.url} alt="" /></button>
           </>
         )}
+        {/* Go-live S5 (M11): the room grid — every line of the quote at a glance, its state, a tap to its size card */}
+        {rooms.length > 0 && (
+          <>
+            <p className="wzq-rl-h">{jobKind === "exterior" ? "Your sides" : "Your rooms"}</p>
+            <ul className="wzq-rail-rooms" data-testid="q-rail-rooms" aria-label={jobKind === "exterior" ? "Your sides" : "Your rooms"}>
+              {rooms.map((r) => {
+                const st = lineState(r);
+                return (
+                  <li key={r.areaId}>
+                    <button type="button" className={`wzq-rr ${st} ${r.areaId === currentAreaId ? "now" : ""}`} data-testid={`q-rail-room-${r.areaId}`} data-state={st}
+                      onClick={() => jumpTo(`measure:${r.areaId}`)}>
+                      <b>{r.name}</b><span>{st === "measured" ? "Measured" : st === "typical" ? "Typical size" : "To measure"}</span>
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          </>
+        )}
         {current.kind !== "done" && <PriceBand lo={payload.rangeLoCents} hi={payload.rangeHiCents} settled={settled} testId="q-rail-band" />}
         <button type="button" className={`wzq-rail-qh ${railQuoteOpen ? "open" : ""}`} aria-expanded={railQuoteOpen} onClick={() => setRailQuoteOpen((o) => !o)} data-testid="q-rail-quote-toggle">
-          <b>{doc.title} · {doc.number}</b><span>{summary.toGo === 0 ? "every line settled" : `${summary.toGo} to go`}</span><span className="chev" aria-hidden="true">{railQuoteOpen ? "▴" : "▾"}</span>
+          <b>{doc.title} · {doc.number}</b><span>{summary.toGo === 0 ? "All settled" : `${summary.toGo} to go`}</span><span className="chev" aria-hidden="true">{railQuoteOpen ? "▴" : "▾"}</span>
         </button>
         <div className={`wzq-rail-quote ${railQuoteOpen ? "open" : ""}`} data-testid="q-rail-quote" data-open={railQuoteOpen ? "1" : "0"}>
           <QuoteDoc doc={doc} brand={brand} currentAreaId={currentAreaId} />
@@ -354,13 +387,20 @@ export default function QuoteStage({ brand, estimateId, initial, jobKind, initia
 
           {current.kind === "measure" && (
             <MeasureScreen key={current.id} card={current} busy={busy} estimateId={estimateId}
-              onSize={async (dims) => {
-                const ok = dims
-                  ? await act({ action: "room_dims", areaId: current.areaId, lengthM: dims.lengthM, widthM: dims.widthM, ...(dims.heightM != null ? { heightM: dims.heightM } : {}) })
-                  : await act({ action: "room_size_ok", areaId: current.areaId });
+              onSize={async (dims, sameAs) => {
+                const size = dims
+                  ? { action: "room_dims", areaId: current.areaId, lengthM: dims.lengthM, widthM: dims.widthM, ...(dims.heightM != null ? { heightM: dims.heightM } : {}) }
+                  : { action: "room_size_ok", areaId: current.areaId };
+                // Item 3 (Tom, 20 Nov 2026): "Same as Bed 1" — the size, then that room's surfaces and robe answers, in one batch.
+                const ok = await act(sameAs ? { actions: [size, { action: "room_same_as", areaId: current.areaId, fromAreaId: sameAs }] } : size);
                 if (!ok) return;
                 sendWizardEvent("quote_card_answered", { card: "measure", line: current.areaId, measured: Boolean(dims) });
                 sendWizardEvent("quote_line_settled", { line: current.areaId, state: dims ? "measured" : "typical" });
+                if (sameAs) {
+                  // every other card of this room is answered by the copy: on to the next room (or the last checks)
+                  const next = cards.findIndex((c, k) => k > index && (!("areaId" in c) || c.areaId !== current.areaId));
+                  if (next >= 0) { setIndex(next); return; }
+                }
                 advance();
               }} />
           )}
@@ -410,7 +450,8 @@ export default function QuoteStage({ brand, estimateId, initial, jobKind, initia
               <p className="wzm-gate-label" data-testid="gate-label">{firstName ? `${firstName}, your quote range` : "Your quote range"}</p>
               <p className="wzm-gate-price" data-testid="gate-range">{fmt(payload.rangeLoCents)} – {fmt(payload.rangeHiCents)}</p>
               <p className="wzm-gate-fine" data-testid="gate-fine">
-                {typicalRoomNames(rooms).length > 0 ? `${typicalRoomNames(rooms).join(", ")} ${typicalRoomNames(rooms).length === 1 ? "is" : "are"} at the typical size — tap it below to measure it. ` : "Every room measured. "}
+                {/* Go-live S5 (M12): the instruction first, then only the rooms left unmeasured */}
+                {typicalRoomNames(rooms).length > 0 ? `Tap a room to measure it — ${typicalRoomNames(rooms).join(", ")} ${typicalRoomNames(rooms).length === 1 ? "is" : "are"} still at the typical size. ` : "Every room measured. "}
                 {prepRooms > 0 ? `Repairs in ${prepRooms} ${prepRooms === 1 ? "room are" : "rooms are"} allowed for and confirmed on the day. ` : "Repairs are allowed for and confirmed on the day. "}
                 Price is subject to change based on the information provided. {who} confirms it with you before anything is fixed. Includes GST.
               </p>
@@ -475,26 +516,43 @@ export default function QuoteStage({ brand, estimateId, initial, jobKind, initia
         </div>
       )}
       <MobileContact open={contactOpen} onClose={() => setContactOpen(false)} brand={brand} estimatorName={estimator.name} suburb={customerSuburb}
-        phone={estimator.phone ?? companyPhone} onBook={book} onCall={() => sendWizardEvent("quote_book_clicked", {})} />
+        phone={estimator.phone ?? companyPhone} onBook={book} onCall={() => sendWizardEvent("quote_book_clicked", {})}
+        onMessage={() => { sendWizardEvent("contact_opened", { step: `message:${current.id}`.slice(0, 40) }); setMessageOpen(true); }} />
+      {/* the talk sheet's message mode: posted into the customer's chat with the office (the CRM's live chat) and emailed */}
+      {messageOpen && (
+        <TalkSheet open mode="message" onClose={() => setMessageOpen(false)} estimateId={estimateId}
+          prefill={{ name: preparedFor.name ?? "", email: preparedFor.email ?? "", mobile: preparedFor.mobile ?? "" }}
+          hasContact={Boolean(preparedFor.name?.trim() && preparedFor.email?.trim() && preparedFor.mobile?.trim())}
+          address={preparedFor.address ?? ""} />
+      )}
     </div>
   );
 }
 
-/** §3 B1 — "How big is {room}?": typed numbers over greyed typicals (R2); the typical stands unless something is typed. */
-function MeasureScreen({ card, busy, estimateId, onSize }: { card: MeasureCard; busy: boolean; estimateId: string; onSize: (dims: { lengthM: number; widthM: number; heightM: number | null } | null) => void }) {
+/** §3 B1 — "How big is {room}?": typed numbers over greyed typicals (R2); the typical stands unless something is typed.
+ *  Go-live S4, C3 (D8): what is typed is CHECKED before it is saved (`lib/quote/sizeCheck.ts`) — letters are refused with a
+ *  message, a side over 10 m (6 m in a bedroom, bathroom, laundry or WC), under 1 m or a high ceiling asks first. No clamp. */
+function MeasureScreen({ card, busy, estimateId, onSize }: { card: MeasureCard; busy: boolean; estimateId: string; onSize: (dims: { lengthM: number; widthM: number; heightM: number | null } | null, sameAs?: number) => void }) {
   const [draft, setDraft] = useState<{ w: string; l: string; h: string }>({ w: "", l: "", h: "" });
+  const [check, setCheck] = useState<SizeCheck<RoomDims> | null>(null);
+  /** Item 3: the size check was raised by "Same as Bed 1" — its Yes carries the copy through. */
+  const [sameAsPending, setSameAsPending] = useState<number | undefined>(undefined);
   const photo = useRoomPhotos(estimateId, card.areaId, card.name, "room", false);
   const typed = draft.w.trim() !== "" || draft.l.trim() !== "" || draft.h.trim() !== "";
-  const num = (v: string, fallback: number) => { const n = parseFloat(v.replace(/[^0-9.]/g, "")); return isNaN(n) || n <= 0 ? fallback : n; };
-  const submit = () => {
-    if (!typed) { onSize(null); return; }
-    onSize({ widthM: num(draft.w, card.widthM), lengthM: num(draft.l, card.lengthM), heightM: draft.h.trim() ? Math.min(6, Math.max(2, num(draft.h, card.heightM))) : null });
+  const submit = (sameAs?: number) => {
+    if (!typed) { onSize(null, sameAs); return; }
+    const c = checkRoomSize(draft, card, card.name);
+    if (c.kind === "ok") { setCheck(null); onSize(c.dims, sameAs); return; }
+    setSameAsPending(sameAs);
+    setCheck(c);
   };
+  const edit = (key: "w" | "l" | "h", value: string) => { setDraft({ ...draft, [key]: value }); if (check) setCheck(null); };
   const field = (key: "w" | "l" | "h", label: string, typical: number) => (
     <label className={`wzq-field ${draft[key].trim() ? "" : "typ"}`}>
       <span>{label}</span>
       <input inputMode="decimal" placeholder={String(typical)} value={draft[key]} data-testid={`q-measure-${key}`} autoFocus={key === "w"}
-        onChange={(e) => setDraft({ ...draft, [key]: e.target.value })} onKeyDown={(e) => { if (e.key === "Enter") submit(); }} />
+        aria-invalid={check?.kind === "invalid" && Number.isNaN(parseMetres(draft[key])) ? true : undefined}
+        onChange={(e) => edit(key, e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") submit(); }} />
       <em>m</em>
     </label>
   );
@@ -505,6 +563,7 @@ function MeasureScreen({ card, busy, estimateId, onSize }: { card: MeasureCard; 
       <div className="wzq-meas" data-testid="q-measure" data-measured={card.measured ? "1" : "0"}>
         {field("w", "Width", card.widthM)}{field("l", "Length", card.lengthM)}{field("h", "Ceiling", card.heightM)}
       </div>
+      {check?.kind === "invalid" && <p className="wz-err" role="alert" data-testid="q-size-error">{check.message}</p>}
       {!typed && <p className="wzm-note" data-testid="q-typical-note">{card.measured ? "Your numbers — type over them to change them." : "The grey numbers are typical for this room — type yours over them."}</p>}
       {/* B1: an optional photo of the room (D-Q5: three per room, 5 MB each, the one upload path) */}
       <div className="wzq-photo">
@@ -512,8 +571,23 @@ function MeasureScreen({ card, busy, estimateId, onSize }: { card: MeasureCard; 
         {photo.error && <p className="wz-err" data-testid="q-photo-error">{photo.error}</p>}
       </div>
       <div className="wzm-foot" data-testid="wzm-foot">
-        <button type="button" className="wzm-cta" disabled={busy} onClick={submit} data-testid="q-size-ok">{busy ? "Saving…" : "That's the size"}</button>
-        <p className="wzm-hint"><button type="button" className="wzm-linkish" disabled={busy} onClick={() => onSize(null)} data-testid="q-size-typical">Not sure — use the typical size for now</button></p>
+        {check?.kind === "confirm" ? (
+          <div className="wzq-confirm" role="group" aria-label={check.message} data-testid="q-size-confirm">
+            <p className="wzm-why" role="status">{check.message}</p>
+            <button type="button" className="wzm-cta" disabled={busy} onClick={() => { const d = check.dims; setCheck(null); onSize(d, sameAsPending); }} data-testid="q-size-yes">{busy ? "Saving…" : "Yes, that's right"}</button>
+            <p className="wzm-hint"><button type="button" className="wzm-linkish" disabled={busy} onClick={() => setCheck(null)} data-testid="q-size-fix">Let me fix it</button></p>
+          </div>
+        ) : (
+          <>
+            <button type="button" className="wzm-cta" disabled={busy} onClick={() => submit()} data-testid="q-size-ok">{busy ? "Saving…" : "That's the size"}</button>
+            {card.sameAs && (
+              <button type="button" className="wzm-cta wzq-cta2" disabled={busy} onClick={() => submit(card.sameAs!.areaId)} data-testid="q-same-as">
+                Same as {card.sameAs.name} — skip to the next room
+              </button>
+            )}
+            <p className="wzm-hint"><button type="button" className="wzm-linkish" disabled={busy} onClick={() => onSize(null)} data-testid="q-size-typical">Not sure — use the typical size for now</button></p>
+          </>
+        )}
       </div>
     </>
   );
@@ -540,9 +614,16 @@ function QuoteDoc({ doc, brand, currentAreaId, onLineTap }: { doc: QuoteDocument
           <div className="amt" data-testid={`q-line-${l.areaId}-amount`}>{l.amount}</div>
         </div>
       ))}
-      <div className="ql sum"><div>{doc.repairsLine.split(" — ")[0]}<small>{doc.repairsLine.split(" — ")[1]}</small></div><div className="amt">—</div></div>
-      {doc.subtotal && <div className="ql sum" data-testid="q-doc-subtotal"><div>Subtotal</div><div className="amt">{doc.subtotal}</div></div>}
-      {doc.gst && <div className="ql sum" data-testid="q-doc-gst"><div>GST</div><div className="amt">{doc.gst}</div></div>}
+      {/* Go-live H1: every dollar outside the rooms has a line — set-up and preparation (repairs allowed for), cleaning… */}
+      {doc.extras.map((l) => (
+        <div key={l.key} className="ql extra" data-testid={`q-xline-${l.key}`} data-lo={l.loCents} data-hi={l.hiCents}>
+          <div>{l.label}{l.detail && <small>{l.detail}</small>}</div>
+          <div className="amt" data-testid={`q-xline-${l.key}-amount`}>{l.amount}</div>
+        </div>
+      ))}
+      {doc.extras.length === 0 && <div className="ql sum"><div>{doc.repairsLine.split(" — ")[0]}<small>{doc.repairsLine.split(" — ")[1]}</small></div><div className="amt">—</div></div>}
+      {doc.subtotal && <div className="ql sum" data-testid="q-doc-subtotal"><div>{doc.subtotalLabel}</div><div className="amt">{doc.subtotal}</div></div>}
+      {doc.gst && <div className="ql sum" data-testid="q-doc-gst"><div>{doc.gstLabel}</div><div className="amt">{doc.gst}</div></div>}
       <div className="ql total" data-testid="q-doc-total"><div>{doc.totalLabel}</div><div className="amt">{doc.total}</div></div>
     </div>
   );
@@ -602,7 +683,7 @@ function PriceBand({ lo, hi, settled, testId = "q-band" }: { lo: number; hi: num
     <div className="wzq-band" data-testid={testId} data-lo={lo} data-hi={hi} data-settled={pctSettled}>
       <div className="row">
         <span className="p" data-testid={`${testId}-range`}>{fmt(shown.lo)} – {fmt(shown.hi)}</span>
-        <span className="l" data-testid={`${testId}-settled`}>{pctSettled >= 100 ? "settled" : `closing in · ${pctSettled}% settled`}</span>
+        <span className="l" data-testid={`${testId}-settled`}>{pctSettled >= 100 ? "All settled" : `closing in · ${pctSettled}% settled`}</span>
       </div>
       <div className="track" aria-hidden="true"><i style={{ width: `${Math.max(6, open * 100)}%`, marginLeft: `${(1 - Math.max(0.06, open)) * 50}%`, background: mix([47, 211, 223], [52, 199, 123], pctSettled / 100) }} /></div>
     </div>
@@ -675,6 +756,8 @@ function SurfacesScreen({ card, busy, act, catalogue, onNext }: { card: Surfaces
   );
   const offered = (catalogue ?? []).filter((o) => !room.tiles.some((t) => t.on && t.label.toLowerCase() === o.label.toLowerCase()));
   const tail = room.tiles.filter((t) => t.longTail && !t.on);
+  // Item 5 (Tom, 20 Nov 2026): cupboard doors are a countable surface in any room — except a bedroom, whose robe card owns them.
+  const cupDoors = room.roomType === "bedroom" ? null : room.cupboardDoors;
   return (
     <>
       <h1 data-testid="wzm-h1">What we&rsquo;re painting in here</h1>
@@ -697,11 +780,20 @@ function SurfacesScreen({ card, busy, act, catalogue, onNext }: { card: Surfaces
             </span>
           ))
           : chip(windows))}
+        {cupDoors && cupDoors.count > 0 && (
+          <span role="button" tabIndex={busy ? -1 : 0} className="wzm-chip on" aria-pressed aria-disabled={busy} data-testid="q-surf-cupboard-doors"
+            onClick={() => { if (!busy) void act({ action: "room_cupboard", areaId: room.areaId, on: false, count: null }); }}
+            onKeyDown={(e) => { if (e.key === "Enter" && !busy) void act({ action: "room_cupboard", areaId: room.areaId, on: false, count: null }); }}>
+            Cupboard doors
+            <Counter value={cupDoors.count} min={1} max={40} testId="q-count-cupboard-doors" disabled={busy} onChange={(n) => void act({ action: "room_cupboard", areaId: room.areaId, on: true, count: n })} />
+          </span>
+        )}
         <button type="button" className="wzm-chip add" data-testid="q-add-surface" onClick={() => setAdding((a) => !a)} aria-expanded={adding}>+ Add a surface</button>
       </div>
       {adding && (
         <div className="wzq-addpanel" data-testid="q-add-panel">
           <div className="wzm-chips">
+            {cupDoors && cupDoors.count === 0 && <button type="button" className="wzm-chip" disabled={busy} data-testid="q-add-cupboard-doors" onClick={() => { void act({ action: "room_cupboard", areaId: room.areaId, on: true, count: cupDoors.defaultCount }); setAdding(false); }}>+ Cupboard doors</button>}
             {tail.map((t) => <button key={String(t.key)} type="button" className="wzm-chip" disabled={busy} data-testid={`q-add-${String(t.key).replace(/[^a-z0-9]+/gi, "-")}`} onClick={() => { void act({ action: "toggle_surface", areaId: room.areaId, key: String(t.key), on: true }); setAdding(false); }}>+ {t.label}</button>)}
             {offered.map((o) => <button key={`${o.via}:${o.key}`} type="button" className="wzm-chip" disabled={busy} data-testid={`q-add-${o.key.replace(/[^a-z0-9]+/gi, "-")}`}
               onClick={() => { void act(o.via === "substrate" ? { action: "toggle_surface", areaId: room.areaId, key: o.key, on: true } : { action: "room_add_catalogue", areaId: room.areaId, code: o.key }); setAdding(false); }}>+ {o.label}</button>)}
@@ -723,42 +815,46 @@ function SurfacesScreen({ card, busy, act, catalogue, onNext }: { card: Surfaces
   );
 }
 
-/** §3 B3 — robes and cupboards: No advances; Yes asks the loop's own two questions (the doors, the walls inside) — `room_cupboard` / `room_cupboard_interior`. */
+/**
+ * §3 B3 — built-in robes, in a bedroom (Tom, 20 Nov 2026, items 1, 2, 4): **No** advances; the doors and the walls inside
+ * are two separate ticks, each with its own counter — the walls inside can be painted with no doors at all (a mirrored
+ * robe). Writes the loop's own `room_cupboard` / `room_cupboard_interior` with a count.
+ */
 function RobeScreen({ card, busy, act, onNext }: { card: RobeCard; busy: boolean; act: Act; onNext: () => void }) {
   const room = card.room;
-  const [robe, setRobe] = useState<"none" | "yes" | null>(room.cupboard?.on === true || room.cupboardInterior?.on === true ? "yes" : room.cupboard?.on === false ? "none" : null);
+  const doors = room.cupboard; const inside = room.cupboardInterior;
+  const any = doors?.on === true || inside?.on === true;
+  const [none, setNone] = useState(!any && doors?.on === false);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => () => { if (timer.current) clearTimeout(timer.current); }, []);
-  const pick = (v: "none" | "yes") => {
-    setRobe(v);
-    if (v === "none") {
-      const actions = [{ action: "room_cupboard", areaId: room.areaId, on: false, count: null }, ...(room.cupboardInterior ? [{ action: "room_cupboard_interior", areaId: room.areaId, on: false, count: null }] : [])];
-      void act({ actions });
-      timer.current = setTimeout(onNext, 300);
-    }
+  const pickNone = () => {
+    setNone(true);
+    const actions = [...(doors ? [{ action: "room_cupboard", areaId: room.areaId, on: false, count: null }] : []), ...(inside ? [{ action: "room_cupboard_interior", areaId: room.areaId, on: false, count: null }] : [])];
+    void act({ actions });
+    timer.current = setTimeout(onNext, 300);
   };
-  const yn = (value: boolean | null, pickYn: (on: boolean) => void, testId: string) => (
-    <div className="wzm-opts two" data-testid={testId}>
-      <button type="button" className={`wzm-opt ${value === true ? "on" : ""}`} aria-pressed={value === true} disabled={busy} data-testid={`${testId}-yes`} onClick={() => pickYn(true)}><span><span className="t">Yes</span></span></button>
-      <button type="button" className={`wzm-opt ${value === false ? "on" : ""}`} aria-pressed={value === false} disabled={busy} data-testid={`${testId}-no`} onClick={() => pickYn(false)}><span><span className="t">No</span></span></button>
-    </div>
-  );
+  const row = (item: { on: boolean | null; count: number }, label: string, hint: string, unit: string, action: string, testId: string) => {
+    const on = item.on === true;
+    const set = (next: boolean, count: number | null) => { setNone(false); void act({ action, areaId: room.areaId, on: next, count }); };
+    return (
+      <div className={`wzm-opt wzq-robe-row ${on ? "on" : ""}`} role="button" tabIndex={busy ? -1 : 0} aria-pressed={on} aria-disabled={busy} data-testid={testId}
+        onClick={() => { if (!busy) set(!on, on ? null : item.count); }} onKeyDown={(e) => { if (e.key === "Enter" && !busy) set(!on, on ? null : item.count); }}>
+        <span><span className="t">{label}</span><span className="d">{hint}</span></span>
+        {on && <span className="wzq-robe-n"><Counter value={item.count} min={1} max={40} testId={`${testId}-count`} disabled={busy} onChange={(n) => set(true, n)} /><em>{unit}</em></span>}
+      </div>
+    );
+  };
   return (
     <>
-      <h1 data-testid="wzm-h1">Any built-in robes or cupboards being painted?</h1>
-      <p className="wzm-sub" data-testid="wzm-sub">Wardrobes, linen press, hall cupboards.</p>
-      <div className="wzm-opts two" data-testid="q-robe">
-        <button type="button" className={`wzm-opt ${robe === "none" ? "on" : ""}`} aria-pressed={robe === "none"} disabled={busy} data-testid="q-robe-none" onClick={() => pick("none")}><span><span className="t">No</span></span></button>
-        <button type="button" className={`wzm-opt ${robe === "yes" ? "on" : ""}`} aria-pressed={robe === "yes"} disabled={busy} data-testid="q-robe-yes" onClick={() => pick("yes")}><span><span className="t">Yes</span></span></button>
+      <h1 data-testid="wzm-h1">Any built-in robes being painted?</h1>
+      <p className="wzm-sub" data-testid="wzm-sub">Tick the doors, the walls inside, or both — and how many.</p>
+      <div className="wzm-opts" data-testid="q-robe">
+        <button type="button" className={`wzm-opt ${none && !any ? "on" : ""}`} aria-pressed={none && !any} disabled={busy} data-testid="q-robe-none" onClick={pickNone}><span><span className="t">No</span></span></button>
+        {doors && row(doors, "Robe doors", "The fronts of the doors", "doors", "room_cupboard", "q-robe-doors")}
+        {inside && row(inside, "Walls inside the robe", "With or without the doors", inside.count === 1 ? "robe" : "robes", "room_cupboard_interior", "q-robe-inside")}
       </div>
-      {robe === "yes" && (
-        <div className="wzq-sub" data-testid="q-robe-more">
-          {room.cupboard && <><p className="wzq-grp">{room.cupboard.question}</p>{yn(room.cupboard.on, (on) => void act({ action: "room_cupboard", areaId: room.areaId, on, count: null }), "q-robe-doors")}</>}
-          {room.cupboardInterior && <><p className="wzq-grp">{room.cupboardInterior.question}</p>{yn(room.cupboardInterior.on, (on) => void act({ action: "room_cupboard_interior", areaId: room.areaId, on, count: null }), "q-robe-inside")}</>}
-          <p className="wzm-note">Inside: shelves out, filling minor cracks and sanding — allowances set by us.</p>
-        </div>
-      )}
-      {robe === "yes" && (
+      {any && <p className="wzm-note" data-testid="q-robe-more">Inside: shelves out, filling minor cracks and sanding — allowances set by us.</p>}
+      {any && (
         <div className="wzm-foot" data-testid="wzm-foot">
           <button type="button" className="wzm-cta" disabled={busy} onClick={onNext} data-testid="q-next">{busy ? "Saving…" : "Next"}</button>
         </div>
@@ -942,22 +1038,27 @@ function ExtrasScreen({ offer, state, busy, act, onNext }: { offer: JobExtra[]; 
   );
 }
 
-/** §3 C1 — "How big is the {side}?": across · high over greyed typicals (R2); "That's the size" → `side_dims`, "Not sure" → `side_size_ok`. */
+/** §3 C1 — "How big is the {side}?": across · high over greyed typicals (R2); "That's the size" → `side_dims`, "Not sure" → `side_size_ok`.
+ *  Go-live S4, C3: letters or a size outside the model's bounds (1–60 m across, 1–12 m high) are refused with a message — never clamped. */
 function SideSizeScreen({ card, busy, v2, walk, onDone }: { card: SideSizeCard; busy: boolean; v2: ExteriorV2; walk: (next: ExteriorV2) => Promise<Payload | null>; onDone: (measured: boolean) => void }) {
   const [draft, setDraft] = useState({ w: "", h: "" });
+  const [error, setError] = useState<string | null>(null);
   const typed = draft.w.trim() !== "" || draft.h.trim() !== "";
-  const num = (v: string, fallback: number) => { const n = parseFloat(v.replace(/[^0-9.]/g, "")); return isNaN(n) || n <= 0 ? fallback : n; };
   const submit = async () => {
-    // the walk-around's own answers: adjusted with the numbers (clamped by the model), or "not sure" = the typical stands
-    const j = typed
-      ? await walk(setSideSize(v2, card.sideKey, "adj", { w: Math.min(60, Math.max(0.5, num(draft.w, card.side.lengthM))), h: Math.min(12, Math.max(1, num(draft.h, card.side.widthM))) }))
-      : await walk(setSideSize(v2, card.sideKey, "ns"));
-    if (j) onDone(typed);
+    // the walk-around's own answers: adjusted with the numbers as typed, or "not sure" = the typical stands
+    if (!typed) { const j = await walk(setSideSize(v2, card.sideKey, "ns")); if (j) onDone(false); return; }
+    const c = checkSideSize(draft, { w: card.side.lengthM, h: card.side.widthM });
+    if (c.kind !== "ok") { setError(c.message); return; }
+    setError(null);
+    const j = await walk(setSideSize(v2, card.sideKey, "adj", c.dims));
+    if (j) onDone(true);
   };
   const field = (key: "w" | "h", label: string, typical: number) => (
     <label className={`wzq-field ${draft[key].trim() ? "" : "typ"}`}>
       <span>{label}</span>
-      <input inputMode="decimal" placeholder={String(typical)} value={draft[key]} data-testid={`q-side-${key}`} autoFocus={key === "w"} onChange={(e) => setDraft({ ...draft, [key]: e.target.value })} />
+      <input inputMode="decimal" placeholder={String(typical)} value={draft[key]} data-testid={`q-side-${key}`} autoFocus={key === "w"}
+        aria-invalid={error && Number.isNaN(parseMetres(draft[key])) ? true : undefined}
+        onChange={(e) => { setDraft({ ...draft, [key]: e.target.value }); if (error) setError(null); }} />
       <em>m</em>
     </label>
   );
@@ -968,6 +1069,7 @@ function SideSizeScreen({ card, busy, v2, walk, onDone }: { card: SideSizeCard; 
       <div className="wzq-meas wzq-meas--two" data-testid="q-side-measure" data-measured={card.side.size === "adjusted" ? "1" : "0"}>
         {field("w", "Across", card.side.lengthM)}{field("h", "High", card.side.widthM)}
       </div>
+      {error && <p className="wz-err" role="alert" data-testid="q-size-error">{error}</p>}
       {!typed && <p className="wzm-note" data-testid="q-typical-note">{card.side.size === "adjusted" ? "Your numbers — type over them to change them." : "The grey numbers are typical for a side like this — type yours over them."}</p>}
       <div className="wzm-foot" data-testid="wzm-foot">
         <button type="button" className="wzm-cta" disabled={busy} onClick={() => void submit()} data-testid="q-size-ok">{busy ? "Saving…" : "That's the size"}</button>

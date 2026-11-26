@@ -91,8 +91,9 @@ test.describe("portal timeline (3a-4)", () => {
       checked_at: new Date(Date.now() - 86_400_000).toISOString(), scheduled_for: daysFromToday(-1),
     });
 
-    // Photos: a before (2 days ago), a progress (today) — and a qa-kind one
-    // that must never render.
+    // Photos: a before and a progress, both today — and a qa-kind one that must never render. Both today since the
+    // timeline went one photo card a day (27 Oct 2026): two days apart they were two cards of one, and the lightbox's
+    // "1 of 2" (D4) had nothing to step through.
     const png = Buffer.from(TINY_SIGNATURE_PNG.split(",")[1], "base64");
     const photo = async (kind: string, area: string, caption: string, agoDays: number) => {
       const path = `e2e-timeline/${run}/${kind}-${Math.random().toString(36).slice(2, 8)}.png`;
@@ -105,7 +106,7 @@ test.describe("portal timeline (3a-4)", () => {
       });
       if (row.error) throw new Error(`photo row: ${row.error.message}`);
     };
-    await photo("before", "Hallway", "Before — hallway", 2);
+    await photo("before", "Hallway", "Before — hallway", 0);
     await photo("progress", "Hallway", "First coat going on", 0);
     await photo("qa", "Hallway", "QA close-up — internal", 0);
 

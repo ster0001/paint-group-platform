@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { driveNoPlanWizard, fillQuickAddress, MONEY_RANGE, openQuickLook, openScopeEditor, quickNext, passGateIfShown } from "./drive";
+import { driveNoPlanWizard, fillQuickAddress, MONEY_RANGE, openQuickLook, openScopeEditor, quickNext, passGateIfShown, pickCondition, hopToScopeIfOnQuote } from "./drive";
 import { serviceClient } from "../fixtures/woLoop";
 
 const FIXTURES = "e2e/fixtures";
@@ -17,7 +17,9 @@ const FIXTURES = "e2e/fixtures";
  * climbs on each confirm and the range never widens — and ends narrower than
  * it started once the third room is in.
  */
-const width = (t: string) => { const m = t.replace(/,/g, "").match(/\$(\d+)\s*–\s*\$(\d+)/); return m ? Number(m[2]) - Number(m[1]) : NaN; };
+// The range's width as a share of its middle. The band is a percentage (go-live S2), so its DOLLAR width moves with the
+// middle — a cupboard answered No narrowed the band and still widened the dollars by $20 (24 Nov 2026). Rounded to a tenth.
+const width = (t: string) => { const m = t.replace(/,/g, "").match(/\$(\d+)\s*–\s*\$(\d+)/); if (!m) return NaN; const lo = Number(m[1]), hi = Number(m[2]); return Math.round(((hi - lo) / ((hi + lo) / 2)) * 1000) / 10; };
 
 test("confirm three rooms and flag a crack with a photo: the score climbs, the range never widens, the repair line is priced", async ({ page }) => {
   test.setTimeout(300_000);
@@ -54,10 +56,10 @@ test("confirm three rooms and flag a crack with a photo: the score climbs, the r
     await expect.poll(async () => (await scoreOf()) <= lastScore, { timeout: 20_000 }).toBe(true);
     lastScore = await scoreOf();
     const w = width((await range.textContent())!);
-    expect(w).toBeLessThanOrEqual(lastWidth);
+    expect(w, "the range never widens (as a share of its middle; 0.2 points for the rounding to $10)").toBeLessThanOrEqual(lastWidth + 0.2);
     lastWidth = w;
   }
-  expect(lastWidth).toBeLessThanOrEqual(startWidth);
+  expect(lastWidth).toBeLessThanOrEqual(startWidth + 0.2);
 
   // Flag a crack with a photo on the first room — a minor tag auto-prices (⚑6).
   const areaId = await cards.first().getAttribute("data-room");
@@ -97,7 +99,7 @@ test("one 'anything we've missed' card, extras per room, no pets, and the assume
   // 14 Sep (evening): confirm the rooms — the starter list, accepted as it is.
   await expect(page.locator("[data-quick-step='rooms']")).toBeVisible({ timeout: 30_000 });
   await quickNext(page);
-  await page.getByTestId("ql-condition-good").click();
+  await pickCondition(page, "good");
   await quickNext(page);
   await passGateIfShown(page); // S6: the details-first question sits before the range
   await expect(page.getByTestId("reveal-range")).toContainText(MONEY_RANGE, { timeout: 90_000 });
@@ -105,9 +107,11 @@ test("one 'anything we've missed' card, extras per room, no pets, and the assume
   // The reveal's assume list deep-links into the editor.
   await page.getByTestId("reveal-assumed-toggle").click();
   const link = page.getByTestId("reveal-assumed-link-rooms");
-  await expect(link).toHaveAttribute("href", /#rooms$/);
+  // go-live (18 Nov): the laptop's doors lead to the quote stage, where the rooms are measured; the old editor's #rooms before
+  await expect(link).toHaveAttribute("href", /#rooms$|\/estimate\/quote\?id=/);
   await link.click();
-  await page.waitForURL(/\/estimate\/scope/);
+  await page.waitForURL(/\/estimate\/(scope|quote)/);
+  await hopToScopeIfOnQuote(page); // this test reads the old editor the stage replaces, until the removal release
   // It lands with the first unconfirmed room open — its confirm button on screen.
   await expect(page.locator(".sc-rc[data-room] .il-confirm").first()).toBeVisible({ timeout: 60_000 });
   const estimateId = new URL(page.url()).searchParams.get("id")!;

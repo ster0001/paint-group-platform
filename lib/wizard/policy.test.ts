@@ -369,3 +369,13 @@ describe("⚑11 — trade never self-accepts in v1", () => {
     expect(d.reasons).not.toContain("trade_signoff");
   });
 });
+
+
+/** Go-live S4, M14 (18 Nov 2026): the service-area check runs BEFORE the small-job check — an out-of-area small job gets the out-of-area screen. */
+it("M14: an out-of-area small job is outside_area, never below_floor", () => {
+  const d = evaluateGuardrails(clean({ postcode: "9999" }), 50_000, 95, false, DEFAULT_POLICY, ["3000", "3121"]);
+  expect(d.outcome).toBe("outside_area");
+  expect(d.reasons).toEqual(["outside_service_area"]);
+  const inArea = evaluateGuardrails(clean({ postcode: "3121" }), 50_000, 95, false, DEFAULT_POLICY, ["3000", "3121"]);
+  expect(inArea.outcome).toBe("below_floor");
+});

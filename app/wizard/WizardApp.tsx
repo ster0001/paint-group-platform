@@ -22,7 +22,7 @@ import {
   type WizardState,
   type WizardSurfaceKey,
 } from "@/lib/wizard/state";
-import { mergeDraftState } from "@/lib/wizard/draft-merge";
+import { mergeDraftState, restampDraftBody } from "@/lib/wizard/draft-merge";
 
 /** What /api/wizard/draft hands back on a 409 (C3) — the server's copy, so the
  *  losing write can merge instead of guessing. */
@@ -181,13 +181,15 @@ const PROC_TIPS = [
   "Nothing is booked and nothing is charged until you say so.",
 ];
 
-export default function WizardApp({ roomTypes, substrates, mode = "internal", prefill, prefillState, prefillIsScopeSeed = false, logoUrl, companyPhone = null, estimatorName = null, trust = null, intent, resume = null, assisted = null, segments = DEFAULT_SEGMENTS, gateOrder = "details_first", exteriorTypicals = [], brand = "paintgroup" }: {
+export default function WizardApp({ roomTypes, substrates, mode = "internal", prefill, prefillState, prefillIsScopeSeed = false, logoUrl, companyPhone = null, estimatorName = null, estimatorPhone = null, trust = null, intent, resume = null, assisted = null, segments = DEFAULT_SEGMENTS, gateOrder = "details_first", exteriorTypicals = [], brand = "paintgroup" }: {
   /** Paint Home brief §5: the shopfront this session came through — the host or the hand-off decided it (lib/wizard/brandServer.ts). Paint Group by default. */
   brand?: WizardBrand;
   /** Exterior wizard v2 (S2): the shape typicals (`exterior_typicals`); empty = the built-in list. */
   exteriorTypicals?: ReadonlyArray<ExteriorTypicalRow>;
   /** UI refresh S2 (⚑ 23): the estimator the wizard resolves (`resolveEstimator`), named in "Talk it through". Null names nobody. */
   estimatorName?: string | null;
+  /** Tom, 20 Nov 2026: the estimator's own number (Settings → Company → Estimator phone), shown wherever the estimator is named; the company number when blank. */
+  estimatorPhone?: string | null;
   /** UI refresh S3 (⚑ 5): the homepage's trust claims, for the range screen. */
   trust?: { rating: number | null; count: number | null; url: string | null; warranty: string | null; warrantyNote: string | null } | null;
   /** S6 (R6): the gate order in Booking rules when the page loaded. A resumed session keeps its own. */
@@ -1156,11 +1158,20 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
   /** Set below, once `state` and `setState` are in scope for the merge. */
   const onDraftConflictRef = useRef<((server: DraftConflict) => void) | null>(null);
   const inFlightRef = useRef(false);
-  const queuedRef = useRef<string | null>(null);
-  const queueDraftSave = useCallback(function send(body: string) {
-    if (inFlightRef.current) { queuedRef.current = body; return; }
+  const queuedRef = useRef<{ body: string; claims: Record<string, unknown> } | null>(null);
+  /**
+   * `claims` is the state this body carries. It becomes the merge ancestor only
+   * once the server CONFIRMS it (24 Nov 2026) — a write that loses its race never
+   * became the server's copy, so treating it as the common ancestor made every
+   * field typed since the last real save look "untouched", and the merge handed
+   * the customer's own name, email and mobile back to the server's blanks.
+   */
+  const queueDraftSave = useCallback(function send(rawBody: string, claims: Record<string, unknown>) {
+    if (inFlightRef.current) { queuedRef.current = { body: rawBody, claims }; return; }
     inFlightRef.current = true;
     const returning = returningRef.current;
+    // Stamped when it was built; the write in front of it may have moved the server on since (24 Nov 2026).
+    const body = restampDraftBody(rawBody, draftVersionRef.current);
     void fetch("/api/wizard/draft", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -1178,6 +1189,7 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
       const j = await res.json().catch(() => null) as { version?: number } | null;
       if (typeof j?.version === "number") {
         draftVersionRef.current = j.version;
+        draftBaseRef.current = claims;
         setConfirmedVersion(j.version);
         if (returning) returningRef.current = false;
       }
@@ -1185,7 +1197,7 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
       inFlightRef.current = false;
       const next = queuedRef.current;
       queuedRef.current = null;
-      if (next && !draftHaltRef.current) send(next);
+      if (next && !draftHaltRef.current) send(next.body, next.claims);
     });
   }, []);
 
@@ -1224,7 +1236,7 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
       ...(addressText ? { address: addressText.slice(0, 250) } : {}),
       ...(draftVersionRef.current != null ? { version: draftVersionRef.current } : {}),
       lastScreen: screenTag,
-    }));
+    }), state as unknown as Record<string, unknown>);
   }, [isCustomer, state, page, lastPage, intent?.mode, intent?.entrySource, addressText, queueDraftSave]);
   /**
    * C3 — where they actually are, as a word rather than a number. The funnel
@@ -1252,8 +1264,11 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
       if (typeof server.version === "number") draftVersionRef.current = server.version;
       const theirs = server.state;
       if (!theirs || typeof theirs !== "object") return;
+      // What the server holds at that version IS the last confirmed state — the next 409 merges against it.
+      const confirmedBase = draftBaseRef.current;
+      draftBaseRef.current = theirs as Record<string, unknown>;
       setState((current) => {
-        const base = draftBaseRef.current ?? (current as unknown as Record<string, unknown>);
+        const base = confirmedBase ?? (current as unknown as Record<string, unknown>);
         const { state: merged } = mergeDraftState(base, current as unknown as Record<string, unknown>, theirs);
         return merged as unknown as WizardState;
       });
@@ -1283,11 +1298,9 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
     const t = setTimeout(() => {
       if (draftHaltRef.current) return;
       savedRef.current = body;
-      // The state this write claims — and therefore the ancestor a later 409
-      // merges against. Captured BEFORE the request, because the customer keeps
-      // typing while it is in flight.
-      draftBaseRef.current = state as unknown as Record<string, unknown>;
-      queueDraftSave(body);
+      // The state this write claims — captured BEFORE the request, because the customer keeps
+      // typing while it is in flight. It becomes the 409 ancestor only once the server confirms it.
+      queueDraftSave(body, state as unknown as Record<string, unknown>);
     }, 2500);
     return () => clearTimeout(t);
   }, [state, page, lastPage, isCustomer, sessionWorthSaving, addressText, intent?.mode, intent?.entrySource, queueDraftSave, lastScreen]);
@@ -1937,7 +1950,7 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
   // Reveals route straight to /estimate/scope now (Tom, 28 Aug) — this
   // screen only renders the guardrail outcomes.
   if (screen === "editor" && isCustomer && outcome) {
-    return <CustomerResult outcome={outcome} reveal={null} roomTypes={roomTypes} logoUrl={logoUrl} companyPhone={companyPhone} />;
+    return <CustomerResult outcome={outcome} reveal={null} roomTypes={roomTypes} logoUrl={logoUrl} companyPhone={companyPhone} knownPhone={state.contact.phone} />;
   }
 
   /**
@@ -1996,7 +2009,7 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
           brand={brand}
           estimatorName={reveal.payload.estimator?.name ?? estimatorName}
           suburb={state.address?.suburb || state.customer?.suburb || null}
-          phone={companyPhone}
+          phone={estimatorPhone ?? companyPhone}
           // on the gate: the booking page — the zone's pre-set days, the hold, the texted code (brief §5.2; both shopfronts)
           onBook={() => { sendWizardEvent("gate_cta_clicked", { cta: "visit", breakpoint: "mobile" }); void recordRangeOption(reveal.estimateId, "visit"); clearResume(); router.push(`/estimate/visit?id=${reveal.estimateId}`); }}
           onMessage={() => { sendWizardEvent("gate_cta_clicked", { cta: "message", breakpoint: "mobile" }); void recordRangeOption(reveal.estimateId, "message"); setTalk({ mode: "message" }); }}
@@ -2029,6 +2042,7 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
             suburb={state.address?.suburb || state.customer?.suburb || null}
             trust={trust ? { rating: trust.rating, count: trust.count, warranty: trust.warranty } : null}
             handoff={brand === "painthome" && (reveal.payload as { paintHome?: { tier: "call" | "visit" } }).paintHome?.tier === "visit"}
+            handoffWhy={(reveal.payload as { paintHome?: { why?: string | null } }).paintHome?.why ?? null}
             walked={walked}
             onExact={() => {
               void recordRangeOption(reveal.estimateId, "tighten");
@@ -2241,7 +2255,7 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
         otp: { ui: otp, on: otpOn },
       } : null}
       onChooseBoth={chooseBoth}
-      phone={companyPhone}
+      phone={estimatorPhone ?? companyPhone}
       outside={outside}
       onOutside={setOutside}
       // Tom, 15 Sep: under "Needs work" — the damage note and the
@@ -2308,7 +2322,7 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
       <header className="wz-top">
         <Wordmark logoUrl={logoUrl} brand={brand} />
         {/* UI refresh S9: the old dots are gone (brief §10) — the staff page list says where it is in words. */}
-        <span className="wz-pcount" data-testid="pages-count">{screen === "processing" ? "Working it out" : `Step ${page} of ${lastPage}`}</span>
+        <span className="wz-pcount" data-testid="pages-count">{screen === "processing" ? "Working it out" : `Step ${Math.min(page, lastPage)} of ${lastPage}`}</span>
         {/* C8 — Save & book in the header of every screen (prototype: every
             screen except the map). Leaving is never a dead end. */}
         {isCustomer && screen !== "processing" && (
@@ -2329,7 +2343,7 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
           brand={brand}
           estimatorName={estimatorName}
           suburb={state.address?.suburb || state.customer?.suburb || null}
-          phone={companyPhone}
+          phone={estimatorPhone ?? companyPhone}
           // before the range a visit is a REQUEST, never a slot (R3): the talk sheet's visit mode (a call request needs a range — R25)
           onBook={() => setTalk({ mode: "visit" })}
           onMessage={() => setTalk({ mode: "message" })}
@@ -2495,7 +2509,7 @@ export default function WizardApp({ roomTypes, substrates, mode = "internal", pr
                 desktop={{
                   suburb: state.address?.suburb || state.customer?.suburb || null,
                   estimatorName,
-                  phone: companyPhone,
+                  phone: estimatorPhone ?? companyPhone,
                   // Paint Home brief §5: the mid-flow door asks for a call, never a site visit (as the grouped page's talk card).
                   onBook: () => { flushDraft(lastScreen); sendWizardEvent("contact_opened", { step: quickStep }); setTalk({ mode: brand === "painthome" ? "call" : "visit" }); },
                   onMessage: () => { flushDraft(lastScreen); sendWizardEvent("contact_opened", { step: quickStep }); setTalk({ mode: "message" }); },

@@ -9,7 +9,7 @@
  * the preset decides which tiles exist.
  */
 import { test, expect } from "@playwright/test";
-import { fillQuickAddress, MONEY_RANGE, openQuickLook, quickNext, passGateIfShown, tightenToScope } from "./drive";
+import { fillQuickAddress, MONEY_RANGE, openQuickLook, quickNext, passGateIfShown, tightenToScope, onMobileShell, guideCapOf } from "./drive";
 
 const parseRange = (text: string): [number, number] => {
   const m = text.match(/\$([\d,]+)\s*–\s*\$([\d,]+)/);
@@ -24,6 +24,40 @@ test("the colour tiles follow the job preset and start ticked", async ({ page })
   await quickNext(page);
   await quickNext(page); // the place, defaults
   await expect(page.locator("[data-quick-step='job']")).toBeVisible({ timeout: 30_000 });
+  if (await onMobileShell(page)) {
+    // Desktop one-press (19 Nov 2026): the laptop runs the phone's screens. The preset decides which surfaces the
+    // SURFACES screen offers (the positive list, every one ticked); unticking the window frames takes them out; walls
+    // and ceilings only has nothing to untick and goes straight to the rooms.
+    await page.getByTestId("ql-scope-trims_doors").click();
+    await expect(page.locator("[data-mobile-screen='surfaces']")).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByTestId("ql-surface-walls")).toHaveCount(0);
+    await expect(page.getByTestId("ql-surface-ceilings")).toHaveCount(0);
+    // wizard mobile v5 S7: five chips — the architraves ride on Doors, no chip of their own
+    for (const k of ["windows", "doors", "skirting"]) await expect(page.getByTestId(`ql-surface-${k}`)).toHaveAttribute("aria-pressed", "true");
+    await expect(page.getByTestId("ql-surface-architraves")).toHaveCount(0);
+    await page.getByTestId("wzm-back").click();
+    await expect(page.locator("[data-mobile-screen='job']")).toBeVisible({ timeout: 20_000 });
+    await page.getByTestId("ql-scope-whole").click();
+    await expect(page.locator("[data-mobile-screen='surfaces']")).toBeVisible({ timeout: 20_000 });
+    for (const k of ["walls", "ceilings", "windows", "doors", "skirting"]) await expect(page.getByTestId(`ql-surface-${k}`)).toHaveAttribute("aria-pressed", "true");
+    await page.getByTestId("ql-surface-windows").click();
+    await expect(page.getByTestId("ql-surface-windows")).toHaveAttribute("aria-pressed", "false");
+    await page.getByTestId("ql-surface-windows").click();
+    await expect(page.getByTestId("ql-surface-windows")).toHaveAttribute("aria-pressed", "true");
+    await page.getByTestId("wzm-back").click();
+    await expect(page.locator("[data-mobile-screen='job']")).toBeVisible({ timeout: 20_000 });
+    // the shell's job screen offers three presets (whole, some rooms, trims) — no "walls and ceilings only" (a desktop preset)
+    await expect(page.getByTestId("ql-scope-walls_ceilings")).toHaveCount(0);
+    // …so walls and ceilings alone is the whole interior with the trims unticked — the editor check below still holds
+    await page.getByTestId("ql-scope-whole").click();
+    await expect(page.locator("[data-mobile-screen='surfaces']")).toBeVisible({ timeout: 20_000 });
+    for (const k of ["skirting", "doors", "windows"]) {
+      await page.getByTestId(`ql-surface-${k}`).click();
+      await expect(page.getByTestId(`ql-surface-${k}`)).toHaveAttribute("aria-pressed", "false");
+    }
+    await quickNext(page);
+    await expect(page.locator("[data-quick-step='rooms']")).toBeVisible({ timeout: 30_000 });
+  } else {
   for (const k of ["walls", "ceilings", "trims"]) await expect(page.getByTestId(`ql-changing-${k}`)).toHaveAttribute("aria-pressed", "true");
   await page.getByTestId("ql-scope-walls_ceilings").click();
   await expect(page.getByTestId("ql-changing-trims")).toHaveCount(0);
@@ -54,6 +88,7 @@ test("the colour tiles follow the job preset and start ticked", async ({ page })
   await page.getByTestId("ql-scope-walls_ceilings").click(); // no popup: nothing to exclude from walls and ceilings
   await quickNext(page);
   await expect(page.locator("[data-quick-step='rooms']")).toBeVisible({ timeout: 30_000 }); // 14 Sep (evening): confirm the rooms
+  }
   await quickNext(page);
   await quickNext(page);
   await passGateIfShown(page); // S6: the details-first question sits before the range
@@ -100,14 +135,15 @@ test("answering a detail question narrows the range and never lifts the low end 
   const before = await post({ action: "room_size_ok", areaId: firstArea });
   expect(before.error, `room_size_ok refused: ${before.status} ${before.error ?? ""}`).toBeUndefined();
   expect(before.lo).toBeGreaterThanOrEqual(lo0 - 50); // same envelope the reveal showed (one room size confirmed since)
-  expect(before.hi).toBeLessThanOrEqual(hi0 + 50);
+  // a confirm raises the low end, and while the guide cap sets the top it rises with it (drive.ts guideCapOf)
+  expect(before.hi).toBeLessThanOrEqual(Math.max(hi0, guideCapOf(before.lo)) + 50);
   expect(before.open).toContain("doors");
 
   // The dear answer: the low end may rise, the high end may not.
   const panel = await post({ action: "set_door_style", style: "panel" });
   expect(panel.open).not.toContain("doors");
   expect(panel.lo).toBeGreaterThanOrEqual(before.lo);
-  expect(panel.hi).toBeLessThanOrEqual(before.hi);
+  expect(panel.hi).toBeLessThanOrEqual(Math.max(before.hi, guideCapOf(panel.lo)) + 50);
   expect(panel.lo).toBeLessThanOrEqual(before.hi);
 
   // Confirming rooms only ever narrows: the residual is a slope.
@@ -116,7 +152,7 @@ test("answering a detail question narrows the range and never lifts the low end 
     const next = await post({ action: "room_size_ok", areaId });
     expect(Number.isFinite(next.lo), `room ${areaId} answered`).toBe(true);
     expect(next.lo).toBeGreaterThanOrEqual(prev.lo);
-    expect(next.hi).toBeLessThanOrEqual(prev.hi);
+    expect(next.hi, "the top never rises — except as the guide cap follows a rising low end").toBeLessThanOrEqual(Math.max(prev.hi, guideCapOf(next.lo)) + 50);
     prev = next;
   }
 });

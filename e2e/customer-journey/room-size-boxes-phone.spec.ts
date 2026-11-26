@@ -1,7 +1,7 @@
 import { test, expect, type Page } from "@playwright/test";
 import { randomBytes } from "node:crypto";
 import { serviceClient } from "../fixtures/woLoop";
-import { MONEY_RANGE, driveNoPlanWizard } from "./drive";
+import { MONEY_RANGE, driveNoPlanWizard, gateDoor } from "./drive";
 
 /**
  * Tom, 6 Nov 2026: "the measurement boxes for the rooms still don't line up on
@@ -33,7 +33,7 @@ test.describe("room size boxes on a phone", () => {
   /** The range on the phone, the door, the details sheet; answers the estimate id. */
   const toTheStage = async (page: Page) => {
     await driveNoPlanWizard(page, { suburb, bedrooms: 2, stopAtReveal: true });
-    await page.getByTestId("gate-bar-exact").tap();
+    await gateDoor(page).tap(); // M4: whichever door is visible
     // the gate already took the details, so the door opens the stage straight away; a details sheet (range first) is filled when it comes
     const sheet = page.getByTestId("talk-sheet");
     await expect(sheet.or(page.getByTestId("quote-stage")).or(page.locator(".sc-r").first())).toBeVisible({ timeout: 60_000 });

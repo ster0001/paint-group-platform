@@ -44,13 +44,15 @@ const OUTCOME_HEADINGS: Record<CustomerOutcome["outcome"], string> = {
   rate_limited: "Looks like you're busy",
 };
 
-export default function CustomerResult({ outcome, reveal, roomTypes, logoUrl, companyPhone = null }: {
+export default function CustomerResult({ outcome, reveal, roomTypes, logoUrl, companyPhone = null, knownPhone = null }: {
   outcome: CustomerOutcome | null;
   reveal: Reveal | null;
   roomTypes: string[];
   logoUrl?: string | null;
   /** The office number, for the gate screen's "call now" (prototype s-stop). */
   companyPhone?: string | null;
+  /** Go-live S4 (H6): the mobile the wizard already holds — the stop screens show it instead of asking again. */
+  knownPhone?: string | null;
 }) {
   const [payload, setPayload] = useState<CustomerPayload | null>(reveal);
   const [openRoom, setOpenRoom] = useState<number | null>(null);
@@ -76,7 +78,10 @@ export default function CustomerResult({ outcome, reveal, roomTypes, logoUrl, co
         <HardStop
           heading={OUTCOME_HEADINGS[o.outcome]}
           message={o.message}
-          why={o.why}
+          // H6: the small-job screen is the one sentence — its "why" says the same thing twice
+          why={o.outcome === "below_floor" ? null : o.why}
+          brief={o.outcome === "below_floor"}
+          knownPhone={knownPhone}
           companyPhone={companyPhone}
           canRetry={o.canRetry === true}
         />

@@ -4,7 +4,7 @@ import { test } from "../helpers";
 /** Quote stage v10 (S7 switch-over): with the flag on, the gate's door reads "detailed" and opens /estimate/quote. */
 const V10 = process.env.NEXT_PUBLIC_QUOTE_STAGE_V10 !== "0";
 import { serviceClient } from "../fixtures/woLoop";
-import { MONEY_RANGE, answerOutsideQuick, driveMobileQuickLook, passOtpIfShown } from "./drive";
+import { MONEY_RANGE, answerOutsideQuick, driveMobileQuickLook, passOtpIfShown, gateDoor } from "./drive";
 
 /**
  * Wizard mobile v5 — session 7 (plan §2 "Full E2E on both brands at 390px",
@@ -76,6 +76,14 @@ test.describe("Wizard mobile v5 — the phone, end to end on both shopfronts (se
     await expect(page.getByTestId("wzm")).toBeVisible({ timeout: 20_000 });
   };
   const at = (page: Page, id: string) => expect(page.locator(`[data-mobile-screen='${id}']`)).toBeVisible({ timeout: 10_000 });
+  /** Each side is one screen per side on a phone (exterior mobile v5, S4): "Looks right — next side" until the details. */
+  const throughTheSides = async (page: Page) => {
+    const details = page.locator("[data-mobile-screen='details']");
+    for (let i = 0; i < 6 && !(await details.count()); i++) {
+      await page.getByTestId("ql-next").tap();
+      await page.waitForTimeout(400);
+    }
+  };
   const toRange = async (page: Page, name: string) => {
     await at(page, "details");
     await page.getByTestId("gate-name").fill(name);
@@ -101,7 +109,7 @@ test.describe("Wizard mobile v5 — the phone, end to end on both shopfronts (se
     await expect(page.getByTestId("gate-basis")).toContainText(/same colours/);
     await expect(page.getByTestId("gate-basis")).toContainText(/good condition/);
     await expect(page.getByTestId("gate-tiles").locator("li").nth(2)).toContainText("In person, 40 min");
-    await page.getByTestId("gate-bar-exact").tap();
+    await gateDoor(page).tap();
     if (V10) {
       await expect(page).toHaveURL(/\/estimate\/quote\?id=/, { timeout: 30_000 });
       await expect(page.getByTestId("quote-stage")).toBeVisible({ timeout: 30_000 });
@@ -119,13 +127,14 @@ test.describe("Wizard mobile v5 — the phone, end to end on both shopfronts (se
     const inside = await driveMobileQuickLook(page, { suburb: suburbs.pgOut, jobType: "exterior" });
     expect(inside).toBe(false);
     await at(page, "shape");
-    await expect(page.getByTestId("wzm-ribbon-1")).toHaveText("Outside · House");
+    // go-live S4 (M5): no "What kind of place?" for an outside job, so the ribbon names the job alone until the shape
+    await expect(page.getByTestId("wzm-ribbon-1")).toHaveText("Outside");
     await answerOutsideQuick(page);
-    await page.getByTestId("ql-next").tap();
+    await throughTheSides(page);
     const gate = await toRange(page, "Seven Outside");
     await expect(gate).toHaveAttribute("data-variant", "exact");
     await expect(page.getByTestId("gate-exact")).toContainText("Side by side");
-    await expect(page.getByTestId("gate-basis")).toContainText(/outside|side/i);
+    await expect(page.getByTestId("gate-basis")).toContainText(/outside|side|walls/i); // "Based on the walls, fascias, windows and doors (weatherboard), …"
   });
 
   test("3 · Paint Home, Outside from the hero: the stacked field, the Outside chip, the exterior screens, the range in Paint Home chrome", async ({ page }) => {
@@ -138,7 +147,7 @@ test.describe("Wizard mobile v5 — the phone, end to end on both shopfronts (se
     await at(page, "shape");
     await expect(page.locator(".wzm-head [data-testid='painthome-logo-nav']")).toBeVisible();
     await answerOutsideQuick(page);
-    await page.getByTestId("ql-next").tap();
+    await throughTheSides(page);
     await toRange(page, "Seven PaintHome");
     expect(new URL(page.url()).host).toMatch(/^painthome\.localhost/);
     const without = await page.evaluate(() => { const p = document.querySelector("[data-testid='gate-powered']"); const t = document.body.innerText; return p ? t.replace(p.textContent ?? "", "") : t; });

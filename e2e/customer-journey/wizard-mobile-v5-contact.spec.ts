@@ -72,7 +72,11 @@ test.describe("Wizard mobile v5 — Contact and early booking (session 5)", () =
     // Call dials the shopfront's number; the test stack may hold none for Paint Home, and then the row is absent rather than a dead link
     const call = sheet.getByTestId("wzm-contact-call");
     if (await call.count()) await expect(call).toHaveAttribute("href", /^tel:/);
-    await expect(sheet.getByTestId("wzm-contact-message")).toContainText("Send a message");
+    await expect(sheet.getByTestId("wzm-contact-message")).toContainText("Send us a message");
+    // Tom, 20 Nov 2026: the sheet is a sheet, not the Contact pill blown up (it wore the pill's class: 999px corners, 8px padding)
+    const look = await sheet.getByTestId("wzm-contact-panel").evaluate((el) => { const c = getComputedStyle(el); return { radius: parseFloat(c.borderTopLeftRadius), pad: parseFloat(c.paddingLeft) }; });
+    expect(look.radius, "sheet corners, not a pill").toBeLessThanOrEqual(30);
+    expect(look.pad, "sheet padding, not a pill's").toBeGreaterThanOrEqual(18);
     await expect(sheet.getByTestId("wzm-contact-save")).toContainText("Save and come back later");
     // the rows in the prototype's order
     const order = await sheet.evaluate((el) => ["wzm-contact-who", "wzm-contact-book", "wzm-contact-call", "wzm-contact-message", "wzm-contact-save"].map((t) => el.querySelector(`[data-testid='${t}']`)?.getBoundingClientRect().top ?? null).filter((t): t is number => t != null));
@@ -140,6 +144,7 @@ test.describe("Wizard mobile v5 — Contact and early booking (session 5)", () =
     await page.getByTestId("ql-next").tap();
     await at(page, "colours");
     await page.getByTestId("ql-colours-new").tap();
+    await page.getByTestId("ql-bold-no").tap(); // S5 M8: a colour change asks the bold question first
     await at(page, "condition");
     await page.getByTestId("ql-condition-wear").tap();
     await at(page, "living");
@@ -191,6 +196,7 @@ test.describe("Wizard mobile v5 — Contact and early booking (session 5)", () =
     await page.getByTestId("ql-next").tap();
     await at(page, "colours");
     await page.getByTestId("ql-colours-new").tap();
+    await page.getByTestId("ql-bold-no").tap(); // S5 M8: a colour change asks the bold question first
     await at(page, "condition");
     await page.getByTestId("ql-condition-wear").tap();
     await at(page, "living");

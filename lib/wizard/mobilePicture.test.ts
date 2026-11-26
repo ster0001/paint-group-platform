@@ -83,10 +83,11 @@ describe("exterior on mobile v5 — the ribbon and the drawn house's caption", (
     const screens = mobileScreensFor(stepsFor("exterior", "house", "areas", "range", "whole", true), quick, { v2: v2({ propertyType: "th" }) });
     const at = (id: string) => screens.findIndex((s) => s.id === id);
     const outside = { ...DEFAULT_EXTERIOR_QUICK_LOOK, v2: v2({ propertyType: "th", sizeBand: "sm" }) };
-    expect(ribbonFor({ quick, outside, screens, index: at("shape"), roomsTicked: 0 }).line1).toBe("Outside · House");
+    // go-live S4 (M5): no "What kind of place?" on the outside path — the ribbon reads Outside until the shape is given
+    expect(ribbonFor({ quick, outside, screens, index: at("shape"), roomsTicked: 0 }).line1).toBe("Outside");
     expect(ribbonFor({ quick, outside, screens, index: at("size"), roomsTicked: 0 }).line1).toBe("Outside · Townhouse");
     expect(ribbonFor({ quick, outside, screens, index: at("row"), roomsTicked: 0 }).line1).toBe("Outside · Townhouse · Small");
-    expect(ribbonFor({ quick, outside: { ...outside, v2: null }, screens, index: at("size"), roomsTicked: 0 }).line1).toBe("Outside · House");
+    expect(ribbonFor({ quick, outside: { ...outside, v2: null }, screens, index: at("size"), roomsTicked: 0 }).line1).toBe("Outside");
   });
   it("the caption: shape · size · storeys · about N m across, H m to the gutter (the parapet on a terrace)", () => {
     expect(elevationCaption(v2({ propertyType: "cal", sizeBand: "sm" }))).toBe("Californian bungalow · Small · single storey · about 8.5 m across, 3 m to the gutter");

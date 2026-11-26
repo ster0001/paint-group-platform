@@ -43,7 +43,7 @@ import {
   wallOptionsFromRates,
   type SidesLoopMeta, hoursPerItemCodes, setExtrasItemCount, extrasItemCounts } from "@/lib/wizard/sides";
 import {
-  CUPBOARD_BY_ROOM_TYPE, addCatalogueLine, addRoomCustom, addRoomWindowGroup, applyCupboard, applyCupboardInterior, applyCupboardDoorInside, applyCupboardsEverywhere,
+  CUPBOARD_BY_ROOM_TYPE, addCatalogueLine, addRoomCustom, addRoomWindowGroup, applyCupboard, applyCupboardInterior, applyCupboardDoorInside, applyCupboardsEverywhere, applyRoomSameAs, cupboardConfigFor,
   applyCupboardDefaults, applyLineCount, applyRoomDims, applyRoomSizeOk, applyRoomWindowSize, confirmRoom,
   defaultInteriorLoop, interiorDwTotals, interiorProgress, removeLine, roomLoopViews,
   type InteriorLoopMeta,
@@ -412,6 +412,8 @@ const actionSchema = z.discriminatedUnion("action", [
     /** Tom, 7 Oct 2026: this room's own ceiling height, metres (optional). */
     heightM: z.number().min(2).max(6).nullable().optional() }),
   z.object({ action: z.literal("room_cupboard"), areaId: z.number().int().positive(), on: z.boolean(), count: z.number().int().min(1).max(40).nullable().default(null) }),
+  /** Tom, 20 Nov 2026 (item 3): "Same as Bedroom 1" — this room takes the other room's surfaces and robe answers, and keeps its own size. */
+  z.object({ action: z.literal("room_same_as"), areaId: z.number().int().positive(), fromAreaId: z.number().int().positive() }),
   z.object({ action: z.literal("room_cupboard_interior"), areaId: z.number().int().positive(), on: z.boolean(), count: z.number().int().min(1).max(40).nullable().default(null) }),
   /** Tom, 7 Sep: the inside face of the robe doors, and the sweep's "inside the cupboards" chips (every room at once). */
   z.object({ action: z.literal("room_cupboard_door_inside"), areaId: z.number().int().positive(), on: z.boolean(), count: z.number().int().min(1).max(40).nullable().default(null) }),
@@ -1478,7 +1480,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     }
 
     if (act.action === "room_size_ok" || act.action === "room_dims" || act.action === "room_cupboard" || act.action === "room_cupboard_interior" || act.action === "room_cupboard_door_inside"
-      || act.action === "room_win_size" || act.action === "room_add_window_group" || act.action === "room_custom"
+      || act.action === "room_same_as" || act.action === "room_win_size" || act.action === "room_add_window_group" || act.action === "room_custom"
       || act.action === "room_add_catalogue" || act.action === "room_line_count" || act.action === "room_remove_line"
       || act.action === "confirm_room_loop") {
       let next = Math.max(0, ...blocks.flatMap((b) => [
@@ -1516,12 +1518,19 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         // rate. See lib/wizard/add-catalogue.perItemChargeOut.
         catalogueChargeOut = perItemChargeOut(rateItems, "Interior", item.code);
       }
+      if (act.action === "room_cupboard" && act.on) {
+        // The card, never the client, decides what is priceable — a room type with no cupboard row of its own uses the plain cupboard-door row.
+        const room = blocks.find((b) => b.kind === "area" && Number(b.id) === act.areaId);
+        const code = cupboardConfigFor(String(room?.roomType ?? "")).code;
+        if (!(await ctxPromise).rateItems.some((r) => r.code === code)) return { error: "Cupboard doors aren't on our rate card.", status: 422 };
+      }
       const result =
         act.action === "room_add_catalogue" ? addCatalogueLine(blocks, act.areaId, act.code, catalogueLabel, () => next++, catalogueChargeOut)
         : act.action === "room_line_count" ? applyLineCount(blocks, act.areaId, act.surfaceId, act.count)
         : act.action === "room_remove_line" ? removeLine(blocks, act.areaId, act.surfaceId)
         : act.action === "room_size_ok" ? applyRoomSizeOk(blocks, act.areaId)
         : act.action === "room_dims" ? applyRoomDims(blocks, act.areaId, act.lengthM, act.widthM, act.heightM ?? null)
+        : act.action === "room_same_as" ? applyRoomSameAs(blocks, act.areaId, act.fromAreaId, () => next++)
         : act.action === "room_cupboard" ? applyCupboard(blocks, act.areaId, act.on, act.count, () => next++)
         : act.action === "room_cupboard_interior" ? applyCupboardInterior(blocks, act.areaId, act.on, act.count, () => next++)
         : act.action === "room_cupboard_door_inside" ? applyCupboardDoorInside(blocks, act.areaId, act.on, act.count, () => next++)

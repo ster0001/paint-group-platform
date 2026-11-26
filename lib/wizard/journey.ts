@@ -163,7 +163,9 @@ export function journeyFromRow(r: Record<string, unknown>): WizardJourney {
   const st = (r.step_times && typeof r.step_times === "object" && !Array.isArray(r.step_times)) ? (r.step_times as Record<string, unknown>) : {};
   const stepTimes: Record<string, number> = {};
   for (const [k, v] of Object.entries(st)) if (typeof v === "number" && Number.isFinite(v)) stepTimes[k] = v;
-  const bucket = (WIZARD_BUCKETS as readonly string[]).includes(String(r.bucket)) ? (r.bucket as WizardBucket) : "online_now";
+  // Go-live brief M10 (18 Nov 2026): "Online now" is only ever the idle window's own verdict — a row with no bucket, or
+  // one this code does not know, reads as dropped, never as live.
+  const bucket = (WIZARD_BUCKETS as readonly string[]).includes(String(r.bucket)) ? (r.bucket as WizardBucket) : "dropped";
   const outcome = (WIZARD_OUTCOMES as readonly string[]).includes(String(r.outcome)) ? (r.outcome as WizardOutcome) : "none";
   const n = (v: unknown, d: number) => (typeof v === "number" && Number.isFinite(v) ? v : d);
   const s = (v: unknown) => (typeof v === "string" && v ? v : null);

@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { MONEY_RANGE, driveNoPlanWizard, fillQuickAddress, openQuickLook, openScopeEditor, passGateIfShown, quickNext } from "./drive";
+import { MONEY_RANGE, driveNoPlanWizard, fillQuickAddress, openQuickLook, openScopeEditor, passGateIfShown, quickNext, onMobileShell } from "./drive";
 
 /**
  * Tom, 25 Oct 2026 — the wizard batch, driven as an anonymous customer:
@@ -28,6 +28,22 @@ test("1 + 2 + 3 · floorplan only, deep-blue bold walls, a capped guide range wi
   await openQuickLook(page);
   await fillQuickAddress(page);
   await quickNext(page);
+  if (await onMobileShell(page)) {
+    // Desktop one-press (19 Nov 2026): the laptop runs the phone's screens — no floorplan tile on the place screens
+    // and no room picture on the job screen; the bold question is its own screen after New colours (item 2's
+    // deep-blue picture is the grouped laptop's and the phone strip's; item 3 is proved below on both).
+    await page.getByTestId("ql-kind-house").click();
+    await page.getByTestId("ql-bedrooms-3").click();
+    await page.getByTestId("ql-storeys-single").click();
+    await page.getByTestId("ql-scope-whole").click();
+    await quickNext(page); // the surfaces screen
+    await expect(page.locator("[data-quick-step='rooms']")).toBeVisible({ timeout: 30_000 });
+    await quickNext(page);
+    await page.getByTestId("ql-colours-new").click();
+    await page.getByTestId("ql-bold-yes").click();
+    await page.getByTestId("ql-condition-wear").click();
+    await quickNext(page);
+  } else {
   // 1 · the place step: a floorplan, and nothing about a listing.
   await expect(page.getByTestId("ql-plan")).toBeVisible();
   await expect(page.getByTestId("ql-plan")).toContainText(/Have a floorplan\?/);
@@ -60,6 +76,7 @@ test("1 + 2 + 3 · floorplan only, deep-blue bold walls, a capped guide range wi
   await quickNext(page);
   await page.getByTestId("ql-condition-wear").click();
   await quickNext(page);
+  }
   await passGateIfShown(page);
   await expect(page.getByTestId("reveal-range")).toContainText(MONEY_RANGE, { timeout: 90_000 });
 

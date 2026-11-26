@@ -1,5 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
-import { fillQuickAddress, openQuickLook, passGateIfShown, quickNext, MONEY_RANGE, lookAtEverySide, tightenToScope, DESKTOP_ONE_PRESS, GROUPED_LAPTOP_ONLY } from "./drive";
+import { fillQuickAddress, openQuickLook, passGateIfShown, quickNext, MONEY_RANGE, lookAtEverySide, tightenToScope, setParts, DESKTOP_ONE_PRESS, GROUPED_LAPTOP_ONLY } from "./drive";
 
 /**
  * Exterior wizard v2 — S3: "Tell us about what you ticked" (brief §7.3;
@@ -32,7 +32,7 @@ async function toAbout(page: Page, shape: string, parts: string[]) {
   await page.getByTestId("ql-ext-size-md").click();
   await quickNext(page);
   await expect(page.locator("[data-quick-step='paint']")).toBeVisible({ timeout: 20_000 });
-  for (const p of parts) await page.getByTestId(`ext-part-${p}`).click();
+  await setParts(page, parts);
   await quickNext(page);
   await expect(page.locator("[data-quick-step='about']")).toBeVisible({ timeout: 20_000 });
 }
@@ -201,21 +201,19 @@ test.describe("on a phone: About it is one card per screen (exterior mobile v5, 
     await fillQuickAddress(page);
     await expect(page.getByTestId("wzm")).toBeVisible({ timeout: 20_000 });
     await page.getByTestId("ql-jobtype-exterior").tap();
-    await at(page, "property");
-    await page.getByTestId("ql-kind-house").tap();
     await at(page, "shape");
     await page.getByTestId(`ql-ext-type-${shape}`).tap();
     await at(page, "size");
     await page.getByTestId("ql-ext-size-md").tap();
     await at(page, "p-house");
-    const tick = async (p: string) => { if (parts.includes(p)) await page.getByTestId(`ext-part-${p}`).tap(); };
-    for (const p of ["walls", "gable", "fascias", "gutters", "downpipes", "eaves"]) await tick(p);
+    // go-live S4 (H2): the usual parts come pre-ticked — each Painting screen is SET to this spec's list
+    await setParts(page, parts);
     await page.getByTestId("ql-next").tap();
     await at(page, "p-win");
-    for (const p of ["windows", "doors", "garage", "shutters"]) await tick(p);
+    await setParts(page, parts);
     await page.getByTestId("ql-next").tap();
     await at(page, "p-ver");
-    for (const p of ["verandah", "posts", "ceiling", "handrail"]) await tick(p);
+    await setParts(page, parts);
     await page.getByTestId("ql-next").tap();
     await at(page, "p-around");
     for (const e of extras) await page.getByTestId(`ext-extra-${e}`).tap();

@@ -2,7 +2,7 @@ import { test, expect, type Browser, type Page } from "@playwright/test";
 import { mkdirSync } from "node:fs";
 import path from "node:path";
 import { createClient } from "@supabase/supabase-js";
-import { driveNoPlanWizard, fillQuickAddress, openQuickLook, openScopeEditor, passGateIfShown, quickNext, MONEY_RANGE, openTalk, lookAtEverySide, tightenToScope } from "./drive";
+import { driveNoPlanWizard, fillQuickAddress, openQuickLook, openScopeEditor, passGateIfShown, quickNext, MONEY_RANGE, openTalk, lookAtEverySide, tightenToScope, setParts, onMobileShell, bookDoor } from "./drive";
 
 /**
  * Wizard UI refresh, S0 — the "before" set.
@@ -40,6 +40,9 @@ async function shot(page: Page, width: Width, name: string) {
   await page.waitForTimeout(600);
   await page.screenshot({ path: path.join(dir, `${name}.png`), fullPage: true, animations: "disabled" });
 }
+
+/** The range on whichever screen the app drew: the laptop reveal, or the phone's (and one-press laptop's) gate. */
+const rangeOn = (page: Page) => page.getByTestId("reveal-range").or(page.getByTestId("gate-range")).first();
 
 async function newPage(browser: Browser, width: Width) {
   const ctx = await browser.newContext({ viewport: { width: width.w, height: width.h }, deviceScaleFactor: 1, isMobile: width.w < 900, hasTouch: width.w < 900 });
@@ -105,7 +108,7 @@ test.describe("ui refresh baseline screenshots", () => {
         await expect(gate.or(page.getByTestId("reveal"))).toBeVisible({ timeout: 90_000 });
         if (await gate.count()) await shot(page, width, "06-gate");
         await passGateIfShown(page, { email: `ui.refresh.${Date.now()}@example.com` });
-        await expect(page.getByTestId("reveal-range")).toHaveText(MONEY_RANGE, { timeout: 90_000 });
+        await expect(rangeOn(page)).toHaveText(MONEY_RANGE, { timeout: 90_000 });
         await shot(page, width, "07-reveal");
 
         await tightenToScope(page);
@@ -125,7 +128,7 @@ test.describe("ui refresh baseline screenshots", () => {
         }
         await page.getByTestId(`spot-open-${areaId}`).scrollIntoViewIfNeeded();
         await page.getByTestId(`spot-open-${areaId}`).click();
-        await expect(page.getByTestId("offer-damage")).toBeVisible({ timeout: 15_000 });
+        await expect(page.getByTestId(`spot-panel-${areaId}`)).toBeVisible({ timeout: 15_000 }); // Tom, 25 Oct: the panel, no "easier in person" offer
         await shot(page, width, "10-room-spots-offer");
 
         await page.getByTestId("assistant-widget-launch").click();
@@ -162,6 +165,9 @@ test.describe("ui refresh baseline screenshots", () => {
         test.setTimeout(180_000);
         let page = await newPage(browser, width);
         await openQuickLook(page);
+        // the phone shell has no chat bubble, talk pill or save pill — Contact in its header opens the contact sheet,
+        // which wizard-contact-sheet.spec.ts shoots; these three sheets are the laptop's
+        test.skip((await onMobileShell(page)) && !(await page.getByTestId("wz-chat-bubble").count()), "the phone shell's contact sheet is covered by wizard-contact-sheet.spec.ts");
         await page.getByTestId("wz-chat-bubble").click();
         await expect(page.getByTestId("wz-chat-panel")).toBeVisible({ timeout: 15_000 });
         // Tom, 26 Nov 2026: the "describe the job" box is gone from the chat — it is the line to a person, nothing else.
@@ -200,6 +206,8 @@ test.describe("ui refresh baseline screenshots", () => {
         await fillQuickAddress(page);
         await quickNext(page);
         await expect(page.locator("[data-quick-step='place']")).toBeVisible({ timeout: 20_000 });
+        // ⚑ the one-question shell (phone, and the laptop under one-press) offers no floorplan upload on the place step
+        test.skip(await onMobileShell(page), "the one-question shell has no floorplan upload — listed for Tom in the PR");
         const [chooser] = await Promise.all([page.waitForEvent("filechooser"), page.getByTestId("ql-plan-upload").click()]);
         await chooser.setFiles("e2e/fixtures/not-a-plan-a.png");
         await expect(page.getByTestId("ql-plan-upload")).toContainText(/Floorplan uploaded/, { timeout: 60_000 });
@@ -215,16 +223,19 @@ test.describe("ui refresh baseline screenshots", () => {
         await openQuickLook(page);
         await fillQuickAddress(page);
         await page.getByTestId("ql-jobtype-exterior").click();
-        await quickNext(page);
-        await expect(page.locator("[data-quick-step='place']")).toBeVisible({ timeout: 20_000 });
-        await shot(page, width, "30-ext-place");
-        await quickNext(page);
+        if (!(await onMobileShell(page))) {
+          await quickNext(page);
+          await expect(page.locator("[data-quick-step='place']")).toBeVisible({ timeout: 20_000 });
+          await shot(page, width, "30-ext-place");
+          await quickNext(page);
+        } // the router: Outside advances itself to the home step (go-live S4, M5: no place step for an outside job)
         await expect(page.locator("[data-quick-step='home']")).toBeVisible({ timeout: 20_000 });
         await page.getByTestId("ql-ext-type-cal").click();
         await page.getByTestId("ql-ext-size-md").click();
         await shot(page, width, "31-ext-home");
-        await quickNext(page);
-        for (const p of ["walls", "gable", "fascias", "gutters", "windows", "doors", "verandah", "posts"]) await page.getByTestId(`ext-part-${p}`).click();
+        if (!(await onMobileShell(page))) await quickNext(page); // the router: the size advances itself to Painting
+        await expect(page.locator("[data-quick-step='paint']")).toBeVisible({ timeout: 20_000 });
+        await setParts(page, ["walls", "gable", "fascias", "gutters", "windows", "doors", "verandah", "posts"]); // go-live S4 (H2)
         await shot(page, width, "32-ext-paint");
         await quickNext(page);
         await page.getByTestId("ext-mat-weatherboards").click();
@@ -236,7 +247,7 @@ test.describe("ui refresh baseline screenshots", () => {
         await lookAtEverySide(page);
         await quickNext(page);
         await passGateIfShown(page, { email: `ui.refresh.ext.${Date.now()}@example.com` });
-        await expect(page.getByTestId("reveal-range")).toHaveText(MONEY_RANGE, { timeout: 90_000 });
+        await expect(rangeOn(page)).toHaveText(MONEY_RANGE, { timeout: 90_000 });
         await shot(page, width, "35-ext-reveal");
         // 21 Oct: Tighten opens the customer editor (the walk-around is retired).
         await tightenToScope(page, { email: `ui.refresh.ext.${Date.now()}@example.com` });
@@ -281,7 +292,7 @@ test.describe("ui refresh baseline screenshots", () => {
         await shot(page, width, "52-com-job");
         await quickNext(page);
         await passGateIfShown(page, { email: `ui.refresh.com.${Date.now()}@example.com` });
-        await expect(page.getByTestId("reveal-range")).toHaveText(MONEY_RANGE, { timeout: 90_000 });
+        await expect(rangeOn(page)).toHaveText(MONEY_RANGE, { timeout: 90_000 });
         await shot(page, width, "53-com-reveal");
         await tightenToScope(page);
         await page.waitForURL(/\/estimate\/scope/, { timeout: 60_000 });
@@ -348,7 +359,7 @@ test.describe("ui refresh baseline screenshots", () => {
         test.setTimeout(300_000);
         const page = await newPage(browser, width);
         await driveNoPlanWizard(page, { stopAtReveal: true, suburb: "Glen Waverley", postcode: "3150" });
-        await page.getByTestId("door-book").click();
+        await page.getByTestId("door-book").or(page.getByTestId("gate-visit")).or(bookDoor(page)).first().click(); // the phone gate's "Or book a time"
         await page.waitForURL(/\/estimate\/(visit|book)/, { timeout: 30_000 });
         await expect(page.getByTestId("visit-details").or(page.getByTestId("visit-calendar")).or(page.getByTestId("visit-request")).or(page.getByTestId("visit-out")).or(page.getByTestId("book-page"))).toBeVisible({ timeout: 30_000 });
         await shot(page, width, "70-visit");

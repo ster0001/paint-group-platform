@@ -1,5 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
-import { fillQuickAddress, MONEY_RANGE, openQuickLook, quickNext } from "./drive";
+import { fillQuickAddress, MONEY_RANGE, openQuickLook, quickNext, DESKTOP_ONE_PRESS, GROUPED_LAPTOP_ONLY } from "./drive";
 import { serviceClient } from "../fixtures/woLoop";
 
 /**
@@ -170,6 +170,7 @@ test.describe("the brief path", () => {
 
   test("outside + a range segment (warehouse) is the EXTERIOR brief — never a number, never domestic questions", async ({ page }) => {
     test.setTimeout(240_000);
+    test.skip(DESKTOP_ONE_PRESS, GROUPED_LAPTOP_ONLY); // go-live S4 (M5): under one-press an outside job has no place screen — the shell path is proven by go-live-s4.spec's commercial door (ql-ext-commercial)
     const hits = spyPricing(page);
     await toSegment(page, "exterior");
     await page.getByTestId("ql-segment-warehouse").click();

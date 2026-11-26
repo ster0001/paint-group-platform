@@ -1,6 +1,6 @@
 import { test, expect } from "@playwright/test";
 import { createClient } from "@supabase/supabase-js";
-import { MONEY_RANGE, openQuickLook, fillQuickAddress, quickNext, passGateIfShown, tightenToScope } from "./drive";
+import { MONEY_RANGE, openQuickLook, fillQuickAddress, quickNext, passGateIfShown, tightenToScope, DESKTOP_ONE_PRESS, GROUPED_LAPTOP_ONLY } from "./drive";
 
 /**
  * Tom, 15 Sep (late): "Needs work" on the quick look.
@@ -16,6 +16,7 @@ const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
 test("needs work: a note and a photo, both optional, and the range still arrives", async ({ page }) => {
+  test.skip(DESKTOP_ONE_PRESS, GROUPED_LAPTOP_ONLY);
   test.setTimeout(240_000);
   await openQuickLook(page);
   await fillQuickAddress(page);
@@ -64,6 +65,7 @@ test("needs work: a note and a photo, both optional, and the range still arrives
 });
 
 test("needs work with nothing added still reaches a range, flagged for the estimator", async ({ page }) => {
+  test.skip(DESKTOP_ONE_PRESS, GROUPED_LAPTOP_ONLY);
   test.setTimeout(240_000);
   await openQuickLook(page);
   await fillQuickAddress(page);

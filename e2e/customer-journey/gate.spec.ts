@@ -221,6 +221,7 @@ test.describe("S6 — the gate", () => {
   });
 
   test("the dashboard's gate report counts the sessions per version", async ({ page }) => {
+    test.setTimeout(240_000); // the month's export reads every session on the test project; 60 s was the whole test's budget
     // The dashboard needs a role; the master login (profiles.is_owner) holds them all. Put back afterwards.
     const masterId = (await userIdFor({ email: staffEmail, password: process.env.E2E_STAFF_PASSWORD ?? "" })) ?? "";
     if (!masterId) throw new Error("e2e staff login not found");

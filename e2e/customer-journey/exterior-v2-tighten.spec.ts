@@ -1,5 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
-import { lookAtEverySide, passGateIfShown, quickNext, MONEY_RANGE, passOtpIfShown, tightenToScope, DESKTOP_ONE_PRESS, GROUPED_LAPTOP_ONLY } from "./drive";
+import { lookAtEverySide, passGateIfShown, quickNext, MONEY_RANGE, passOtpIfShown, tightenToScope, setParts, gateDoor, bookDoor, DESKTOP_ONE_PRESS, GROUPED_LAPTOP_ONLY } from "./drive";
 import { toSides } from "./exterior-v2-drive";
 
 /**
@@ -52,6 +52,9 @@ async function answerQuestions(page: Page) {
   await q.getByRole("button", { name: /None of these/ }).click();
   await expect(q).toHaveClass(/done/, { timeout: 30_000 });
 }
+
+/** Quote stage v10 (S7 switch-over): with the flag on, the gate's door opens the quote stage. */
+const V10 = process.env.NEXT_PUBLIC_QUOTE_STAGE_V10 !== "0";
 
 test("Tighten opens the customer editor; A few questions first glows, shows what each paintwork answer looks like, and asks the paintwork, the rot AND the access", async ({ page }) => {
   test.skip(DESKTOP_ONE_PRESS, GROUPED_LAPTOP_ONLY);
@@ -135,17 +138,15 @@ test.describe("on a phone: Tighten is the walk-around, one screen per side (exte
     await fillQuickAddress(page, { suburb: `E2E S6 Walk ${run}` });
     await expect(page.getByTestId("wzm")).toBeVisible({ timeout: 20_000 });
     await page.getByTestId("ql-jobtype-exterior").tap();
-    await at(page, "property");
-    await page.getByTestId("ql-kind-house").tap();
     await at(page, "shape");
     await page.getByTestId("ql-ext-type-cal").tap();
     await at(page, "size");
     await page.getByTestId("ql-ext-size-md").tap();
     await at(page, "p-house");
-    for (const p of ["walls", "gable", "fascias", "eaves"]) await page.getByTestId(`ext-part-${p}`).tap();
+    await setParts(page, ["walls", "gable", "fascias", "eaves", "windows", "doors"]); // go-live S4 (H2): set, not tapped — the usual parts come pre-ticked
     await page.getByTestId("ql-next").tap();
     await at(page, "p-win");
-    for (const p of ["windows", "doors"]) await page.getByTestId(`ext-part-${p}`).tap();
+    await setParts(page, ["walls", "gable", "fascias", "eaves", "windows", "doors"]);
     await page.getByTestId("ql-next").tap();
     await at(page, "p-ver");
     await page.getByTestId("ql-next").tap();
@@ -178,10 +179,13 @@ test.describe("on a phone: Tighten is the walk-around, one screen per side (exte
   };
 
   test("Get my exact price → the walk: counts, size, condition per side, Check this side waits for the size; all four checked → See my exact price → the gate as the exact-price stage, change a side", async ({ page }) => {
+    // Quote stage v10 (S7 switch-over): with the flag on the door opens /estimate/quote and the sides are its cards —
+    // proven by quote-stage-v10-s6.spec.ts; the walk-around below is the kill-switch path (go-live S4 noted this red).
+    test.skip(V10, "with the quote stage on, the door opens the quote stage, not the walk-around");
     test.setTimeout(240_000);
     await toGate(page);
     const thumb = page.getByTestId("wzm-thumb").locator("svg.wz-elev");
-    await page.getByTestId("gate-bar-exact").tap();
+    await gateDoor(page).tap();
     // the front: the house turned to it, the tabs, the counts, the size question, the condition; the bar waits for the size
     await at(page, "w-front");
     await expect(page.getByTestId("ext-walk")).toBeVisible();
@@ -238,7 +242,7 @@ test.describe("on a phone: Tighten is the walk-around, one screen per side (exte
     await at(page, "w-back");
     for (let i = 0; i < 3; i++) await page.getByTestId("wzm-back").tap();
     await expect(page.getByTestId("wzm-gate")).toHaveAttribute("data-variant", "exact");
-    await page.getByTestId("gate-bar-exact").tap();
+    await gateDoor(page).tap();
     await at(page, "w-front");
     await page.getByTestId("ext-check-side").tap();
     await at(page, "w-done");
@@ -257,7 +261,7 @@ test.describe("on a phone: Tighten is the walk-around, one screen per side (exte
     await expect(page.getByTestId("gate-included")).toHaveAttribute("data-open", "1");
     await expect(page.getByTestId("ext-range-front")).toContainText(/checked/);
     await expect(page.getByTestId("ext-range-right")).toContainText(/weathered/);
-    await expect(page.getByTestId("gate-bar-book")).toBeVisible();
+    await expect(bookDoor(page)).toBeVisible(); // M4
     await expect(page.getByTestId("gate-exact")).toHaveCount(0);
     const text = await gate.innerText();
     expect(text).not.toMatch(/±|within \d+%|Guide ·|Detailed/);

@@ -3,7 +3,7 @@ import { mkdirSync } from "node:fs";
 import { serviceClient } from "../fixtures/woLoop";
 import { stepsFor } from "../../lib/wizard/quick-look";
 import { EXTERIOR_SHAPE_KEYS, scaledLengths, typicalFor } from "../../lib/wizard/exterior-typicals";
-import { fillQuickAddress, openQuickLook, passGateIfShown, quickNext, MONEY_RANGE, lookAtEverySide, tightenToScope, DESKTOP_ONE_PRESS, GROUPED_LAPTOP_ONLY } from "./drive";
+import { fillQuickAddress, openQuickLook, passGateIfShown, quickNext, MONEY_RANGE, lookAtEverySide, tightenToScope, setParts, DESKTOP_ONE_PRESS, GROUPED_LAPTOP_ONLY } from "./drive";
 
 /**
  * Exterior wizard v2 — S2: "What kind of home is it?" and the drawn house
@@ -39,6 +39,7 @@ const picture = (page: Page) => page.getByTestId("ql-picture").getByTestId("pic-
 
 test("the home step is on the rail, between the place and the outside questions", async ({ page }) => {
   test.setTimeout(120_000);
+  test.skip(DESKTOP_ONE_PRESS, GROUPED_LAPTOP_ONLY); // go-live S4 (M5): under one-press an outside job has no place screen — the shell path is proven by the phone blocks and go-live-s4.spec
   await toHome(page);
   const keys = await page.getByTestId("wz-rail").locator("li[data-step]").evaluateAll((els) => els.map((e) => (e as HTMLElement).dataset.step ?? ""));
   const want = stepsFor("exterior", "house", "areas", "range", "whole", keys.includes("gate"));
@@ -69,6 +70,7 @@ test("Continue needs a shape and a size, said in words", async ({ page }) => {
 
 test("every shape draws: the picture carries the shape, its parts in grey, and the typical sizes in the caption", async ({ page }) => {
   test.setTimeout(180_000);
+  test.skip(DESKTOP_ONE_PRESS, GROUPED_LAPTOP_ONLY); // go-live S4 (M5): under one-press an outside job has no place screen — the shell path is proven by the phone blocks and go-live-s4.spec
   await toHome(page);
   for (const k of EXTERIOR_SHAPE_KEYS) {
     await page.getByTestId(`ql-ext-type-${k}`).click();
@@ -76,10 +78,10 @@ test("every shape draws: the picture carries the shape, its parts in grey, and t
     const pic = picture(page);
     await expect(pic).toHaveAttribute("data-shape", k);
     await expect(pic).toHaveAttribute("data-side", "front");
-    // The house HAS walls, a roofline, windows and a door, drawn grey — nothing is painting yet (C8b: nothing pre-ticked).
+    // The house HAS walls, a roofline, windows and a door; the usual parts are already painting (go-live S4, H2).
     const parts = pic.locator(".e[data-e]");
     expect(await parts.count()).toBeGreaterThanOrEqual(6);
-    expect(await pic.locator(".e[data-on='1']").count()).toBe(0);
+    expect(await pic.locator(".e[data-on='1']").count(), "go-live S4 (H2): the usual parts come pre-ticked").toBeGreaterThan(0);
     const t = typicalFor(k);
     await expect(page.getByTestId("ql-picture")).toContainText(t.name);
     const lengths = scaledLengths(t, "ns");
@@ -167,8 +169,7 @@ test("the rest of the outside path still reaches a range, and the sides editor's
   await quickNext(page);
   // S3: Painting and About it; S4: each side confirmed.
   await expect(page.locator("[data-quick-step='paint']")).toBeVisible({ timeout: 20_000 });
-  await page.getByTestId("ext-part-walls").click();
-  await page.getByTestId("ext-part-fascias").click();
+  await setParts(page, ["walls", "fascias"]); // go-live S4 (H2): the usual parts come pre-ticked
   await quickNext(page);
   await expect(page.locator("[data-quick-step='about']")).toBeVisible({ timeout: 20_000 });
   await page.getByTestId("ext-mat-render").click();
@@ -222,8 +223,6 @@ test.describe("on a phone: Your home is three screens, the drawn house in the st
     await fillQuickAddress(page);
     await expect(page.getByTestId("wzm")).toBeVisible({ timeout: 20_000 });
     await page.getByTestId("ql-jobtype-exterior").tap();
-    await at(page, "property");
-    await page.getByTestId("ql-kind-house").tap();
     await at(page, "shape");
   };
 
@@ -301,7 +300,7 @@ test.describe("on a phone: Your home is three screens, the drawn house in the st
     // before a shape: the placeholder house of session 3, no drawn house yet
     await expect(page.getByTestId("wzm-thumb").locator("svg[data-testid='wzm-pic']")).toHaveAttribute("data-kind", "house");
     await expect(thumbHouse(page)).toHaveCount(0);
-    await expect(page.getByTestId("wzm-ribbon-1")).toHaveText("Outside · House");
+    await expect(page.getByTestId("wzm-ribbon-1")).toHaveText("Outside"); // go-live S4 (M5): no kind-of-place answer on an outside job
     // the first tap draws it — the front elevation of that shape — and the ribbon names the shape
     await page.getByTestId("ql-ext-type-cal").tap();
     await at(page, "size");
@@ -362,8 +361,6 @@ test.describe("on a phone: Your home is three screens, the drawn house in the st
       await fillQuickAddress(page, { suburb });
       await expect(page.getByTestId("wzm")).toBeVisible({ timeout: 20_000 });
       await page.getByTestId("ql-jobtype-exterior").tap();
-      await at(page, "property");
-      await page.getByTestId("ql-kind-house").tap();
       await at(page, "shape");
       await page.getByTestId("ql-ext-type-terrace").tap();
       await at(page, "size");
@@ -407,12 +404,14 @@ test.describe("on a phone: Your home is three screens, the drawn house in the st
     await expect(thumbHouse(page)).toHaveAttribute("data-shape", "wb");
     await page.getByTestId("ql-ext-size-lg").tap();
     await expect(page.locator("[data-quick-step='paint']")).toBeVisible({ timeout: 20_000 });
-    // session 3's sheet chips tick the exterior brief's parts; the drawn house lights the part
+    // session 3's sheet chips tick the exterior brief's parts; the drawn house follows. Go-live S4 (H2): a weatherboard
+    // home's walls come pre-ticked, so the chip's first tap UNticks them — and the picture goes grey with it.
+    await expect(page.getByTestId("ext-part-walls")).toHaveAttribute("aria-pressed", "true");
     await page.getByTestId("wzm-strip").tap();
     await page.getByTestId("wzm-sheet-chip-walls").tap();
-    await expect(page.getByTestId("wzm-bigpic").locator("svg.wz-elev .e-walls")).toHaveAttribute("data-on", "1");
+    await expect(page.getByTestId("wzm-bigpic").locator("svg.wz-elev .e-walls")).toHaveAttribute("data-on", "0");
     await page.keyboard.press("Escape");
-    await expect(page.getByTestId("ext-part-walls")).toHaveAttribute("aria-pressed", "true");
-    await expect(thumbHouse(page).locator(".e-walls")).toHaveAttribute("data-on", "1");
+    await expect(page.getByTestId("ext-part-walls")).toHaveAttribute("aria-pressed", "false");
+    await expect(thumbHouse(page).locator(".e-walls")).toHaveAttribute("data-on", "0");
   });
 });
